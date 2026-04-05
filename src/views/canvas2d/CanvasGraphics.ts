@@ -272,7 +272,7 @@ export class CanvasGraphics implements IGraphics {
 					ctx.quadraticCurveTo(cmd.cx, cmd.cy, cmd.x, cmd.y);
 					break;
 				case "closePath":
-					if (inPath) ctx.closePath();
+					ctx.closePath();
 					break;
 				case "arc":
 					beginNewPath();

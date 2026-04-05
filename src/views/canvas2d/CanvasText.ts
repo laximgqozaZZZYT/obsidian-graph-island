@@ -163,6 +163,36 @@ export class CanvasText implements IText {
 		}
 	}
 
+	private _drawPillBg(
+		ctx: CanvasRenderingContext2D,
+		tx: number,
+		ty: number,
+		displayWidth: number,
+		fontSize: number,
+		effAlpha: number,
+	) {
+		const pw = displayWidth + this.bgPadX * 2;
+		const ph = fontSize + this.bgPadY * 2;
+		const px = tx - this.bgPadX;
+		const py = ty - fontSize - this.bgPadY;
+		const radius = Math.max(0, this.cornerRadius !== null ? Math.min(this.cornerRadius, ph / 2) : ph / 2);
+		ctx.save();
+		ctx.fillStyle = hexToRgba(this.bgColor!, effAlpha * this.bgAlpha);
+		ctx.beginPath();
+		if (typeof ctx.roundRect === "function") {
+			ctx.roundRect(px, py, pw, ph, radius);
+		} else {
+			ctx.moveTo(px + radius, py);
+			ctx.arcTo(px + pw, py, px + pw, py + ph, radius);
+			ctx.arcTo(px + pw, py + ph, px, py + ph, radius);
+			ctx.arcTo(px, py + ph, px, py, radius);
+			ctx.arcTo(px, py, px + pw, py, radius);
+			ctx.closePath();
+		}
+		ctx.fill();
+		ctx.restore();
+	}
+
 	_flush(ctx: CanvasRenderingContext2D, parentAlpha: number) {
 		if (!this.visible || this.alpha <= 0 || !this.text) return;
 		const effAlpha = parentAlpha * this.alpha;
@@ -201,28 +231,7 @@ export class CanvasText implements IText {
 
 		// Draw pill-shaped background behind the text (halo)
 		if (this.bgColor !== null && this.bgAlpha > 0) {
-			const pw = displayWidth + this.bgPadX * 2;
-			const ph = fontSize + this.bgPadY * 2;
-			const px = tx - this.bgPadX;
-			const py = ty - fontSize - this.bgPadY;
-			const radius = Math.max(0, this.cornerRadius !== null ? Math.min(this.cornerRadius, ph / 2) : ph / 2);
-			ctx.save();
-			ctx.fillStyle = hexToRgba(this.bgColor, effAlpha * this.bgAlpha);
-			ctx.beginPath();
-			// roundRect with pill radius
-			if (typeof ctx.roundRect === "function") {
-				ctx.roundRect(px, py, pw, ph, radius);
-			} else {
-				// Fallback for older engines
-				ctx.moveTo(px + radius, py);
-				ctx.arcTo(px + pw, py, px + pw, py + ph, radius);
-				ctx.arcTo(px + pw, py + ph, px, py + ph, radius);
-				ctx.arcTo(px, py + ph, px, py, radius);
-				ctx.arcTo(px, py, px + pw, py, radius);
-				ctx.closePath();
-			}
-			ctx.fill();
-			ctx.restore();
+			this._drawPillBg(ctx, tx, ty, displayWidth, fontSize, effAlpha);
 		}
 
 		// Draw text stroke/outline for readability (drawn before fill)
