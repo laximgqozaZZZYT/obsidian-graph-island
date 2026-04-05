@@ -823,6 +823,75 @@ function pushIfDistinct(path: { x: number; y: number }[], pt: { x: number; y: nu
 	}
 }
 
+/** Build a connection map from pair data: which groups connect to which. */
+function buildConnectionMap(
+	pairData: Map<string, { srcGroup: string; tgtGroup: string; byColor: Map<number, GraphEdge[]> }>,
+): Map<string, Set<string>> {
+	const connections = new Map<string, Set<string>>();
+	for (const [, pair] of pairData) {
+		if (!connections.has(pair.srcGroup)) connections.set(pair.srcGroup, new Set());
+		if (!connections.has(pair.tgtGroup)) connections.set(pair.tgtGroup, new Set());
+		connections.get(pair.srcGroup)!.add(pair.tgtGroup);
+		connections.get(pair.tgtGroup)!.add(pair.srcGroup);
+	}
+	return connections;
+}
+
+/** Resolve group ports: use provided ports or compute from cfg. */
+function resolveGroupPorts(
+	allPorts: Map<string, GroupPort> | undefined,
+	connections: Map<string, Set<string>>,
+	resolvePos: (ref: string | object) => Pos | undefined,
+	cfg: EdgeDrawConfig,
+	centroids: Map<string, { x: number; y: number }>,
+	radii: Map<string, number>,
+): Map<string, GroupPort> {
+	if (allPorts) return allPorts;
+	const groupKeys = new Set(connections.keys());
+	const polarCenter = computePolarCenter(cfg);
+	return computeGroupPorts(
+		groupKeys, centroids, radii, connections,
+		cfg.coordinateSystem, polarCenter, resolvePos, cfg.nodeClusterMap ?? undefined,
+	);
+}
+
+/** Assemble a single trunk from a group-pair's cable data. */
+function assembleTrunk(
+	pairKey: string,
+	pair: { srcGroup: string; tgtGroup: string; byColor: Map<number, GraphEdge[]> },
+	ports: Map<string, GroupPort>,
+	centroids: Map<string, { x: number; y: number }>,
+	radii: Map<string, number>,
+	cfg: EdgeDrawConfig,
+): { trunk: Trunk; edgeIds: string[] } | null {
+	const cables: TrunkCable[] = [];
+	const allEdges: GraphEdge[] = [];
+	for (const [color, edgeList] of pair.byColor) {
+		cables.push({ color, edges: edgeList });
+		for (const e of edgeList) allEdges.push(e);
+	}
+
+	const portA = ports.get(pair.srcGroup);
+	const portB = ports.get(pair.tgtGroup);
+	if (!portA || !portB) return null;
+
+	const jctA = computeJunction(portA, centroids.get(pair.srcGroup), radii.get(pair.srcGroup) ?? DEFAULT_CLUSTER_RADIUS);
+	const jctB = computeJunction(portB, centroids.get(pair.tgtGroup), radii.get(pair.tgtGroup) ?? DEFAULT_CLUSTER_RADIUS);
+
+	const middle = buildTrunkMiddlePath(jctA, jctB, cfg);
+
+	const path: { x: number; y: number }[] = [portA];
+	pushIfDistinct(path, jctA);
+	for (const p of middle) pushIfDistinct(path, p);
+	pushIfDistinct(path, jctB);
+	pushIfDistinct(path, portB);
+
+	return {
+		trunk: { pairKey, srcGroup: pair.srcGroup, tgtGroup: pair.tgtGroup, path, cables, allEdges },
+		edgeIds: allEdges.map((e) => e.id),
+	};
+}
+
 /**
  * Group inter-group edges into Trunks (one per group pair).
  * Each trunk contains cables grouped by edge color.
@@ -840,67 +909,27 @@ export function buildTrunks(
 	if (!nodeClusterMap) return { trunks, cabledEdgeIds };
 
 	const pairData = collectPairData(edges, nodeClusterMap, cfg.relationColors, cfg.isDark);
-
-	// Build connection map for Port computation (if allPorts not provided)
-	const connections = new Map<string, Set<string>>();
-	for (const [, pair] of pairData) {
-		if (!connections.has(pair.srcGroup)) connections.set(pair.srcGroup, new Set());
-		if (!connections.has(pair.tgtGroup)) connections.set(pair.tgtGroup, new Set());
-		connections.get(pair.srcGroup)!.add(pair.tgtGroup);
-		connections.get(pair.tgtGroup)!.add(pair.srcGroup);
-	}
+	const connections = buildConnectionMap(pairData);
 
 	const centroids = cfg.clusterCentroids;
 	const _radii = cfg.clusterRadii;
 	if (!centroids || !_radii) return { trunks, cabledEdgeIds };
 
-	// Use provided allPorts or compute them
-	let ports = allPorts;
-	if (!ports) {
-		const groupKeys = new Set(connections.keys());
-		let _polarCenter: { x: number; y: number } | undefined;
-		if (cfg.coordinateSystem === "polar" && centroids.size > 0) {
-			let sx = 0,
-				sy = 0;
-			for (const c of centroids.values()) {
-				sx += c.x;
-				sy += c.y;
-			}
-			_polarCenter = { x: sx / centroids.size, y: sy / centroids.size };
-		}
-		ports = computeGroupPorts(
-			groupKeys, centroids, _radii, connections,
-			cfg.coordinateSystem, _polarCenter, resolvePos, cfg.nodeClusterMap ?? undefined,
-		);
-	}
+	const ports = resolveGroupPorts(allPorts, connections, resolvePos, cfg, centroids, _radii);
 
 	const trunkMinEdges = cfg.trunkMinEdges ?? 2;
 	for (const [pairKey, pair] of pairData) {
-		const cables: TrunkCable[] = [];
-		const allEdges: GraphEdge[] = [];
-		for (const [color, edgeList] of pair.byColor) {
-			cables.push({ color, edges: edgeList });
-			for (const e of edgeList) allEdges.push(e);
+		let edgeCount = 0;
+		for (const [, edgeList] of pair.byColor) {
+			edgeCount += edgeList.length;
 		}
-		if (allEdges.length < trunkMinEdges) continue;
+		if (edgeCount < trunkMinEdges) continue;
 
-		const portA = ports.get(pair.srcGroup);
-		const portB = ports.get(pair.tgtGroup);
-		if (!portA || !portB) continue;
+		const result = assembleTrunk(pairKey, pair, ports, centroids, _radii, cfg);
+		if (!result) continue;
 
-		const jctA = computeJunction(portA, centroids.get(pair.srcGroup), _radii.get(pair.srcGroup) ?? DEFAULT_CLUSTER_RADIUS);
-		const jctB = computeJunction(portB, centroids.get(pair.tgtGroup), _radii.get(pair.tgtGroup) ?? DEFAULT_CLUSTER_RADIUS);
-
-		const middle = buildTrunkMiddlePath(jctA, jctB, cfg);
-
-		const path: { x: number; y: number }[] = [portA];
-		pushIfDistinct(path, jctA);
-		for (const p of middle) pushIfDistinct(path, p);
-		pushIfDistinct(path, jctB);
-		pushIfDistinct(path, portB);
-
-		trunks.push({ pairKey, srcGroup: pair.srcGroup, tgtGroup: pair.tgtGroup, path, cables, allEdges });
-		for (const e of allEdges) cabledEdgeIds.add(e.id);
+		trunks.push(result.trunk);
+		for (const id of result.edgeIds) cabledEdgeIds.add(id);
 	}
 
 	return { trunks, cabledEdgeIds };
