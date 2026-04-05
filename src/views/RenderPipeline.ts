@@ -19,7 +19,7 @@ import { incCounter } from "../utils/graph-helpers";
 import { contrastColor } from "../utils/color";
 import {
 	darkenColor, lightenColor, blendColors, desaturateColor,
-	computeGlowParams, computeLabelColors, isDensityTooClose, computeTimelineFilteredSet,
+	computeGlowParams, computeLabelColors, isDensityTooClose,
 	GLOW_ATTENUATE_THRESHOLD, GLOW_ATTENUATE_RANGE, GLOW_RADIUS_ATTENUATE_FACTOR, GLOW_P90_FRACTION,
 } from "./render-pipeline-utils";
 export {
