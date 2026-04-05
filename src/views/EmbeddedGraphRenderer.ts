@@ -60,7 +60,7 @@ export function filterLocalGraph(data: GraphData, centerPath: string, hops: numb
 }
 
 /** Simple concentric layout — center node in middle, others in rings */
-function layoutConcentric(nodes: GraphNode[], centerPath?: string): void {
+export function layoutConcentric(nodes: GraphNode[], centerPath?: string): void {
 	if (nodes.length === 0) return;
 	const centerIdx = centerPath ? nodes.findIndex((n) => n.filePath === centerPath || n.id === centerPath) : 0;
 	const center = centerIdx >= 0 ? centerIdx : 0;
@@ -91,7 +91,7 @@ function layoutConcentric(nodes: GraphNode[], centerPath?: string): void {
 }
 
 /** Get a CSS color from DEFAULT_COLORS by index */
-function getColor(i: number): string {
+export function getColor(i: number): string {
 	return DEFAULT_COLORS[i % DEFAULT_COLORS.length];
 }
 

@@ -154,7 +154,7 @@ export function computeStaticLayout(
 // ---------------------------------------------------------------------------
 
 /** Auto-detect the best time key by counting how many nodes have each candidate property. */
-function detectTimeKey(
+export function detectTimeKey(
 	gd: GraphData,
 	defaultKey: string,
 	getNodeProp: (nodeId: string, key: string) => string | undefined,
@@ -174,7 +174,7 @@ function detectTimeKey(
 }
 
 /** Build timeline bars from placements, using end-key for duration bars. */
-function buildTimelineBars(
+export function buildTimelineBars(
 	placements: { nodeId: string; timeValue: string; timeIndex: number }[],
 	nodes: GraphNode[],
 	stepW: number,
@@ -205,7 +205,7 @@ function buildTimelineBars(
 }
 
 /** Resolve bar overlaps by shifting overlapping bars downward. */
-function resolveBarOverlaps(bars: TimelineBarInfo[], nodes: GraphNode[]): void {
+export function resolveBarOverlaps(bars: TimelineBarInfo[], nodes: GraphNode[]): void {
 	bars.sort((a, b) => a.yCenter - b.yCenter || a.xStart - b.xStart);
 	for (let i = 1; i < bars.length; i++) {
 		for (let j = 0; j < i; j++) {
@@ -223,7 +223,7 @@ function resolveBarOverlaps(bars: TimelineBarInfo[], nodes: GraphNode[]): void {
 }
 
 /** Compute work group Y-ranges from bars based on file path segments. */
-function computeWorkGroupRanges(
+export function computeWorkGroupRanges(
 	bars: TimelineBarInfo[],
 	nodes: GraphNode[],
 ): { name: string; minY: number; maxY: number }[] {
