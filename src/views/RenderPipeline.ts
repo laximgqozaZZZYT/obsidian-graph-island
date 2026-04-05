@@ -15,8 +15,18 @@ import type { ShapeRule } from "../utils/node-shapes";
 import { effectiveRadius } from "../layouts/cluster-force";
 import { Platform } from "obsidian";
 import { clamp } from "../utils/geometry";
-import { hexToRgb, getLuminance, wcagContrastRatio, contrastColor } from "../utils/color";
 import { incCounter } from "../utils/graph-helpers";
+import { contrastColor } from "../utils/color";
+import {
+	darkenColor, lightenColor, blendColors, desaturateColor,
+	computeGlowParams, computeLabelColors, isDensityTooClose,
+	GLOW_ATTENUATE_THRESHOLD, GLOW_ATTENUATE_RANGE, GLOW_RADIUS_ATTENUATE_FACTOR, GLOW_P90_FRACTION,
+} from "./render-pipeline-utils";
+export {
+	darkenColor, lightenColor, blendColors, desaturateColor,
+	computeGlowParams, computeLabelColors, isDensityTooClose,
+	GLOW_ATTENUATE_THRESHOLD, GLOW_ATTENUATE_RANGE, GLOW_RADIUS_ATTENUATE_FACTOR, GLOW_P90_FRACTION,
+};
 import { SpatialHashGrid } from "../utils/spatial-grid";
 import { computeViewportBounds, collectVisibleNodes } from "./batch-context";
 import {
@@ -165,18 +175,6 @@ const OVERLAP_GRID_CELL_SIZE = 120;
 /** Spatial hash grid prime for cell key computation */
 // OVERLAP_GRID_HASH_PRIME removed — grid logic now in SpatialHashGrid
 
-/** Glow attenuation node count threshold (above this, glow starts fading) */
-const GLOW_ATTENUATE_THRESHOLD = 300;
-/** Glow attenuation range (from threshold to threshold+range, glow fades to zero) */
-const GLOW_ATTENUATE_RANGE = 500;
-/** Glow radius attenuation max factor */
-const GLOW_RADIUS_ATTENUATE_FACTOR = 0.7;
-/** P90 percentile fraction for hub node glow detection */
-const GLOW_P90_FRACTION = 0.9;
-
-// ---------------------------------------------------------------------------
-// darkenColor utility (shared with GraphViewContainer)
-// ---------------------------------------------------------------------------
 /**
  * Compute the LOD (Level of Detail) tier based on node screen-space pixel size.
  * Pure function — no DOM/Canvas dependency.
@@ -261,46 +259,6 @@ export function generateDisplacementOffsets(
 		{ dx: -(labelW + pad * 2), dy: pad + labelH * 0.5 }, // far bottom-left
 		{ dx: hw + pad, dy: pad + labelH * 1.5 }, // far below-right
 	];
-}
-
-/** Darken a hex color by mixing toward black. factor 0 = unchanged, 1 = black. */
-export function darkenColor(hex: number, factor: number): number {
-	const { r, g, b } = hexToRgb(hex);
-	const dr = r * (1 - factor);
-	const dg = g * (1 - factor);
-	const db = b * (1 - factor);
-	return (Math.round(dr) << 16) | (Math.round(dg) << 8) | Math.round(db);
-}
-
-/** Lighten a hex color by mixing toward white. factor 0 = unchanged, 1 = white. */
-export function lightenColor(hex: number, factor: number): number {
-	const { r, g, b } = hexToRgb(hex);
-	const lr = r + (255 - r) * factor;
-	const lg = g + (255 - g) * factor;
-	const lb = b + (255 - b) * factor;
-	return (Math.round(lr) << 16) | (Math.round(lg) << 8) | Math.round(lb);
-}
-
-/** Blend two hex colors. t=0 returns a, t=1 returns b. */
-export function blendColors(a: number, b: number, t: number): number {
-	const ar = hexToRgb(a),
-		br = hexToRgb(b);
-	return (
-		(Math.round(ar.r + (br.r - ar.r) * t) << 16) |
-		(Math.round(ar.g + (br.g - ar.g) * t) << 8) |
-		Math.round(ar.b + (br.b - ar.b) * t)
-	);
-}
-
-/** Desaturate a 0xRRGGBB color toward gray. factor=1 is original, factor=0 is fully gray. */
-export function desaturateColor(color: number, factor: number): number {
-	if (factor >= 1) return color;
-	const { r, g, b } = hexToRgb(color);
-	const gray = Math.round(getLuminance(r, g, b));
-	const nr = Math.round(gray + (r - gray) * factor);
-	const ng = Math.round(gray + (g - gray) * factor);
-	const nb = Math.round(gray + (b - gray) * factor);
-	return (nr << 16) | (ng << 8) | nb;
 }
 
 /** Simple deterministic hash of a string to a hue value (0–360). */
@@ -976,15 +934,8 @@ export class RenderPipeline {
 		rt: ReturnType<typeof Object.assign>,
 	) {
 		const { visible, shapeRules, alpha, nodeCount, minWorldRadius } = ctx;
-		const baseGlowAlpha =
-			nodeCount < GLOW_ATTENUATE_THRESHOLD
-				? rt.glowBaseAlpha
-				: rt.glowBaseAlpha * (1 - (nodeCount - GLOW_ATTENUATE_THRESHOLD) / GLOW_ATTENUATE_RANGE);
-		const baseGlowRadius =
-			nodeCount < GLOW_ATTENUATE_THRESHOLD
-				? rt.glowBaseRadius
-				: rt.glowBaseRadius -
-					GLOW_RADIUS_ATTENUATE_FACTOR * ((nodeCount - GLOW_ATTENUATE_THRESHOLD) / GLOW_ATTENUATE_RANGE);
+		const { glowAlpha: baseGlowAlpha, glowRadius: baseGlowRadius } =
+			computeGlowParams(nodeCount, rt.glowBaseAlpha, rt.glowBaseRadius);
 
 		// Reuse degree buffer + O(n) quickSelect instead of sort O(n log n)
 		const degArr = this._degreesPool;
@@ -1746,17 +1697,7 @@ export class RenderPipeline {
 	private _computeLabelColors(
 		rt: Required<RenderThresholds>, isSuperNode: boolean, color: number,
 	): { labelBg: number; labelFill: number } {
-		const themeLabelBg = this.host.isDarkTheme() ? rt.labelBgColor : rt.labelBgColorLight;
-		const syncBg = rt.labelBgColorSync && color != null;
-		const labelBg = isSuperNode
-			? (color != null ? darkenColor(color, 0.6) : themeLabelBg)
-			: syncBg ? blendColors(themeLabelBg, color, 0.15) : themeLabelBg;
-		let labelFill = isSuperNode ? 0xffffff : this.host.isDarkTheme() ? 0xe0e0e0 : 0x222222;
-		if (!isSuperNode && rt.labelTextColorSync && color != null) {
-			labelFill = this.host.isDarkTheme() ? lightenColor(color, 0.55) : darkenColor(color, 0.35);
-		}
-		if (wcagContrastRatio(labelFill, labelBg) < 4.5) labelFill = contrastColor(labelBg);
-		return { labelBg, labelFill };
+		return computeLabelColors(this.host.isDarkTheme(), rt, isSuperNode, color);
 	}
 
 	private _createNodeLabel(
@@ -2145,18 +2086,7 @@ export class RenderPipeline {
 		cx: number, cy: number, bucketSize: number, minDist2: number,
 		grid: Map<string, { cx: number; cy: number }[]>,
 	): boolean {
-		const bx = Math.floor(cx / bucketSize);
-		const by = Math.floor(cy / bucketSize);
-		for (let ddx = -1; ddx <= 1; ddx++) {
-			for (let ddy = -1; ddy <= 1; ddy++) {
-				const neighbors = grid.get(`${bx + ddx},${by + ddy}`);
-				if (!neighbors) continue;
-				for (const nb of neighbors) {
-					if ((cx - nb.cx) ** 2 + (cy - nb.cy) ** 2 < minDist2) return true;
-				}
-			}
-		}
-		return false;
+		return isDensityTooClose(cx, cy, bucketSize, minDist2, grid);
 	}
 
 	/** §0.1 Quality stats from last cullOverlappingLabels run */
