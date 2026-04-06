@@ -59,6 +59,23 @@ if [[ $ACTIVE_COUNT -ge $MAX_SESSIONS ]]; then
 fi
 log "Active sessions: $ACTIVE_COUNT/$MAX_SESSIONS — proceeding as session $((ACTIVE_COUNT + 1))"
 
+# ── Auto-reset stale in-progress issues (>1 hour old) ──
+ISSUE_DIR="$PROJECT_DIR/scripts/pipeline/issues"
+if [[ -d "$ISSUE_DIR" ]]; then
+  NOW=$(date +%s)
+  for f in "$ISSUE_DIR"/*.md; do
+    [[ -f "$f" ]] || continue
+    if grep -q "status: in-progress" "$f" 2>/dev/null; then
+      FILE_AGE=$(( NOW - $(stat -c%Y "$f" 2>/dev/null || echo "$NOW") ))
+      if [[ $FILE_AGE -gt 3600 ]]; then
+        sed -i 's/status: in-progress/status: pending/' "$f"
+        log "RESET: $(basename $f) stale in-progress → pending (age: ${FILE_AGE}s)"
+        (cd "$PROJECT_DIR" && git add "$f" && git commit -m "chore: auto-reset stale issue $(basename $f)" --no-verify 2>/dev/null) || true
+      fi
+    fi
+  done
+fi
+
 # ── Ensure main is clean for worktree creation ──
 cd "$PROJECT_DIR" || exit 1
 if [[ -n "$(git status --porcelain)" ]]; then
