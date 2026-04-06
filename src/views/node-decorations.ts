@@ -67,9 +67,9 @@ export function renderPathfinderMarkers(
 	const pfState = host.getPathfinderState?.();
 	if (!pfNodes || pfNodes.size === 0) return;
 
-	const rtt = host.getRenderThresholds?.() ?? {};
-	const pfStartColor = (rtt as Record<string, number>).pathfinderStartColor;
-	const pfEndColor = (rtt as Record<string, number>).pathfinderEndColor;
+	const rtt = host.getRenderThresholds?.();
+	const pfStartColor = rtt?.pathfinderStartColor;
+	const pfEndColor = rtt?.pathfinderEndColor;
 	const { visible, shapeRules } = ctx;
 	for (const pn of visible) {
 		if (!pfNodes.has(pn.data.id)) continue;

@@ -1260,12 +1260,12 @@ function _setupSearchJumpListeners(
 	});
 }
 
-export function addSelect(
+export function addSelect<T extends string = string>(
 	container: HTMLElement,
 	label: string,
-	options: { value: string; label: string }[],
-	initial: string,
-	onChange: (v: string) => void,
+	options: { value: T; label: string }[],
+	initial: T,
+	onChange: (v: T) => void,
 	description?: string,
 ) {
 	const row = container.createDiv({ cls: "setting-item" });
@@ -1278,7 +1278,7 @@ export function addSelect(
 		const el = sel.createEl("option", { text: opt.label, value: opt.value });
 		if (opt.value === initial) el.selected = true;
 	}
-	sel.addEventListener("change", () => onChange(sel.value));
+	sel.addEventListener("change", () => onChange(sel.value as T));
 }
 
 export function renderGroupList(container: HTMLElement, panel: PanelState, ctx: PanelContext, cb: PanelCallbacks) {
