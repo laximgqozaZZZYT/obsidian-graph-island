@@ -50,12 +50,12 @@ test.beforeAll(async () => {
   });
 });
 
-/** Helper: set panel props, doRender, wait, return node count. */
+/** Helper: set panel props, doRender, wait, return stable node count via getGraphData(). */
 async function renderAndCount(settings: Record<string, unknown>): Promise<number> {
   return page.evaluate(async (s: Record<string, unknown>) => {
     const v = (window as any).app.workspace.getLeavesOfType("graph-view")
       .find((l: any) => "pixiNodes" in l.view)?.view;
-    if (!v) return 0;
+    if (!v) throw new Error("Graph Island view not found");
     for (const [k, val] of Object.entries(s)) {
       if (k === "collapsedGroups" && Array.isArray(val)) v.panel[k] = new Set(val);
       else v.panel[k] = val;
@@ -63,7 +63,7 @@ async function renderAndCount(settings: Record<string, unknown>): Promise<number
     v.rawData = null;
     await v.doRender();
     await new Promise(r => setTimeout(r, 2000));
-    return v.pixiNodes?.size ?? v.getGraphData()?.nodes?.length ?? 0;
+    return v.getGraphData()?.nodes?.length ?? 0;
   }, settings);
 }
 
@@ -170,29 +170,9 @@ test.describe("3-Filter", () => {
   });
 
   test("existingOnly=true filters unresolved", async () => {
-    // Reset fully first to ensure clean state
     await reset();
-    // Use getGraphData() for stable counts (pixiNodes.size varies during simulation)
-    const countAll = await page.evaluate(async () => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")
-        .find((l: any) => "pixiNodes" in l.view)?.view;
-      if (!v) return 0;
-      v.panel.existingOnly = false;
-      v.rawData = null;
-      await v.doRender();
-      await new Promise(r => setTimeout(r, 2000));
-      return v.getGraphData()?.nodes?.length ?? 0;
-    });
-    const countExisting = await page.evaluate(async () => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")
-        .find((l: any) => "pixiNodes" in l.view)?.view;
-      if (!v) return 0;
-      v.panel.existingOnly = true;
-      v.rawData = null;
-      await v.doRender();
-      await new Promise(r => setTimeout(r, 2000));
-      return v.getGraphData()?.nodes?.length ?? 0;
-    });
+    const countAll = await renderAndCount({ existingOnly: false });
+    const countExisting = await renderAndCount({ existingOnly: true });
     expect(countExisting).toBeLessThanOrEqual(countAll);
     await renderAndCount({ existingOnly: false });
   });
