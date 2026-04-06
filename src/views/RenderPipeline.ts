@@ -15,7 +15,6 @@ import type { ShapeRule } from "../utils/node-shapes";
 import { effectiveRadius } from "../layouts/cluster-force";
 import { Platform } from "obsidian";
 import { clamp } from "../utils/geometry";
-import { contrastColor } from "../utils/color";
 import {
 	darkenColor, lightenColor, blendColors, desaturateColor,
 	computeGlowParams, computeLabelColors, isDensityTooClose,
@@ -29,18 +28,10 @@ export {
 import { SpatialHashGrid } from "../utils/spatial-grid";
 import { computeViewportBounds, collectVisibleNodes } from "./batch-context";
 import {
-	createCardText,
 	cleanupCardText,
 	cleanupCardTextAll,
 	renderCardMode,
-	CARD_SCALE_CAP,
 	CARD_FONT_FAMILY,
-	CARD_LINE_HEIGHT,
-	CARD_SUB_FONT_RATIO,
-	COMPACT_CARD_FONT_MIN,
-	COMPACT_CARD_FONT_BASE,
-	FULL_CARD_FONT_BASE,
-	FULL_CARD_FONT_MIN,
 } from "./card-renderer";
 import {
 	renderDonutMode,
