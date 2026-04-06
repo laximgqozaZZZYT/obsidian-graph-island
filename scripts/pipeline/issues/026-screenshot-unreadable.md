@@ -1,7 +1,7 @@
 ---
 priority: high
 reported: 2026-04-06
-status: pending
+status: in-progress
 source: e2e-patrol
 summary: Screenshot readability 20/100
 ---
