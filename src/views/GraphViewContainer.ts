@@ -4808,7 +4808,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		}
 
 		if (!(this.panel.showPathfinderOverlay ?? true)) return;
-		if (!this.pathfinderPath || !g) return;
+		if (!this.pathfinderPath || this.pathfinderPath.length < 2 || !g) return;
 
 		this._pathfinderFrame++;
 		const nodes = this.pixiNodes;
