@@ -360,10 +360,13 @@ async function main() {
     }
     console.log(`\nFull report: ${OUTPUT_PATH}`);
 
+    // Detach from CDP (don't close — it's Obsidian's browser)
+    await browser.close().catch(() => {});
+
   } catch (err) {
     console.error("Visual report failed:", err);
     process.exit(1);
   }
 }
 
-main();
+main().then(() => process.exit(0));
