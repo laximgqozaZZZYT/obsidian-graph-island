@@ -1283,6 +1283,7 @@ export class RenderPipeline {
 		rt: ReturnType<typeof Object.assign>,
 	) {
 		const { visible, tlFilteredOut, alpha, shapeRules, worldScale, minWorldRadius } = ctx;
+		const dotPx = rt.semanticZoomDotPx;
 		const compactPx = rt.semanticZoomCompactPx;
 		const fullPx = rt.semanticZoomFullPx;
 		const defField = this.host.getDefinitionField?.() ?? "";
@@ -1295,7 +1296,7 @@ export class RenderPipeline {
 			const screenPx = effR * 2 * worldScale;
 			const nodeAlpha = tlFilteredOut && tlFilteredOut.has(pn.data.id) ? alpha * crc.filteredNodeAlpha : alpha;
 
-			if (screenPx < 1.5) {
+			if (screenPx < dotPx) {
 				// Tier 1: colored dot
 				const dotSize = 1 / worldScale;
 				g.lineStyle(0);
