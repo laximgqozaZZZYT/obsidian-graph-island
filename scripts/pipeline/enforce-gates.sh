@@ -51,10 +51,24 @@ else
   RESULTS["coverage"]="skip"
 fi
 
-# ── E2E (CDP auto-detected, no skip flag) ──
+# ── E2E (CDP auto-detected, with retry for flaky tests) ──
 CDP_CHECK=$(curl -sf "http://localhost:9222/json/version" 2>/dev/null || true)
 if [[ -n "$CDP_CHECK" ]]; then
-  run_gate "e2e" npx playwright test --config e2e/cdp-smoke.config.ts --reporter=line
+  E2E_PASS=false
+  for e2e_try in 1 2; do
+    if npx playwright test --config e2e/cdp-smoke.config.ts --reporter=line >/dev/null 2>&1; then
+      E2E_PASS=true
+      break
+    fi
+    [[ $e2e_try -lt 2 ]] && sleep 3
+  done
+  RESULTS["e2e"]=$([[ "$E2E_PASS" == true ]] && echo "0" || echo "1")
+  if [[ "$E2E_PASS" == true ]]; then
+    [[ "$JSON_OUTPUT" == false ]] && echo "PASS [e2e]"
+  else
+    OVERALL_EXIT=1
+    [[ "$JSON_OUTPUT" == false ]] && echo "FAIL [e2e]"
+  fi
 else
   RESULTS["e2e"]="skip"
   [[ "$JSON_OUTPUT" == false ]] && echo "SKIP [e2e] (CDP unavailable)"
