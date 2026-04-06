@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-06
-status: in-progress
+status: pending
 source: decomposed
 parent: 015-autofit-viewport-broken
 depends: none
