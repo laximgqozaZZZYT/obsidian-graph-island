@@ -51,13 +51,23 @@ if ! node -e "process.exit(0)" 2>/dev/null; then
   exit 1
 fi
 
-# ── Count active sessions (exclude self + parent shell wrappers) ──
-ACTIVE_COUNT=$(pgrep -xf "bash .*/autonomous-improve.sh" 2>/dev/null | grep -v $$ | wc -l || echo "0")
+# ── Count active sessions via lock directory (not pgrep) ──
+LOCK_DIR="/tmp/graph-island-sessions"
+mkdir -p "$LOCK_DIR"
+# Clean stale locks (PID no longer running)
+for lockfile in "$LOCK_DIR"/*.pid; do
+  [[ -f "$lockfile" ]] || continue
+  LOCK_PID=$(cat "$lockfile" 2>/dev/null || echo "0")
+  kill -0 "$LOCK_PID" 2>/dev/null || rm -f "$lockfile"
+done
+ACTIVE_COUNT=$(ls "$LOCK_DIR"/*.pid 2>/dev/null | wc -l || echo "0")
 if [[ $ACTIVE_COUNT -ge $MAX_SESSIONS ]]; then
-  log "SKIP: $ACTIVE_COUNT sessions already running (max $MAX_SESSIONS)"
+  log "SKIP: $ACTIVE_COUNT sessions running (max $MAX_SESSIONS)"
   exit 0
 fi
-log "Active sessions: $ACTIVE_COUNT/$MAX_SESSIONS — proceeding as session $((ACTIVE_COUNT + 1))"
+# Register this session (cleanup in main trap)
+echo $$ > "$LOCK_DIR/$SESSION_ID.pid"
+log "Active sessions: $ACTIVE_COUNT/$MAX_SESSIONS — proceeding"
 
 # ── Auto-reset stale in-progress issues (>1 hour old) ──
 ISSUE_DIR="$PROJECT_DIR/scripts/pipeline/issues"
@@ -100,8 +110,9 @@ fi
 
 log "Worktree created: $WORKTREE_DIR"
 
-# ── Cleanup trap ──
+# ── Cleanup trap (worktree + session lock) ──
 cleanup() {
+  rm -f "$LOCK_DIR/$SESSION_ID.pid" 2>/dev/null
   log "Cleaning up worktree..."
   cd "$PROJECT_DIR" || true
   git worktree remove "$WORKTREE_DIR" --force 2>/dev/null || rm -rf "$WORKTREE_DIR"
