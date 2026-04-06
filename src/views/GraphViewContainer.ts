@@ -332,20 +332,6 @@ export interface StatsHost {
 }
 
 // Re-export helpers consumed by other modules (e.g. sunburst-renderer.ts)
-export {
-	deriveOneRule,
-	deriveClusterRulesFromQueries,
-	deriveClusterRules,
-	blendThemeLabel,
-	cleanArcName,
-	areSavedPositionsValid,
-	lightenHex,
-	heatmapColor,
-	COMMUNITY_PALETTE,
-	findMatchingGroupPreset,
-	resolveNodeColor,
-} from "../utils/gvc-helpers";
-
 export const VIEW_TYPE_GRAPH = "graph-view";
 
 /** Fallback canvas dimensions when DOM element is not yet measured */

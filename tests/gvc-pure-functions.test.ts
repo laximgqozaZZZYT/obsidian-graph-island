@@ -14,7 +14,7 @@ import {
   resolveNodeColor,
   cleanArcName,
   areSavedPositionsValid,
-} from "../src/views/GraphViewContainer";
+} from "../src/utils/gvc-helpers";
 import { hexToRgb } from "../src/utils/color";
 import type { GroupPreset } from "../src/types";
 

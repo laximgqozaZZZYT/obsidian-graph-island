@@ -85,6 +85,7 @@ export function areSavedPositionsValid(
 	return true;
 }
 
+/** Lighten a hex color by a factor (0–1). factor=0.2 means 20% lighter. */
 export function lightenHex(hex: number, factor: number): number {
 	const { r, g, b } = hexToRgb(hex);
 	const lr = Math.min(255, r + Math.round(255 * factor));
