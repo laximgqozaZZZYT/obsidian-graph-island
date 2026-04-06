@@ -10,6 +10,7 @@ import type { SunburstArc as LayoutSunburstArc } from "../layouts/sunburst";
 import { DEFAULT_COLORS } from "../types";
 import { cssColorToHex } from "../utils/graph-helpers";
 import { cleanArcName, lightenHex } from "./GraphViewContainer";
+import { drawArcPath } from "./arc-drawing";
 
 // ---------------------------------------------------------------------------
 // Tooltip content builder (pure)
@@ -68,15 +69,8 @@ export interface SunburstArcDrawParams {
 	worldScale: number;
 	isSunburstView: boolean;
 	hoveredGroup: string | null;
-	drawArcPath: (
-		gfx: CanvasGraphics,
-		cx: number,
-		cy: number,
-		rInner: number,
-		rOuter: number,
-		startAngle: number,
-		endAngle: number,
-	) => void;
+	/** Optional override for arc path drawing (used for testing). */
+	drawArcPath?: (gfx: CanvasGraphics, cx: number, cy: number, rInner: number, rOuter: number, startAngle: number, endAngle: number) => void;
 }
 
 /**
@@ -84,7 +78,8 @@ export interface SunburstArcDrawParams {
  * Extracted from GraphViewContainer.drawSunburstLayoutArcs.
  */
 export function drawSunburstLayoutArcs(params: SunburstArcDrawParams): void {
-	const { gfx, arcs, cx, cy, worldScale, isSunburstView, hoveredGroup, drawArcPath } = params;
+	const { gfx, arcs, cx, cy, worldScale, isSunburstView, hoveredGroup } = params;
+	const drawArc = params.drawArcPath ?? drawArcPath;
 
 	// Assign colors by depth-1 group (top-level category)
 	const groupColorMap = new Map<string, number>();
@@ -147,7 +142,7 @@ export function drawSunburstLayoutArcs(params: SunburstArcDrawParams): void {
 		}
 
 		// Draw annular sector: offset angles by -PI/2 so top is 0
-		drawArcPath(gfx, cx, cy, arc.y0, arc.y1, arc.x0 - Math.PI / 2, arc.x1 - Math.PI / 2);
+		drawArc(gfx, cx, cy, arc.y0, arc.y1, arc.x0 - Math.PI / 2, arc.x1 - Math.PI / 2);
 		gfx.endFill();
 	}
 }
