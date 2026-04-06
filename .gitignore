@@ -90,3 +90,5 @@ docs/plans/
 coverage/
 .autonomous-worktrees/
 .nyc_output/
+e2e/pipeline-screenshots/
+scripts/pipeline/visual-report.json
