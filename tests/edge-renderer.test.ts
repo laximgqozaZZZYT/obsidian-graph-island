@@ -24,6 +24,7 @@ import {
   mergeNearbyValues, deduplicatePath, angleDist, shortestAngleDelta,
   getEdgeLabel, buildPairCounts,
   computeJunctionGrid, filterGridForPortFace, routeViaJunctionGrid,
+  computeJunctionWaypoints,
   findNearestGap, findGapBetween,
   type JunctionGrid,
 } from "../src/views/EdgeRenderer";
@@ -685,6 +686,75 @@ describe("routeViaJunctionGrid", () => {
     expect(path.length).toBeGreaterThanOrEqual(2);
     expect(path[0]).toEqual({ x: 0, y: 0 });
     expect(path[path.length - 1]).toEqual({ x: 100, y: 100 });
+  });
+});
+
+// ===========================================================================
+// computeJunctionWaypoints — waypoint generation for junction routing
+// ===========================================================================
+
+describe("computeJunctionWaypoints", () => {
+  const from = { x: 10, y: 10 };
+  const to = { x: 190, y: 190 };
+
+  it("full routing: all gaps available", () => {
+    const pts = computeJunctionWaypoints(from, to, {
+      srcCol: 50, tgtCol: 150, srcRow: 50, tgtRow: 150, midRow: 100,
+    });
+    // Should include srcCol, tgtCol, midRow as intermediate coordinates
+    expect(pts.some(([x]) => x === 50)).toBe(true);
+    expect(pts.some(([x]) => x === 150)).toBe(true);
+    expect(pts.some(([, y]) => y === 100)).toBe(true);
+  });
+
+  it("srcCol + midRow only (no tgtCol)", () => {
+    const pts = computeJunctionWaypoints(from, to, {
+      srcCol: 50, tgtCol: null, srcRow: 50, tgtRow: null, midRow: 100,
+    });
+    expect(pts.length).toBeGreaterThanOrEqual(3);
+    expect(pts[pts.length - 1]).toEqual([to.x, 100]);
+  });
+
+  it("tgtCol + midRow only (no srcCol)", () => {
+    const pts = computeJunctionWaypoints(from, to, {
+      srcCol: null, tgtCol: 150, srcRow: null, tgtRow: 150, midRow: 100,
+    });
+    expect(pts[0]).toEqual([from.x, 100]);
+    expect(pts.some(([x]) => x === 150)).toBe(true);
+  });
+
+  it("midRow + srcRow only", () => {
+    const pts = computeJunctionWaypoints(from, to, {
+      srcCol: null, tgtCol: null, srcRow: 50, tgtRow: null, midRow: 100,
+    });
+    expect(pts).toEqual([[from.x, 50], [from.x, 100], [to.x, 100]]);
+  });
+
+  it("srcCol only (no midRow)", () => {
+    const pts = computeJunctionWaypoints(from, to, {
+      srcCol: 50, tgtCol: null, srcRow: 50, tgtRow: null, midRow: null,
+    });
+    expect(pts.some(([x]) => x === 50)).toBe(true);
+    expect(pts[pts.length - 1]).toEqual([50, to.y]);
+  });
+
+  it("no gaps at all — midpoint fallback", () => {
+    const pts = computeJunctionWaypoints(from, to, {
+      srcCol: null, tgtCol: null, srcRow: null, tgtRow: null, midRow: null,
+    });
+    const midY = (from.y + to.y) / 2;
+    expect(pts).toEqual([[from.x, midY], [to.x, midY]]);
+  });
+
+  it("all waypoints are [number, number] tuples", () => {
+    const pts = computeJunctionWaypoints(from, to, {
+      srcCol: 50, tgtCol: 150, srcRow: 50, tgtRow: 150, midRow: 100,
+    });
+    for (const pt of pts) {
+      expect(pt).toHaveLength(2);
+      expect(typeof pt[0]).toBe("number");
+      expect(typeof pt[1]).toBe("number");
+    }
   });
 });
 

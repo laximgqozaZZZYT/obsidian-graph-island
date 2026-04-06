@@ -896,6 +896,64 @@ export function findGapBetween(gaps: number[], a: number, b: number): number | n
 	return findNearestGap(gaps, mid);
 }
 
+/** Resolved gap positions around source/target for junction routing. */
+interface JunctionGaps {
+	srcCol: number | null;
+	tgtCol: number | null;
+	srcRow: number | null;
+	tgtRow: number | null;
+	midRow: number | null;
+}
+
+/**
+ * Compute axis-aligned waypoints through junction gaps.
+ * Each branch selects segments based on which gaps are available.
+ */
+export function computeJunctionWaypoints(
+	from: { x: number; y: number },
+	to: { x: number; y: number },
+	g: JunctionGaps,
+): [number, number][] {
+	const pts: [number, number][] = [];
+	const { srcCol, tgtCol, srcRow, tgtRow, midRow } = g;
+
+	if (srcCol !== null && tgtCol !== null && midRow !== null) {
+		if (srcRow !== null) pts.push([from.x, srcRow]);
+		pts.push([srcCol, srcRow ?? from.y]);
+		pts.push([srcCol, midRow]);
+		pts.push([tgtCol, midRow]);
+		if (tgtRow !== null) pts.push([tgtCol, tgtRow]);
+		pts.push([to.x, tgtRow ?? to.y]);
+	} else if (srcCol !== null && midRow !== null) {
+		if (srcRow !== null) pts.push([from.x, srcRow]);
+		pts.push([srcCol, srcRow ?? from.y]);
+		pts.push([srcCol, midRow]);
+		pts.push([to.x, midRow]);
+	} else if (tgtCol !== null && midRow !== null) {
+		pts.push([from.x, midRow]);
+		pts.push([tgtCol, midRow]);
+		if (tgtRow !== null) pts.push([tgtCol, tgtRow]);
+		pts.push([to.x, tgtRow ?? to.y]);
+	} else if (midRow !== null && srcRow !== null) {
+		pts.push([from.x, srcRow]);
+		pts.push([from.x, midRow]);
+		pts.push([to.x, midRow]);
+	} else if (srcCol !== null) {
+		if (srcRow !== null) pts.push([from.x, srcRow]);
+		pts.push([srcCol, srcRow ?? from.y]);
+		pts.push([srcCol, to.y]);
+	} else if (srcRow !== null) {
+		pts.push([from.x, srcRow]);
+		pts.push([to.x, srcRow]);
+	} else {
+		const midY = (from.y + to.y) / 2;
+		pts.push([from.x, midY]);
+		pts.push([to.x, midY]);
+	}
+
+	return pts;
+}
+
 /**
  * Route between two points within a group using the junction grid (碁盤).
  * Wires run EXCLUSIVELY through column gaps (vertical runs) and row gaps (horizontal runs).
@@ -912,71 +970,27 @@ export function routeViaJunctionGrid(
 		return [from, to];
 	}
 
+	const gaps: JunctionGaps = {
+		srcCol: findNearestGap(grid.colGaps, from.x),
+		tgtCol: findNearestGap(grid.colGaps, to.x),
+		srcRow: findNearestGap(grid.rowGaps, from.y),
+		tgtRow: findNearestGap(grid.rowGaps, to.y),
+		midRow: findGapBetween(grid.rowGaps, from.y, to.y),
+	};
+
+	const waypoints = computeJunctionWaypoints(from, to, gaps);
+
 	const path: { x: number; y: number }[] = [{ x: from.x, y: from.y }];
-	const addPt = (x: number, y: number) => {
+	for (const [x, y] of waypoints) {
 		const last = path[path.length - 1];
 		if (Math.abs(x - last.x) > 1 || Math.abs(y - last.y) > 1) {
 			path.push({ x, y });
 		}
-	};
-
-	// Find colGap nearest to source X (the "aisle" to exit the source node)
-	const srcColGap = findNearestGap(grid.colGaps, from.x);
-	// Find colGap nearest to target X (the "aisle" to enter the target node)
-	const tgtColGap = findNearestGap(grid.colGaps, to.x);
-
-	// Find rowGap nearest to source (to avoid running along a node row)
-	const srcRowGap = findNearestGap(grid.rowGaps, from.y);
-	// Find rowGap nearest to target
-	const tgtRowGap = findNearestGap(grid.rowGaps, to.y);
-	// Find rowGap between the two Y positions (for horizontal traverse)
-	const midRowGap = findGapBetween(grid.rowGaps, from.y, to.y);
-
-	if (srcColGap !== null && tgtColGap !== null && midRowGap !== null) {
-		// Full 碁盤 routing: all segments through junction points
-		// 1. from → (from.x, srcRowGap) — vertical to nearest row gap
-		if (srcRowGap !== null) addPt(from.x, srcRowGap);
-		// 2. → (srcColGap, srcRowGap) — horizontal to source col gap
-		addPt(srcColGap, srcRowGap ?? from.y);
-		// 3. → (srcColGap, midRowGap) — vertical to traverse row gap
-		addPt(srcColGap, midRowGap);
-		// 4. → (tgtColGap, midRowGap) — horizontal along traverse row gap
-		addPt(tgtColGap, midRowGap);
-		// 5. → (tgtColGap, tgtRowGap) — vertical to target's row gap
-		if (tgtRowGap !== null) addPt(tgtColGap, tgtRowGap);
-		// 6. → (to.x, tgtRowGap) — horizontal to target X
-		addPt(to.x, tgtRowGap ?? to.y);
-	} else if (srcColGap !== null && midRowGap !== null) {
-		if (srcRowGap !== null) addPt(from.x, srcRowGap);
-		addPt(srcColGap, srcRowGap ?? from.y);
-		addPt(srcColGap, midRowGap);
-		addPt(to.x, midRowGap);
-	} else if (tgtColGap !== null && midRowGap !== null) {
-		addPt(from.x, midRowGap);
-		addPt(tgtColGap, midRowGap);
-		if (tgtRowGap !== null) addPt(tgtColGap, tgtRowGap);
-		addPt(to.x, tgtRowGap ?? to.y);
-	} else if (midRowGap !== null && srcRowGap !== null) {
-		addPt(from.x, srcRowGap);
-		addPt(from.x, midRowGap);
-		addPt(to.x, midRowGap);
-	} else if (srcColGap !== null) {
-		if (srcRowGap !== null) addPt(from.x, srcRowGap);
-		addPt(srcColGap, srcRowGap ?? from.y);
-		addPt(srcColGap, to.y);
-	} else {
-		// No grid — route through nearest available gaps
-		if (srcRowGap !== null) {
-			addPt(from.x, srcRowGap);
-			addPt(to.x, srcRowGap);
-		} else {
-			const midY = (from.y + to.y) / 2;
-			addPt(from.x, midY);
-			addPt(to.x, midY);
-		}
 	}
-
-	addPt(to.x, to.y);
+	const last = path[path.length - 1];
+	if (Math.abs(to.x - last.x) > 1 || Math.abs(to.y - last.y) > 1) {
+		path.push({ x: to.x, y: to.y });
+	}
 	return path;
 }
 
