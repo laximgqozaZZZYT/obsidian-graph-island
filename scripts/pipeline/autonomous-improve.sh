@@ -167,13 +167,34 @@ fi
 # Issue queue check + focus selection now happens at the start of each iteration
 # to ensure clean context and pick up newly filed issues mid-session.
 
-# ── CDP check (E2E runs via CDP — no display occupation) ──
-# CDP page.screenshot() captures the internal render buffer,
-# not the visible window. This is fully background-compatible.
+# ── CDP: ensure Obsidian is running with remote debugging ──
+# E2E runs via CDP internal render buffer — no display occupation.
+# If CDP is not available, auto-restart Obsidian with --remote-debugging-port.
 CDP_AVAILABLE=false
 if curl -sf "http://localhost:9222/json/version" >/dev/null 2>&1; then
   CDP_AVAILABLE=true
-  log "CDP available — E2E screenshot + readability checks enabled (background, no display occupation)"
+  log "CDP available"
+else
+  log "CDP unavailable — attempting Obsidian restart with CDP..."
+  # Kill existing Obsidian (if running without CDP)
+  killall obsidian 2>/dev/null
+  sleep 3
+  # Restart in background with CDP (no display occupation — runs as bg process)
+  nohup /opt/Obsidian/obsidian --remote-debugging-port=9222 > /dev/null 2>&1 &
+  OBSIDIAN_PID=$!
+  log "Obsidian started (PID $OBSIDIAN_PID), waiting for CDP..."
+  # Wait for CDP to become available (max 30s)
+  for cdp_wait in $(seq 1 15); do
+    sleep 2
+    if curl -sf "http://localhost:9222/json/version" >/dev/null 2>&1; then
+      CDP_AVAILABLE=true
+      log "CDP connected after ${cdp_wait}x2s"
+      break
+    fi
+  done
+  if [[ "$CDP_AVAILABLE" != true ]]; then
+    log "WARN: CDP failed to connect after 30s — E2E disabled this session"
+  fi
 fi
 
 # ============================================================
