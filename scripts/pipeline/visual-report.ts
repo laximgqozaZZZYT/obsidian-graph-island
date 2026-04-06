@@ -258,14 +258,19 @@ async function measureAll(page: Page): Promise<VisualReport> {
     const emptyRatio = totalSampled > 0 ? bgCount / totalSampled : 1;
     const ws = v.worldContainer?.scale?.x ?? 1;
 
-    // Check if view is zoomed to fit (all nodes visible in viewport)
+    // Check how many nodes are visible in the current viewport
     let nodesInView = 0, totalNodes = 0;
-    if (v.pixiNodes) {
+    const wc = v.worldContainer;
+    if (v.pixiNodes && wc) {
+      const sx = wc.scale?.x ?? 1, sy = wc.scale?.y ?? 1;
+      const tx = wc.x ?? 0, ty = wc.y ?? 0;
       for (const [, n] of v.pixiNodes.entries()) {
         totalNodes++;
-        const nx = n.data?.x ?? 0, ny = n.data?.y ?? 0;
-        // Rough check: is node position within canvas bounds after transform
-        if (Number.isFinite(nx) && Number.isFinite(ny)) nodesInView++;
+        const nx = n.data?.x, ny = n.data?.y;
+        if (nx == null || ny == null) continue;
+        // World → screen transform
+        const screenX = nx * sx + tx, screenY = ny * sy + ty;
+        if (screenX >= 0 && screenX <= w && screenY >= 0 && screenY <= h) nodesInView++;
       }
     }
 
@@ -284,6 +289,7 @@ async function measureAll(page: Page): Promise<VisualReport> {
   {
     let s = 50; // baseline
     const issues: string[] = [];
+    let penalized = false;
 
     if (!readability.canvasVisible) {
       s = 0;
@@ -291,10 +297,10 @@ async function measureAll(page: Page): Promise<VisualReport> {
     } else {
       // Empty ratio: too much empty space = not zoomed to fit
       if (readability.emptyRatio > 0.9) {
-        s -= 30;
+        s -= 30; penalized = true;
         issues.push(`${Math.round(readability.emptyRatio * 100)}% empty — nodes may not be visible`);
       } else if (readability.emptyRatio > 0.8) {
-        s -= 10;
+        s -= 10; penalized = true;
         issues.push(`${Math.round(readability.emptyRatio * 100)}% empty — zoom-to-fit may not be working`);
       } else {
         s += 20; // good fill ratio
@@ -307,13 +313,13 @@ async function measureAll(page: Page): Promise<VisualReport> {
 
       // Zoom level check
       if (readability.zoomLevel < 0.05) {
-        s -= 20;
+        s -= 20; penalized = true;
         issues.push(`Extreme zoom-out (${readability.zoomLevel}) — labels unreadable`);
       }
 
-      // Node visibility bonus: large graphs zoom out far, inflating emptyRatio
-      // and triggering zoom penalties — offset when all content IS visible.
-      if (readability.nodesInView != null && readability.totalNodes > 0) {
+      // Node visibility bonus: offset zoom/emptyRatio penalties for large graphs
+      // where nodes ARE actually in view despite high empty ratio or extreme zoom.
+      if (penalized && readability.totalNodes > 0) {
         const viewRatio = readability.nodesInView / readability.totalNodes;
         if (viewRatio >= SCORE.VIEW_RATIO_FULL && readability.totalNodes > SCORE.LARGE_GRAPH_THRESHOLD) s += SCORE.LARGE_GRAPH_BONUS;
         else if (viewRatio >= SCORE.VIEW_RATIO_PARTIAL) s += SCORE.PARTIAL_VIEW_BONUS;
