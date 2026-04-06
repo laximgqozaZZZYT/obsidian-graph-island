@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-06
-status: in-progress
+status: pending
 source: user
 summary: インライン記法 [[ノート名|表示テキスト]@関係名] でノード間関係を明示・グラフ表示
 ---
