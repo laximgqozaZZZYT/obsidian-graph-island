@@ -1,7 +1,7 @@
 ---
 priority: high
 reported: 2026-04-06
-status: in-progress
+status: done
 source: kaizen
 summary: onClose()で_saveTimer/_zoomAnimId/autoSnapTimerが未クリア — 破棄後にコールバック発火
 ---
