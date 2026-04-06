@@ -9,6 +9,8 @@ import {
   computeTimelineFilteredIds,
   computeAutoFitTransform,
   computeVisibleFraction,
+  computeAutoFitBoundsTrimmed,
+  autoFitVisibleThreshold,
 } from "../src/utils/graph-helpers";
 import type { GraphData, GraphNode, GraphEdge } from "../src/types";
 
@@ -518,5 +520,126 @@ describe("computeAutoFitTransform", () => {
     const screenY = result!.cy * result!.scale + result!.y;
     expect(screenX).toBeCloseTo(400, 0);
     expect(screenY).toBeCloseTo(300, 0);
+  });
+
+  it("outlier nodes: trimmed fit shows more nodes than full fit", () => {
+    // 100 nodes clustered at center + 3 extreme outliers
+    const coords: [number, number][] = [];
+    for (let i = 0; i < 100; i++) {
+      coords.push([(i % 10) * 50, Math.floor(i / 10) * 50]);
+    }
+    // Add extreme outliers far away
+    coords.push([50000, 50000]);
+    coords.push([-50000, -50000]);
+    coords.push([50000, -50000]);
+    const nodes = mkFitNodes(coords);
+    const result = computeAutoFitTransform({ nodes, canvasW: 800, canvasH: 600 });
+    expect(result).not.toBeNull();
+    // Trimmed fit should zoom in more than fitting all 103 nodes
+    // Natural full-bounds scale would be very small (~0.006)
+    // Trimmed scale should be significantly larger
+    expect(result!.scale).toBeGreaterThan(0.5);
+  });
+
+  it("2000 skewed nodes: visibleFraction >= 0.95 with trimmed fit", () => {
+    // 2000 nodes: 1950 clustered, 50 scattered far away
+    const coords: [number, number][] = [];
+    for (let i = 0; i < 1950; i++) {
+      const x = (i % 50) * 20;
+      const y = Math.floor(i / 50) * 20;
+      coords.push([x, y]);
+    }
+    for (let i = 0; i < 50; i++) {
+      coords.push([10000 + i * 500, 10000 + i * 500]);
+    }
+    const nodes = mkFitNodes(coords);
+    const result = computeAutoFitTransform({ nodes, canvasW: 1200, canvasH: 900 });
+    expect(result).not.toBeNull();
+    const frac = computeVisibleFraction(
+      nodes, result!.cx, result!.cy, result!.scale, 1200, 900,
+    );
+    expect(frac).toBeGreaterThanOrEqual(0.95);
+  });
+});
+
+// ===========================================================================
+// computeAutoFitBoundsTrimmed — outlier-excluding bounding box
+// ===========================================================================
+
+describe("computeAutoFitBoundsTrimmed", () => {
+  const mkFitNodes = (coords: [number, number][]) =>
+    coords.map(([x, y]) => ({ x, y, r: 10 }));
+
+  it("returns null for fewer than 2 nodes", () => {
+    expect(computeAutoFitBoundsTrimmed([], 80)).toBeNull();
+    expect(computeAutoFitBoundsTrimmed([{ x: 0, y: 0, r: 10 }], 80)).toBeNull();
+  });
+
+  it("excludes extreme outliers from bounds", () => {
+    const coords: [number, number][] = [];
+    for (let i = 0; i < 100; i++) coords.push([i, i]);
+    coords.push([99999, 99999]); // extreme outlier
+    const nodes = mkFitNodes(coords);
+    const result = computeAutoFitBoundsTrimmed(nodes, 0);
+    expect(result).not.toBeNull();
+    // Trimmed bounds should be much smaller than 99999
+    expect(result!.maxX).toBeLessThan(200);
+    expect(result!.maxY).toBeLessThan(200);
+  });
+
+  it("inlierCount excludes outlier nodes", () => {
+    const coords: [number, number][] = [];
+    for (let i = 0; i < 100; i++) coords.push([i * 10, i * 10]);
+    coords.push([100000, 100000]);
+    coords.push([-100000, -100000]);
+    const nodes = mkFitNodes(coords);
+    const result = computeAutoFitBoundsTrimmed(nodes, 0);
+    expect(result).not.toBeNull();
+    expect(result!.inlierCount).toBeLessThan(nodes.length);
+    expect(result!.inlierCount).toBeGreaterThanOrEqual(95);
+  });
+
+  it("retains most nodes when distribution is uniform", () => {
+    const coords: [number, number][] = [];
+    for (let i = 0; i < 50; i++) coords.push([i * 10, i * 10]);
+    const nodes = mkFitNodes(coords);
+    const result = computeAutoFitBoundsTrimmed(nodes, 80);
+    expect(result).not.toBeNull();
+    // 2.5% trim from each end: ~1 node trimmed per side
+    expect(result!.inlierCount).toBeGreaterThanOrEqual(46);
+    expect(result!.inlierCount).toBeLessThanOrEqual(50);
+  });
+});
+
+// ===========================================================================
+// autoFitVisibleThreshold — dynamic threshold based on node count
+// ===========================================================================
+
+describe("autoFitVisibleThreshold", () => {
+  it("returns 0.8 for small graphs (<=100)", () => {
+    expect(autoFitVisibleThreshold(0)).toBe(0.8);
+    expect(autoFitVisibleThreshold(50)).toBe(0.8);
+    expect(autoFitVisibleThreshold(100)).toBe(0.8);
+  });
+
+  it("returns 0.95 for large graphs (>=2000)", () => {
+    expect(autoFitVisibleThreshold(2000)).toBe(0.95);
+    expect(autoFitVisibleThreshold(5000)).toBe(0.95);
+  });
+
+  it("interpolates between 0.8 and 0.95 for mid-range", () => {
+    const mid = autoFitVisibleThreshold(1050);
+    expect(mid).toBeGreaterThan(0.8);
+    expect(mid).toBeLessThan(0.95);
+    expect(mid).toBeCloseTo(0.875, 2);
+  });
+
+  it("is monotonically non-decreasing", () => {
+    let prev = autoFitVisibleThreshold(0);
+    for (let n = 10; n <= 3000; n += 50) {
+      const cur = autoFitVisibleThreshold(n);
+      expect(cur).toBeGreaterThanOrEqual(prev);
+      prev = cur;
+    }
   });
 });

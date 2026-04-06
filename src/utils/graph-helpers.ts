@@ -836,9 +836,65 @@ function computeAutoFitBounds(nodes: readonly { x: number; y: number; r: number 
 }
 
 /**
+ * Compute bounding box excluding outlier nodes beyond the 95th percentile.
+ * Returns the trimmed bounds and the count of inlier nodes.
+ * Returns null when fewer than 2 inliers remain or bounds have zero extent.
+ */
+export function computeAutoFitBoundsTrimmed(
+	nodes: readonly { x: number; y: number; r: number }[],
+	padding: number,
+): { minX: number; minY: number; maxX: number; maxY: number; bw: number; bh: number; inlierCount: number } | null {
+	if (nodes.length < 2) return null;
+
+	const xs = nodes.map((n) => n.x).sort((a, b) => a - b);
+	const ys = nodes.map((n) => n.y).sort((a, b) => a - b);
+
+	const lo = Math.floor(nodes.length * 0.025);
+	const hi = Math.min(Math.ceil(nodes.length * 0.975) - 1, nodes.length - 1);
+
+	const xLo = xs[lo];
+	const xHi = xs[hi];
+	const yLo = ys[lo];
+	const yHi = ys[hi];
+
+	let minX = Infinity,
+		minY = Infinity,
+		maxX = -Infinity,
+		maxY = -Infinity;
+	let inlierCount = 0;
+	for (const n of nodes) {
+		if (n.x >= xLo && n.x <= xHi && n.y >= yLo && n.y <= yHi) {
+			if (n.x - n.r < minX) minX = n.x - n.r;
+			if (n.y - n.r < minY) minY = n.y - n.r;
+			if (n.x + n.r > maxX) maxX = n.x + n.r;
+			if (n.y + n.r > maxY) maxY = n.y + n.r;
+			inlierCount++;
+		}
+	}
+	if (inlierCount < 2) return null;
+
+	const bw = maxX - minX + padding;
+	const bh = maxY - minY + padding;
+	if (bw <= 0 || bh <= 0) return null;
+	return { minX, minY, maxX, maxY, bw, bh, inlierCount };
+}
+
+/**
+ * Compute dynamic visible-fraction threshold based on node count.
+ * Small graphs (<=100): 0.8, large graphs (>=2000): 0.95, linear in between.
+ */
+export function autoFitVisibleThreshold(nodeCount: number): number {
+	if (nodeCount <= 100) return 0.8;
+	if (nodeCount >= 2000) return 0.95;
+	return 0.8 + ((nodeCount - 100) / (2000 - 100)) * (0.95 - 0.8);
+}
+
+/**
  * Compute the transform (scale, x, y) that fits all nodes within the canvas.
  * For large graphs where minScale would clip nodes, the minScale is relaxed
- * to ensure at least 80% of nodes are visible.
+ * using a dynamic threshold (0.8–0.95 depending on node count).
+ * When outlier nodes cause an overly zoomed-out fit, a trimmed bounding box
+ * (95th percentile) is compared and the result showing more nodes is chosen.
  */
 export function computeAutoFitTransform(input: AutoFitInput): AutoFitResult | null {
 	const { nodes, canvasW, canvasH } = input;
@@ -853,6 +909,7 @@ export function computeAutoFitTransform(input: AutoFitInput): AutoFitResult | nu
 
 	const { minX, minY, maxX, maxY, bw, bh } = bounds;
 	const naturalScale = Math.min(canvasW / bw, canvasH / bh, maxScale);
+	const threshold = autoFitVisibleThreshold(nodes.length);
 
 	// If minScale would cause clipping, relax it for large graphs
 	let scale = naturalScale;
@@ -860,7 +917,28 @@ export function computeAutoFitTransform(input: AutoFitInput): AutoFitResult | nu
 		const cx0 = (minX + maxX) / 2;
 		const cy0 = (minY + maxY) / 2;
 		const fraction = computeVisibleFraction(nodes, cx0, cy0, configMinScale, canvasW, canvasH);
-		scale = fraction < 0.8 ? naturalScale : configMinScale;
+		scale = fraction < threshold ? naturalScale : configMinScale;
+	}
+
+	// Try trimmed bounds (outlier exclusion) for skewed distributions.
+	// Prefer trimmed fit when it improves scale while still showing enough nodes.
+	const trimmed = computeAutoFitBoundsTrimmed(nodes, padding);
+	if (trimmed && trimmed.inlierCount < nodes.length) {
+		const trimScale = Math.min(canvasW / trimmed.bw, canvasH / trimmed.bh, maxScale);
+		if (trimScale > scale) {
+			const trimCx = (trimmed.minX + trimmed.maxX) / 2;
+			const trimCy = (trimmed.minY + trimmed.maxY) / 2;
+			const trimFrac = computeVisibleFraction(nodes, trimCx, trimCy, trimScale, canvasW, canvasH);
+			if (trimFrac >= threshold && isFinite(trimScale) && isFinite(trimCx) && isFinite(trimCy)) {
+				return {
+					scale: trimScale,
+					x: canvasW / 2 - trimCx * trimScale,
+					y: canvasH / 2 - trimCy * trimScale,
+					cx: trimCx,
+					cy: trimCy,
+				};
+			}
+		}
 	}
 
 	if (!isFinite(scale) || scale <= 0) return null;
