@@ -66,6 +66,7 @@ import {
 	buildMissingNeighborSet,
 	parseGroupByFields,
 	computeAutoFitTransform,
+	computeVisibleFraction,
 	computeCompareVenn,
 	computePathfinderResult,
 	buildSimEndA11yMessage,
@@ -6048,6 +6049,20 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			world.y += dy;
 		}
 
+		// Coverage validation: if <80% of nodes are visible, retry with no padding
+		const visFrac = computeVisibleFraction(fitNodes, fit.cx, fit.cy, sc, W, H);
+		if (visFrac < 0.8) {
+			// eslint-disable-next-line no-console -- dev-only: esbuild strips in prod
+			console.warn(`[graph-island] autoFit coverage ${(visFrac * 100).toFixed(0)}% < 80%, retrying`);
+			const retry = computeAutoFitTransform({ nodes: fitNodes, canvasW: W, canvasH: H, padding: 0, minScale: 0, maxScale: fit.scale * 1.5 });
+			if (retry && retry.scale > 0) {
+				world.scale.set(retry.scale);
+				world.x = W / 2 - retry.cx * retry.scale;
+				world.y = H / 2 - retry.cy * retry.scale;
+				sc = retry.scale;
+			}
+		}
+
 		this.updateLabelsForZoom();
 		this.updateZoomIndicator(sc);
 	}
@@ -7581,17 +7596,13 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			// for card dimensions in world coordinates.
 			// Force full redraw now that all positions are final
 			this.updatePositions(true);
-			// G1: AutoFit when simulation ends — but skip if user manually zoomed
-			// (e.g., clicked a group label to zoom into a cluster)
+			// G1: AutoFit when simulation ends — single deferred fit so DOM
+			// layout is guaranteed settled (consolidates prior two-call pattern)
 			if (wrap && !this._suppressAutoFit) {
-				const fw = wrap.clientWidth || DEFAULT_CANVAS_WIDTH;
-				const fh = wrap.clientHeight || DEFAULT_CANVAS_HEIGHT;
-				this.autoFitView(fw, fh);
-				// Safety: re-fit after a frame so DOM layout is guaranteed settled
 				requestAnimationFrame(() => {
 					if (this.canvasWrap && !this._suppressAutoFit) {
-						const rw = this.canvasWrap.clientWidth;
-						const rh = this.canvasWrap.clientHeight;
+						const rw = this.canvasWrap.clientWidth || DEFAULT_CANVAS_WIDTH;
+						const rh = this.canvasWrap.clientHeight || DEFAULT_CANVAS_HEIGHT;
 						if (rw > 0 && rh > 0) {
 							this.autoFitView(rw, rh);
 							this.markDirty();

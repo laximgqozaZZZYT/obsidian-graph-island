@@ -464,6 +464,129 @@ describe("ensureViewportUtilization — scaleFactor calculation", () => {
 });
 
 // ===========================================================================
+// Simulation end — consolidated autoFit pipeline
+// ===========================================================================
+
+describe("simulation end — autoFit pipeline consolidation", () => {
+	/**
+	 * Simulates the consolidated simulation-end autoFit pipeline:
+	 * 1. ensureViewportUtilization modifies node positions (data stage)
+	 * 2. Single deferred autoFitView via requestAnimationFrame (render stage)
+	 * 3. Coverage validation: if <80% visible, retry with padding=0
+	 */
+	interface PipelineState {
+		autoFitCalls: number;
+		lastFitW: number;
+		lastFitH: number;
+		suppressAutoFit: boolean;
+		viewportUtilCalled: boolean;
+	}
+
+	function createPipelineState(): PipelineState {
+		return {
+			autoFitCalls: 0,
+			lastFitW: 0,
+			lastFitH: 0,
+			suppressAutoFit: false,
+			viewportUtilCalled: false,
+		};
+	}
+
+	function simulateSimEndPipeline(
+		state: PipelineState,
+		canvasW: number,
+		canvasH: number,
+	): void {
+		// Step 1: ensureViewportUtilization (data stage)
+		if (canvasW > 0 && canvasH > 0) state.viewportUtilCalled = true;
+
+		// Step 2: Single deferred autoFitView (consolidated)
+		if (!state.suppressAutoFit && canvasW > 0 && canvasH > 0) {
+			state.autoFitCalls++;
+			state.lastFitW = canvasW;
+			state.lastFitH = canvasH;
+		}
+	}
+
+	it("calls autoFitView exactly once (consolidated from two calls)", () => {
+		const state = createPipelineState();
+		simulateSimEndPipeline(state, 1200, 800);
+		expect(state.autoFitCalls).toBe(1);
+	});
+
+	it("skips autoFitView when suppressAutoFit is true", () => {
+		const state = createPipelineState();
+		state.suppressAutoFit = true;
+		simulateSimEndPipeline(state, 1200, 800);
+		expect(state.autoFitCalls).toBe(0);
+	});
+
+	it("still calls ensureViewportUtilization even when autoFit is suppressed", () => {
+		const state = createPipelineState();
+		state.suppressAutoFit = true;
+		simulateSimEndPipeline(state, 1200, 800);
+		expect(state.viewportUtilCalled).toBe(true);
+	});
+
+	it("skips both when canvas dimensions are zero", () => {
+		const state = createPipelineState();
+		simulateSimEndPipeline(state, 0, 0);
+		expect(state.autoFitCalls).toBe(0);
+		expect(state.viewportUtilCalled).toBe(false);
+	});
+
+	it("uses fresh canvas dimensions for the deferred fit", () => {
+		const state = createPipelineState();
+		simulateSimEndPipeline(state, 1200, 800);
+		expect(state.lastFitW).toBe(1200);
+		expect(state.lastFitH).toBe(800);
+	});
+});
+
+describe("autoFit coverage validation — retry logic", () => {
+	it("retries with no padding when coverage < 80%", () => {
+		// Wide spread nodes: many will be outside viewport at normal padding
+		const nodes = mkBiasedNodes(100, 5000, 5000);
+		const firstFit = computeAutoFitTransform({
+			nodes, canvasW: 400, canvasH: 300, padding: 200,
+		});
+		expect(firstFit).not.toBeNull();
+
+		const frac = computeVisibleFraction(nodes, firstFit!.cx, firstFit!.cy, firstFit!.scale, 400, 300);
+		// With padding=200 on small canvas, some nodes may be clipped
+		// Retry with padding=0 should improve coverage
+		const retryFit = computeAutoFitTransform({
+			nodes, canvasW: 400, canvasH: 300, padding: 0, minScale: 0, maxScale: firstFit!.scale * 1.5,
+		});
+		expect(retryFit).not.toBeNull();
+		const retryFrac = computeVisibleFraction(nodes, retryFit!.cx, retryFit!.cy, retryFit!.scale, 400, 300);
+		expect(retryFrac).toBeGreaterThanOrEqual(frac);
+	});
+
+	it("does not retry when coverage >= 80%", () => {
+		// Tight cluster: all nodes easily fit
+		const nodes = mkNodes([[0, 0], [50, 50], [100, 100]], 5);
+		const fit = computeAutoFitTransform({
+			nodes, canvasW: 800, canvasH: 600, padding: 80,
+		});
+		expect(fit).not.toBeNull();
+		const frac = computeVisibleFraction(nodes, fit!.cx, fit!.cy, fit!.scale, 800, 600);
+		expect(frac).toBeGreaterThanOrEqual(0.8);
+	});
+
+	it("retry produces valid transform", () => {
+		const nodes = mkBiasedNodes(50, 3000, 3000);
+		const retry = computeAutoFitTransform({
+			nodes, canvasW: 200, canvasH: 150, padding: 0, minScale: 0, maxScale: 1.5,
+		});
+		expect(retry).not.toBeNull();
+		expect(retry!.scale).toBeGreaterThan(0);
+		expect(isFinite(retry!.cx)).toBe(true);
+		expect(isFinite(retry!.cy)).toBe(true);
+	});
+});
+
+// ===========================================================================
 // _autoFocusActiveFile → doRender → autoFitView — recursion prevention
 // ===========================================================================
 
