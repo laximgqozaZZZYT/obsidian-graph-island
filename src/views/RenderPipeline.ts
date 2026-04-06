@@ -15,7 +15,6 @@ import type { ShapeRule } from "../utils/node-shapes";
 import { effectiveRadius } from "../layouts/cluster-force";
 import { Platform } from "obsidian";
 import { clamp } from "../utils/geometry";
-import { incCounter } from "../utils/graph-helpers";
 import { contrastColor } from "../utils/color";
 import {
 	darkenColor, lightenColor, blendColors, desaturateColor,
@@ -43,6 +42,10 @@ import {
 	FULL_CARD_FONT_BASE,
 	FULL_CARD_FONT_MIN,
 } from "./card-renderer";
+import {
+	renderDonutMode,
+	renderSunburstSegmentMode,
+} from "./donut-renderer";
 import {
 	renderPathfinderMarkers,
 	renderCompareRings,
@@ -100,9 +103,6 @@ const IMMEDIATE_BATCH_SIZE = 50;
 /** Number of nodes processed per deferred batch frame (higher = faster initial render) */
 const DEFERRED_BATCH_SIZE = 500;
 
-/** Sunburst segment default arc angle in degrees */
-const SUNBURST_SEGMENT_ARC_DEG = 30;
-
 /** Hold indicator ring line width */
 const HOLD_RING_LINE_WIDTH = 2;
 /** Hold indicator ring padding beyond node radius */
@@ -126,11 +126,6 @@ const KB_FOCUS_RADIUS_FACTOR = 1.6;
 
 /** Super node fill alpha */
 const SUPER_NODE_FILL_ALPHA = 0.3;
-
-/** Donut/sunburst ring stroke darken factor (applied via darkenColor) */
-const RING_STROKE_DARKEN = 0.4;
-/** Donut/sunburst ring stroke alpha multiplier */
-const RING_STROKE_ALPHA = 0.5;
 
 /** Keyboard focus ring line width */
 const KB_FOCUS_LINE_WIDTH = 2.5;
@@ -1430,7 +1425,7 @@ export class RenderPipeline {
 		renderCardMode(this.host, g, ctx, crc, rt);
 	}
 
-	/** Donut mode: draw ring (outer circle with inner cutout). */
+	/** Donut mode: delegates to donut-renderer.ts */
 	private _renderDonutMode(
 		g: CanvasGraphics,
 		ctx: {
@@ -1442,78 +1437,10 @@ export class RenderPipeline {
 		crc: ReturnType<typeof Object.assign>,
 		_rt: ReturnType<typeof Object.assign>,
 	) {
-		const { visible, tlFilteredOut, alpha, minWorldRadius } = ctx;
-		const donutConfig = this.host.getDonutDisplayConfig();
-		const innerR = donutConfig.innerRadius ?? 0.6;
-		const bgColor = this.host.isDarkTheme() ? 0x1e1e1e : 0xffffff;
-
-		for (const pn of visible) {
-			const effR = Math.max(pn.radius, minWorldRadius);
-			const nodeAlpha = tlFilteredOut && tlFilteredOut.has(pn.data.id) ? alpha * crc.filteredNodeAlpha : alpha;
-
-			const isSuperNode = !!(pn.data.collapsedMembers && pn.data.collapsedMembers.length > 0);
-			if (isSuperNode && donutConfig.breakdownField) {
-				this._renderDonutBreakdown(g, pn, effR, nodeAlpha, innerR, bgColor, donutConfig.breakdownField);
-			} else {
-				// Single-color ring for individual nodes
-				const strokeColor = darkenColor(pn.color, RING_STROKE_DARKEN);
-				g.lineStyle(1, strokeColor, nodeAlpha * RING_STROKE_ALPHA);
-				g.beginFill(pn.color, nodeAlpha);
-				g.drawCircle(pn.data.x, pn.data.y, effR);
-				g.endFill();
-				// Inner cutout
-				g.lineStyle(0);
-				g.beginFill(bgColor, 1);
-				g.drawCircle(pn.data.x, pn.data.y, effR * innerR);
-				g.endFill();
-			}
-		}
+		renderDonutMode(this.host, g, ctx, crc);
 	}
 
-	/** Draw sector breakdown donut for a super node. */
-	private _renderDonutBreakdown(
-		g: CanvasGraphics,
-		pn: PixiNode,
-		effR: number,
-		nodeAlpha: number,
-		innerR: number,
-		bgColor: number,
-		breakdownField: string,
-	) {
-		const members = pn.data.collapsedMembers!;
-		const valueCounts = new Map<string, number>();
-		for (const memberId of members) {
-			const memberPn = this.host.getPixiNodes().get(memberId);
-			const val = (memberPn?.data?.meta?.[breakdownField] as string) ?? "other";
-			incCounter(valueCounts, val);
-		}
-
-		let startAngle = -Math.PI / 2;
-		const total = members.length;
-		let colorIdx = 0;
-		const sectorColors = this.host.getRenderThresholds?.()?.donutSectorColors ?? [
-			0x818cf8, 0xf472b6, 0xfbbf24, 0x34d399, 0x60a5fa, 0xf87171, 0xb4a0ff, 0x2dd4bf,
-		];
-		g.lineStyle(0);
-		for (const [, count] of valueCounts) {
-			const sliceAngle = (count / total) * Math.PI * 2;
-			const endAngle = startAngle + sliceAngle;
-			const sColor = sectorColors[colorIdx % sectorColors.length];
-			g.beginFill(sColor, nodeAlpha);
-			g.moveTo(pn.data.x, pn.data.y);
-			g.arc(pn.data.x, pn.data.y, effR, startAngle, endAngle);
-			g.lineTo(pn.data.x, pn.data.y);
-			g.endFill();
-			startAngle = endAngle;
-			colorIdx++;
-		}
-		// Inner circle cutout
-		g.beginFill(bgColor, 1);
-		g.drawCircle(pn.data.x, pn.data.y, effR * innerR);
-		g.endFill();
-	}
-
-	/** Sunburst segment mode: draw arc segments. */
+	/** Sunburst segment mode: delegates to donut-renderer.ts */
 	private _renderSunburstSegmentMode(
 		g: CanvasGraphics,
 		ctx: {
@@ -1524,25 +1451,7 @@ export class RenderPipeline {
 		},
 		crc: ReturnType<typeof Object.assign>,
 	) {
-		const { visible, tlFilteredOut, alpha, minWorldRadius } = ctx;
-		const arcAngle = (SUNBURST_SEGMENT_ARC_DEG * Math.PI) / 180;
-
-		for (let i = 0; i < visible.length; i++) {
-			const pn = visible[i];
-			const effR = Math.max(pn.radius, minWorldRadius);
-			const nodeAlpha = tlFilteredOut && tlFilteredOut.has(pn.data.id) ? alpha * crc.filteredNodeAlpha : alpha;
-			const angleOffset = (i / Math.max(visible.length, 1)) * Math.PI * 2 - Math.PI / 2;
-			const startAngle = angleOffset - arcAngle / 2;
-			const endAngle = angleOffset + arcAngle / 2;
-
-			const strokeColor = darkenColor(pn.color, RING_STROKE_DARKEN);
-			g.lineStyle(1, strokeColor, nodeAlpha * RING_STROKE_ALPHA);
-			g.beginFill(pn.color, nodeAlpha);
-			g.moveTo(pn.data.x, pn.data.y);
-			g.arc(pn.data.x, pn.data.y, effR, startAngle, endAngle);
-			g.lineTo(pn.data.x, pn.data.y);
-			g.endFill();
-		}
+		renderSunburstSegmentMode(g, ctx, crc);
 	}
 
 	// =========================================================================
