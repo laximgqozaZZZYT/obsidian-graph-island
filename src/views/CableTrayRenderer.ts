@@ -8,6 +8,7 @@
 
 import type { GraphEdge } from "../types";
 import { edgeSourceId, edgeTargetId, incCounter } from "../utils/graph-helpers";
+import { addToMapSet } from "../utils/map-helpers";
 import type { EdgeDrawConfig, GroupBBox, BBoxFace, JunctionGrid } from "./EdgeRenderer";
 import {
 	resolveEdgeColor,
@@ -829,10 +830,8 @@ function buildConnectionMap(
 ): Map<string, Set<string>> {
 	const connections = new Map<string, Set<string>>();
 	for (const [, pair] of pairData) {
-		if (!connections.has(pair.srcGroup)) connections.set(pair.srcGroup, new Set());
-		if (!connections.has(pair.tgtGroup)) connections.set(pair.tgtGroup, new Set());
-		connections.get(pair.srcGroup)!.add(pair.tgtGroup);
-		connections.get(pair.tgtGroup)!.add(pair.srcGroup);
+		addToMapSet(connections, pair.srcGroup, pair.tgtGroup);
+		addToMapSet(connections, pair.tgtGroup, pair.srcGroup);
 	}
 	return connections;
 }

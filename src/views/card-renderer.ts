@@ -8,6 +8,19 @@ import type { PixiNode } from "./InteractionManager";
 import { contrastColor } from "../utils/color";
 import { darkenColor, truncateLabel } from "./RenderPipeline";
 import type { RenderHost } from "./RenderPipeline";
+import type { ShapeRule } from "../utils/node-shapes";
+
+/** Shared rendering context for card-mode functions. */
+export interface CardRenderCtx {
+	visible: PixiNode[];
+	pixiNodes?: Map<string, PixiNode>;
+	tlFilteredOut: Set<string> | null;
+	alpha: number;
+	nodeCount: number;
+	worldScale: number;
+	minWorldRadius: number;
+	shapeRules?: ShapeRule[];
+}
 
 // ---------------------------------------------------------------------------
 // CardText — CanvasText with a marker flag for card-mode text children
@@ -142,15 +155,7 @@ export function cleanupCardTextAll(pixiNodes: Map<string, PixiNode>): void {
 export function renderCardMode(
 	host: RenderHost,
 	g: CanvasGraphics,
-	ctx: {
-		visible: PixiNode[];
-		pixiNodes: Map<string, PixiNode>;
-		tlFilteredOut: Set<string> | null;
-		alpha: number;
-		nodeCount: number;
-		worldScale: number;
-		minWorldRadius: number;
-	},
+	ctx: CardRenderCtx & { pixiNodes: Map<string, PixiNode> },
 	crc: ReturnType<typeof Object.assign>,
 	rt: ReturnType<typeof Object.assign>,
 ): void {
@@ -284,14 +289,7 @@ function renderTableCardText(
 function renderTableCard(
 	host: RenderHost,
 	g: CanvasGraphics,
-	ctx: {
-		visible: PixiNode[];
-		tlFilteredOut: Set<string> | null;
-		alpha: number;
-		nodeCount: number;
-		worldScale: number;
-		minWorldRadius: number;
-	},
+	ctx: CardRenderCtx,
 	crc: ReturnType<typeof Object.assign>,
 	rt: ReturnType<typeof Object.assign>,
 	cardConfig: CardDisplayConfig,
@@ -452,14 +450,7 @@ function renderPlainCardBodyLines(
 function renderPlainCard(
 	host: RenderHost,
 	g: CanvasGraphics,
-	ctx: {
-		visible: PixiNode[];
-		tlFilteredOut: Set<string> | null;
-		alpha: number;
-		nodeCount: number;
-		worldScale: number;
-		minWorldRadius: number;
-	},
+	ctx: CardRenderCtx,
 	crc: ReturnType<typeof Object.assign>,
 	rt: ReturnType<typeof Object.assign>,
 	cardConfig: CardDisplayConfig,

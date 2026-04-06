@@ -1,5 +1,6 @@
 import type { GraphData, GraphNode, GraphEdge } from "../types";
 import { hexToRgb } from "./color";
+import { addToMapSet } from "./map-helpers";
 
 /**
  * Extract node ID from a d3-force edge endpoint.
@@ -575,8 +576,7 @@ export function computeGaps(
 	const tagMap = new Map<string, Set<string>>();
 	for (const n of nodes) {
 		for (const tag of n.tags ?? []) {
-			if (!tagMap.has(tag)) tagMap.set(tag, new Set());
-			tagMap.get(tag)!.add(n.id);
+			addToMapSet(tagMap, tag, n.id);
 		}
 	}
 	for (const [, members] of tagMap) {
@@ -691,8 +691,7 @@ export function buildTagMembership(
 				bestTag = n.tags[i];
 			}
 		}
-		if (!tagMembership.has(bestTag)) tagMembership.set(bestTag, new Set());
-		tagMembership.get(bestTag)!.add(n.id);
+		addToMapSet(tagMembership, bestTag, n.id);
 	}
 	// Build tag relationship pairs from inheritance/aggregation edges
 	for (const e of edges) {

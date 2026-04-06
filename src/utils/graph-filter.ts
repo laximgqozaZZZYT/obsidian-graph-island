@@ -8,6 +8,7 @@
 import type { GraphNode, GraphEdge } from "../types";
 import { EDGE_TYPE_HAS_TAG, EDGE_TYPE_SIMILAR, TAG_DISPLAY_ENCLOSURE } from "../constants";
 import { incCounter } from "./graph-helpers";
+import { addToMapSet } from "./map-helpers";
 
 /** Remove orphan nodes (nodes with no edges). */
 export function filterOrphans(nodes: GraphNode[], edges: GraphEdge[]): GraphNode[] {
@@ -154,10 +155,8 @@ export function filterByLocalGraph<
 
 	const adj = new Map<string, Set<string>>();
 	for (const e of edges) {
-		if (!adj.has(e.source)) adj.set(e.source, new Set());
-		if (!adj.has(e.target)) adj.set(e.target, new Set());
-		adj.get(e.source)!.add(e.target);
-		adj.get(e.target)!.add(e.source);
+		addToMapSet(adj, e.source, e.target);
+		addToMapSet(adj, e.target, e.source);
 	}
 	const reachable = new Set<string>([resolved]);
 	let frontier = [resolved];

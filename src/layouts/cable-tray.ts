@@ -10,6 +10,8 @@
  *   cartesian → horizontal + vertical streets = Manhattan-style
  */
 import type { GraphNode } from "../types";
+import { squaredDistance, findNearestIndex, findNearestWithDist, distance } from "../utils/geometry";
+import { pushToMapArray, getOrCreateArray } from "../utils/map-helpers";
 
 // ---------------------------------------------------------------------------
 // Data structures
@@ -177,10 +179,8 @@ function buildAdjacency(
 	const adjacency = new Map<number, { to: number; weight: number; segIdx: number }[]>();
 	for (let si = 0; si < segments.length; si++) {
 		const seg = segments[si];
-		if (!adjacency.has(seg.from)) adjacency.set(seg.from, []);
-		if (!adjacency.has(seg.to)) adjacency.set(seg.to, []);
-		adjacency.get(seg.from)!.push({ to: seg.to, weight: seg.length, segIdx: si });
-		adjacency.get(seg.to)!.push({ to: seg.from, weight: seg.length, segIdx: si });
+		pushToMapArray(adjacency, seg.from, { to: seg.to, weight: seg.length, segIdx: si });
+		pushToMapArray(adjacency, seg.to, { to: seg.from, weight: seg.length, segIdx: si });
 	}
 	return adjacency;
 }
@@ -281,17 +281,11 @@ export function buildRoadNetwork(cfg: RoadNetworkConfig): RoadNetwork {
 	// Map each node to nearest point ON a road segment
 	const nodeAccess = new Map<string, number>();
 	for (const node of cfg.nodes) {
-		let bestId = intersections.length > 0 ? intersections[0].id : -1;
-		let bestDist = Infinity;
+		const nearestIdx = findNearestIndex(intersections, node.x, node.y);
+		const bestId = nearestIdx >= 0 ? intersections[nearestIdx].id : -1;
+		const bestDist = nearestIdx >= 0 ? squaredDistance(node.x, node.y, intersections[nearestIdx].x, intersections[nearestIdx].y) : Infinity;
 		let bestSegIdx = -1;
 		let bestT = 0;
-
-		for (const isect of intersections) {
-			const dx = node.x - isect.x;
-			const dy = node.y - isect.y;
-			const d = dx * dx + dy * dy;
-			if (d < bestDist) { bestDist = d; bestId = isect.id; bestSegIdx = -1; }
-		}
 
 		if (cfg.system === "cartesian") {
 			const snap = findClosestSegmentPoint(node, segments, intersections, bestDist);
@@ -448,24 +442,16 @@ export function addTrunkRoads(network: RoadNetwork, groupCentroids: { x: number;
 	// For each centroid, find or create the nearest intersection
 	const centroidIsects: number[] = [];
 	for (const c of groupCentroids) {
-		let bestId = -1;
-		let bestDist = Infinity;
-		for (const isect of network.intersections) {
-			const dx = c.x - isect.x;
-			const dy = c.y - isect.y;
-			const d = dx * dx + dy * dy;
-			if (d < bestDist) {
-				bestDist = d;
-				bestId = isect.id;
-			}
-		}
+		const nearIdx = findNearestIndex(network.intersections, c.x, c.y);
+		const bestId = nearIdx >= 0 ? network.intersections[nearIdx].id : -1;
+		const bestDist = nearIdx >= 0 ? squaredDistance(c.x, c.y, network.intersections[nearIdx].x, network.intersections[nearIdx].y) : Infinity;
 		if (bestId >= 0 && bestDist < 1e8) {
 			centroidIsects.push(bestId);
 		} else {
 			// Create new intersection at centroid
 			const id = network.intersections.length;
 			network.intersections.push({ id, x: c.x, y: c.y });
-			if (!network.adjacency.has(id)) network.adjacency.set(id, []);
+			getOrCreateArray(network.adjacency, id);
 			centroidIsects.push(id);
 		}
 	}
@@ -648,9 +634,7 @@ export function buildRoadNetworkFromPhantoms(
 		const dists: { idx: number; dist: number }[] = [];
 		for (let j = 0; j < phantomNodes.length; j++) {
 			if (i === j) continue;
-			const dx = phantomNodes[i].x - phantomNodes[j].x;
-			const dy = phantomNodes[i].y - phantomNodes[j].y;
-			dists.push({ idx: j, dist: Math.sqrt(dx * dx + dy * dy) });
+			dists.push({ idx: j, dist: distance(phantomNodes[i].x, phantomNodes[i].y, phantomNodes[j].x, phantomNodes[j].y) });
 		}
 		dists.sort((a, b) => a.dist - b.dist);
 
@@ -668,27 +652,15 @@ export function buildRoadNetworkFromPhantoms(
 	const adjacency = new Map<number, { to: number; weight: number; segIdx: number }[]>();
 	for (let si = 0; si < segments.length; si++) {
 		const seg = segments[si];
-		if (!adjacency.has(seg.from)) adjacency.set(seg.from, []);
-		if (!adjacency.has(seg.to)) adjacency.set(seg.to, []);
-		adjacency.get(seg.from)!.push({ to: seg.to, weight: seg.length, segIdx: si });
-		adjacency.get(seg.to)!.push({ to: seg.from, weight: seg.length, segIdx: si });
+		pushToMapArray(adjacency, seg.from, { to: seg.to, weight: seg.length, segIdx: si });
+		pushToMapArray(adjacency, seg.to, { to: seg.from, weight: seg.length, segIdx: si });
 	}
 
 	// Map real nodes to nearest intersection
 	const nodeAccess = new Map<string, number>();
 	for (const node of realNodes) {
-		let bestId = intersections.length > 0 ? intersections[0].id : -1;
-		let bestDist = Infinity;
-		for (const isect of intersections) {
-			const dx = node.x - isect.x;
-			const dy = node.y - isect.y;
-			const d = dx * dx + dy * dy;
-			if (d < bestDist) {
-				bestDist = d;
-				bestId = isect.id;
-			}
-		}
-		nodeAccess.set(node.id, bestId);
+		const nearIdx = findNearestIndex(intersections, node.x, node.y);
+		nodeAccess.set(node.id, nearIdx >= 0 ? intersections[nearIdx].id : -1);
 	}
 
 	return { intersections, segments, nodeAccess, adjacency, system, cx, cy };

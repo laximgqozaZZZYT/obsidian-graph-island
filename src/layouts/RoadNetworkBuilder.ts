@@ -9,6 +9,7 @@
 import type { GraphNode, GraphEdge, RenderThresholds } from "../types";
 import { DEFAULT_RENDER_THRESHOLDS } from "../types";
 import { buildRoadNetwork, buildRoadNetworkFromPhantoms, addTrunkRoads, type RoadNetwork } from "./cable-tray";
+import { findNearestIndex } from "../utils/geometry";
 import type { ClusterMetadata, ArrangementGuide } from "./cluster-force";
 import type { CoordinateGuide, ResolvedGridInfo } from "./coordinate-engine";
 import type { Simulation } from "d3-force";
@@ -71,18 +72,8 @@ export class RoadNetworkBuilder {
 				addTrunkRoads(this.trayData, centroids);
 				// Re-map nodes to nearest intersection (trunk roads may provide closer access)
 				for (const node of allNodes) {
-					let bestId = this.trayData.intersections.length > 0 ? this.trayData.intersections[0].id : -1;
-					let bestDist = Infinity;
-					for (const isect of this.trayData.intersections) {
-						const dx = node.x - isect.x;
-						const dy = node.y - isect.y;
-						const d = dx * dx + dy * dy;
-						if (d < bestDist) {
-							bestDist = d;
-							bestId = isect.id;
-						}
-					}
-					this.trayData.nodeAccess.set(node.id, bestId);
+					const nearIdx = findNearestIndex(this.trayData.intersections, node.x, node.y);
+					this.trayData.nodeAccess.set(node.id, nearIdx >= 0 ? this.trayData.intersections[nearIdx].id : -1);
 				}
 			}
 		}

@@ -3,6 +3,7 @@
 // ---------------------------------------------------------------------------
 import type { GraphNode, GraphEdge, GraphData } from "../types";
 import { edgeSourceId, edgeTargetId } from "./graph-helpers";
+import { pushToMapArray } from "./map-helpers";
 
 /** Specification for a group of nodes */
 export interface GroupSpec {
@@ -132,8 +133,7 @@ export function groupNodesByField(nodes: GraphNode[], field: string, opts?: Grou
 		if (vals.length === 0) continue;
 		const bestVal = pickLargestGroup(vals, valueCounts);
 		assigned.add(n.id);
-		if (!groupMap.has(bestVal)) groupMap.set(bestVal, []);
-		groupMap.get(bestVal)!.push(n.id);
+		pushToMapArray(groupMap, bestVal, n.id);
 	}
 
 	const groups: GroupSpec[] = [];

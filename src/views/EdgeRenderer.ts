@@ -2,6 +2,7 @@ import { CanvasGraphics, CanvasContainer, CanvasText } from "./canvas2d";
 import type { GraphEdge, EdgeCardinalityMode, Cardinality, CardinalityRule, CardinalityRenderConfig } from "../types";
 import { DEFAULT_CARDINALITY_RENDER_CONFIG } from "../types";
 import { cssColorToHex, edgeSourceId, edgeTargetId, incCounter } from "../utils/graph-helpers";
+import { addToMapSet } from "../utils/map-helpers";
 import { wcagContrastRatio, contrastColor } from "../utils/color";
 import type { RoadNetwork } from "../layouts/cable-tray";
 import {
@@ -2028,10 +2029,8 @@ function rebuildTrunkCables(
 		const sg = cfg.nodeClusterMap!.get(edgeSourceId(e));
 		const tg = cfg.nodeClusterMap!.get(edgeTargetId(e));
 		if (!sg || !tg || sg === tg) continue;
-		if (!connections.has(sg)) connections.set(sg, new Set());
-		if (!connections.has(tg)) connections.set(tg, new Set());
-		connections.get(sg)!.add(tg);
-		connections.get(tg)!.add(sg);
+		addToMapSet(connections, sg, tg);
+		addToMapSet(connections, tg, sg);
 	}
 	cache.groupBBox.clear();
 	const allGroupPorts = computeGroupPorts(
@@ -2081,10 +2080,8 @@ function prepareCables(
 				const radii = cfg.clusterRadii!;
 				const connections = new Map<string, Set<string>>();
 				for (const trunk of cache.cable.trunks) {
-					if (!connections.has(trunk.srcGroup)) connections.set(trunk.srcGroup, new Set());
-					if (!connections.has(trunk.tgtGroup)) connections.set(trunk.tgtGroup, new Set());
-					connections.get(trunk.srcGroup)!.add(trunk.tgtGroup);
-					connections.get(trunk.tgtGroup)!.add(trunk.srcGroup);
+					addToMapSet(connections, trunk.srcGroup, trunk.tgtGroup);
+					addToMapSet(connections, trunk.tgtGroup, trunk.srcGroup);
 				}
 				const groupKeys = new Set(cfg.nodeClusterMap!.values());
 				const pc = computePolarCenter(cfg);

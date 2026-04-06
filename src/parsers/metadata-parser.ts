@@ -12,6 +12,7 @@ import {
 	EDGE_TYPE_HAS_TAG,
 } from "../constants";
 import { incCounter } from "../utils/graph-helpers";
+import { pushToMapArray } from "../utils/map-helpers";
 
 /** Initial random scatter range for node positions */
 const INITIAL_SCATTER_X = 800;
@@ -388,8 +389,7 @@ function buildSharedMetadataEdges(
 			const values = Array.isArray(frontmatter[field]) ? frontmatter[field] : [frontmatter[field]];
 			for (const val of values) {
 				const key = `${field}:${String(val)}`;
-				if (!valueToNodes.has(key)) valueToNodes.set(key, []);
-				valueToNodes.get(key)!.push(node.id);
+				pushToMapArray(valueToNodes, key, node.id);
 			}
 		}
 
@@ -565,8 +565,7 @@ export function buildSunburstData(app: App, groupField: string): SunburstData {
 		const frontmatter = cache?.frontmatter;
 		const group = (frontmatter?.[groupField] as string) ?? "Uncategorized";
 
-		if (!groups.has(group)) groups.set(group, []);
-		groups.get(group)!.push({
+		pushToMapArray(groups, group, {
 			name: file.basename,
 			value: 1,
 			filePath: file.path,

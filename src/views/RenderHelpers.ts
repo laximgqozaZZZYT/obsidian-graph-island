@@ -7,6 +7,11 @@
 import { parseQueryExpr, serializeExpr } from "../utils/query-expr";
 import { hexToRgb } from "../utils/color";
 import type { ClusterGroupRule, GroupPreset, GraphEdge } from "../types";
+import {
+	addFrontmatterTag as _addFrontmatterTag,
+	setFrontmatterField as _setFrontmatterField,
+} from "../utils/frontmatter-helper";
+import { generatePhantomNodes as _generatePhantomNodes } from "./phantom-node-generator";
 
 // ---------------------------------------------------------------------------
 // Cluster rule derivation
@@ -315,51 +320,14 @@ export const ALL_PRESETS: Record<string, Record<string, unknown>> = {
 };
 
 // ---------------------------------------------------------------------------
-// Frontmatter helpers (pure string transforms)
+// Frontmatter helpers — re-exported from canonical source
 // ---------------------------------------------------------------------------
 
 /** Set a frontmatter field (creates YAML block if needed). */
-export function setFrontmatterField(content: string, key: string, value: string): string {
-	const fmMatch = content.match(/^---\n([\s\S]*?)\n---/);
-	if (fmMatch) {
-		const fmBody = fmMatch[1];
-		const regex = new RegExp(`^${key}:.*$`, "m");
-		if (regex.test(fmBody)) {
-			const newFm = fmBody.replace(regex, `${key}: ${value}`);
-			return content.replace(fmMatch[0], `---\n${newFm}\n---`);
-		} else {
-			const newFm = fmBody + `\n${key}: ${value}`;
-			return content.replace(fmMatch[0], `---\n${newFm}\n---`);
-		}
-	} else {
-		return `---\n${key}: ${value}\n---\n${content}`;
-	}
-}
+export const setFrontmatterField = _setFrontmatterField;
 
 /** Add a tag to frontmatter tags array. */
-export function addFrontmatterTag(content: string, tag: string): string {
-	const fmMatch = content.match(/^---\n([\s\S]*?)\n---/);
-	if (fmMatch) {
-		const fmBody = fmMatch[1];
-		const tagsRegex = /^tags:\s*\[([^\]]*)\]/m;
-		const tagsListRegex = /^tags:\s*$/m;
-		if (tagsRegex.test(fmBody)) {
-			const newFm = fmBody.replace(tagsRegex, (match, inner) => {
-				const existing = inner ? inner + ", " : "";
-				return `tags: [${existing}${tag}]`;
-			});
-			return content.replace(fmMatch[0], `---\n${newFm}\n---`);
-		} else if (tagsListRegex.test(fmBody)) {
-			const newFm = fmBody.replace(tagsListRegex, `tags:\n  - ${tag}`);
-			return content.replace(fmMatch[0], `---\n${newFm}\n---`);
-		} else {
-			const newFm = fmBody + `\ntags: [${tag}]`;
-			return content.replace(fmMatch[0], `---\n${newFm}\n---`);
-		}
-	} else {
-		return `---\ntags: [${tag}]\n---\n${content}`;
-	}
-}
+export const addFrontmatterTag = _addFrontmatterTag;
 
 // ---------------------------------------------------------------------------
 // Edge analysis helpers
@@ -555,6 +523,9 @@ export function computeDegenerateSpread(
 /**
  * Generate phantom routing junction nodes arranged in a grid or polar pattern.
  * These invisible nodes provide anchor points for the road-network edge routing.
+ *
+ * Thin wrapper over `phantom-node-generator.ts` that preserves the legacy
+ * boolean signature used by existing callers and tests.
  */
 export function generatePhantomNodes(
 	realNodes: { x: number; y: number; isPhantom?: boolean }[],
@@ -562,72 +533,14 @@ export function generatePhantomNodes(
 	cy: number,
 	isPolar: boolean,
 ): { id: string; label: string; x: number; y: number; vx: number; vy: number; isPhantom: true }[] {
-	const phantoms: { id: string; label: string; x: number; y: number; vx: number; vy: number; isPhantom: true }[] = [];
-
-	if (isPolar) {
-		const spokeCount = Math.min(12, Math.max(8, Math.ceil(Math.sqrt(realNodes.length / 5))));
-		const ringCount = Math.min(8, Math.max(4, Math.ceil(Math.sqrt(realNodes.length / 10))));
-		let maxR = 0;
-		for (const n of realNodes) {
-			if (n.isPhantom) continue;
-			const d = Math.sqrt((n.x - cx) ** 2 + (n.y - cy) ** 2);
-			if (d > maxR) maxR = d;
-		}
-		if (maxR < 10) maxR = 500;
-
-		for (let ri = 1; ri <= ringCount; ri++) {
-			const r = (maxR * ri) / (ringCount + 1);
-			for (let si = 0; si < spokeCount; si++) {
-				const theta = (si / spokeCount) * Math.PI * 2;
-				phantoms.push({
-					id: `__phantom_r${ri}_s${si}`,
-					label: "",
-					x: cx + r * Math.cos(theta),
-					y: cy + r * Math.sin(theta),
-					vx: 0,
-					vy: 0,
-					isPhantom: true,
-				});
-			}
-		}
-	} else {
-		const gridSize = Math.min(10, Math.max(6, Math.ceil(Math.sqrt(realNodes.length / 8))));
-		let xMin = Infinity,
-			xMax = -Infinity,
-			yMin = Infinity,
-			yMax = -Infinity;
-		for (const n of realNodes) {
-			if (n.isPhantom) continue;
-			if (n.x < xMin) xMin = n.x;
-			if (n.x > xMax) xMax = n.x;
-			if (n.y < yMin) yMin = n.y;
-			if (n.y > yMax) yMax = n.y;
-		}
-		if (xMin === Infinity) {
-			xMin = cx - 250;
-			xMax = cx + 250;
-			yMin = cy - 250;
-			yMax = cy + 250;
-		}
-		const w = xMax - xMin || 500;
-		const h = yMax - yMin || 500;
-
-		for (let xi = 0; xi <= gridSize; xi++) {
-			for (let yi = 0; yi <= gridSize; yi++) {
-				phantoms.push({
-					id: `__phantom_x${xi}_y${yi}`,
-					label: "",
-					x: xMin + (w * xi) / gridSize,
-					y: yMin + (h * yi) / gridSize,
-					vx: 0,
-					vy: 0,
-					isPhantom: true,
-				});
-			}
-		}
-	}
-
-	return phantoms;
+	// Map boolean to an arrangement string understood by the canonical implementation.
+	const arrangement = isPolar ? "concentric" : "grid";
+	return _generatePhantomNodes(
+		realNodes as Parameters<typeof _generatePhantomNodes>[0],
+		cx,
+		cy,
+		arrangement,
+	) as { id: string; label: string; x: number; y: number; vx: number; vy: number; isPhantom: true }[];
 }
 
 // ---------------------------------------------------------------------------

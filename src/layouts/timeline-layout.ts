@@ -8,6 +8,7 @@
 import type { GraphNode, GraphEdge } from "../types";
 import { ARRANGEMENT_TIMELINE, EDGE_TYPE_SEQUENCE } from "../constants";
 import type { ClusterForceConfig, ArrangementResult, TimelineBarInfo } from "./cluster-force";
+import { pushToMapArray } from "../utils/map-helpers";
 
 // ---------------------------------------------------------------------------
 // ユーティリティ関数 (cluster-force.ts からの依存)
@@ -791,9 +792,8 @@ export function buildHierarchyOrder(
 			const parentId = extractWikilink(parentVal) || parentVal;
 			if (idSet.has(parentId)) {
 				parentMap.set(nd.id, parentId);
-				if (!children.has(parentId)) children.set(parentId, []);
 				const so = Number(getNodeProperty(nd.id, "story_order") ?? "0") || 0;
-				children.get(parentId)!.push({ id: nd.id, storyOrder: so });
+				pushToMapArray(children, parentId, { id: nd.id, storyOrder: so });
 			}
 		}
 	}

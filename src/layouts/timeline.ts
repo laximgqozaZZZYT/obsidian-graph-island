@@ -10,6 +10,7 @@
 
 import type { GraphData, GraphNode, GraphEdge } from "../types";
 import { EDGE_TYPE_SEQUENCE } from "../constants";
+import { pushToMapArray } from "../utils/map-helpers";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -167,8 +168,7 @@ function assignHierarchicalLanes(
 		const order = getNodeProp(n.id, "story_order");
 		if (parentId) {
 			parentMap.set(n.id, parentId);
-			if (!childrenMap.has(parentId)) childrenMap.set(parentId, []);
-			childrenMap.get(parentId)!.push(n.id);
+			pushToMapArray(childrenMap, parentId, n.id);
 		}
 		if (order) orderMap.set(n.id, parseFloat(order) || 0);
 	}
@@ -182,8 +182,7 @@ function assignHierarchicalLanes(
 	const workGroups = new Map<string, GraphNode[]>();
 	for (const n of timedNodes) {
 		const w = workGroup(n);
-		if (!workGroups.has(w)) workGroups.set(w, []);
-		workGroups.get(w)!.push(n);
+		pushToMapArray(workGroups, w, n);
 	}
 
 	// Sort works for deterministic layout

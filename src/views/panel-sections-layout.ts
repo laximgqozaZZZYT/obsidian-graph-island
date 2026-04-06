@@ -25,7 +25,7 @@ import type { PanelState, PanelCallbacks, PanelContext } from "./PanelBuilder";
 import { ensureRT, buildSection } from "./PanelBuilder";
 
 // Re-export for internal consumption by PanelBuilder call sites
-export { syncArrangementFromLayout, getPreset };
+export { syncArrangementFromLayout, getPreset, getOrCreateCoordLayout };
 
 // ---------------------------------------------------------------------------
 // Shared context for cluster-arrangement helpers
@@ -57,6 +57,11 @@ function syncArrangementFromLayout(panel: PanelState): void {
 /** Safe accessor for ARRANGEMENT_PRESETS — returns grid preset as fallback */
 function getPreset(arrangement: ClusterArrangement): CoordinateLayout {
   return ARRANGEMENT_PRESETS[arrangement] ?? ARRANGEMENT_PRESETS.grid;
+}
+
+/** Get the current coordinate layout, falling back to the preset for the current arrangement. */
+function getOrCreateCoordLayout(panel: PanelState): CoordinateLayout {
+  return panel.coordinateLayout ?? { ...getPreset(panel.clusterArrangement) };
 }
 
 // ---------------------------------------------------------------------------
