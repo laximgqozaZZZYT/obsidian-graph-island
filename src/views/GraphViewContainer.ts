@@ -7599,7 +7599,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 					}
 				});
 			}
-			this._suppressAutoFit = false;
 			this.markDirty(true);
 			// Re-cull labels after simulation settles to fix overlap
 			// caused by node positions changing during simulation
@@ -7610,6 +7609,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			this._autoOptimizeLabelOverlapOnce();
 			// F1: Zero-config start — auto-focus on active file after first render
 			this._autoFocusActiveFile();
+			// Clear suppress AFTER _autoFocusActiveFile so that its doRender()
+			// can protect the next simulation-end autoFit via the flag
+			this._suppressAutoFit = false;
 			// P5: Persist all node positions after simulation settles
 			this._persistAllPositions();
 		});
@@ -8133,6 +8135,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			this.panel.localGraphCenter = activeFile.path;
 			this.panel.localGraphHops = 1;
 			this.rawData = null;
+			// Suppress autoFit in the next simulation-end so the local graph
+			// zoom is computed from filtered (local) nodes, not overwritten
+			// by a full-graph autoFit triggered before this re-render settles.
+			this._suppressAutoFit = true;
 			this.doRender();
 			return;
 		}
