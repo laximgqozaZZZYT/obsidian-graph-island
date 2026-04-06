@@ -88,9 +88,10 @@ export function areSavedPositionsValid(
 /** Lighten a hex color by a factor (0–1). factor=0.2 means 20% lighter. */
 export function lightenHex(hex: number, factor: number): number {
 	const { r, g, b } = hexToRgb(hex);
-	const lr = Math.min(255, r + Math.round(255 * factor));
-	const lg = Math.min(255, g + Math.round(255 * factor));
-	const lb = Math.min(255, b + Math.round(255 * factor));
+	const delta = Math.round(255 * factor);
+	const lr = Math.max(0, Math.min(255, r + delta));
+	const lg = Math.max(0, Math.min(255, g + delta));
+	const lb = Math.max(0, Math.min(255, b + delta));
 	return (lr << 16) | (lg << 8) | lb;
 }
 
