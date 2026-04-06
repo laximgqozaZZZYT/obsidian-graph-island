@@ -18,7 +18,7 @@ PROJECT_DIR="/home/ubuntu/obsidian-plugins/obsidian-graph-island"
 LOG_FILE="/tmp/graph-island-improve.log"
 RESULT_DIR="/tmp/graph-island-improve-results"
 MAX_LOG_SIZE=$((10 * 1024 * 1024))
-MAX_SESSIONS=5
+MAX_SESSIONS=2
 MAX_ITERATIONS=3
 MAX_TURNS=30
 
@@ -147,9 +147,12 @@ fi
 
 log "Worktree created: $WORKTREE_DIR"
 
-# ── Cleanup trap (worktree + session lock) ──
+# ── Cleanup trap (worktree + session lock + child processes) ──
 cleanup() {
   rm -f "$LOCK_DIR/$SESSION_ID.pid" 2>/dev/null
+  # Kill any child processes this session spawned
+  pkill -P $$ 2>/dev/null
+  wait 2>/dev/null  # Reap zombies
   log "Cleaning up worktree..."
   cd "$PROJECT_DIR" || true
   git worktree remove "$WORKTREE_DIR" --force 2>/dev/null || rm -rf "$WORKTREE_DIR"
