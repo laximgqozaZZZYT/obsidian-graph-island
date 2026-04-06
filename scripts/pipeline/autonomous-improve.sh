@@ -163,56 +163,9 @@ Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>" --no-verif
   fi
 fi
 
-# ── PRIORITIZE issues: user-reported > auto-discovered > auto-focus ──
-# Priority order:
-#   1. User issues (critical > high > medium > low)
-#   2. Auto-discovered issues (critical > high > medium > low)
-#   3. Auto-focus rotation (coverage/eslint/refactor)
-ISSUE_DIR="$PROJECT_DIR/scripts/pipeline/issues"
-ISSUE_FILE=""
-ISSUE_CONTENT=""
-if [[ -d "$ISSUE_DIR" ]]; then
-  # First pass: user-reported issues (no "source: auto-discovered")
-  for prio in critical high medium low; do
-    ISSUE_FILE=$(grep -rl "priority: $prio" "$ISSUE_DIR"/*.md 2>/dev/null | while read f; do
-      grep -q "status: pending" "$f" || continue
-      grep -q "source: auto-discovered" "$f" && continue  # skip auto, user first
-      echo "$f" && break
-    done)
-    [[ -n "$ISSUE_FILE" ]] && break
-  done
-
-  # Second pass: auto-discovered issues (only if no user issues)
-  if [[ -z "$ISSUE_FILE" ]]; then
-    for prio in critical high medium low; do
-      ISSUE_FILE=$(grep -rl "priority: $prio" "$ISSUE_DIR"/*.md 2>/dev/null | while read f; do
-        grep -q "status: pending" "$f" || continue
-        echo "$f" && break
-      done)
-      [[ -n "$ISSUE_FILE" ]] && break
-    done
-  fi
-fi
-
-if [[ -n "$ISSUE_FILE" ]]; then
-  FOCUS="user-issue"
-  ISSUE_CONTENT=$(cat "$ISSUE_FILE")
-  ISSUE_NAME=$(basename "$ISSUE_FILE")
-  log "USER ISSUE: $ISSUE_NAME (priority: $prio)"
-  # Mark as in-progress + commit to keep main clean
-  sed -i 's/status: pending/status: in-progress/' "$PROJECT_DIR/scripts/pipeline/issues/$ISSUE_NAME" 2>/dev/null || true
-  (cd "$PROJECT_DIR" && git add "scripts/pipeline/issues/$ISSUE_NAME" && git commit -m "chore: mark issue $ISSUE_NAME as in-progress" --no-verify 2>/dev/null) || true
-else
-  # ── Choose focus based on time-of-day rotation (not session count) ──
-  # This ensures all 3 focus areas get equal time even with 1 session
-  HOUR=$(date +%-H)
-  FOCUS_AREAS=("coverage" "eslint" "refactor")
-  FOCUS_INDEX=$(( (HOUR / 2) % 3 ))
-  FOCUS="${FOCUS_AREAS[$FOCUS_INDEX]}"
-fi
-HOUR=${HOUR:-$(date +%-H)}
-FOCUS_INDEX=${FOCUS_INDEX:-0}
-log "Focus area: $FOCUS (hour=$HOUR, slot=$((FOCUS_INDEX + 1)))"
+# ── PRIORITIZE: moved into loop (per-iteration context reset) ──
+# Issue queue check + focus selection now happens at the start of each iteration
+# to ensure clean context and pick up newly filed issues mid-session.
 
 # ── CDP check (E2E runs via CDP — no display occupation) ──
 # CDP page.screenshot() captures the internal render buffer,
@@ -229,18 +182,64 @@ fi
 TOTAL_COMMITS=0
 
 for iter in $(seq 1 "$MAX_ITERATIONS"); do
-  log "── Iteration $iter/$MAX_ITERATIONS (focus: $FOCUS) ──"
 
-  # ── ASSESS ──
+  # ── CONTEXT RESET (コンテキスト汚染防止) ──
+  # 各イテレーションをクリーンな状態から開始。
+  # 保持するもの: issueファイル、git状態、TOTAL_COMMITS, CDP_AVAILABLE
+  # リセットするもの: 前イテレーションの判断結果・中間変数
+  GATE_JSON=""
+  GODOBJ_JSON=""
+  GATE_STATUS=""
+  GODOBJ_STATUS=""
+  VISUAL_INFO="CDP unavailable"
+  REVIEW_FINDINGS=""
+  PROMPT=""
+  SKILL_CONTEXT=""
+  ISSUE_FILE=""
+  ISSUE_CONTENT=""
+  ISSUE_NAME=""
+
+  # ── Re-evaluate focus (issue queue may have changed) ──
+  ISSUE_DIR="$PROJECT_DIR/scripts/pipeline/issues"
+  if [[ -d "$ISSUE_DIR" ]]; then
+    for prio in critical high medium low; do
+      ISSUE_FILE=$(grep -rl "priority: $prio" "$ISSUE_DIR"/*.md 2>/dev/null | while read f; do
+        grep -q "status: pending" "$f" || continue
+        grep -q "source: auto-discovered" "$f" && continue
+        echo "$f" && break
+      done)
+      [[ -n "$ISSUE_FILE" ]] && break
+    done
+    if [[ -z "$ISSUE_FILE" ]]; then
+      for prio in critical high medium low; do
+        ISSUE_FILE=$(grep -rl "priority: $prio" "$ISSUE_DIR"/*.md 2>/dev/null | while read f; do
+          grep -q "status: pending" "$f" || continue
+          echo "$f" && break
+        done)
+        [[ -n "$ISSUE_FILE" ]] && break
+      done
+    fi
+  fi
+
+  if [[ -n "$ISSUE_FILE" ]]; then
+    FOCUS="user-issue"
+    ISSUE_CONTENT=$(cat "$ISSUE_FILE")
+    ISSUE_NAME=$(basename "$ISSUE_FILE")
+    log "USER ISSUE: $ISSUE_NAME"
+    sed -i 's/status: pending/status: in-progress/' "$PROJECT_DIR/scripts/pipeline/issues/$ISSUE_NAME" 2>/dev/null || true
+    (cd "$PROJECT_DIR" && git add "scripts/pipeline/issues/$ISSUE_NAME" && git commit -m "chore: mark issue $ISSUE_NAME as in-progress" --no-verify 2>/dev/null) || true
+  else
+    HOUR=$(date +%-H)
+    FOCUS_AREAS=("coverage" "eslint" "refactor")
+    FOCUS_INDEX=$(( (HOUR / 2) % 3 ))
+    FOCUS="${FOCUS_AREAS[$FOCUS_INDEX]}"
+  fi
+
+  log "── Iteration $iter/$MAX_ITERATIONS (focus: $FOCUS, context: clean) ──"
+
+  # ── ASSESS (fresh data, no carry-over) ──
   GATE_JSON=$(bash scripts/pipeline/enforce-gates.sh --json 2>/dev/null || echo '{"passed":0}')
   GODOBJ_JSON=$(bash scripts/pipeline/god-object-audit.sh --json 2>&1 || echo '{"passed":0}')
-
-  # Include visual regression feedback from previous iteration
-  VISUAL_INFO="CDP unavailable"
-  if [[ -n "${VISUAL_ISSUE:-}" ]]; then
-    VISUAL_INFO="VISUAL REGRESSION: $VISUAL_ISSUE"
-    VISUAL_ISSUE=""  # consume once
-  fi
   if [[ "$CDP_AVAILABLE" == true ]]; then
     npx tsx scripts/pipeline/visual-report.ts 2>/dev/null
     VISUAL_INFO=$(python3 -c "
@@ -463,8 +462,11 @@ print(r.get('screenshot','none'))
 
     if [[ "$READABILITY_SCORE" -lt 30 ]]; then
       log "WARN: Readability score $READABILITY_SCORE < 30 — visual regression detected"
-      # Feed back to Claude for the next iteration
-      VISUAL_ISSUE="E2E readability score is $READABILITY_SCORE/100 (critical). Screenshot: $SCREENSHOT. Check visual-report.json for details."
+      # File as issue (persists across context resets, not a shell variable)
+      bash "$PROJECT_DIR/scripts/pipeline/discover-issues.sh" 2>/dev/null  # triggers visual regression detection
+      if [[ -n "$(cd "$PROJECT_DIR" && git status --porcelain scripts/pipeline/issues/)" ]]; then
+        (cd "$PROJECT_DIR" && git add scripts/pipeline/issues/ && git commit -m "chore: auto-file visual regression issue (score $READABILITY_SCORE)" --no-verify 2>/dev/null) || true
+      fi
     fi
   fi
 
