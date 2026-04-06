@@ -885,6 +885,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	private _saveTimer: ReturnType<typeof setTimeout> | null = null;
 	private _resizeOnMove: ((ev: PointerEvent) => void) | null = null;
 	private _resizeOnUp: (() => void) | null = null;
+	private _expansionKeyHandler: ((ev: KeyboardEvent) => void) | null = null;
 
 	/** B3: doRender debounce — prevents rapid re-renders from slider drags */
 	private _doRenderDebounceTimer = 0;
@@ -1988,6 +1989,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		// Clean up panel resize listeners (may persist if destroyed mid-drag)
 		if (this._resizeOnMove) document.removeEventListener("pointermove", this._resizeOnMove);
 		if (this._resizeOnUp) document.removeEventListener("pointerup", this._resizeOnUp);
+		if (this._expansionKeyHandler) {
+			document.removeEventListener("keydown", this._expansionKeyHandler);
+			this._expansionKeyHandler = null;
+		}
 		this.stopOrbitAnimation();
 		this.stopSim();
 		this.ac?.abort();
@@ -3243,22 +3248,27 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
 		// Actions
 		const actions = panel.createDiv({ cls: "gi-node-expand-actions" });
+		const closePanel = () => {
+			panel.remove();
+			if (this._expansionKeyHandler) {
+				document.removeEventListener("keydown", this._expansionKeyHandler);
+				this._expansionKeyHandler = null;
+			}
+		};
+
 		const openBtn = actions.createEl("button", { text: t("detail.openFile"), cls: "mod-cta" });
 		openBtn.addEventListener("click", () => {
 			this.openFile(pn.data.filePath!);
-			panel.remove();
+			closePanel();
 		});
 		const closeBtn = actions.createEl("button", { text: t("action.cancel") });
-		closeBtn.addEventListener("click", () => panel.remove());
+		closeBtn.addEventListener("click", closePanel);
 
 		// ESC to close
-		const onKey = (ev: KeyboardEvent) => {
-			if (ev.key === "Escape") {
-				panel.remove();
-				document.removeEventListener("keydown", onKey);
-			}
+		this._expansionKeyHandler = (ev: KeyboardEvent) => {
+			if (ev.key === "Escape") closePanel();
 		};
-		document.addEventListener("keydown", onKey);
+		document.addEventListener("keydown", this._expansionKeyHandler);
 	}
 
 	/** Clear all held nodes */
