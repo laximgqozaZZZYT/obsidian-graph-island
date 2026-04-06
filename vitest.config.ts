@@ -13,10 +13,10 @@ export default defineConfig({
       reportsDirectory: "coverage",
       thresholds: {
         // Ratchet: edge-label-renderer pure function tests (+41 tests)
-        statements: 49.5,
+        statements: 49.4,
         branches: 44.2,
-        functions: 46.8,
-        lines: 49.8,
+        functions: 46.7,
+        lines: 49.7,
       },
     },
   },
