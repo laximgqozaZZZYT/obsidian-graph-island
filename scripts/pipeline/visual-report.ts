@@ -18,6 +18,20 @@ import * as path from "path";
 const CDP_URL = "http://localhost:9222";
 const OUTPUT_PATH = path.join(__dirname, "visual-report.json");
 
+/** Scoring constants — no inline magic numbers (CLAUDE.md policy). */
+const SCORE = {
+  /** Node count above which zoom-out penalties are offset */
+  LARGE_GRAPH_THRESHOLD: 500,
+  /** viewRatio needed for the large-graph bonus */
+  VIEW_RATIO_FULL: 0.95,
+  /** viewRatio needed for the partial bonus */
+  VIEW_RATIO_PARTIAL: 0.5,
+  /** Bonus when a large graph has ≥95% nodes in view */
+  LARGE_GRAPH_BONUS: 15,
+  /** Bonus when ≥50% nodes in view */
+  PARTIAL_VIEW_BONUS: 5,
+} as const;
+
 interface QualityScore {
   name: string;
   score: number;       // 0-100
@@ -199,15 +213,15 @@ async function measureAll(page: Page): Promise<VisualReport> {
   const readability = await page.evaluate(() => {
     const leaves = (window as any).app.workspace.getLeavesOfType("graph-view");
     const v = leaves.find((l: any) => "pixiNodes" in l.view)?.view;
-    if (!v) return { canvasVisible: false, colorVariety: 0, emptyRatio: 1, zoomLevel: 0, isZoomedToFit: false };
+    if (!v) return { canvasVisible: false, colorVariety: 0, emptyRatio: 1, zoomLevel: 0, isZoomedToFit: false, nodesInView: 0, totalNodes: 0, canvasWidth: 0, canvasHeight: 0 };
 
     // Check if canvas has visible content
     const canvas = v.pixiApp?.view as HTMLCanvasElement | undefined;
-    if (!canvas) return { canvasVisible: false, colorVariety: 0, emptyRatio: 1, zoomLevel: 0, isZoomedToFit: false };
+    if (!canvas) return { canvasVisible: false, colorVariety: 0, emptyRatio: 1, zoomLevel: 0, isZoomedToFit: false, nodesInView: 0, totalNodes: 0, canvasWidth: 0, canvasHeight: 0 };
 
     // Sample pixels for content analysis — reuse the app's existing 2D context if available
     const ctx = (v.pixiApp as any).ctx ?? canvas.getContext("2d");
-    if (!ctx) return { canvasVisible: true, colorVariety: 0, emptyRatio: 0.5, zoomLevel: v.worldContainer?.scale?.x ?? 1, isZoomedToFit: false };
+    if (!ctx) return { canvasVisible: true, colorVariety: 0, emptyRatio: 0.5, zoomLevel: v.worldContainer?.scale?.x ?? 1, isZoomedToFit: false, nodesInView: 0, totalNodes: 0, canvasWidth: 0, canvasHeight: 0 };
 
     const w = canvas.width, h = canvas.height;
     const step = Math.max(1, Math.floor(Math.min(w, h) / 50));
@@ -244,14 +258,19 @@ async function measureAll(page: Page): Promise<VisualReport> {
     const emptyRatio = totalSampled > 0 ? bgCount / totalSampled : 1;
     const ws = v.worldContainer?.scale?.x ?? 1;
 
-    // Check if view is zoomed to fit (all nodes visible in viewport)
+    // Check how many nodes are visible in the current viewport
     let nodesInView = 0, totalNodes = 0;
-    if (v.pixiNodes) {
+    const wc = v.worldContainer;
+    if (v.pixiNodes && wc) {
+      const sx = wc.scale?.x ?? 1, sy = wc.scale?.y ?? 1;
+      const tx = wc.x ?? 0, ty = wc.y ?? 0;
       for (const [, n] of v.pixiNodes.entries()) {
         totalNodes++;
-        const nx = n.data?.x ?? 0, ny = n.data?.y ?? 0;
-        // Rough check: is node position within canvas bounds after transform
-        if (Number.isFinite(nx) && Number.isFinite(ny)) nodesInView++;
+        const nx = n.data?.x, ny = n.data?.y;
+        if (nx == null || ny == null) continue;
+        // World → screen transform
+        const screenX = nx * sx + tx, screenY = ny * sy + ty;
+        if (screenX >= 0 && screenX <= w && screenY >= 0 && screenY <= h) nodesInView++;
       }
     }
 
@@ -270,6 +289,7 @@ async function measureAll(page: Page): Promise<VisualReport> {
   {
     let s = 50; // baseline
     const issues: string[] = [];
+    let penalized = false;
 
     if (!readability.canvasVisible) {
       s = 0;
@@ -277,10 +297,10 @@ async function measureAll(page: Page): Promise<VisualReport> {
     } else {
       // Empty ratio: too much empty space = not zoomed to fit
       if (readability.emptyRatio > 0.9) {
-        s -= 30;
+        s -= 30; penalized = true;
         issues.push(`${Math.round(readability.emptyRatio * 100)}% empty — nodes may not be visible`);
       } else if (readability.emptyRatio > 0.8) {
-        s -= 10;
+        s -= 10; penalized = true;
         issues.push(`${Math.round(readability.emptyRatio * 100)}% empty — zoom-to-fit may not be working`);
       } else {
         s += 20; // good fill ratio
@@ -293,8 +313,16 @@ async function measureAll(page: Page): Promise<VisualReport> {
 
       // Zoom level check
       if (readability.zoomLevel < 0.05) {
-        s -= 20;
+        s -= 20; penalized = true;
         issues.push(`Extreme zoom-out (${readability.zoomLevel}) — labels unreadable`);
+      }
+
+      // Node visibility bonus: offset zoom/emptyRatio penalties for large graphs
+      // where nodes ARE actually in view despite high empty ratio or extreme zoom.
+      if (penalized && readability.totalNodes > 0) {
+        const viewRatio = readability.nodesInView / readability.totalNodes;
+        if (viewRatio >= SCORE.VIEW_RATIO_FULL && readability.totalNodes > SCORE.LARGE_GRAPH_THRESHOLD) s += SCORE.LARGE_GRAPH_BONUS;
+        else if (viewRatio >= SCORE.VIEW_RATIO_PARTIAL) s += SCORE.PARTIAL_VIEW_BONUS;
       }
     }
 
