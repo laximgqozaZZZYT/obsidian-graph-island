@@ -254,6 +254,29 @@ const RING_FILL_ALPHA_FLOOR = 0.3;
 const RING_FILL_ALPHA_BASE = 0.7;
 const RING_FILL_ALPHA_DEPTH_DECAY = 0.08;
 
+// ---- Pathfinder overlay ----
+const PATHFINDER_COLOR = 0x00ced1;
+const PATHFINDER_COLOR_CSS = "#00CED1";
+const PATHFINDER_PULSE_SPEED = 0.06;
+const PATHFINDER_PULSE_AMPLITUDE = 0.1;
+const PATHFINDER_GLOW_ALPHA_BASE = 0.45;
+const PATHFINDER_SOLID_ALPHA_BASE = 0.85;
+const PATHFINDER_GLOW_STROKE_WIDTH = 8;
+const PATHFINDER_SOLID_STROKE_WIDTH = 3;
+const PATHFINDER_DOT_RADIUS = 5;
+const PATHFINDER_LABEL_FONT_SIZE = 11;
+const PATHFINDER_LABEL_OFFSET_X = 6;
+const PATHFINDER_LABEL_OFFSET_Y = -14;
+
+// ---- Link preview ----
+const LINK_PREVIEW_COLOR = 0x00cccc;
+const LINK_PREVIEW_DASH = [8, 6];
+const LINK_PREVIEW_LINE_WIDTH = 2;
+const LINK_PREVIEW_LINE_ALPHA = 0.9;
+const LINK_PREVIEW_SNAP_LINE_WIDTH = 1.5;
+const LINK_PREVIEW_SNAP_ALPHA = 0.7;
+const LINK_PREVIEW_SNAP_RADIUS = 8;
+
 // ---- Sunburst fill alpha (normal mode) ----
 const SUNBURST_FILL_ALPHA_FLOOR = 0.02;
 const SUNBURST_FILL_ALPHA_BASE = 0.1;
@@ -2633,14 +2656,14 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		}
 		const gfx = this.linkPreviewGfx;
 		gfx.clear();
-		gfx.setLineDash([8, 6]);
-		gfx.lineStyle(2, 0x00cccc, 0.9);
+		gfx.setLineDash(LINK_PREVIEW_DASH);
+		gfx.lineStyle(LINK_PREVIEW_LINE_WIDTH, LINK_PREVIEW_COLOR, LINK_PREVIEW_LINE_ALPHA);
 		gfx.moveTo(srcX, srcY);
 		gfx.lineTo(dstX, dstY);
 		// ターゲット付近に小円を描画（スナップ表示）
 		gfx.setLineDash([]);
-		gfx.lineStyle(1.5, 0x00cccc, 0.7);
-		gfx.drawCircle(dstX, dstY, 8);
+		gfx.lineStyle(LINK_PREVIEW_SNAP_LINE_WIDTH, LINK_PREVIEW_COLOR, LINK_PREVIEW_SNAP_ALPHA);
+		gfx.drawCircle(dstX, dstY, LINK_PREVIEW_SNAP_RADIUS);
 	}
 
 	/** リンクプレビュー線をクリア */
@@ -4931,12 +4954,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		if (!this.pathfinderPath || this.pathfinderPath.length < 2) return;
 		if (!g) return;
 
-		const PATH_COLOR = 0x00ced1; // dark turquoise / cyan
 		this._pathfinderFrame++;
-		// Gentle alpha oscillation: 0.35..0.55 for glow, 0.75..0.95 for solid
-		const pulse = Math.sin(this._pathfinderFrame * 0.06) * 0.1;
-		const glowAlpha = 0.45 + pulse;
-		const solidAlpha = 0.85 + pulse;
+		const pulse = Math.sin(this._pathfinderFrame * PATHFINDER_PULSE_SPEED) * PATHFINDER_PULSE_AMPLITUDE;
+		const glowAlpha = PATHFINDER_GLOW_ALPHA_BASE + pulse;
+		const solidAlpha = PATHFINDER_SOLID_ALPHA_BASE + pulse;
 
 		// Collect segment positions
 		const segments: { ax: number; ay: number; bx: number; by: number }[] = [];
@@ -4950,14 +4971,14 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		if (segments.length === 0) return;
 
 		// Pass 1: wide glow stroke
-		g.lineStyle(8, PATH_COLOR, glowAlpha);
+		g.lineStyle(PATHFINDER_GLOW_STROKE_WIDTH, PATHFINDER_COLOR, glowAlpha);
 		for (const s of segments) {
 			g.moveTo(s.ax, s.ay);
 			g.lineTo(s.bx, s.by);
 		}
 
 		// Pass 2: narrow solid stroke on top
-		g.lineStyle(3, PATH_COLOR, solidAlpha);
+		g.lineStyle(PATHFINDER_SOLID_STROKE_WIDTH, PATHFINDER_COLOR, solidAlpha);
 		for (const s of segments) {
 			g.moveTo(s.ax, s.ay);
 			g.lineTo(s.bx, s.by);
@@ -4968,8 +4989,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		for (const nodeId of this.pathfinderPath) {
 			const pn = this.pixiNodes.get(nodeId);
 			if (pn) {
-				g.beginFill(PATH_COLOR, solidAlpha);
-				g.drawCircle(pn.data.x, pn.data.y, 5);
+				g.beginFill(PATHFINDER_COLOR, solidAlpha);
+				g.drawCircle(pn.data.x, pn.data.y, PATHFINDER_DOT_RADIUS);
 				g.endFill();
 			}
 		}
@@ -4982,12 +5003,12 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		const hops = this.pathfinderPath.length - 1;
 		const label = new CanvasText(`${hops} hop${hops !== 1 ? "s" : ""}`, {
 			fontFamily: "Inter, sans-serif",
-			fontSize: 11,
+			fontSize: PATHFINDER_LABEL_FONT_SIZE,
 			fontWeight: "600",
-			fill: "#00CED1",
+			fill: PATHFINDER_COLOR_CSS,
 		});
-		label.x = mx + 6;
-		label.y = my - 14;
+		label.x = mx + PATHFINDER_LABEL_OFFSET_X;
+		label.y = my + PATHFINDER_LABEL_OFFSET_Y;
 		// Counter-scale so label stays readable at any zoom
 		const ws = this.worldContainer?.scale.x ?? 1;
 		if (ws > 0) {
