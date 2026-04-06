@@ -119,11 +119,11 @@ import {
 } from "./PanelBuilder";
 import {
 	drawEdges as drawEdgesImpl,
-	drawEdgeLabels as drawEdgeLabelsImpl,
 	invalidateBundleCache,
 	EdgeRenderCache,
 	type EdgeDrawConfig,
 } from "./EdgeRenderer";
+import { drawEdgeLabels as drawEdgeLabelsImpl } from "./EdgeLabelRenderer";
 import { t } from "../i18n";
 import { showToast } from "../utils/toast";
 import { drawEnclosures as drawEnclosuresImpl, type OverlapCache, type EnclosureConfig } from "./EnclosureRenderer";

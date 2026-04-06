@@ -19,15 +19,16 @@ function createMockGraphics() {
 vi.mock("pixi.js", () => ({}));
 
 import {
-  drawEdges, drawEdgeLabels, type EdgeDrawConfig,
+  drawEdges, type EdgeDrawConfig,
   shouldSkipEdge, buildBidirectionalSet, normalizeAngle,
   mergeNearbyValues, deduplicatePath, angleDist, shortestAngleDelta,
-  getEdgeLabel, buildPairCounts,
+  buildPairCounts,
   computeJunctionGrid, filterGridForPortFace, routeViaJunctionGrid,
   computeJunctionWaypoints,
   findNearestGap, findGapBetween,
   type JunctionGrid,
 } from "../src/views/EdgeRenderer";
+import { drawEdgeLabels, getEdgeLabel } from "../src/views/EdgeLabelRenderer";
 import type { GraphEdge } from "../src/types";
 
 function baseCfg(overrides?: Partial<EdgeDrawConfig>): EdgeDrawConfig {
