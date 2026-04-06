@@ -1,7 +1,7 @@
 ---
 priority: high
 reported: 2026-04-06
-status: in-progress
+status: pending
 source: auto-discovered
 summary: 視覚品質低下: labelReadability: 0/100|screenshotReadability: 10/100
 ---

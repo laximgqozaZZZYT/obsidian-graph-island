@@ -271,12 +271,54 @@ for iter in $(seq 1 "$MAX_ITERATIONS"); do
   fi
 
   if [[ -n "$ISSUE_FILE" ]]; then
-    FOCUS="user-issue"
     ISSUE_CONTENT=$(cat "$ISSUE_FILE")
     ISSUE_NAME=$(basename "$ISSUE_FILE")
-    log "USER ISSUE: $ISSUE_NAME"
-    sed -i 's/status: pending/status: in-progress/' "$PROJECT_DIR/scripts/pipeline/issues/$ISSUE_NAME" 2>/dev/null || true
-    (cd "$PROJECT_DIR" && git add "scripts/pipeline/issues/$ISSUE_NAME" && git commit -m "chore: mark issue $ISSUE_NAME as in-progress" --no-verify 2>/dev/null) || true
+    ISSUE_SOURCE=$(grep -oP 'source: \K[\w-]+' "$ISSUE_FILE" 2>/dev/null || echo "user")
+
+    # Decomposed subtask → treat as small auto-task
+    if grep -q "source: decomposed" "$ISSUE_FILE" 2>/dev/null; then
+      FOCUS="subtask"
+      log "SUBTASK: $ISSUE_NAME"
+      sed -i 's/status: pending/status: in-progress/' "$PROJECT_DIR/scripts/pipeline/issues/$ISSUE_NAME" 2>/dev/null || true
+      (cd "$PROJECT_DIR" && git add "scripts/pipeline/issues/$ISSUE_NAME" && git commit -m "chore: mark subtask $ISSUE_NAME as in-progress" --no-verify 2>/dev/null) || true
+
+    # User issue (complex) → decompose first, then process subtasks
+    elif [[ "$ISSUE_SOURCE" == "user" ]]; then
+      log "USER ISSUE: $ISSUE_NAME — decomposing into subtasks..."
+      bash "$PROJECT_DIR/scripts/pipeline/decompose-issue.sh" "$ISSUE_FILE" 2>&1 | while IFS= read -r line; do log "  decompose: $line"; done
+
+      # After decomposition, pick first subtask for this iteration
+      ISSUE_FILE=""
+      for prio in critical high medium low; do
+        ISSUE_FILE=$(grep -rl "source: decomposed" "$ISSUE_DIR"/*.md 2>/dev/null | while read f; do
+          grep -q "status: pending" "$f" || continue
+          echo "$f" && break
+        done)
+        [[ -n "$ISSUE_FILE" ]] && break
+      done
+
+      if [[ -n "$ISSUE_FILE" ]]; then
+        FOCUS="subtask"
+        ISSUE_CONTENT=$(cat "$ISSUE_FILE")
+        ISSUE_NAME=$(basename "$ISSUE_FILE")
+        log "FIRST SUBTASK: $ISSUE_NAME"
+        sed -i 's/status: pending/status: in-progress/' "$PROJECT_DIR/scripts/pipeline/issues/$ISSUE_NAME" 2>/dev/null || true
+        (cd "$PROJECT_DIR" && git add "scripts/pipeline/issues/$ISSUE_NAME" && git commit -m "chore: mark subtask $ISSUE_NAME as in-progress" --no-verify 2>/dev/null) || true
+      else
+        log "WARN: decomposition produced no subtasks, falling back to auto-focus"
+        HOUR=$(date +%-H)
+        FOCUS_AREAS=("coverage" "eslint" "refactor")
+        FOCUS_INDEX=$(( (HOUR / 2) % 3 ))
+        FOCUS="${FOCUS_AREAS[$FOCUS_INDEX]}"
+      fi
+
+    # Auto-discovered issue → treat directly (simpler)
+    else
+      FOCUS="auto-issue"
+      log "AUTO ISSUE: $ISSUE_NAME"
+      sed -i 's/status: pending/status: in-progress/' "$PROJECT_DIR/scripts/pipeline/issues/$ISSUE_NAME" 2>/dev/null || true
+      (cd "$PROJECT_DIR" && git add "scripts/pipeline/issues/$ISSUE_NAME" && git commit -m "chore: mark issue $ISSUE_NAME as in-progress" --no-verify 2>/dev/null) || true
+    fi
   else
     HOUR=$(date +%-H)
     FOCUS_AREAS=("coverage" "eslint" "refactor")
@@ -303,21 +345,11 @@ print(f\"overall:{r['overallScore']}/100\")
   GATE_STATUS=$(echo "$GATE_JSON" | python3 -c "import sys,json; g=json.load(sys.stdin).get('gates',{}); print(' '.join(f'{k}:{v}' for k,v in g.items()))" 2>/dev/null || echo "?")
   GODOBJ_STATUS=$(echo "$GODOBJ_JSON" | python3 -c "import sys,json; [print(f\"{k.split('/')[-1]}:{v['current']}/{v['limit']}\",end=' ') for k,v in json.load(sys.stdin).get('files',{}).items() if v.get('status')=='fail']" 2>/dev/null || echo "all pass")
 
-  if [[ "$FOCUS" == "user-issue" ]]; then
-    # Layer: /research → /systematic-debugging → implement
-    PROMPT="あなたはコードベース調査と問題解決のスペシャリストです。
+  if [[ "$FOCUS" == "subtask" || "$FOCUS" == "auto-issue" ]]; then
+    # Subtask or auto-discovered issue — small, focused implementation
+    PROMPT="以下のタスクを実装してください。
 
-## Phase 1: /research — 課題の理解
-まずコードベースを調査して、課題に関連するファイルと実装を理解してください。
-関連する型定義、関数、依存関係を把握すること。
-
-## Phase 2: /systematic-debugging — 根本原因特定
-仮説を立てる前に事実を集める。根本原因を特定してから修正する。
-
-## Phase 3: 実装
-根本原因に対する最小限の修正を行う。
-
-## 課題内容
+## タスク
 $ISSUE_CONTENT
 
 ## 現在の状態
@@ -325,12 +357,17 @@ $ISSUE_CONTENT
 - God Objects: $GODOBJ_STATUS
 - 視覚品質: $VISUAL_INFO
 
+## 手順
+1. /research: 関連ファイルを読んで理解する
+2. 実装: 最小限の変更で acceptance criteria を満たす
+3. 実装後は何もせず終了（検証はシェルが行う）
+
 ## ルール
 - CLAUDE.md厳守
 - God Object肥大化禁止
 - テストを壊さない
-- 課題の acceptance criteria を満たすこと
-- 実装後は何もせず終了（検証はシェルが行う）"
+- 1つのタスクだけ実装する（他のタスクに手を出さない）
+- ESLint設定やカバレッジ閾値を変更しない"
   else
     # Each focus uses its appropriate skill
     SKILL_CONTEXT=""
@@ -540,20 +577,34 @@ COMMITMSG
     log "No changes (iter $iter)"
   fi
 
-  # ── Mark user issue as done (if applicable) ──
-  if [[ "$FOCUS" == "user-issue" && -n "$ISSUE_FILE" && $TOTAL_COMMITS -gt 0 ]]; then
+  # ── Mark issue/subtask as done (if applicable) ──
+  if [[ ("$FOCUS" == "subtask" || "$FOCUS" == "auto-issue") && -n "$ISSUE_FILE" && $TOTAL_COMMITS -gt 0 ]]; then
     ISSUE_NAME=$(basename "$ISSUE_FILE")
-    # Update status in main repo
     sed -i 's/status: in-progress/status: done/' "$PROJECT_DIR/scripts/pipeline/issues/$ISSUE_NAME" 2>/dev/null
     mv "$PROJECT_DIR/scripts/pipeline/issues/$ISSUE_NAME" "$PROJECT_DIR/scripts/pipeline/issues/done/$ISSUE_NAME" 2>/dev/null
+
+    # If subtask: check if all sibling subtasks are done → mark parent as done
+    PARENT=$(grep -oP 'parent: \K.*' "$PROJECT_DIR/scripts/pipeline/issues/done/$ISSUE_NAME" 2>/dev/null || echo "")
+    if [[ -n "$PARENT" ]]; then
+      REMAINING=$(grep -rl "parent: $PARENT" "$PROJECT_DIR/scripts/pipeline/issues/"*.md 2>/dev/null | while read f; do
+        grep -q "status: pending\|status: in-progress" "$f" && echo "$f"
+      done | wc -l)
+      if [[ $REMAINING -eq 0 ]]; then
+        # All subtasks done → mark parent as done
+        PARENT_FILE=$(ls "$PROJECT_DIR/scripts/pipeline/issues/$PARENT.md" "$PROJECT_DIR/scripts/pipeline/issues/done/$PARENT.md" 2>/dev/null | head -1)
+        if [[ -n "$PARENT_FILE" ]]; then
+          sed -i 's/status: decomposed/status: done/' "$PARENT_FILE" 2>/dev/null
+          mv "$PARENT_FILE" "$PROJECT_DIR/scripts/pipeline/issues/done/" 2>/dev/null
+          log "Parent issue $PARENT → done (all subtasks complete)"
+        fi
+      else
+        log "Subtask $ISSUE_NAME done. Parent $PARENT: $REMAINING subtasks remaining"
+      fi
+    fi
+
     (cd "$PROJECT_DIR" && git add "scripts/pipeline/issues/" && git commit -m "chore: issue $ISSUE_NAME done" --no-verify 2>/dev/null) || true
-    log "Issue $ISSUE_NAME marked as done and moved to done/"
-    # Clear issue for next iteration (fall back to auto-focus)
+    log "Issue $ISSUE_NAME done"
     ISSUE_FILE=""
-    FOCUS_AREAS=("coverage" "eslint" "refactor")
-    FOCUS_INDEX=$((ACTIVE_COUNT % ${#FOCUS_AREAS[@]}))
-    FOCUS="${FOCUS_AREAS[$FOCUS_INDEX]}"
-    log "Switching to auto-focus: $FOCUS"
   fi
 
   # ── RATCHET if applicable ──
