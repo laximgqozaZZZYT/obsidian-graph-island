@@ -4,6 +4,7 @@
  */
 import type { CanvasGraphics } from "./canvas2d";
 import type { DonutDisplayConfig } from "../types";
+import { DEFAULT_RENDER_THRESHOLDS } from "../types";
 import type { PixiNode } from "./InteractionManager";
 import { darkenColor } from "./render-pipeline-utils";
 import { incCounter } from "../utils/graph-helpers";
@@ -48,8 +49,8 @@ export function renderDonutMode(
 	const innerR = donutConfig.innerRadius ?? 0.6;
 	const rt = host.getRenderThresholds?.();
 	const bgColor = host.isDarkTheme()
-		? (rt?.donutBgDark ?? 0x1e1e1e)
-		: (rt?.donutBgLight ?? 0xffffff);
+		? (rt?.donutBgDark ?? DEFAULT_RENDER_THRESHOLDS.donutBgDark)
+		: (rt?.donutBgLight ?? DEFAULT_RENDER_THRESHOLDS.donutBgLight);
 
 	for (const pn of visible) {
 		const effR = Math.max(pn.radius, minWorldRadius);
@@ -109,9 +110,7 @@ export function renderDonutBreakdown(
 	let startAngle = -Math.PI / 2;
 	const total = members.length;
 	let colorIdx = 0;
-	const sectorColors = host.getRenderThresholds?.()?.donutSectorColors ?? [
-		0x818cf8, 0xf472b6, 0xfbbf24, 0x34d399, 0x60a5fa, 0xf87171, 0xb4a0ff, 0x2dd4bf,
-	];
+	const sectorColors = host.getRenderThresholds?.()?.donutSectorColors ?? DEFAULT_RENDER_THRESHOLDS.donutSectorColors;
 	g.lineStyle(0);
 	for (const [, count] of valueCounts) {
 		const sliceAngle = (count / total) * Math.PI * 2;

@@ -11,7 +11,7 @@ import {
   resolveNodeColor,
   findMatchingGroupPreset,
   COMMUNITY_PALETTE,
-} from "../src/views/GraphViewContainer";
+} from "../src/utils/gvc-helpers";
 import type { GroupPreset } from "../src/types";
 
 // ---------------------------------------------------------------------------

@@ -9,7 +9,7 @@ import type { CanvasGraphics, CanvasContainer } from "./canvas2d";
 import type { SunburstArc as LayoutSunburstArc } from "../layouts/sunburst";
 import { DEFAULT_COLORS } from "../types";
 import { cssColorToHex } from "../utils/graph-helpers";
-import { cleanArcName, lightenHex } from "./GraphViewContainer";
+import { cleanArcName, lightenHex } from "../utils/gvc-helpers";
 import { drawArcPath } from "./arc-drawing";
 
 // ---------------------------------------------------------------------------
