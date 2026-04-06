@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-05
-status: in-progress
+status: pending
 source: auto-discovered
 summary: 1553個の重複コードブロック (3行以上)
 ---
