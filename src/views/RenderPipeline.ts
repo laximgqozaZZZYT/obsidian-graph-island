@@ -1136,7 +1136,7 @@ export class RenderPipeline {
 				break;
 			}
 			case "donut":
-				this._renderDonutMode(g, ctx, crc, rt);
+				this._renderDonutMode(g, ctx, crc);
 				break;
 			case "sunburst-segment":
 				this._renderSunburstSegmentMode(g, ctx, crc);
@@ -1435,7 +1435,6 @@ export class RenderPipeline {
 			minWorldRadius: number;
 		},
 		crc: ReturnType<typeof Object.assign>,
-		_rt: ReturnType<typeof Object.assign>,
 	) {
 		renderDonutMode(this.host, g, ctx, crc);
 	}
