@@ -40,6 +40,26 @@ log "================================================================"
 log "AUTONOMOUS IMPROVE CYCLE START"
 log "================================================================"
 
+# ── Cleanup zombie/orphan processes from previous sessions ──
+# visual-report.ts orphans (pre-fix sessions that never called browser.close)
+ZOMBIE_VR=$(pgrep -f "tsx scripts/pipeline/visual-report" 2>/dev/null | wc -l)
+if [[ $ZOMBIE_VR -gt 0 ]]; then
+  pkill -9 -f "tsx scripts/pipeline/visual-report" 2>/dev/null
+  log "Killed $ZOMBIE_VR zombie visual-report processes"
+fi
+# esbuild daemon orphans
+ZOMBIE_ES=$(pgrep -f "esbuild --service" 2>/dev/null | wc -l)
+if [[ $ZOMBIE_ES -gt 2 ]]; then
+  pkill -9 -f "esbuild --service" 2>/dev/null
+  log "Killed $ZOMBIE_ES zombie esbuild processes"
+fi
+# vitest worker orphans (not attached to a running session)
+ZOMBIE_VT=$(pgrep -f "vitest.mjs" 2>/dev/null | wc -l)
+if [[ $ZOMBIE_VT -gt 4 ]]; then
+  pkill -9 -f "vitest.mjs" 2>/dev/null
+  log "Killed $ZOMBIE_VT zombie vitest processes"
+fi
+
 # ── Pre-flight checks ──
 if ! command -v claude &>/dev/null; then
   log "ERROR: claude CLI not found"
