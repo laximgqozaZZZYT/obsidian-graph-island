@@ -1,7 +1,7 @@
 ---
 priority: high
 reported: 2026-04-06
-status: pending
+status: decomposed
 source: user
 summary: 初回読み込み時に全体表示できない + ズームアウトしても全ノードが表示されない
 ---
