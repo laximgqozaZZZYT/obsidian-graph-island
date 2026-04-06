@@ -10,6 +10,7 @@ import {
 	type ViewStateResult,
 } from "obsidian";
 import { CanvasContainer, CanvasGraphics, CanvasText } from "./canvas2d";
+import { drawArcLine, drawArcPath, createSunburstArcLabel } from "./arc-drawing";
 import type { IApp } from "./canvas2d/interfaces";
 import { createApp } from "./renderer-factory";
 import type { Simulation } from "d3-force";
@@ -5351,7 +5352,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
 				gfx.lineStyle(bdrW, 0xffffff, borderAlpha);
 				gfx.beginFill(color, fillAlpha);
-				this.drawArcPath(gfx, cx, cy, rInner, rOuter, startAngle, endAngle);
+				drawArcPath(gfx, cx, cy, rInner, rOuter, startAngle, endAngle);
 				gfx.endFill();
 			}
 		} else {
@@ -5369,14 +5370,14 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
 				// Light fill
 				gfx.beginFill(color, fillAlpha);
-				this.drawArcPath(gfx, cx, cy, rInner, rOuter, startAngle, endAngle);
+				drawArcPath(gfx, cx, cy, rInner, rOuter, startAngle, endAngle);
 				gfx.endFill();
 
 				// Outlines
 				const w = depth > 0 ? thinW : lineW;
 				gfx.lineStyle(w, color, strokeAlpha);
-				this.drawArcLine(gfx, cx, cy, rOuter, startAngle, endAngle);
-				this.drawArcLine(gfx, cx, cy, rInner, startAngle, endAngle);
+				drawArcLine(gfx, cx, cy, rOuter, startAngle, endAngle);
+				drawArcLine(gfx, cx, cy, rInner, startAngle, endAngle);
 
 				// Radial separators
 				gfx.lineStyle(w, color, strokeAlpha * 0.7);
@@ -5434,85 +5435,13 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			if (arc.depth > 1) continue;
 			if (arc.endAngle - arc.startAngle < minSweep) continue;
 
-			const text = this._createSunburstArcLabel(arc, fontSize, textColor);
+			const text = createSunburstArcLabel(arc, fontSize, textColor);
 			container.addChild(text);
 			this.clusterSunburstLabels.set(`${arc.groupKey}:${arc.depth}`, text);
 		}
 
 		// --- Label collision avoidance for rotated labels ---
 		this.cullOverlappingRotatedLabels(this.clusterSunburstLabels);
-	}
-
-	/** Create a positioned and rotated label for a sunburst arc. */
-	 
-	private _createSunburstArcLabel(arc: import("../layouts/sunburst").SunburstArcEnriched, fontSize: number, textColor: number): CanvasText {
-		const midAngle = (arc.startAngle + arc.endAngle) / 2;
-		const midR = (arc.rInner + arc.rOuter) / 2;
-		const displayName = arc.groupKey.replace(/::.*$/, "").split("/").pop() || arc.groupKey;
-		const text = new CanvasText(displayName, {
-			fontSize: arc.depth === 0 ? fontSize * 1.2 : fontSize,
-			fill: textColor,
-			fontWeight: arc.depth === 0 ? "bold" : "600",
-			align: "center",
-		});
-		text.anchor.set(0.5, 0.5);
-		text.strokeColor = 0x000000;
-		text.strokeWidth = arc.depth === 0 ? 3 : 2;
-		text.x = arc.cx + midR * Math.cos(midAngle);
-		text.y = arc.cy + midR * Math.sin(midAngle);
-		let rotation = midAngle + Math.PI / 2;
-		if (rotation > Math.PI / 2 && rotation < (3 * Math.PI) / 2) {
-			rotation += Math.PI;
-		}
-		text.rotation = rotation;
-		return text;
-	}
-
-	/** Draw an arc line (stroke only, no fill) */
-	private drawArcLine(gfx: CanvasGraphics, cx: number, cy: number, r: number, startAngle: number, endAngle: number) {
-		const steps = Math.max(16, Math.ceil(Math.abs(endAngle - startAngle) * 20));
-		for (let i = 0; i <= steps; i++) {
-			const t = i / steps;
-			const a = startAngle + t * (endAngle - startAngle);
-			const x = cx + r * Math.cos(a);
-			const y = cy + r * Math.sin(a);
-			if (i === 0) gfx.moveTo(x, y);
-			else gfx.lineTo(x, y);
-		}
-	}
-
-	/** Draw a baumkuchen-shaped arc path (annular sector) for fills */
-	private drawArcPath(
-		gfx: CanvasGraphics,
-		cx: number,
-		cy: number,
-		rInner: number,
-		rOuter: number,
-		startAngle: number,
-		endAngle: number,
-	) {
-		const steps = Math.max(16, Math.ceil(Math.abs(endAngle - startAngle) * 20));
-
-		// Outer arc (clockwise)
-		for (let i = 0; i <= steps; i++) {
-			const t = i / steps;
-			const a = startAngle + t * (endAngle - startAngle);
-			const x = cx + rOuter * Math.cos(a);
-			const y = cy + rOuter * Math.sin(a);
-			if (i === 0) gfx.moveTo(x, y);
-			else gfx.lineTo(x, y);
-		}
-
-		// Inner arc (counter-clockwise)
-		for (let i = steps; i >= 0; i--) {
-			const t = i / steps;
-			const a = startAngle + t * (endAngle - startAngle);
-			const x = cx + rInner * Math.cos(a);
-			const y = cy + rInner * Math.sin(a);
-			gfx.lineTo(x, y);
-		}
-
-		gfx.closePath();
 	}
 
 	// =========================================================================
@@ -8910,7 +8839,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			worldScale: this.worldContainer?.scale.x ?? 1,
 			isSunburstView: this.panel.viewMode === "sunburst",
 			hoveredGroup: this._hoveredSunburstGroup,
-			drawArcPath: this.drawArcPath.bind(this),
 		});
 		this.drawSunburstLabels(arcs, cx, cy);
 	}
