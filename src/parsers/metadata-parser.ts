@@ -237,6 +237,7 @@ function buildEdgesFromLinks(
 		}
 
 		addRemainingFrontmatterEdges(file, fmRelations, settings, nodeMap, edgeSet, edges);
+		addInlineRelationEdges(file, inlineRelations, settings, nodeMap, edgeSet, edges);
 	}
 }
 
@@ -264,6 +265,9 @@ function collectInlineRelations(app: App, file: TFile): Map<string, InlineFieldR
 		parseInlineFields(contentOrPromise, file.path, app).forEach((result, tPath) =>
 			inlineRelations.set(tPath, result),
 		);
+		parseInlineRelationLinks(contentOrPromise, file.path, app).forEach((result, tPath) => {
+			if (!inlineRelations.has(tPath)) inlineRelations.set(tPath, result);
+		});
 	}
 	return inlineRelations;
 }
@@ -333,6 +337,28 @@ function addRemainingFrontmatterEdges(
 		const tgt = reverse ? file.path : targetPath;
 
 		edges.push({ id: edgeId, source: src, target: tgt, type: classified?.type ?? "semantic", relation });
+	}
+}
+
+/** Add edges from inline relation links not already captured by regular/FM links. */
+function addInlineRelationEdges(
+	file: TFile,
+	inlineRelations: Map<string, InlineFieldResult>,
+	settings: GraphViewsSettings,
+	nodeMap: Map<string, GraphNode>,
+	edgeSet: Set<string>,
+	edges: GraphEdge[],
+): void {
+	for (const [targetPath, result] of inlineRelations) {
+		if (!nodeMap.has(targetPath)) continue;
+		const edgeId = `${file.path}->${targetPath}`;
+		if (edgeSet.has(edgeId)) continue;
+		edgeSet.add(edgeId);
+
+		const { edgeType, reverse } = resolveRelationEdge(result.relation, result.isOntology, settings.ontology);
+		const src = reverse ? targetPath : file.path;
+		const tgt = reverse ? file.path : targetPath;
+		edges.push({ id: edgeId, source: src, target: tgt, type: edgeType, relation: result.relation });
 	}
 }
 
@@ -654,6 +680,39 @@ function parseInlineFields(content: string, sourcePath: string, app: App): Map<s
 			if (targetFile) {
 				result.set(targetFile.path, { relation, isOntology });
 			}
+		}
+	}
+	return result;
+}
+
+/**
+ * Extract raw inline-relation link matches from content.
+ * Notation: `[[target|display]@relation]` or `[[target]@relation]`
+ * Pure function — no Obsidian dependency, easy to test.
+ */
+export function parseInlineRelationLinksRaw(
+	content: string,
+): Array<{ linkTarget: string; relation: string }> {
+	const results: Array<{ linkTarget: string; relation: string }> = [];
+	const re = /\[\[([^\]|]+)(?:\|[^\]]*)?\]@([^\]]+)\]/g;
+	let m: RegExpExecArray | null;
+	while ((m = re.exec(content)) !== null) {
+		results.push({ linkTarget: m[1].trim(), relation: m[2].trim() });
+	}
+	return results;
+}
+
+/** Resolve raw inline-relation link matches to file paths. */
+function parseInlineRelationLinks(
+	content: string,
+	sourcePath: string,
+	app: App,
+): Map<string, InlineFieldResult> {
+	const result = new Map<string, InlineFieldResult>();
+	for (const { linkTarget, relation } of parseInlineRelationLinksRaw(content)) {
+		const targetFile = app.metadataCache.getFirstLinkpathDest(linkTarget, sourcePath);
+		if (targetFile) {
+			result.set(targetFile.path, { relation, isOntology: false });
 		}
 	}
 	return result;

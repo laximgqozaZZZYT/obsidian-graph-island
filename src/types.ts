@@ -921,6 +921,18 @@ export interface RenderThresholds {
 	autoFitMinScale?: number;
 	/** Base padding (px) for non-card auto-fit (default 40). */
 	autoFitBasePadding?: number;
+	/** Lower percentile for outlier trimming in autoFit bounds (default 0.025). */
+	autoFitTrimLo?: number;
+	/** Upper percentile for outlier trimming in autoFit bounds (default 0.975). */
+	autoFitTrimHi?: number;
+	/** Node count at or below which visible threshold is at its minimum (default 100). */
+	autoFitVisibleSmall?: number;
+	/** Node count at or above which visible threshold is at its maximum (default 2000). */
+	autoFitVisibleLarge?: number;
+	/** Minimum visible-fraction threshold for small graphs (default 0.8). */
+	autoFitVisibleMin?: number;
+	/** Maximum visible-fraction threshold for large graphs (default 0.95). */
+	autoFitVisibleMax?: number;
 	/** Normalize spread across arrangement patterns so nodes appear the same
 	 *  screen size after autoFitView (default true). When true, each pattern's
 	 *  bounding radius is scaled to match a grid-equivalent reference. */
@@ -1504,6 +1516,12 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
 	cardLODExtremePx: 1.5,
 	autoFitMinScale: 0.15,
 	autoFitBasePadding: 40,
+	autoFitTrimLo: 0.025,
+	autoFitTrimHi: 0.975,
+	autoFitVisibleSmall: 100,
+	autoFitVisibleLarge: 2000,
+	autoFitVisibleMin: 0.8,
+	autoFitVisibleMax: 0.95,
 	normalizeArrangementSpread: true,
 	minViewportUtilization: 0.12,
 	enclosureZoomOutThreshold: 0.45,
