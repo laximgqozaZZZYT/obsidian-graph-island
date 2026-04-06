@@ -1031,6 +1031,10 @@ export interface RenderThresholds {
 	// ---- Donut chart ----
 	/** Color palette for donut chart sectors (hex numbers). Default: 8-color qualitative palette. */
 	donutSectorColors?: number[];
+	/** Background color for donut cutout in dark theme (default 0x1e1e1e) */
+	donutBgDark?: number;
+	/** Background color for donut cutout in light theme (default 0xffffff) */
+	donutBgLight?: number;
 
 	// ---- Edge density ----
 	/** Minimum density scale for edge/cable alpha — prevents edges from becoming invisible at high count + low zoom (default 0.08) */
@@ -1555,6 +1559,8 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
 	denseStrokeMaxWidth: 6,
 	denseStrokeMidWidth: 1.5,
 	donutSectorColors: [0x818cf8, 0xf472b6, 0x34d399, 0xfbbf24, 0x60a5fa, 0xf87171, 0xa78bfa, 0x2dd4bf],
+	donutBgDark: 0x1e1e1e,
+	donutBgLight: 0xffffff,
 	edgeDensityFloor: 0.12,
 	highlightEdgeAlpha: 1.0,
 	highlightEdgeNonMatchAlpha: 0.04,
