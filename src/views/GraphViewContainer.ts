@@ -331,7 +331,6 @@ export interface StatsHost {
 	getLastRenderTime(): number;
 }
 
-// Re-export helpers consumed by other modules (e.g. sunburst-renderer.ts)
 export const VIEW_TYPE_GRAPH = "graph-view";
 
 /** Fallback canvas dimensions when DOM element is not yet measured */
