@@ -166,6 +166,89 @@ export function computeTimelineFilteredSet(
 // Density grid proximity check
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Zone placement — angular-gap-based label positioning
+// ---------------------------------------------------------------------------
+
+/** Zone placement text-anchor cosine thresholds */
+export const ZONE_ANCHOR_COS_POSITIVE = 0.3;
+export const ZONE_ANCHOR_COS_NEGATIVE = -0.3;
+/** Default label Y-offset as a fraction of node radius */
+export const LABEL_Y_OFFSET_FACTOR = 0.4;
+
+/** Parameters for gap-dependent distance scaling in zone placement */
+export interface ZoneGapScaleParams {
+	narrowThreshold: number;
+	mediumThreshold: number;
+	narrowFactor: number;
+	mediumFactor: number;
+}
+
+/**
+ * Compute label placement from pre-collected angles using the largest-angular-gap algorithm.
+ * Returns the label position (x, y) relative to the node center and the text anchor.
+ *
+ * If no angles are provided, returns a default right-side placement.
+ *
+ * Pure function — no DOM/Canvas dependency.
+ *
+ * @param angles       Array of angles (radians) to neighboring/proximate nodes
+ * @param nodeRadius   Node radius in world units
+ * @param offset       Additional offset beyond node radius
+ * @param gapParams    Gap-dependent distance scaling parameters
+ * @returns Label placement in node-local coordinates
+ */
+export function computeZonePlacementFromAngles(
+	angles: number[],
+	nodeRadius: number,
+	offset: number,
+	gapParams: ZoneGapScaleParams,
+): { x: number; y: number; anchorX: number } {
+	if (angles.length === 0) {
+		return { x: nodeRadius + offset, y: -(nodeRadius * LABEL_Y_OFFSET_FACTOR), anchorX: 0 };
+	}
+
+	// Sort angles and find the largest gap
+	const sorted = angles.slice().sort((a, b) => a - b);
+
+	let maxGap = 0;
+	let gapMidAngle = 0;
+
+	for (let i = 0; i < sorted.length; i++) {
+		const next = i + 1 < sorted.length ? sorted[i + 1] : sorted[0] + Math.PI * 2;
+		const gap = next - sorted[i];
+		if (gap > maxGap) {
+			maxGap = gap;
+			gapMidAngle = sorted[i] + gap / 2;
+		}
+	}
+
+	// Place label at the midpoint of the largest gap.
+	// When gap is narrow (dense layout), pull label closer to its own node
+	// to reduce AP-6 ambiguity (label closer to another node).
+	const gapScale = maxGap < gapParams.narrowThreshold
+		? gapParams.narrowFactor
+		: maxGap < gapParams.mediumThreshold
+			? gapParams.mediumFactor
+			: 1.0;
+	const dist = (nodeRadius + offset) * gapScale;
+	const lx = Math.cos(gapMidAngle) * dist;
+	const ly = Math.sin(gapMidAngle) * dist;
+
+	// Determine text anchor based on direction
+	const cosA = Math.cos(gapMidAngle);
+	let anchorX: number;
+	if (cosA > ZONE_ANCHOR_COS_POSITIVE) {
+		anchorX = 0; // text-anchor: start (label to the right)
+	} else if (cosA < ZONE_ANCHOR_COS_NEGATIVE) {
+		anchorX = 1; // text-anchor: end (label to the left)
+	} else {
+		anchorX = 0.5; // text-anchor: middle (label above/below)
+	}
+
+	return { x: lx, y: ly, anchorX };
+}
+
 export function isDensityTooClose(
 	cx: number, cy: number, bucketSize: number, minDist2: number,
 	grid: Map<string, { cx: number; cy: number }[]>,

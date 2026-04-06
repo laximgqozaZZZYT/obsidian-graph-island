@@ -4,9 +4,11 @@ import {
 	computeLabelColors,
 	isDensityTooClose,
 	computeTimelineFilteredSet,
+	computeZonePlacementFromAngles,
 	GLOW_ATTENUATE_THRESHOLD,
 	GLOW_ATTENUATE_RANGE,
 	GLOW_RADIUS_ATTENUATE_FACTOR,
+	LABEL_Y_OFFSET_FACTOR,
 } from "../src/views/render-pipeline-utils";
 
 // ---------------------------------------------------------------------------
@@ -221,5 +223,105 @@ describe("computeTimelineFilteredSet", () => {
 		const positions = [{ x: 0 }, { x: 100 }];
 		const filtered = computeTimelineFilteredSet(positions, [], 0.2, 0.8);
 		expect(filtered.size).toBe(0);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// computeZonePlacementFromAngles
+// ---------------------------------------------------------------------------
+const defaultGapParams = {
+	narrowThreshold: Math.PI / 4,
+	mediumThreshold: Math.PI / 2,
+	narrowFactor: 0.6,
+	mediumFactor: 0.8,
+};
+
+describe("computeZonePlacementFromAngles", () => {
+	it("returns default right-side placement when no angles provided", () => {
+		const result = computeZonePlacementFromAngles([], 10, 5, defaultGapParams);
+		expect(result.x).toBe(15); // nodeRadius + offset
+		expect(result.y).toBeCloseTo(-(10 * LABEL_Y_OFFSET_FACTOR));
+		expect(result.anchorX).toBe(0);
+	});
+
+	it("places label opposite a single neighbor (largest gap)", () => {
+		// Neighbor to the right (angle = 0) → label should go left (angle ≈ π)
+		const result = computeZonePlacementFromAngles([0], 10, 5, defaultGapParams);
+		// Gap is 2π centered at π, so label goes to the left
+		expect(result.x).toBeLessThan(0);
+		expect(result.anchorX).toBe(1); // left anchor
+	});
+
+	it("places label in the largest gap between two neighbors", () => {
+		// Neighbors at 0 and π/2 (right and down) → largest gap is from π/2 to 2π
+		// Gap mid-angle ≈ π/2 + (2π - π/2)/2 = π/2 + 3π/4 ≈ 5π/4
+		const angles = [0, Math.PI / 2];
+		const result = computeZonePlacementFromAngles(angles, 10, 5, defaultGapParams);
+		// 5π/4 in canvas coords: cos < 0 (left), sin < 0 (upper)
+		expect(result.x).toBeLessThan(0);
+		expect(result.y).toBeLessThan(0);
+	});
+
+	it("places label above when neighbors are below", () => {
+		// Neighbor directly below (angle = π/2)
+		const result = computeZonePlacementFromAngles([Math.PI / 2], 10, 5, defaultGapParams);
+		// Largest gap wraps around from π/2 to π/2+2π, mid at π/2+π = 3π/2 = -π/2 (above)
+		expect(result.y).toBeLessThan(0);
+	});
+
+	it("applies narrow gap scaling when gap is small", () => {
+		// Four evenly-spaced neighbors → each gap is π/2
+		// With narrowThreshold = π/4, mediumThreshold = π/2,
+		// gap of π/2 is NOT < narrowThreshold, so narrowFactor doesn't apply
+		// But it equals mediumThreshold, so gapScale = 1.0 (>= medium)
+		const angles = [0, Math.PI / 2, Math.PI, (3 * Math.PI) / 2];
+		const result = computeZonePlacementFromAngles(angles, 10, 5, defaultGapParams);
+		const dist = Math.sqrt(result.x ** 2 + result.y ** 2);
+		expect(dist).toBeCloseTo(15); // full distance (nodeRadius + offset) * 1.0
+	});
+
+	it("applies narrow gap factor for very dense layouts", () => {
+		// Eight evenly-spaced neighbors → each gap is π/4
+		// π/4 is NOT < π/4 (narrowThreshold), but it IS < π/2 (mediumThreshold)
+		// So gapScale = mediumFactor = 0.8
+		const angles = Array.from({ length: 8 }, (_, i) => (i * Math.PI * 2) / 8);
+		const result = computeZonePlacementFromAngles(angles, 10, 5, defaultGapParams);
+		const dist = Math.sqrt(result.x ** 2 + result.y ** 2);
+		expect(dist).toBeCloseTo(15 * 0.8);
+	});
+
+	it("applies narrow factor for extremely dense layouts", () => {
+		// 16 evenly-spaced → each gap ≈ π/8 < narrowThreshold (π/4)
+		const angles = Array.from({ length: 16 }, (_, i) => (i * Math.PI * 2) / 16);
+		const result = computeZonePlacementFromAngles(angles, 10, 5, defaultGapParams);
+		const dist = Math.sqrt(result.x ** 2 + result.y ** 2);
+		expect(dist).toBeCloseTo(15 * 0.6); // narrowFactor
+	});
+
+	it("sets anchorX=0.5 for vertical placement", () => {
+		// Neighbors left and right → gap above and below (mid angle ≈ π/2 or -π/2)
+		const result = computeZonePlacementFromAngles([0, Math.PI], 10, 5, defaultGapParams);
+		// Largest gap from π to 2π, mid at 3π/2 → cos(3π/2)=0 → anchorX=0.5
+		expect(result.anchorX).toBe(0.5);
+	});
+
+	it("does not mutate the input angles array", () => {
+		const angles = [Math.PI, 0, Math.PI / 2];
+		const copy = [...angles];
+		computeZonePlacementFromAngles(angles, 10, 5, defaultGapParams);
+		expect(angles).toEqual(copy);
+	});
+
+	it("handles single angle at π (neighbor to the left)", () => {
+		const result = computeZonePlacementFromAngles([Math.PI], 10, 5, defaultGapParams);
+		// Largest gap wraps from π to π+2π → mid at 2π → direction = 0 (right)
+		expect(result.x).toBeGreaterThan(0);
+		expect(result.anchorX).toBe(0); // right anchor
+	});
+
+	it("returns consistent results for duplicate angles", () => {
+		const result = computeZonePlacementFromAngles([0, 0, 0], 10, 5, defaultGapParams);
+		// All angles at 0 → gap from 0 to 2π, mid at π → label goes left
+		expect(result.x).toBeLessThan(0);
 	});
 });

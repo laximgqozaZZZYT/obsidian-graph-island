@@ -18,12 +18,16 @@ import { clamp } from "../utils/geometry";
 import {
 	darkenColor, lightenColor, blendColors, desaturateColor,
 	computeGlowParams, computeLabelColors, isDensityTooClose,
+	computeZonePlacementFromAngles,
 	GLOW_ATTENUATE_THRESHOLD, GLOW_ATTENUATE_RANGE, GLOW_RADIUS_ATTENUATE_FACTOR, GLOW_P90_FRACTION,
+	LABEL_Y_OFFSET_FACTOR,
 } from "./render-pipeline-utils";
 export {
 	darkenColor, lightenColor, blendColors, desaturateColor,
 	computeGlowParams, computeLabelColors, isDensityTooClose,
+	computeZonePlacementFromAngles,
 	GLOW_ATTENUATE_THRESHOLD, GLOW_ATTENUATE_RANGE, GLOW_RADIUS_ATTENUATE_FACTOR, GLOW_P90_FRACTION,
+	LABEL_Y_OFFSET_FACTOR,
 };
 import { SpatialHashGrid } from "../utils/spatial-grid";
 import { computeViewportBounds, collectVisibleNodes } from "./batch-context";
@@ -102,10 +106,6 @@ const HOLD_RING_PADDING = 4;
 /** Hold ring / pathfinder ring stroke alpha */
 const INDICATOR_RING_ALPHA = 0.9;
 
-/** Zone placement text-anchor cosine thresholds */
-const ZONE_ANCHOR_COS_POSITIVE = 0.3;
-const ZONE_ANCHOR_COS_NEGATIVE = -0.3;
-
 /** Maximum proximity candidates for zone placement to limit O(n^2) cost */
 const ZONE_MAX_PROXIMITY_CANDIDATES = 20;
 
@@ -128,8 +128,6 @@ const KB_FOCUS_LINE_ALPHA = 0.95;
 const LABEL_CHAR_WIDTH_FACTOR = 0.6;
 /** Line height factor for label bounding box estimation */
 const LABEL_LINE_HEIGHT_FACTOR = 1.3;
-/** Label default Y offset factor (fraction of node radius) */
-const LABEL_Y_OFFSET_FACTOR = 0.4;
 /** Label default X/Y offset from node edge (px) */
 const LABEL_EDGE_OFFSET = 2;
 
@@ -1655,12 +1653,9 @@ export class RenderPipeline {
 		}
 
 		// Collect angles to all neighboring nodes AND positionally proximate nodes.
-		// In dense layouts (sunburst, cardioid), nearby unlinked nodes in the same arc
-		// can cause AP-6 ambiguity if labels are placed toward them.
 		const angles: number[] = [];
 		const rtZone = this.getCachedRT();
-		const proximityFactor = rtZone.labelZoneProximityFactor;
-		const proximityR = (nodeRadius + offset) * proximityFactor;
+		const proximityR = (nodeRadius + offset) * rtZone.labelZoneProximityFactor;
 		for (const nid of neighbors) {
 			const pn = pixiNodes.get(nid);
 			if (!pn) continue;
@@ -1670,7 +1665,6 @@ export class RenderPipeline {
 			angles.push(Math.atan2(dy, dx));
 		}
 		// Also include nearby non-linked nodes within proximity radius.
-		// Cap at 12 nearest proximity nodes to limit O(n²) cost for large graphs.
 		const proxCandidates: { angle: number; dist: number }[] = [];
 		for (const [nid, pn] of pixiNodes) {
 			if (nid === node.id || neighbors.has(nid)) continue;
@@ -1681,55 +1675,17 @@ export class RenderPipeline {
 				proxCandidates.push({ angle: Math.atan2(dy, dx), dist });
 			}
 		}
-		// Keep only the closest 20 to avoid over-constraining the gap search
 		proxCandidates.sort((a, b) => a.dist - b.dist);
 		for (let i = 0; i < Math.min(ZONE_MAX_PROXIMITY_CANDIDATES, proxCandidates.length); i++) {
 			angles.push(proxCandidates[i].angle);
 		}
 
-		if (angles.length === 0) {
-			return { x: nodeRadius + offset, y: -(nodeRadius * LABEL_Y_OFFSET_FACTOR), anchorX: 0 };
-		}
-
-		// Sort angles and find the largest gap
-		angles.sort((a, b) => a - b);
-
-		let maxGap = 0;
-		let gapMidAngle = 0;
-
-		for (let i = 0; i < angles.length; i++) {
-			const next = i + 1 < angles.length ? angles[i + 1] : angles[0] + Math.PI * 2;
-			const gap = next - angles[i];
-			if (gap > maxGap) {
-				maxGap = gap;
-				gapMidAngle = angles[i] + gap / 2;
-			}
-		}
-
-		// Place label at the midpoint of the largest gap.
-		// When gap is narrow (dense layout), pull label closer to its own node
-		// to reduce AP-6 ambiguity (label closer to another node).
-		const gapNarrowTh = rtZone.labelGapScaleNarrowThreshold;
-		const gapMedTh = rtZone.labelGapScaleMediumThreshold;
-		const gapNarrowFactor = rtZone.labelGapScaleNarrow;
-		const gapMedFactor = rtZone.labelGapScaleMedium;
-		const gapScale = maxGap < gapNarrowTh ? gapNarrowFactor : maxGap < gapMedTh ? gapMedFactor : 1.0;
-		const dist = (nodeRadius + offset) * gapScale;
-		const lx = Math.cos(gapMidAngle) * dist;
-		const ly = Math.sin(gapMidAngle) * dist;
-
-		// Determine text anchor based on direction
-		const cosA = Math.cos(gapMidAngle);
-		let anchorX: number;
-		if (cosA > ZONE_ANCHOR_COS_POSITIVE) {
-			anchorX = 0; // text-anchor: start (label to the right)
-		} else if (cosA < ZONE_ANCHOR_COS_NEGATIVE) {
-			anchorX = 1; // text-anchor: end (label to the left)
-		} else {
-			anchorX = 0.5; // text-anchor: middle (label above/below)
-		}
-
-		return { x: lx, y: ly, anchorX };
+		return computeZonePlacementFromAngles(angles, nodeRadius, offset, {
+			narrowThreshold: rtZone.labelGapScaleNarrowThreshold,
+			mediumThreshold: rtZone.labelGapScaleMediumThreshold,
+			narrowFactor: rtZone.labelGapScaleNarrow,
+			mediumFactor: rtZone.labelGapScaleMedium,
+		});
 	}
 
 	// =========================================================================
