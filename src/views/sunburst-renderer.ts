@@ -78,8 +78,8 @@ export interface SunburstArcDrawParams {
  * Extracted from GraphViewContainer.drawSunburstLayoutArcs.
  */
 export function drawSunburstLayoutArcs(params: SunburstArcDrawParams): void {
-	const { gfx, arcs, cx, cy, worldScale, isSunburstView, hoveredGroup, drawArcPath: drawArcPathOverride } = params;
-	const drawArc = drawArcPathOverride ?? drawArcPath;
+	const { gfx, arcs, cx, cy, worldScale, isSunburstView, hoveredGroup } = params;
+	const drawArc = params.drawArcPath ?? drawArcPath;
 
 	// Assign colors by depth-1 group (top-level category)
 	const groupColorMap = new Map<string, number>();

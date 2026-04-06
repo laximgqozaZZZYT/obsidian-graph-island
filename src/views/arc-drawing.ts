@@ -9,6 +9,30 @@ import { CanvasGraphics, CanvasText } from "./canvas2d";
 // Arc geometry
 // ---------------------------------------------------------------------------
 
+/** Trace arc points onto gfx. `moveFirst` controls whether the first point uses moveTo. */
+function traceArc(
+	gfx: CanvasGraphics,
+	cx: number,
+	cy: number,
+	r: number,
+	startAngle: number,
+	endAngle: number,
+	steps: number,
+	moveFirst: boolean,
+): void {
+	for (let i = 0; i <= steps; i++) {
+		const a = startAngle + (i / steps) * (endAngle - startAngle);
+		const x = cx + r * Math.cos(a);
+		const y = cy + r * Math.sin(a);
+		if (i === 0 && moveFirst) gfx.moveTo(x, y);
+		else gfx.lineTo(x, y);
+	}
+}
+
+function arcSteps(startAngle: number, endAngle: number): number {
+	return Math.max(16, Math.ceil(Math.abs(endAngle - startAngle) * 20));
+}
+
 /** Draw an arc line (stroke only, no fill). */
 export function drawArcLine(
 	gfx: CanvasGraphics,
@@ -18,15 +42,7 @@ export function drawArcLine(
 	startAngle: number,
 	endAngle: number,
 ): void {
-	const steps = Math.max(16, Math.ceil(Math.abs(endAngle - startAngle) * 20));
-	for (let i = 0; i <= steps; i++) {
-		const t = i / steps;
-		const a = startAngle + t * (endAngle - startAngle);
-		const x = cx + r * Math.cos(a);
-		const y = cy + r * Math.sin(a);
-		if (i === 0) gfx.moveTo(x, y);
-		else gfx.lineTo(x, y);
-	}
+	traceArc(gfx, cx, cy, r, startAngle, endAngle, arcSteps(startAngle, endAngle), true);
 }
 
 /** Draw a baumkuchen-shaped arc path (annular sector) for fills. */
@@ -39,27 +55,9 @@ export function drawArcPath(
 	startAngle: number,
 	endAngle: number,
 ): void {
-	const steps = Math.max(16, Math.ceil(Math.abs(endAngle - startAngle) * 20));
-
-	// Outer arc (clockwise)
-	for (let i = 0; i <= steps; i++) {
-		const t = i / steps;
-		const a = startAngle + t * (endAngle - startAngle);
-		const x = cx + rOuter * Math.cos(a);
-		const y = cy + rOuter * Math.sin(a);
-		if (i === 0) gfx.moveTo(x, y);
-		else gfx.lineTo(x, y);
-	}
-
-	// Inner arc (counter-clockwise)
-	for (let i = steps; i >= 0; i--) {
-		const t = i / steps;
-		const a = startAngle + t * (endAngle - startAngle);
-		const x = cx + rInner * Math.cos(a);
-		const y = cy + rInner * Math.sin(a);
-		gfx.lineTo(x, y);
-	}
-
+	const steps = arcSteps(startAngle, endAngle);
+	traceArc(gfx, cx, cy, rOuter, startAngle, endAngle, steps, true);
+	traceArc(gfx, cx, cy, rInner, endAngle, startAngle, steps, false);
 	gfx.closePath();
 }
 
