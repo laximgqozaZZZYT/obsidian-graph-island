@@ -14,7 +14,7 @@ export default defineConfig({
       thresholds: {
         // Ratchet: render-pipeline-utils pure function tests (+25 tests)
         statements: 48.7,
-        branches: 43.5,
+        branches: 43.6,
         functions: 46.3,
         lines: 49.0,
       },
