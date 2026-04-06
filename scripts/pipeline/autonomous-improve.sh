@@ -18,7 +18,7 @@ PROJECT_DIR="/home/ubuntu/obsidian-plugins/obsidian-graph-island"
 LOG_FILE="/tmp/graph-island-improve.log"
 RESULT_DIR="/tmp/graph-island-improve-results"
 MAX_LOG_SIZE=$((10 * 1024 * 1024))
-MAX_SESSIONS=3
+MAX_SESSIONS=5
 MAX_ITERATIONS=3
 MAX_TURNS=30
 
