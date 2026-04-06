@@ -3648,7 +3648,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	}
 
 	/** Enter subgraph mode: push current state to stack, filter to selected nodes */
-	enterSubgraph(nodeIds: string[], viewMode: string): void {
+	enterSubgraph(nodeIds: string[], viewMode: ViewMode): void {
 		const app = this.pixiApp;
 		this.panel.subgraphStack.push({
 			nodeIds: [...this.panel.subgraphNodeIds],
@@ -3658,7 +3658,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			zoom: app?.stage.scale.x ?? 1,
 		});
 		this.panel.subgraphNodeIds = [...nodeIds];
-		this.panel.viewMode = viewMode as ViewMode;
+		this.panel.viewMode = viewMode;
 		this.panel.multiSelectNodeIds = [];
 		this.rawData = null;
 		this.doRender();
@@ -3671,7 +3671,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		const prev = this.panel.subgraphStack.pop();
 		if (prev) {
 			this.panel.subgraphNodeIds = prev.nodeIds;
-			this.panel.viewMode = prev.viewMode as ViewMode;
+			this.panel.viewMode = prev.viewMode;
 		} else {
 			this.panel.subgraphNodeIds = [];
 		}
@@ -5043,7 +5043,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			hoveredTag: this.hoveredTag,
 			labelContainer: this.enclosureLabelContainer ?? undefined,
 			groupLabelFontSize: rt.groupLabelFontSize,
-			groupLabelFontWeight: rt.groupLabelFontWeight as string | undefined,
+			groupLabelFontWeight: rt.groupLabelFontWeight,
 			groupLabelLetterSpacing: rt.groupLabelLetterSpacing,
 			groupLabelAlpha: rt.groupLabelAlpha,
 			groupLabelHullOffset: rt.groupLabelHullOffset,
@@ -5129,7 +5129,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		for (const pn of this.pixiNodes.values()) {
 			nodeInfos.push({
 				id: pn.data.id, filePath: pn.data.filePath, tags: pn.data.tags,
-				meta: pn.data.meta as Record<string, unknown> | undefined,
+				meta: pn.data.meta,
 				x: pn.data.x, y: pn.data.y, gfxX: pn.gfx.x, gfxY: pn.gfx.y,
 				collapsedMembers: pn.data.collapsedMembers,
 			});
@@ -6635,7 +6635,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			let img = this.thumbnailCache.get(id);
 			if (img === undefined) {
 				// Try to resolve the path
-				const resolved = this._resolveThumbnailUrl(imgPath as string);
+				const resolved = this._resolveThumbnailUrl(imgPath);
 				if (resolved) {
 					img = document.createElement("img");
 					img.src = resolved;

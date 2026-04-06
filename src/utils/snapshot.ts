@@ -5,6 +5,7 @@
 // ---------------------------------------------------------------------------
 
 import type { GraphData, GraphNode, GraphSnapshot, SnapshotNode, SnapshotEdge, SnapshotDiff } from "../types";
+import { edgeSourceId, edgeTargetId } from "./graph-helpers";
 
 // ---------------------------------------------------------------------------
 // FNV-1a 32bit ハッシュ — 変更検出用（暗号用途ではない）
@@ -65,8 +66,8 @@ export function captureSnapshot(
 	}));
 
 	const edges: SnapshotEdge[] = data.edges.map((e) => ({
-		source: typeof e.source === "string" ? e.source : (e.source as unknown as GraphNode).id,
-		target: typeof e.target === "string" ? e.target : (e.target as unknown as GraphNode).id,
+		source: edgeSourceId(e as any),
+		target: edgeTargetId(e as any),
 		type: e.type ?? "link",
 	}));
 
@@ -141,9 +142,7 @@ export function computeSnapshotDiff(current: GraphData, snapshot: GraphSnapshot)
 	const currentEdgeKeys = new Set<string>();
 	const addedEdgeKeys = new Set<string>();
 	for (const e of current.edges) {
-		const src = typeof e.source === "string" ? e.source : (e.source as unknown as GraphNode).id;
-		const tgt = typeof e.target === "string" ? e.target : (e.target as unknown as GraphNode).id;
-		const k = edgeKey(src, tgt, e.type ?? "link");
+		const k = edgeKey(e.source, e.target, e.type ?? "link");
 		currentEdgeKeys.add(k);
 		if (!snapEdgeKeys.has(k)) {
 			addedEdgeKeys.add(k);

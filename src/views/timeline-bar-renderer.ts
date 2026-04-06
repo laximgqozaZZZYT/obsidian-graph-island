@@ -335,8 +335,8 @@ export function renderTimelineBars(host: TimelineBarHost): void {
 			drawWorkGroupSeparators(g, host.barLabelContainer, workGroups, bars, worldScale, isDark);
 		}
 
-		const steps = host.clusterMeta?.timelineSteps as string[] | undefined;
-		const stepW = host.clusterMeta?.timelineStepWidth as number | undefined;
+		const steps = host.clusterMeta?.timelineSteps;
+		const stepW = host.clusterMeta?.timelineStepWidth;
 		if (steps && stepW && steps.length > 0) {
 			drawTimeAxis(g, host.barLabelContainer, steps, stepW, bars, worldScale, isDark);
 		}
