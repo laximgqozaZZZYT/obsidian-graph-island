@@ -139,6 +139,15 @@ import { DiffOverlay } from "./DiffOverlay";
 import { captureSnapshot } from "../utils/snapshot";
 import { GuideRenderer, type GuideRendererHost } from "./GuideRenderer";
 import { LayoutTransition } from "./LayoutTransition";
+import {
+	computePathfinderDrawData,
+	PATHFINDER_COLOR,
+	PATHFINDER_COLOR_CSS,
+	PATHFINDER_DOT_RADIUS,
+	PATHFINDER_GLOW_STROKE_WIDTH,
+	PATHFINDER_LABEL_FONT_SIZE,
+	PATHFINDER_SOLID_STROKE_WIDTH,
+} from "./pathfinder-overlay";
 import { renderGraphStats, renderBreadcrumb, renderRelationMatrix } from "./StatsRenderer";
 import { buildPanelCallbacks, type PanelCallbackHost } from "./panel-callbacks";
 import { renderLegend, type LegendHost, type LegendPanel } from "./LegendRenderer";
@@ -261,19 +270,7 @@ const RING_FILL_ALPHA_FLOOR = 0.3;
 const RING_FILL_ALPHA_BASE = 0.7;
 const RING_FILL_ALPHA_DEPTH_DECAY = 0.08;
 
-// ---- Pathfinder overlay ----
-const PATHFINDER_COLOR = 0x00ced1;
-const PATHFINDER_COLOR_CSS = "#00CED1";
-const PATHFINDER_PULSE_SPEED = 0.06;
-const PATHFINDER_PULSE_AMPLITUDE = 0.1;
-const PATHFINDER_GLOW_ALPHA_BASE = 0.45;
-const PATHFINDER_SOLID_ALPHA_BASE = 0.85;
-const PATHFINDER_GLOW_STROKE_WIDTH = 8;
-const PATHFINDER_SOLID_STROKE_WIDTH = 3;
-const PATHFINDER_DOT_RADIUS = 5;
-const PATHFINDER_LABEL_FONT_SIZE = 11;
-const PATHFINDER_LABEL_OFFSET_X = 6;
-const PATHFINDER_LABEL_OFFSET_Y = -14;
+// ---- Pathfinder overlay (constants + logic in pathfinder-overlay.ts) ----
 
 // ---- Link preview ----
 const LINK_PREVIEW_COLOR = 0x00cccc;
@@ -4801,85 +4798,60 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	}
 
 	/** Draw the pathfinder path overlay on a dedicated graphics layer.
-	 *  Renders a double-stroke glow (wide translucent + narrow solid) in cyan,
-	 *  with a gentle alpha pulse animation and a hop-count label at midpoint. */
+	 *  Delegates draw-data computation to pathfinder-overlay.ts pure functions. */
 	private _drawPathfinderOverlay() {
 		const g = this.pathfinderGraphics;
 		if (g) g.clear();
-		// Remove old label
 		if (this.pathfinderLabel) {
 			this.pathfinderLabel.destroy();
 			this.pathfinderLabel = null;
 		}
 
 		if (!(this.panel.showPathfinderOverlay ?? true)) return;
-		if (!this.pathfinderPath || this.pathfinderPath.length < 2) return;
-		if (!g) return;
+		if (!this.pathfinderPath || this.pathfinderPath.length < 2 || !g) return;
 
 		this._pathfinderFrame++;
-		const pulse = Math.sin(this._pathfinderFrame * PATHFINDER_PULSE_SPEED) * PATHFINDER_PULSE_AMPLITUDE;
-		const glowAlpha = PATHFINDER_GLOW_ALPHA_BASE + pulse;
-		const solidAlpha = PATHFINDER_SOLID_ALPHA_BASE + pulse;
-
-		// Collect segment positions
-		const segments: { ax: number; ay: number; bx: number; by: number }[] = [];
-		for (let i = 0; i < this.pathfinderPath.length - 1; i++) {
-			const a = this.pixiNodes.get(this.pathfinderPath[i]);
-			const b = this.pixiNodes.get(this.pathfinderPath[i + 1]);
-			if (a && b) {
-				segments.push({ ax: a.data.x, ay: a.data.y, bx: b.data.x, by: b.data.y });
-			}
-		}
-		if (segments.length === 0) return;
+		const nodes = this.pixiNodes;
+		const dd = computePathfinderDrawData(this.pathfinderPath, this._pathfinderFrame, (id) => {
+			const pn = nodes.get(id);
+			return pn ? { x: pn.data.x, y: pn.data.y } : undefined;
+		});
+		if (!dd) return;
 
 		// Pass 1: wide glow stroke
-		g.lineStyle(PATHFINDER_GLOW_STROKE_WIDTH, PATHFINDER_COLOR, glowAlpha);
-		for (const s of segments) {
+		g.lineStyle(PATHFINDER_GLOW_STROKE_WIDTH, PATHFINDER_COLOR, dd.glowAlpha);
+		for (const s of dd.segments) {
 			g.moveTo(s.ax, s.ay);
 			g.lineTo(s.bx, s.by);
 		}
-
-		// Pass 2: narrow solid stroke on top
-		g.lineStyle(PATHFINDER_SOLID_STROKE_WIDTH, PATHFINDER_COLOR, solidAlpha);
-		for (const s of segments) {
+		// Pass 2: narrow solid stroke
+		g.lineStyle(PATHFINDER_SOLID_STROKE_WIDTH, PATHFINDER_COLOR, dd.solidAlpha);
+		for (const s of dd.segments) {
 			g.moveTo(s.ax, s.ay);
 			g.lineTo(s.bx, s.by);
 		}
-
-		// Draw node dots along the path
+		// Node dots
 		g.lineStyle(0);
-		for (const nodeId of this.pathfinderPath) {
-			const pn = this.pixiNodes.get(nodeId);
-			if (pn) {
-				g.beginFill(PATHFINDER_COLOR, solidAlpha);
-				g.drawCircle(pn.data.x, pn.data.y, PATHFINDER_DOT_RADIUS);
-				g.endFill();
-			}
+		for (const d of dd.dots) {
+			g.beginFill(PATHFINDER_COLOR, dd.solidAlpha);
+			g.drawCircle(d.x, d.y, PATHFINDER_DOT_RADIUS);
+			g.endFill();
 		}
-
-		// Path length label at the midpoint segment
-		const midIdx = Math.floor(segments.length / 2);
-		const mid = segments[midIdx];
-		const mx = (mid.ax + mid.bx) / 2;
-		const my = (mid.ay + mid.by) / 2;
-		const hops = this.pathfinderPath.length - 1;
-		const label = new CanvasText(`${hops} hop${hops !== 1 ? "s" : ""}`, {
+		// Hop-count label
+		const label = new CanvasText(dd.label.text, {
 			fontFamily: "Inter, sans-serif",
 			fontSize: PATHFINDER_LABEL_FONT_SIZE,
 			fontWeight: "600",
 			fill: PATHFINDER_COLOR_CSS,
 		});
-		label.x = mx + PATHFINDER_LABEL_OFFSET_X;
-		label.y = my + PATHFINDER_LABEL_OFFSET_Y;
-		// Counter-scale so label stays readable at any zoom
+		label.x = dd.label.x;
+		label.y = dd.label.y;
 		const ws = this.worldContainer?.scale.x ?? 1;
 		if (ws > 0) {
 			label.scale.x = 1 / ws;
 			label.scale.y = 1 / ws;
 		}
-		if (this.pathfinderGraphics?.parent) {
-			this.pathfinderGraphics.parent.addChild(label);
-		}
+		if (g.parent) g.parent.addChild(label);
 		this.pathfinderLabel = label;
 	}
 
