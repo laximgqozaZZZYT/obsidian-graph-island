@@ -41,23 +41,40 @@ log "AUTONOMOUS IMPROVE CYCLE START"
 log "================================================================"
 
 # ── Cleanup zombie/orphan processes from previous sessions ──
-# visual-report.ts orphans (pre-fix sessions that never called browser.close)
-ZOMBIE_VR=$(pgrep -f "tsx scripts/pipeline/visual-report" 2>/dev/null | wc -l)
-if [[ $ZOMBIE_VR -gt 0 ]]; then
-  pkill -9 -f "tsx scripts/pipeline/visual-report" 2>/dev/null
-  log "Killed $ZOMBIE_VR zombie visual-report processes"
+# Skip if e2e-patrol is running (don't kill its processes)
+E2E_PATROL_RUNNING=false
+if [[ -f /tmp/graph-island-e2e-patrol.lock ]]; then
+  E2E_PID=$(cat /tmp/graph-island-e2e-patrol.lock 2>/dev/null || echo "0")
+  kill -0 "$E2E_PID" 2>/dev/null && E2E_PATROL_RUNNING=true
 fi
-# esbuild daemon orphans
-ZOMBIE_ES=$(pgrep -f "esbuild --service" 2>/dev/null | wc -l)
-if [[ $ZOMBIE_ES -gt 2 ]]; then
-  pkill -9 -f "esbuild --service" 2>/dev/null
-  log "Killed $ZOMBIE_ES zombie esbuild processes"
-fi
-# vitest worker orphans (not attached to a running session)
-ZOMBIE_VT=$(pgrep -f "vitest.mjs" 2>/dev/null | wc -l)
-if [[ $ZOMBIE_VT -gt 4 ]]; then
-  pkill -9 -f "vitest.mjs" 2>/dev/null
-  log "Killed $ZOMBIE_VT zombie vitest processes"
+
+if [[ "$E2E_PATROL_RUNNING" == true ]]; then
+  log "e2e-patrol running (PID $E2E_PID) — skipping zombie cleanup"
+else
+  # visual-report.ts orphans (pre-fix sessions that never called browser.close)
+  ZOMBIE_VR=$(pgrep -f "tsx scripts/pipeline/visual-report" 2>/dev/null | wc -l)
+  if [[ $ZOMBIE_VR -gt 0 ]]; then
+    pkill -9 -f "tsx scripts/pipeline/visual-report" 2>/dev/null
+    log "Killed $ZOMBIE_VR zombie visual-report processes"
+  fi
+  # playwright orphans (not from active e2e-patrol)
+  ZOMBIE_PW=$(pgrep -f "playwright.*cdp-smoke" 2>/dev/null | wc -l)
+  if [[ $ZOMBIE_PW -gt 0 ]]; then
+    pkill -9 -f "playwright.*cdp-smoke" 2>/dev/null
+    log "Killed $ZOMBIE_PW zombie playwright processes"
+  fi
+  # esbuild daemon orphans (keep 2 for active sessions)
+  ZOMBIE_ES=$(pgrep -f "esbuild --service" 2>/dev/null | wc -l)
+  if [[ $ZOMBIE_ES -gt 2 ]]; then
+    pkill -9 -f "esbuild --service" 2>/dev/null
+    log "Killed $ZOMBIE_ES zombie esbuild processes"
+  fi
+  # vitest worker orphans (keep 4 for active sessions)
+  ZOMBIE_VT=$(pgrep -f "vitest.mjs" 2>/dev/null | wc -l)
+  if [[ $ZOMBIE_VT -gt 4 ]]; then
+    pkill -9 -f "vitest.mjs" 2>/dev/null
+    log "Killed $ZOMBIE_VT zombie vitest processes"
+  fi
 fi
 
 # ── Pre-flight checks ──
