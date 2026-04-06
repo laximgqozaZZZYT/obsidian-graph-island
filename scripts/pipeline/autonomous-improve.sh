@@ -195,35 +195,7 @@ fi
 # Issue queue check + focus selection now happens at the start of each iteration
 # to ensure clean context and pick up newly filed issues mid-session.
 
-# ── CDP: ensure Obsidian is running with remote debugging ──
-# E2E runs via CDP internal render buffer — no display occupation.
-# If CDP is not available, auto-restart Obsidian with --remote-debugging-port.
-CDP_AVAILABLE=false
-if curl -sf "http://localhost:9222/json/version" >/dev/null 2>&1; then
-  CDP_AVAILABLE=true
-  log "CDP available"
-else
-  log "CDP unavailable — attempting Obsidian restart with CDP..."
-  # Kill existing Obsidian (if running without CDP)
-  killall obsidian 2>/dev/null
-  sleep 3
-  # Restart in background with CDP (no display occupation — runs as bg process)
-  nohup /opt/Obsidian/obsidian --remote-debugging-port=9222 > /dev/null 2>&1 &
-  OBSIDIAN_PID=$!
-  log "Obsidian started (PID $OBSIDIAN_PID), waiting for CDP..."
-  # Wait for CDP to become available (max 30s)
-  for cdp_wait in $(seq 1 15); do
-    sleep 2
-    if curl -sf "http://localhost:9222/json/version" >/dev/null 2>&1; then
-      CDP_AVAILABLE=true
-      log "CDP connected after ${cdp_wait}x2s"
-      break
-    fi
-  done
-  if [[ "$CDP_AVAILABLE" != true ]]; then
-    log "WARN: CDP failed to connect after 30s — E2E disabled this session"
-  fi
-fi
+# ── E2E/CDP: handled by e2e-patrol.sh (separate cron, background) ──
 
 # ============================================================
 # IMPROVEMENT LOOP
@@ -234,13 +206,11 @@ for iter in $(seq 1 "$MAX_ITERATIONS"); do
 
   # ── CONTEXT RESET (コンテキスト汚染防止) ──
   # 各イテレーションをクリーンな状態から開始。
-  # 保持するもの: issueファイル、git状態、TOTAL_COMMITS, CDP_AVAILABLE
   # リセットするもの: 前イテレーションの判断結果・中間変数
   GATE_JSON=""
   GODOBJ_JSON=""
   GATE_STATUS=""
   GODOBJ_STATUS=""
-  VISUAL_INFO="CDP unavailable"
   REVIEW_FINDINGS=""
   PROMPT=""
   SKILL_CONTEXT=""
@@ -331,13 +301,6 @@ for iter in $(seq 1 "$MAX_ITERATIONS"); do
   # ── ASSESS (fresh data, no carry-over) ──
   GATE_JSON=$(bash scripts/pipeline/enforce-gates.sh --json 2>/dev/null || echo '{"passed":0}')
   GODOBJ_JSON=$(bash scripts/pipeline/god-object-audit.sh --json 2>&1 || echo '{"passed":0}')
-  if [[ "$CDP_AVAILABLE" == true ]]; then
-    npx tsx scripts/pipeline/visual-report.ts 2>/dev/null
-    VISUAL_INFO=$(python3 -c "
-import json; r=json.load(open('scripts/pipeline/visual-report.json'))
-print(f\"overall:{r['overallScore']}/100\")
-" 2>/dev/null || echo "?")
-  fi
 
   # ── IMPLEMENT ──
   log "Claude implementing ($FOCUS)..."
@@ -355,7 +318,6 @@ $ISSUE_CONTENT
 ## 現在の状態
 - ゲート: $GATE_STATUS
 - God Objects: $GODOBJ_STATUS
-- 視覚品質: $VISUAL_INFO
 
 ## 手順
 1. /research: 関連ファイルを読んで理解する
@@ -409,7 +371,6 @@ $SKILL_CONTEXT
 状態:
 - ゲート: $GATE_STATUS
 - God Objects: $GODOBJ_STATUS
-- 視覚品質: $VISUAL_INFO
 
 focus=$FOCUS の改善を1つ実装せよ:
 - coverage: 低カバレッジファイルにテスト追加 (純粋関数優先)
@@ -516,45 +477,6 @@ CLAUDE.md厳守。God Object行数を増やさない。" \
     fi
   fi
 
-  # ── E2E VISUAL CHECK (background, no display occupation) ──
-  if [[ "$CDP_AVAILABLE" == true ]]; then
-    log "E2E: capturing screenshot + readability analysis (background)..."
-    # Build + deploy first so Obsidian picks up changes
-    node esbuild.config.mjs production >/dev/null 2>&1
-    cp main.js "$PROJECT_DIR/../開発/.obsidian/plugins/graph-island/main.js" 2>/dev/null || true
-    cp main.js "$PROJECT_DIR/../.obsidian/plugins/graph-island/main.js" 2>/dev/null || true
-    sleep 3  # wait for Obsidian to hot-reload
-
-    # Run visual report (CDP screenshot = background, no display needed)
-    VISUAL_OUT=$(npx tsx "$PROJECT_DIR/scripts/pipeline/visual-report.ts" 2>&1 || echo "visual report failed")
-    VISUAL_SCORE=$(python3 -c "
-import json
-r=json.load(open('$PROJECT_DIR/scripts/pipeline/visual-report.json'))
-print(r['overallScore'])
-" 2>/dev/null || echo "0")
-    READABILITY_SCORE=$(python3 -c "
-import json
-r=json.load(open('$PROJECT_DIR/scripts/pipeline/visual-report.json'))
-sr = next((s for s in r['scores'] if s['name']=='screenshotReadability'), None)
-print(sr['score'] if sr else 0)
-" 2>/dev/null || echo "0")
-    SCREENSHOT=$(python3 -c "
-import json
-r=json.load(open('$PROJECT_DIR/scripts/pipeline/visual-report.json'))
-print(r.get('screenshot','none'))
-" 2>/dev/null || echo "none")
-
-    log "E2E: overall=$VISUAL_SCORE/100, readability=$READABILITY_SCORE/100, screenshot=$SCREENSHOT"
-
-    if [[ "$READABILITY_SCORE" -lt 30 ]]; then
-      log "WARN: Readability score $READABILITY_SCORE < 30 — visual regression detected"
-      # File as issue (persists across context resets, not a shell variable)
-      bash "$PROJECT_DIR/scripts/pipeline/discover-issues.sh" 2>/dev/null  # triggers visual regression detection
-      if [[ -n "$(cd "$PROJECT_DIR" && git status --porcelain scripts/pipeline/issues/)" ]]; then
-        (cd "$PROJECT_DIR" && git add scripts/pipeline/issues/ && git commit -m "chore: auto-file visual regression issue (score $READABILITY_SCORE)" --no-verify 2>/dev/null) || true
-      fi
-    fi
-  fi
 
   # ── COMMIT in worktree ──
   if [[ -n "$(git status --porcelain)" ]]; then

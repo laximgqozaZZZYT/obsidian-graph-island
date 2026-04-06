@@ -51,28 +51,7 @@ else
   RESULTS["coverage"]="skip"
 fi
 
-# ── E2E (CDP auto-detected, with retry for flaky tests) ──
-CDP_CHECK=$(curl -sf "http://localhost:9222/json/version" 2>/dev/null || true)
-if [[ -n "$CDP_CHECK" ]]; then
-  E2E_PASS=false
-  for e2e_try in 1 2; do
-    if npx playwright test --config e2e/cdp-smoke.config.ts --reporter=line >/dev/null 2>&1; then
-      E2E_PASS=true
-      break
-    fi
-    [[ $e2e_try -lt 2 ]] && sleep 3
-  done
-  RESULTS["e2e"]=$([[ "$E2E_PASS" == true ]] && echo "0" || echo "1")
-  if [[ "$E2E_PASS" == true ]]; then
-    [[ "$JSON_OUTPUT" == false ]] && echo "PASS [e2e]"
-  else
-    OVERALL_EXIT=1
-    [[ "$JSON_OUTPUT" == false ]] && echo "FAIL [e2e]"
-  fi
-else
-  RESULTS["e2e"]="skip"
-  [[ "$JSON_OUTPUT" == false ]] && echo "SKIP [e2e] (CDP unavailable)"
-fi
+# ── E2E: handled by e2e-patrol.sh (separate cron, no timeout, background) ──
 
 # ── JSON output ──
 if [[ "$JSON_OUTPUT" == true ]]; then
@@ -80,7 +59,7 @@ if [[ "$JSON_OUTPUT" == true ]]; then
   echo "  \"passed\": $(( OVERALL_EXIT == 0 ? 1 : 0 )),"
   echo -n "  \"gates\": {"
   first=true
-  for gate in typecheck lint test build bundle godobj coverage e2e; do
+  for gate in typecheck lint test build bundle godobj coverage; do
     val="${RESULTS[$gate]:-skip}"
     [[ "$first" == true ]] && first=false || echo -n ","
     if [[ "$val" == "skip" ]]; then printf "\"%s\":\"skip\"" "$gate"
