@@ -46,7 +46,10 @@ export function renderDonutMode(
 	const { visible, tlFilteredOut, alpha, minWorldRadius } = ctx;
 	const donutConfig = host.getDonutDisplayConfig();
 	const innerR = donutConfig.innerRadius ?? 0.6;
-	const bgColor = host.isDarkTheme() ? 0x1e1e1e : 0xffffff;
+	const rt = host.getRenderThresholds?.();
+	const bgColor = host.isDarkTheme()
+		? (rt?.donutBgDark ?? 0x1e1e1e)
+		: (rt?.donutBgLight ?? 0xffffff);
 
 	for (const pn of visible) {
 		const effR = Math.max(pn.radius, minWorldRadius);
