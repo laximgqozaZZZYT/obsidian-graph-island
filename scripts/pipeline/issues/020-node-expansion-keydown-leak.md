@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-06
-status: pending
+status: in-progress
 source: kaizen
 summary: _showNodeExpansionのdocument keydownリスナーがEsc以外のクローズパスで解除されない
 ---
