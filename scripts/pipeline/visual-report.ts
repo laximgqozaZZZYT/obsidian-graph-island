@@ -53,6 +53,14 @@ function findGraphIslandView(page: Page) {
 }
 
 async function measureAll(page: Page): Promise<VisualReport> {
+  // Zoom-to-fit before measuring to ensure graph fills the viewport
+  await page.evaluate(() => {
+    const leaves = (window as any).app.workspace.getLeavesOfType("graph-view");
+    const v = leaves.find((l: any) => "pixiNodes" in l.view)?.view;
+    if (v?.autoFitOnce) v.autoFitOnce();
+  });
+  await page.waitForTimeout(2000); // wait for render to stabilize
+
   // Get basic stats
   const stats = await page.evaluate(() => {
     const leaves = (window as any).app.workspace.getLeavesOfType("graph-view");
@@ -127,8 +135,8 @@ async function measureAll(page: Page): Promise<VisualReport> {
     if (!v?.pixiNodes) return { totalNodes: 0, visibleLabels: 0, labelRatio: 0, avgFontScale: 0 };
     let visible = 0, fontScaleSum = 0, count = 0;
     for (const [, n] of v.pixiNodes.entries()) {
-      if (n._labelText || n._label?.visible) visible++;
-      const fs = n._labelFontScale ?? n._label?.scale?.x ?? 1;
+      if (n.label?.visible) visible++;
+      const fs = n.label?.scale?.x ?? 1;
       fontScaleSum += fs; count++;
     }
     return { totalNodes: count, visibleLabels: visible, labelRatio: count > 0 ? visible / count : 0, avgFontScale: count > 0 ? Math.round((fontScaleSum / count) * 100) / 100 : 0 };
@@ -197,9 +205,9 @@ async function measureAll(page: Page): Promise<VisualReport> {
     const canvas = v.pixiApp?.view as HTMLCanvasElement | undefined;
     if (!canvas) return { canvasVisible: false, colorVariety: 0, emptyRatio: 1, zoomLevel: 0, isZoomedToFit: false };
 
-    // Sample pixels for content analysis
-    const ctx = canvas.getContext("2d", { willReadFrequently: true });
-    if (!ctx) return { canvasVisible: true, colorVariety: 0, emptyRatio: 0.5, zoomLevel: v._worldScale ?? 1, isZoomedToFit: false };
+    // Sample pixels for content analysis — reuse the app's existing 2D context if available
+    const ctx = (v.pixiApp as any).ctx ?? canvas.getContext("2d");
+    if (!ctx) return { canvasVisible: true, colorVariety: 0, emptyRatio: 0.5, zoomLevel: v.worldContainer?.scale?.x ?? 1, isZoomedToFit: false };
 
     const w = canvas.width, h = canvas.height;
     const step = Math.max(1, Math.floor(Math.min(w, h) / 50));
@@ -234,7 +242,7 @@ async function measureAll(page: Page): Promise<VisualReport> {
     }
 
     const emptyRatio = totalSampled > 0 ? bgCount / totalSampled : 1;
-    const ws = v._worldScale ?? v.worldScale ?? 1;
+    const ws = v.worldContainer?.scale?.x ?? 1;
 
     // Check if view is zoomed to fit (all nodes visible in viewport)
     let nodesInView = 0, totalNodes = 0;
