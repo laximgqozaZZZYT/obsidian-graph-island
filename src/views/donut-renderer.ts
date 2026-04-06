@@ -3,7 +3,6 @@
  * Handles donut ring, sector-breakdown, and sunburst-segment display modes.
  */
 import type { CanvasGraphics } from "./canvas2d";
-import type { DonutDisplayConfig } from "../types";
 import { DEFAULT_RENDER_THRESHOLDS } from "../types";
 import type { PixiNode } from "./InteractionManager";
 import { darkenColor } from "./render-pipeline-utils";

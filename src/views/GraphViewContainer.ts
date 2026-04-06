@@ -23,15 +23,12 @@ import type {
 	ViewMode,
 	ShellInfo,
 	DirectionalGravityRule,
-	GroupPreset,
-	ClusterGroupRule,
 	ClusterArrangement,
 	GraphTemplate,
 } from "../types";
 import { DEFAULT_COLORS, DEFAULT_CARD_RENDER_CONFIG, DEFAULT_ONTOLOGY, mergeRenderThresholds } from "../types";
 import { evaluateExpr, parseQueryExpr, serializeExpr } from "../utils/query-expr";
 import {
-	deriveOneRule,
 	deriveClusterRulesFromQueries,
 	deriveClusterRules,
 	blendThemeLabel,
@@ -40,8 +37,6 @@ import {
 	lightenHex,
 	heatmapColor,
 	COMMUNITY_PALETTE,
-	findMatchingGroupPreset,
-	resolveNodeColor,
 } from "../utils/gvc-helpers";
 import {
 	buildGraphFromVault,
