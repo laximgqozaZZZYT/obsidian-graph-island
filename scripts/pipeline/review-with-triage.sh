@@ -99,7 +99,7 @@ findings: $(cat "$TRIAGED_FILE")
 
   # ── Step 6: Gates (WORKFLOW — mechanical) ──
   echo "[$(date +%H:%M:%S)] Running gates..."
-  if ! bash scripts/pipeline/enforce-gates.sh --skip-e2e 2>&1 | tail -3; then
+  if ! bash scripts/pipeline/enforce-gates.sh 2>&1 | tail -3; then
     echo "GATES FAILED after fix — will retry in next round"
   fi
 

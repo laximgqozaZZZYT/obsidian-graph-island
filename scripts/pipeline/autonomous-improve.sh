@@ -232,7 +232,7 @@ for iter in $(seq 1 "$MAX_ITERATIONS"); do
   log "── Iteration $iter/$MAX_ITERATIONS (focus: $FOCUS) ──"
 
   # ── ASSESS ──
-  GATE_JSON=$(bash scripts/pipeline/enforce-gates.sh --json --skip-e2e 2>/dev/null || echo '{"passed":0}')
+  GATE_JSON=$(bash scripts/pipeline/enforce-gates.sh --json 2>/dev/null || echo '{"passed":0}')
   GODOBJ_JSON=$(bash scripts/pipeline/god-object-audit.sh --json 2>&1 || echo '{"passed":0}')
 
   # Include visual regression feedback from previous iteration
@@ -349,13 +349,13 @@ focus=$FOCUS の改善を1つ実装せよ:
   log "Verifying gates..."
   VERIFY_OK=false
   for fix_attempt in $(seq 1 3); do
-    if bash scripts/pipeline/enforce-gates.sh --skip-e2e >/dev/null 2>&1; then
+    if bash scripts/pipeline/enforce-gates.sh >/dev/null 2>&1; then
       VERIFY_OK=true
       break
     fi
     if [[ $fix_attempt -lt 3 ]]; then
       log "Gate failed, fix attempt $fix_attempt/3 — /systematic-debugging..."
-      ERRORS=$(bash scripts/pipeline/enforce-gates.sh --skip-e2e 2>&1 | grep "^FAIL" || echo "unknown")
+      ERRORS=$(bash scripts/pipeline/enforce-gates.sh 2>&1 | grep "^FAIL" || echo "unknown")
       # Layer: /systematic-debugging — diagnose root cause before fixing
       claude -p "あなたは systematic-debugging のスペシャリストです。
 
@@ -425,7 +425,7 @@ CLAUDE.md厳守。God Object行数を増やさない。" \
       2>&1 | tail -3
 
     # Re-verify after simplification
-    if ! bash scripts/pipeline/enforce-gates.sh --skip-e2e >/dev/null 2>&1; then
+    if ! bash scripts/pipeline/enforce-gates.sh >/dev/null 2>&1; then
       log "WARN: Simplification broke gates — reverting"
       git checkout -- . 2>/dev/null
     fi

@@ -21,7 +21,7 @@ cd "$(git rev-parse --show-toplevel)" || exit 1
 
 MAX_ATTEMPTS=${MAX_ATTEMPTS:-5}
 MAX_TURNS=${MAX_TURNS:-30}
-GATE_FLAGS="${GATE_FLAGS:---skip-e2e}"
+GATE_FLAGS="${GATE_FLAGS:-}"
 ERROR_FILE="/tmp/graph-island-gate-errors.txt"
 
 # ── Parse prompt ──

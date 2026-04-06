@@ -1,15 +1,14 @@
 #!/usr/bin/env bash
 # enforce-gates.sh — Mechanical quality gate enforcement
-# Usage: bash scripts/pipeline/enforce-gates.sh [--skip-e2e] [--json]
+# Usage: bash scripts/pipeline/enforce-gates.sh [--json]
+# All gates run unconditionally. E2E requires CDP (auto-detected).
 set -uo pipefail
 cd "$(git rev-parse --show-toplevel)"
 
-SKIP_E2E=false
 JSON_OUTPUT=false
 for arg in "$@"; do
   case "$arg" in
-    --skip-e2e) SKIP_E2E=true ;;
-    --json)     JSON_OUTPUT=true ;;
+    --json) JSON_OUTPUT=true ;;
   esac
 done
 
@@ -29,6 +28,7 @@ run_gate() {
   fi
 }
 
+# ── All gates run unconditionally ──
 run_gate "typecheck" npx tsc --noEmit
 run_gate "lint" npx eslint src/ --quiet --max-warnings 999
 run_gate "test" npx vitest run
@@ -36,25 +36,37 @@ run_gate "build" node esbuild.config.mjs production
 run_gate "bundle" bash scripts/bundle-size-check.sh
 run_gate "godobj" bash scripts/pipeline/god-object-audit.sh
 
-if [[ "$SKIP_E2E" == false ]]; then
-  CDP_CHECK=$(curl -sf "http://localhost:9222/json/version" 2>/dev/null || true)
-  if [[ -n "$CDP_CHECK" ]]; then
-    run_gate "e2e" npx playwright test --config e2e/cdp-smoke.config.ts --reporter=line
+# ── Coverage threshold check ──
+if [[ -f vitest.config.ts ]]; then
+  COV_OUT=$(npx vitest run --coverage 2>&1 || true)
+  if echo "$COV_OUT" | grep -q "does not meet global threshold"; then
+    RESULTS["coverage"]="1"
+    OVERALL_EXIT=1
+    [[ "$JSON_OUTPUT" == false ]] && echo "FAIL [coverage]"
   else
-    RESULTS["e2e"]="skip"
-    [[ "$JSON_OUTPUT" == false ]] && echo "SKIP [e2e]"
+    RESULTS["coverage"]="0"
+    [[ "$JSON_OUTPUT" == false ]] && echo "PASS [coverage]"
   fi
 else
-  RESULTS["e2e"]="skip"
-  [[ "$JSON_OUTPUT" == false ]] && echo "SKIP [e2e]"
+  RESULTS["coverage"]="skip"
 fi
 
+# ── E2E (CDP auto-detected, no skip flag) ──
+CDP_CHECK=$(curl -sf "http://localhost:9222/json/version" 2>/dev/null || true)
+if [[ -n "$CDP_CHECK" ]]; then
+  run_gate "e2e" npx playwright test --config e2e/cdp-smoke.config.ts --reporter=line
+else
+  RESULTS["e2e"]="skip"
+  [[ "$JSON_OUTPUT" == false ]] && echo "SKIP [e2e] (CDP unavailable)"
+fi
+
+# ── JSON output ──
 if [[ "$JSON_OUTPUT" == true ]]; then
   echo "{"
   echo "  \"passed\": $(( OVERALL_EXIT == 0 ? 1 : 0 )),"
   echo -n "  \"gates\": {"
   first=true
-  for gate in typecheck lint test build bundle godobj e2e; do
+  for gate in typecheck lint test build bundle godobj coverage e2e; do
     val="${RESULTS[$gate]:-skip}"
     [[ "$first" == true ]] && first=false || echo -n ","
     if [[ "$val" == "skip" ]]; then printf "\"%s\":\"skip\"" "$gate"
