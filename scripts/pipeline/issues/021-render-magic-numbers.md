@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-06
-status: pending
+status: in-progress
 source: kaizen
 summary: render/layout内に50+のインラインマジックナンバー — Forbidden Patterns違反
 ---
