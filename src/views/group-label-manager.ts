@@ -23,6 +23,41 @@ const AGGREGATE_PALETTE = [0x60a5fa, 0xf472b6, 0xa78bfa, 0x34d399, 0xfbbf24, 0xf
 /** Recompute hull only when centroid drifts > this many px */
 const HULL_DRIFT_THRESHOLD = 50;
 
+// ---- Group label styling ----
+const GROUP_LABEL_FILL = 0xeeeeee;
+const GROUP_LABEL_FILL_HOVERED = 0xffffff;
+const GROUP_LABEL_STROKE_COLOR = 0x000000;
+const GROUP_LABEL_STROKE_WIDTH = 4;
+const GROUP_LABEL_STROKE_WIDTH_AGGREGATE = 6;
+const GROUP_LABEL_BG_COLOR = 0x2a2a3e;
+const GROUP_LABEL_BG_COLOR_AGGREGATE = 0x3a3a5e;
+const GROUP_LABEL_BG_COLOR_HOVERED = 0x4a4a8e;
+const GROUP_LABEL_BG_ALPHA = 0.85;
+const GROUP_LABEL_BG_ALPHA_AGGREGATE = 0.92;
+const GROUP_LABEL_BG_ALPHA_HOVERED = 0.95;
+const GROUP_LABEL_PAD_X = 10;
+const GROUP_LABEL_PAD_Y = 5;
+const GROUP_LABEL_PAD_X_AGGREGATE = 16;
+const GROUP_LABEL_PAD_Y_AGGREGATE = 8;
+const GROUP_LABEL_MIN_FONT_SIZE = 14;
+
+// ---- Aggregate cluster styling ----
+/** Scale-down factor for aggregate-mode font sizing */
+const AGGREGATE_FONT_SCALE_FACTOR = 0.15;
+const AGGREGATE_FILL_ALPHA = 0.15;
+const AGGREGATE_OUTLINE_WIDTH = 2;
+const AGGREGATE_OUTLINE_ALPHA = 0.5;
+const AGGREGATE_LABEL_FONT_SIZE = 14;
+const AGGREGATE_LABEL_FILL = 0xffffff;
+const AGGREGATE_LABEL_BG_ALPHA = 0.85;
+const AGGREGATE_LABEL_PAD_X = 12;
+const AGGREGATE_LABEL_PAD_Y = 6;
+const AGGREGATE_LABEL_STROKE_WIDTH = 3;
+const AGGREGATE_LABEL_Y_OFFSET = 20;
+const AGGREGATE_MAX_COUNTER_SCALE = 8;
+const AGGREGATE_CHAR_WIDTH_EST = 8;
+const AGGREGATE_HIT_HEIGHT_EST = 28;
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -363,8 +398,8 @@ export function applyGroupLabelPlacements(
 	alpha: number,
 	hoveredGroupLabel: string | null,
 ): void {
-	const targetScreenPx = 14;
-	const baseFontSize = Math.max(14, Math.round(14 / Math.max(ws, 0.01)));
+	const targetScreenPx = GROUP_LABEL_MIN_FONT_SIZE;
+	const baseFontSize = Math.max(GROUP_LABEL_MIN_FONT_SIZE, Math.round(GROUP_LABEL_MIN_FONT_SIZE / Math.max(ws, 0.01)));
 	const rawScale = targetScreenPx / (baseFontSize * ws);
 	const labelScale = isFinite(rawScale) ? Math.max(1, rawScale) : 4;
 
@@ -378,18 +413,18 @@ export function applyGroupLabelPlacements(
 		if (!txt) {
 			txt = new CanvasText(p.labelText, {
 				fontSize: baseFontSize,
-				fill: 0xeeeeee,
+				fill: GROUP_LABEL_FILL,
 				fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
 				fontWeight: "600",
 			});
 			txt.anchor.set(0.5, 0.5);
 			txt.resolution = 2;
-			txt.strokeColor = 0x000000;
-			txt.strokeWidth = 4;
-			txt.bgColor = 0x2a2a3e;
-			txt.bgAlpha = 0.85;
-			txt.bgPadX = 10;
-			txt.bgPadY = 5;
+			txt.strokeColor = GROUP_LABEL_STROKE_COLOR;
+			txt.strokeWidth = GROUP_LABEL_STROKE_WIDTH;
+			txt.bgColor = GROUP_LABEL_BG_COLOR;
+			txt.bgAlpha = GROUP_LABEL_BG_ALPHA;
+			txt.bgPadX = GROUP_LABEL_PAD_X;
+			txt.bgPadY = GROUP_LABEL_PAD_Y;
 			groupByLabels.set(p.key, txt);
 			labelContainer.addChild(txt);
 		} else {
@@ -399,25 +434,28 @@ export function applyGroupLabelPlacements(
 
 		// Aggregate mode: enlarge labels into prominent summary bars
 		if (p.isAggregateMode) {
-			const scaledFontSize = Math.max(14, Math.round((14 / Math.max(ws, 0.001)) * 0.15));
+			const scaledFontSize = Math.max(
+				GROUP_LABEL_MIN_FONT_SIZE,
+				Math.round((GROUP_LABEL_MIN_FONT_SIZE / Math.max(ws, 0.001)) * AGGREGATE_FONT_SCALE_FACTOR),
+			);
 			txt.style.fontSize = scaledFontSize;
-			txt.bgPadX = 16;
-			txt.bgPadY = 8;
-			txt.strokeWidth = 6;
+			txt.bgPadX = GROUP_LABEL_PAD_X_AGGREGATE;
+			txt.bgPadY = GROUP_LABEL_PAD_Y_AGGREGATE;
+			txt.strokeWidth = GROUP_LABEL_STROKE_WIDTH_AGGREGATE;
 		} else {
 			txt.style.fontSize = baseFontSize;
-			txt.bgPadX = 10;
-			txt.bgPadY = 5;
-			txt.strokeWidth = 4;
+			txt.bgPadX = GROUP_LABEL_PAD_X;
+			txt.bgPadY = GROUP_LABEL_PAD_Y;
+			txt.strokeWidth = GROUP_LABEL_STROKE_WIDTH;
 		}
 
 		txt.scale.set(labelScale);
 		txt.alpha = alpha;
 		// Visual feedback for hovered label
 		const isHovered = p.key === hoveredGroupLabel;
-		txt.bgColor = isHovered ? 0x4a4a8e : p.isAggregateMode ? 0x3a3a5e : 0x2a2a3e;
-		txt.bgAlpha = isHovered ? 0.95 : p.isAggregateMode ? 0.92 : 0.85;
-		txt.style.fill = isHovered ? 0xffffff : 0xeeeeee;
+		txt.bgColor = isHovered ? GROUP_LABEL_BG_COLOR_HOVERED : p.isAggregateMode ? GROUP_LABEL_BG_COLOR_AGGREGATE : GROUP_LABEL_BG_COLOR;
+		txt.bgAlpha = isHovered ? GROUP_LABEL_BG_ALPHA_HOVERED : p.isAggregateMode ? GROUP_LABEL_BG_ALPHA_AGGREGATE : GROUP_LABEL_BG_ALPHA;
+		txt.style.fill = isHovered ? GROUP_LABEL_FILL_HOVERED : GROUP_LABEL_FILL;
 
 		txt.x = p.worldX;
 		txt.y = p.worldY;
@@ -500,10 +538,10 @@ export function drawAggregateGroups(
 		const color = AGGREGATE_PALETTE[labelIdx % AGGREGATE_PALETTE.length];
 
 		// Draw filled circle with outline
-		gfx.beginFill(color, 0.15);
+		gfx.beginFill(color, AGGREGATE_FILL_ALPHA);
 		gfx.drawCircle(ag.cx, ag.cy, ag.radius);
 		gfx.endFill();
-		gfx.lineStyle(2, color, 0.5);
+		gfx.lineStyle(AGGREGATE_OUTLINE_WIDTH, color, AGGREGATE_OUTLINE_ALPHA);
 		gfx.drawCircle(ag.cx, ag.cy, ag.radius);
 
 		// Create or reuse label
@@ -515,31 +553,31 @@ export function drawAggregateGroups(
 			lbl.visible = true;
 		} else {
 			lbl = new CanvasText(labelText, {
-				fontSize: 14,
-				fill: 0xffffff,
+				fontSize: AGGREGATE_LABEL_FONT_SIZE,
+				fill: AGGREGATE_LABEL_FILL,
 				fontWeight: "bold",
 			});
 			lbl.anchor.set(0.5, 0.5);
-			lbl.bgAlpha = 0.85;
-			lbl.bgPadX = 12;
-			lbl.bgPadY = 6;
-			lbl.strokeColor = 0x000000;
-			lbl.strokeWidth = 3;
+			lbl.bgAlpha = AGGREGATE_LABEL_BG_ALPHA;
+			lbl.bgPadX = AGGREGATE_LABEL_PAD_X;
+			lbl.bgPadY = AGGREGATE_LABEL_PAD_Y;
+			lbl.strokeColor = GROUP_LABEL_STROKE_COLOR;
+			lbl.strokeWidth = AGGREGATE_LABEL_STROKE_WIDTH;
 			worldContainer.addChild(lbl);
 			aggregateLabels.push(lbl);
 		}
 		lbl.bgColor = color;
 		lbl.x = ag.cx;
-		lbl.y = ag.cy - ag.radius - 20;
-		const counterScale = Math.min(8, 1 / ws);
+		lbl.y = ag.cy - ag.radius - AGGREGATE_LABEL_Y_OFFSET;
+		const counterScale = Math.min(AGGREGATE_MAX_COUNTER_SCALE, 1 / ws);
 		lbl.scale.set(counterScale);
 
 		// Store hit region for click-to-zoom (in world coords)
-		const estW = labelText.length * 8 * counterScale;
-		const estH = 28 * counterScale;
+		const estW = labelText.length * AGGREGATE_CHAR_WIDTH_EST * counterScale;
+		const estH = AGGREGATE_HIT_HEIGHT_EST * counterScale;
 		hitRegions.push({
 			x: ag.cx - estW / 2,
-			y: ag.cy - ag.radius - 20 - estH / 2,
+			y: ag.cy - ag.radius - AGGREGATE_LABEL_Y_OFFSET - estH / 2,
 			w: estW,
 			h: estH,
 			cx: ag.cx,

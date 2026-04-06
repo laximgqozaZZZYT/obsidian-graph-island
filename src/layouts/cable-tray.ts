@@ -10,7 +10,7 @@
  *   cartesian → horizontal + vertical streets = Manhattan-style
  */
 import type { GraphNode } from "../types";
-import { squaredDistance, findNearestIndex, findNearestWithDist, distance } from "../utils/geometry";
+import { squaredDistance, findNearestIndex, distance } from "../utils/geometry";
 import { pushToMapArray, getOrCreateArray } from "../utils/map-helpers";
 
 // ---------------------------------------------------------------------------

@@ -4,7 +4,7 @@
 // 純粋関数のみ。DOM・Canvas依存なし。
 // ---------------------------------------------------------------------------
 
-import type { GraphData, GraphNode, GraphSnapshot, SnapshotNode, SnapshotEdge, SnapshotDiff } from "../types";
+import type { GraphData, GraphSnapshot, SnapshotNode, SnapshotEdge, SnapshotDiff } from "../types";
 import { edgeSourceId, edgeTargetId } from "./graph-helpers";
 
 // ---------------------------------------------------------------------------
@@ -66,8 +66,8 @@ export function captureSnapshot(
 	}));
 
 	const edges: SnapshotEdge[] = data.edges.map((e) => ({
-		source: edgeSourceId(e as any),
-		target: edgeTargetId(e as any),
+		source: edgeSourceId(e),
+		target: edgeTargetId(e),
 		type: e.type ?? "link",
 	}));
 
