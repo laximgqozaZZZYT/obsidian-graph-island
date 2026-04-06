@@ -429,13 +429,6 @@ fi
 DUPE_COUNT="0"  # Disable: already filed
 " 2>/dev/null || echo "0")
 DUPE_COUNT=${DUPE_COUNT//[^0-9]/}; DUPE_COUNT=${DUPE_COUNT:-0}
-if [[ $DUPE_COUNT -gt 500 ]]; then
-  file_issue "duplicate-code" "medium" \
-    "${DUPE_COUNT}個の重複コードブロック (3行以上)" \
-    "同一の3行以上コードブロックが${DUPE_COUNT}箇所。DRY原則違反。共通関数への抽出が必要。" \
-    "- [ ] 重複ブロックを 500 個以下に"
-  ISSUES_FOUND=$((ISSUES_FOUND + 1))
-fi
 
 # ============================================================
 # 22. SETTIMEOUT WITHOUT CLEAR — potential memory leaks
