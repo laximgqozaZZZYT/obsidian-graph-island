@@ -89,3 +89,4 @@ samples/test-*.json
 docs/plans/
 coverage/
 .autonomous-worktrees/
+.nyc_output/
