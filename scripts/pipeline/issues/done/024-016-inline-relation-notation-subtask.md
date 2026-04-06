@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-06
-status: in-progress
+status: done
 source: decomposed
 parent: 016-inline-relation-notation
 depends: none
