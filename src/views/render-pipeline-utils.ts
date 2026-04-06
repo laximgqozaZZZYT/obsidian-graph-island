@@ -166,6 +166,24 @@ export function computeTimelineFilteredSet(
 // Density grid proximity check
 // ---------------------------------------------------------------------------
 
+export function isDensityTooClose(
+	cx: number, cy: number, bucketSize: number, minDist2: number,
+	grid: Map<string, { cx: number; cy: number }[]>,
+): boolean {
+	const bx = Math.floor(cx / bucketSize);
+	const by = Math.floor(cy / bucketSize);
+	for (let ddx = -1; ddx <= 1; ddx++) {
+		for (let ddy = -1; ddy <= 1; ddy++) {
+			const neighbors = grid.get(`${bx + ddx},${by + ddy}`);
+			if (!neighbors) continue;
+			for (const nb of neighbors) {
+				if ((cx - nb.cx) ** 2 + (cy - nb.cy) ** 2 < minDist2) return true;
+			}
+		}
+	}
+	return false;
+}
+
 // ---------------------------------------------------------------------------
 // Zone placement — angular-gap-based label positioning
 // ---------------------------------------------------------------------------
@@ -247,22 +265,4 @@ export function computeZonePlacementFromAngles(
 	}
 
 	return { x: lx, y: ly, anchorX };
-}
-
-export function isDensityTooClose(
-	cx: number, cy: number, bucketSize: number, minDist2: number,
-	grid: Map<string, { cx: number; cy: number }[]>,
-): boolean {
-	const bx = Math.floor(cx / bucketSize);
-	const by = Math.floor(cy / bucketSize);
-	for (let ddx = -1; ddx <= 1; ddx++) {
-		for (let ddy = -1; ddy <= 1; ddy++) {
-			const neighbors = grid.get(`${bx + ddx},${by + ddy}`);
-			if (!neighbors) continue;
-			for (const nb of neighbors) {
-				if ((cx - nb.cx) ** 2 + (cy - nb.cy) ** 2 < minDist2) return true;
-			}
-		}
-	}
-	return false;
 }

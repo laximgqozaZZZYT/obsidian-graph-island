@@ -1,9 +1,8 @@
-import { CanvasGraphics, CanvasContainer, CanvasText } from "./canvas2d";
+import { CanvasGraphics } from "./canvas2d";
 import type { GraphEdge, EdgeCardinalityMode, Cardinality, CardinalityRule, CardinalityRenderConfig } from "../types";
 import { DEFAULT_CARDINALITY_RENDER_CONFIG } from "../types";
 import { cssColorToHex, edgeSourceId, edgeTargetId, incCounter } from "../utils/graph-helpers";
 import { addToMapSet } from "../utils/map-helpers";
-import { wcagContrastRatio, contrastColor } from "../utils/color";
 import type { RoadNetwork } from "../layouts/cable-tray";
 import {
 	routeEdge,
