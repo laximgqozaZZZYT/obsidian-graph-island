@@ -81,7 +81,7 @@ import {
 	buildDirectionalGravityRules,
 	buildSortRules,
 	syncArrangementFromLayout,
-	getPreset,
+	getOrCreateCoordLayout,
 	type ClusterSectionCtx,
 } from "./panel-sections-layout";
 
@@ -3230,7 +3230,7 @@ function buildExprLibrary(body: HTMLElement, panel: PanelState, cb: PanelCallbac
 
 		item.addEventListener("click", () => {
 			// Apply the preset to panel
-			const base = panel.coordinateLayout ?? { ...getPreset(panel.clusterArrangement) };
+			const base = getOrCreateCoordLayout(panel);
 			panel.coordinateLayout = {
 				...base,
 				system: entry.system ?? "cartesian",
@@ -3302,7 +3302,7 @@ function buildConstantsUI(body: HTMLElement, panel: PanelState, cb: PanelCallbac
 		text: t("coord.addConstant"),
 	});
 	addBtn.addEventListener("click", () => {
-		const base = panel.coordinateLayout ?? { ...getPreset(panel.clusterArrangement) };
+		const base = getOrCreateCoordLayout(panel);
 		const existing = base.constants ?? {};
 		// Find a free single-letter key
 		const alphabet = "abcdefghijklmnopqrstuvwxyz";
@@ -3386,7 +3386,7 @@ function buildConstantRow(
 	const delBtn = row.createEl("button", { cls: "gi-remove-btn", text: "\u00d7" });
 
 	const applyChange = (oldKey: string, newKey: string, newVal: number) => {
-		const base = panel.coordinateLayout ?? { ...getPreset(panel.clusterArrangement) };
+		const base = getOrCreateCoordLayout(panel);
 		const existing = { ...(base.constants ?? {}) };
 		if (oldKey !== newKey) delete existing[oldKey];
 		existing[newKey] = newVal;
@@ -3418,7 +3418,7 @@ function buildConstantRow(
 	});
 
 	delBtn.addEventListener("click", () => {
-		const base = panel.coordinateLayout ?? { ...getPreset(panel.clusterArrangement) };
+		const base = getOrCreateCoordLayout(panel);
 		const existing = { ...(base.constants ?? {}) };
 		delete existing[key];
 		panel.coordinateLayout = {
@@ -3481,7 +3481,7 @@ function buildSystemConstantRow(
 	valInput.addEventListener("change", () => {
 		const newVal = parseFloat(valInput.value);
 		if (isNaN(newVal)) return;
-		const base = panel.coordinateLayout ?? { ...getPreset(panel.clusterArrangement) };
+		const base = getOrCreateCoordLayout(panel);
 		const existing = { ...(base.constants ?? {}) };
 		existing[key] = newVal;
 		panel.coordinateLayout = { ...base, constants: existing };
@@ -3516,7 +3516,7 @@ function buildAxisTextInput(
 	const axisKey = axisNum === 1 ? "axis1" : "axis2";
 
 	const updateAxis = (source: AxisSource, transform: AxisTransform, skipRebuild = false) => {
-		const base = panel.coordinateLayout ?? { ...getPreset(panel.clusterArrangement) };
+		const base = getOrCreateCoordLayout(panel);
 		panel.coordinateLayout = {
 			...base,
 			[axisKey]: { ...base[axisKey], source, transform },

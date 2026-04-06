@@ -1,6 +1,7 @@
 import type { GraphData, TreeLayoutOptions } from "../types";
 import { computeInDegree } from "../analysis/graph-analysis";
 import { EDGE_TYPE_INHERITANCE, EDGE_TYPE_AGGREGATION } from "../constants";
+import { pushToMapArray } from "../utils/map-helpers";
 
 // ---------------------------------------------------------------------------
 // Constants — default layout parameters
@@ -69,15 +70,12 @@ function _buildTreeAdjacency(graph: GraphData) {
 	for (const e of sortedEdges) {
 		undirected.get(e.source)?.add(e.target);
 		undirected.get(e.target)?.add(e.source);
-		if (!directed.has(e.source)) directed.set(e.source, []);
-		directed.get(e.source)!.push(e.target);
+		pushToMapArray(directed, e.source, e.target);
 
 		if (e.type === EDGE_TYPE_INHERITANCE) {
-			if (!structuralChildren.has(e.target)) structuralChildren.set(e.target, []);
-			structuralChildren.get(e.target)!.push(e.source);
+			pushToMapArray(structuralChildren, e.target, e.source);
 		} else if (e.type === EDGE_TYPE_AGGREGATION) {
-			if (!structuralChildren.has(e.source)) structuralChildren.set(e.source, []);
-			structuralChildren.get(e.source)!.push(e.target);
+			pushToMapArray(structuralChildren, e.source, e.target);
 		}
 	}
 

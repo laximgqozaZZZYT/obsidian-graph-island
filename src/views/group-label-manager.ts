@@ -7,6 +7,7 @@
  */
 
 import { CanvasContainer, CanvasGraphics, CanvasText } from "./canvas2d";
+import { addToMapSet } from "../utils/map-helpers";
 import { convexHull } from "../utils/geometry";
 
 // ---------------------------------------------------------------------------
@@ -91,8 +92,7 @@ export function collectGroupCentroids(
 		} else {
 			groups.set(key, { x: px, y: py, memberCount: 1 });
 		}
-		if (!members.has(key)) members.set(key, new Set());
-		members.get(key)!.add(nodeId);
+		addToMapSet(members, key, nodeId);
 	};
 
 	if (opts.hasGroupBy) {

@@ -140,6 +140,51 @@ export function magnitude(dx: number, dy: number): number {
 	return Math.sqrt(dx * dx + dy * dy);
 }
 
+/** Squared Euclidean distance between two points (avoids sqrt for comparisons). */
+export function squaredDistance(x1: number, y1: number, x2: number, y2: number): number {
+	const dx = x1 - x2;
+	const dy = y1 - y2;
+	return dx * dx + dy * dy;
+}
+
+/** Euclidean distance between two points. */
+export function distance(x1: number, y1: number, x2: number, y2: number): number {
+	return Math.sqrt(squaredDistance(x1, y1, x2, y2));
+}
+
+/**
+ * Find the index of the nearest point in an array.
+ * Returns -1 if the array is empty.
+ */
+export function findNearestIndex(
+	points: readonly { x: number; y: number }[],
+	qx: number,
+	qy: number,
+): number {
+	return findNearestWithDist(points, qx, qy).index;
+}
+
+/**
+ * Find the nearest point index AND its squared distance.
+ * Returns { index: -1, dist: Infinity } if the array is empty.
+ */
+export function findNearestWithDist(
+	points: readonly { x: number; y: number }[],
+	qx: number,
+	qy: number,
+): { index: number; dist: number } {
+	let bestIdx = -1;
+	let bestDist = Infinity;
+	for (let i = 0; i < points.length; i++) {
+		const d = squaredDistance(qx, qy, points[i].x, points[i].y);
+		if (d < bestDist) {
+			bestDist = d;
+			bestIdx = i;
+		}
+	}
+	return { index: bestIdx, dist: bestDist };
+}
+
 /**
  * Compute the convex hull of a set of 2D points using Andrew's monotone chain.
  * Returns vertices in counter-clockwise order.

@@ -12,6 +12,7 @@ import {
 	EDGE_TYPE_HAS_TAG,
 } from "../constants";
 import { incCounter } from "../utils/graph-helpers";
+import { pushToMapArray } from "../utils/map-helpers";
 
 /** Initial random scatter range for node positions */
 const INITIAL_SCATTER_X = 800;
@@ -237,6 +238,7 @@ function buildEdgesFromLinks(
 		}
 
 		addRemainingFrontmatterEdges(file, fmRelations, settings, nodeMap, edgeSet, edges);
+		addInlineRelationEdges(file, inlineRelations, settings, nodeMap, edgeSet, edges);
 	}
 }
 
@@ -264,6 +266,9 @@ function collectInlineRelations(app: App, file: TFile): Map<string, InlineFieldR
 		parseInlineFields(contentOrPromise, file.path, app).forEach((result, tPath) =>
 			inlineRelations.set(tPath, result),
 		);
+		parseInlineRelationLinks(contentOrPromise, file.path, app).forEach((result, tPath) => {
+			if (!inlineRelations.has(tPath)) inlineRelations.set(tPath, result);
+		});
 	}
 	return inlineRelations;
 }
@@ -336,6 +341,28 @@ function addRemainingFrontmatterEdges(
 	}
 }
 
+/** Add edges from inline relation links not already captured by regular/FM links. */
+function addInlineRelationEdges(
+	file: TFile,
+	inlineRelations: Map<string, InlineFieldResult>,
+	settings: GraphViewsSettings,
+	nodeMap: Map<string, GraphNode>,
+	edgeSet: Set<string>,
+	edges: GraphEdge[],
+): void {
+	for (const [targetPath, result] of inlineRelations) {
+		if (!nodeMap.has(targetPath)) continue;
+		const edgeId = `${file.path}->${targetPath}`;
+		if (edgeSet.has(edgeId)) continue;
+		edgeSet.add(edgeId);
+
+		const { edgeType, reverse } = resolveRelationEdge(result.relation, result.isOntology, settings.ontology);
+		const src = reverse ? targetPath : file.path;
+		const tgt = reverse ? file.path : targetPath;
+		edges.push({ id: edgeId, source: src, target: tgt, type: edgeType, relation: result.relation });
+	}
+}
+
 /**
  * Build edges from shared metadata values (edgeFields).
  * Cap per-group to avoid O(N^2) explosion.
@@ -362,8 +389,7 @@ function buildSharedMetadataEdges(
 			const values = Array.isArray(frontmatter[field]) ? frontmatter[field] : [frontmatter[field]];
 			for (const val of values) {
 				const key = `${field}:${String(val)}`;
-				if (!valueToNodes.has(key)) valueToNodes.set(key, []);
-				valueToNodes.get(key)!.push(node.id);
+				pushToMapArray(valueToNodes, key, node.id);
 			}
 		}
 
@@ -539,8 +565,7 @@ export function buildSunburstData(app: App, groupField: string): SunburstData {
 		const frontmatter = cache?.frontmatter;
 		const group = (frontmatter?.[groupField] as string) ?? "Uncategorized";
 
-		if (!groups.has(group)) groups.set(group, []);
-		groups.get(group)!.push({
+		pushToMapArray(groups, group, {
 			name: file.basename,
 			value: 1,
 			filePath: file.path,
@@ -654,6 +679,39 @@ function parseInlineFields(content: string, sourcePath: string, app: App): Map<s
 			if (targetFile) {
 				result.set(targetFile.path, { relation, isOntology });
 			}
+		}
+	}
+	return result;
+}
+
+/**
+ * Extract raw inline-relation link matches from content.
+ * Notation: `[[target|display]@relation]` or `[[target]@relation]`
+ * Pure function — no Obsidian dependency, easy to test.
+ */
+export function parseInlineRelationLinksRaw(
+	content: string,
+): Array<{ linkTarget: string; relation: string }> {
+	const results: Array<{ linkTarget: string; relation: string }> = [];
+	const re = /\[\[([^\]|]+)(?:\|[^\]]*)?\]@([^\]]+)\]/g;
+	let m: RegExpExecArray | null;
+	while ((m = re.exec(content)) !== null) {
+		results.push({ linkTarget: m[1].trim(), relation: m[2].trim() });
+	}
+	return results;
+}
+
+/** Resolve raw inline-relation link matches to file paths. */
+function parseInlineRelationLinks(
+	content: string,
+	sourcePath: string,
+	app: App,
+): Map<string, InlineFieldResult> {
+	const result = new Map<string, InlineFieldResult>();
+	for (const { linkTarget, relation } of parseInlineRelationLinksRaw(content)) {
+		const targetFile = app.metadataCache.getFirstLinkpathDest(linkTarget, sourcePath);
+		if (targetFile) {
+			result.set(targetFile.path, { relation, isOntology: false });
 		}
 	}
 	return result;

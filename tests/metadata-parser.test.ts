@@ -8,6 +8,7 @@ import {
   collectAllTags,
   extractBodyInfo,
   buildSunburstData,
+  parseInlineRelationLinksRaw,
 } from "../src/parsers/metadata-parser";
 import { DEFAULT_COLORS } from "../src/types";
 import type { GraphNode, GraphEdge, OntologyConfig } from "../src/types";
@@ -1045,5 +1046,57 @@ describe("applyMonochromeFallback comprehensive tests", () => {
     const fn = applyMonochromeFallback(nodes, mono, palette);
     // Should have triggered fallback since all 10 nodes get same color
     expect(fn).not.toBe(mono);
+  });
+});
+
+// =============================================
+// parseInlineRelationLinksRaw
+// =============================================
+describe("parseInlineRelationLinksRaw", () => {
+  it("parses [[target]@relation] without display text", () => {
+    const results = parseInlineRelationLinksRaw("text [[フリーザ]@敵対] more");
+    expect(results).toEqual([{ linkTarget: "フリーザ", relation: "敵対" }]);
+  });
+
+  it("parses [[target|display]@relation] with display text", () => {
+    const results = parseInlineRelationLinksRaw("[[孫悟空|悟空]@師弟]");
+    expect(results).toEqual([{ linkTarget: "孫悟空", relation: "師弟" }]);
+  });
+
+  it("parses multiple inline relation links", () => {
+    const content = "[[A]@friend] and [[B|display]@rival]";
+    const results = parseInlineRelationLinksRaw(content);
+    expect(results).toHaveLength(2);
+    expect(results[0]).toEqual({ linkTarget: "A", relation: "friend" });
+    expect(results[1]).toEqual({ linkTarget: "B", relation: "rival" });
+  });
+
+  it("returns empty array for content with no inline relation links", () => {
+    expect(parseInlineRelationLinksRaw("plain text")).toEqual([]);
+    expect(parseInlineRelationLinksRaw("[[normal link]]")).toEqual([]);
+    expect(parseInlineRelationLinksRaw("[[link|display]]")).toEqual([]);
+  });
+
+  it("trims whitespace from target and relation", () => {
+    const results = parseInlineRelationLinksRaw("[[ target ]@ relation ]");
+    expect(results).toEqual([{ linkTarget: "target", relation: "relation" }]);
+  });
+
+  it("handles path-like targets", () => {
+    const results = parseInlineRelationLinksRaw("[[folder/subfolder/note]@author]");
+    expect(results).toEqual([{ linkTarget: "folder/subfolder/note", relation: "author" }]);
+  });
+
+  it("does not match standard wikilinks without @", () => {
+    expect(parseInlineRelationLinksRaw("[[note]]")).toEqual([]);
+    expect(parseInlineRelationLinksRaw("[[note|display]]")).toEqual([]);
+  });
+
+  it("handles multiline content", () => {
+    const content = "line1 [[A]@x]\nline2 [[B|b]@y]\nline3";
+    const results = parseInlineRelationLinksRaw(content);
+    expect(results).toHaveLength(2);
+    expect(results[0].relation).toBe("x");
+    expect(results[1].relation).toBe("y");
   });
 });

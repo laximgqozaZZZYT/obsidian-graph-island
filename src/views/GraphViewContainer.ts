@@ -45,6 +45,7 @@ import {
 } from "../analysis/graph-analysis";
 import type { RoadNetwork } from "../layouts/cable-tray";
 import { RoadNetworkBuilder, getBestRoadNetwork, type RoadNetworkHost } from "../layouts/RoadNetworkBuilder";
+import { downloadFile } from "./ExportManager";
 import {
 	yieldFrame,
 	buildAdj,
@@ -72,6 +73,7 @@ import {
 	buildSimEndA11yMessage,
 	resolveViewportSize,
 } from "../utils/graph-helpers";
+import { pushToMapArray, addToMapSet } from "../utils/map-helpers";
 import {
 	applyVisibilityFilters,
 	filterByDegree,
@@ -2709,8 +2711,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		const minSize = opts?.minSize ?? 2;
 		const commGroups = new Map<number, string[]>();
 		for (const [nodeId, commId] of communityMap) {
-			if (!commGroups.has(commId)) commGroups.set(commId, []);
-			commGroups.get(commId)!.push(nodeId);
+			pushToMapArray(commGroups, commId, nodeId);
 		}
 
 		const groups: GroupSpec[] = [];
@@ -3513,7 +3514,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	exportFullGraph(): void {
 		const gd = this.getGraphData();
 		const json = exportFullGraphJSON(gd.nodes, gd.edges);
-		this._downloadFile(
+		downloadFile(
 			json,
 			"application/json",
 			`graph-island-export-${new Date().toISOString().slice(0, 10)}.json`,
@@ -3524,7 +3525,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	exportGraphAsCSV(): void {
 		const gd = this.getGraphData();
 		const csv = exportGraphCSV(gd.nodes, gd.edges);
-		this._downloadFile(csv, "text/csv", `graph-island-${new Date().toISOString().slice(0, 10)}.csv`);
+		downloadFile(csv, "text/csv", `graph-island-${new Date().toISOString().slice(0, 10)}.csv`);
 		new Notice(`CSV exported: ${gd.nodes.length} nodes, ${gd.edges.length} edges`, TOAST_MEDIUM_MS);
 	}
 
@@ -3537,21 +3538,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 				new Notice(`Mermaid diagram copied to clipboard (${Math.min(MOBILE_NODE_CAP, gd.nodes.length)} nodes)`, TOAST_MEDIUM_MS);
 			})
 			.catch(() => {
-				this._downloadFile(mmd, "text/plain", `graph-island-${new Date().toISOString().slice(0, 10)}.mmd`);
+				downloadFile(mmd, "text/plain", `graph-island-${new Date().toISOString().slice(0, 10)}.mmd`);
 			});
 	}
 
-	private _downloadFile(content: string, type: string, filename: string): void {
-		const blob = new Blob([content], { type });
-		const url = URL.createObjectURL(blob);
-		const a = document.createElement("a");
-		a.href = url;
-		a.download = filename;
-		document.body.appendChild(a);
-		a.click();
-		document.body.removeChild(a);
-		URL.revokeObjectURL(url);
-	}
 
 	// =========================================================================
 	// C3+F2: Ontology type picker & relation type picker
@@ -6990,10 +6980,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		if (this.panel.expandedNodes?.length) {
 			const adj = new Map<string, Set<string>>();
 			for (const e of edges) {
-				if (!adj.has(e.source)) adj.set(e.source, new Set());
-				if (!adj.has(e.target)) adj.set(e.target, new Set());
-				adj.get(e.source)!.add(e.target);
-				adj.get(e.target)!.add(e.source);
+				addToMapSet(adj, e.source, e.target);
+				addToMapSet(adj, e.target, e.source);
 			}
 			const reachable = new Set(result.nodes.map((n) => n.id));
 			for (const expandedId of this.panel.expandedNodes) {

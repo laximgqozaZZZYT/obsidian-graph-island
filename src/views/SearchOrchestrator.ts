@@ -8,6 +8,7 @@
 
 import type { GraphNode, GraphEdge } from "../types";
 import { evaluateExpr, parseQueryExpr } from "../utils/query-expr";
+import { addToMapSet } from "../utils/map-helpers";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -224,10 +225,8 @@ export function expandLocalGraphNeighbors(
 
 	const adj = new Map<string, Set<string>>();
 	for (const e of allEdges) {
-		if (!adj.has(e.source)) adj.set(e.source, new Set());
-		if (!adj.has(e.target)) adj.set(e.target, new Set());
-		adj.get(e.source)!.add(e.target);
-		adj.get(e.target)!.add(e.source);
+		addToMapSet(adj, e.source, e.target);
+		addToMapSet(adj, e.target, e.source);
 	}
 
 	const reachable = new Set(bfsNodes.map((n) => n.id));

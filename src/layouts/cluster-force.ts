@@ -45,6 +45,7 @@ import {
 	GROUP_ARRANGEMENT_GRID,
 } from "../constants";
 import { timelineOffsetsV2 } from "./timeline-layout";
+import { pushToMapArray } from "../utils/map-helpers";
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -485,8 +486,7 @@ export function buildClusterForce(
 				if (idx >= 0) {
 					const [node] = members.splice(idx, 1);
 					// Add to target group (create if needed)
-					if (!groups.has(targetGroup)) groups.set(targetGroup, []);
-					groups.get(targetGroup)!.push(node);
+					pushToMapArray(groups, targetGroup, node);
 					break;
 				}
 			}
@@ -577,8 +577,7 @@ function mergeSmallGroups(groups: Map<string, GraphNode[]>, nodeCount: number): 
 	const pm = new Map<string, string[]>();
 	for (const key of groups.keys()) {
 		const parent = key.replace(/::.*$/, "");
-		if (!pm.has(parent)) pm.set(parent, []);
-		pm.get(parent)!.push(key);
+		pushToMapArray(pm, parent, key);
 	}
 	// Sub-phase 1: merge small CCs back into their parent tag group
 	for (const [parent, children] of pm) {
@@ -1097,8 +1096,7 @@ function computeAbsoluteTargets(
 	const parentMap = new Map<string, string[]>();
 	for (const key of groups.keys()) {
 		const parent = key.replace(/::.*$/, "");
-		if (!parentMap.has(parent)) parentMap.set(parent, []);
-		parentMap.get(parent)!.push(key);
+		pushToMapArray(parentMap, parent, key);
 	}
 	const hasHierarchy = [...parentMap.values()].some((ch) => ch.length > 1);
 
@@ -3359,8 +3357,7 @@ function _detectGroupOverlaps(
 ): OverlapResult {
 	const groupNodes = new Map<string, AutoFitNodeInfo[]>();
 	for (const ni of nodeInfos) {
-		if (!groupNodes.has(ni.group)) groupNodes.set(ni.group, []);
-		groupNodes.get(ni.group)!.push(ni);
+		pushToMapArray(groupNodes, ni.group, ni);
 	}
 	const groupKeys = [...groupNodes.keys()].filter((k) => k !== "__none__");
 	if (groupKeys.length <= 1) {

@@ -2,6 +2,7 @@ import { ItemView, TFile, MarkdownRenderer, Component, setIcon } from "obsidian"
 import type { GraphNode, GraphEdge } from "../types";
 import type { PixiNode } from "./InteractionManager";
 import { edgeSourceId, edgeTargetId } from "../utils/graph-helpers";
+import { pushToMapArray } from "../utils/map-helpers";
 import { t } from "../i18n";
 import { EVENT_HOVER_NODE, EVENT_HIGHLIGHT_NODES } from "../constants";
 import { asInternalWorkspace } from "../obsidian-internals";
@@ -269,8 +270,7 @@ export class NodeDetailView extends ItemView {
 			const isOutgoing = src === nodeId;
 			const neighborId = isOutgoing ? tgt : src;
 			const direction = isOutgoing ? "\u2192" : "\u2190"; // → or ←
-			if (!grouped.has(type)) grouped.set(type, []);
-			grouped.get(type)!.push({ neighborId, direction });
+			pushToMapArray(grouped, type, { neighborId, direction });
 		}
 
 		for (const [type, items] of grouped) {

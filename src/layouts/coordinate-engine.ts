@@ -31,6 +31,7 @@ import type { ArrangementResult } from "./cluster-force";
 import { CURVE_REGISTRY } from "./coordinate-presets";
 import { parseExpr, evalExpr, setUserVars, type ExprNode } from "../utils/expr-eval";
 import { incCounter } from "../utils/graph-helpers";
+import { pushToMapArray } from "../utils/map-helpers";
 import {
 	SOURCE_PROPERTY,
 	SOURCE_INDEX,
@@ -354,8 +355,7 @@ function assignSiblingRank(
 	const byDepth = new Map<number, string[]>();
 	for (const m of members) {
 		const d = depth.get(m.id) ?? BFS_FALLBACK_DEPTH;
-		if (!byDepth.has(d)) byDepth.set(d, []);
-		byDepth.get(d)!.push(m.id);
+		pushToMapArray(byDepth, d, m.id);
 	}
 	for (const [, ids] of byDepth) {
 		for (let i = 0; i < ids.length; i++) {
@@ -508,8 +508,7 @@ function transformEvenDivide(
 		const rings = new Map<number, string[]>();
 		for (const [id] of rawValues) {
 			const ringVal = otherAxisValues.get(id) ?? 0;
-			if (!rings.has(ringVal)) rings.set(ringVal, []);
-			rings.get(ringVal)!.push(id);
+			pushToMapArray(rings, ringVal, id);
 		}
 		// Rings grouped by other-axis value; each ring distributes angles evenly
 		for (const [, ids] of rings) {
@@ -552,8 +551,7 @@ function transformStackAvoid(
 		const otherVal = otherAxisValues.get(id) ?? 0;
 		// Round to nearest spacing unit to group nearby values
 		const binKey = Math.round(otherVal / (spacing || 1));
-		if (!bins.has(binKey)) bins.set(binKey, []);
-		bins.get(binKey)!.push(id);
+		pushToMapArray(bins, binKey, id);
 	}
 
 	// Within each bin, spread nodes vertically
