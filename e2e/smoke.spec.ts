@@ -130,11 +130,11 @@ test.describe("2-Settings", () => {
       return pts;
     });
 
-    const posSpiral = await page.evaluate(async () => {
+    const posConcentric = await page.evaluate(async () => {
       const v = (window as any).app.workspace.getLeavesOfType("graph-view")
         .find((l: any) => "pixiNodes" in l.view)?.view;
       if (!v) return [];
-      v.panel.clusterArrangement = "spiral";
+      v.panel.clusterArrangement = "concentric";
       v.rawData = null;
       await v.doRender();
       await new Promise(r => setTimeout(r, 2000));
@@ -147,7 +147,7 @@ test.describe("2-Settings", () => {
       return pts;
     });
 
-    expect(posGrid).not.toEqual(posSpiral);
+    expect(posGrid).not.toEqual(posConcentric);
     await reset();
   });
 });
@@ -172,8 +172,27 @@ test.describe("3-Filter", () => {
   test("existingOnly=true filters unresolved", async () => {
     // Reset fully first to ensure clean state
     await reset();
-    const countAll = await renderAndCount({ existingOnly: false });
-    const countExisting = await renderAndCount({ existingOnly: true });
+    // Use getGraphData() for stable counts (pixiNodes.size varies during simulation)
+    const countAll = await page.evaluate(async () => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")
+        .find((l: any) => "pixiNodes" in l.view)?.view;
+      if (!v) return 0;
+      v.panel.existingOnly = false;
+      v.rawData = null;
+      await v.doRender();
+      await new Promise(r => setTimeout(r, 2000));
+      return v.getGraphData()?.nodes?.length ?? 0;
+    });
+    const countExisting = await page.evaluate(async () => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")
+        .find((l: any) => "pixiNodes" in l.view)?.view;
+      if (!v) return 0;
+      v.panel.existingOnly = true;
+      v.rawData = null;
+      await v.doRender();
+      await new Promise(r => setTimeout(r, 2000));
+      return v.getGraphData()?.nodes?.length ?? 0;
+    });
     expect(countExisting).toBeLessThanOrEqual(countAll);
     await renderAndCount({ existingOnly: false });
   });
