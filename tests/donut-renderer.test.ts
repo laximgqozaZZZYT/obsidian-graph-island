@@ -158,8 +158,8 @@ describe("renderDonutMode", () => {
 		};
 		renderDonutMode(host, g, ctx, { filteredNodeAlpha: 0.3 });
 
-		// Inner cutout should use dark bg
-		expect(g.beginFill).toHaveBeenCalledWith(DEFAULT_RENDER_THRESHOLDS.donutBgDark, 1);
+		// 2nd beginFill = inner cutout should use dark bg
+		expect(g.beginFill).toHaveBeenNthCalledWith(2, DEFAULT_RENDER_THRESHOLDS.donutBgDark, 1);
 	});
 
 	it("falls back to defaults when getRenderThresholds returns undefined", () => {
@@ -176,6 +176,8 @@ describe("renderDonutMode", () => {
 
 		// Should not throw; falls back to DEFAULT_RENDER_THRESHOLDS
 		expect(g.drawCircle).toHaveBeenCalled();
+		// 2nd beginFill = inner cutout should use light bg from defaults
+		expect(g.beginFill).toHaveBeenNthCalledWith(2, DEFAULT_RENDER_THRESHOLDS.donutBgLight, 1);
 	});
 
 	it("uses default innerRadius when not specified", () => {
