@@ -8,9 +8,9 @@ JSON_OUTPUT=false
 
 declare -A LIMITS
 LIMITS["src/views/GraphViewContainer.ts"]=8612
-LIMITS["src/views/PanelBuilder.ts"]=4377
-LIMITS["src/views/EdgeRenderer.ts"]=3853
-LIMITS["src/views/RenderPipeline.ts"]=3438
+LIMITS["src/views/PanelBuilder.ts"]=2305
+LIMITS["src/views/EdgeRenderer.ts"]=2747
+LIMITS["src/views/RenderPipeline.ts"]=2361
 
 OVERALL_EXIT=0
 
