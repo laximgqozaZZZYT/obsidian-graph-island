@@ -1,7 +1,7 @@
 ---
 priority: high
 reported: 2026-04-07
-status: in-progress
+status: done
 source: decomposed
 parent: 042-gvc-extract-snapshot
 depends: subtask-1
