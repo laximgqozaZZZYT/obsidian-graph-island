@@ -27,7 +27,7 @@ import type {
 	GraphTemplate,
 } from "../types";
 import { DEFAULT_COLORS, DEFAULT_CARD_RENDER_CONFIG, DEFAULT_ONTOLOGY, mergeRenderThresholds } from "../types";
-import { evaluateExpr, parseQueryExpr, serializeExpr } from "../utils/query-expr";
+import { buildSearchHopSet, evaluateExpr, parseQueryExpr, serializeExpr } from "../utils/query-expr";
 import {
 	deriveClusterRulesFromQueries,
 	deriveClusterRules,
@@ -8265,37 +8265,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
 	/** Parse hop:name:n filters and BFS to build the hop highlight set. */
 	private _buildSearchHopSet(raw: string): Set<string> | null {
-		const hopMatches = [...raw.matchAll(/hop:([^:,]+):(\d+)/gi)];
-		if (hopMatches.length === 0) return null;
-
-		const hopSet = new Set<string>();
-		for (const m of hopMatches) {
-			const name = m[1].toLowerCase();
-			const hops = parseInt(m[2], 10);
-			const origins: string[] = [];
-			for (const pn of this.pixiNodes.values()) {
-				if (pn.data.label.toLowerCase().includes(name)) origins.push(pn.data.id);
-			}
-			for (const origin of origins) {
-				hopSet.add(origin);
-				let frontier = [origin];
-				for (let h = 0; h < hops && frontier.length > 0; h++) {
-					const next: string[] = [];
-					for (const id of frontier) {
-						const nb = this.adj.get(id);
-						if (nb)
-							for (const n of nb) {
-								if (!hopSet.has(n)) {
-									hopSet.add(n);
-									next.push(n);
-								}
-							}
-					}
-					frontier = next;
-				}
-			}
-		}
-		return hopSet;
+		const nodes = Array.from(this.pixiNodes.values(), (pn) => ({ id: pn.data.id, label: pn.data.label }));
+		return buildSearchHopSet(raw, nodes, this.adj);
 	}
 
 	/** Apply search halo + pulse to a matched node. */

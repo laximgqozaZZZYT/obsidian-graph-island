@@ -350,3 +350,48 @@ function resolveMetaValue(meta: Record<string, unknown> | undefined, field: stri
 	if (Array.isArray(current)) return current.map((v) => String(v));
 	return [String(current)];
 }
+
+/**
+ * Build a set of node IDs reachable via `hop:name:N` search directives.
+ * Parses hop directives from the raw search string, finds origin nodes
+ * by label substring match, then performs BFS N hops from each origin.
+ *
+ * @returns null if no hop directives found, otherwise the set of reachable IDs
+ */
+export function buildSearchHopSet(
+	raw: string,
+	nodes: Iterable<{ id: string; label: string }>,
+	adj: ReadonlyMap<string, ReadonlySet<string>>,
+): Set<string> | null {
+	const hopMatches = [...raw.matchAll(/hop:([^:,]+):(\d+)/gi)];
+	if (hopMatches.length === 0) return null;
+
+	const hopSet = new Set<string>();
+	for (const m of hopMatches) {
+		const name = m[1].toLowerCase();
+		const hops = parseInt(m[2], 10);
+		const origins: string[] = [];
+		for (const n of nodes) {
+			if (n.label.toLowerCase().includes(name)) origins.push(n.id);
+		}
+		for (const origin of origins) {
+			hopSet.add(origin);
+			let frontier = [origin];
+			for (let h = 0; h < hops && frontier.length > 0; h++) {
+				const next: string[] = [];
+				for (const id of frontier) {
+					const nb = adj.get(id);
+					if (nb)
+						for (const n of nb) {
+							if (!hopSet.has(n)) {
+								hopSet.add(n);
+								next.push(n);
+							}
+						}
+				}
+				frontier = next;
+			}
+		}
+	}
+	return hopSet;
+}
