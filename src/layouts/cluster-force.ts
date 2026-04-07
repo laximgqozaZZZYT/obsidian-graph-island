@@ -2910,6 +2910,74 @@ function triangleOffsets(p: ArrangementParams): ArrangementResult {
 // Ego — center the highest-degree node, arrange neighbors by edge type
 // ---------------------------------------------------------------------------
 
+interface EgoEdgeBuckets {
+	inheritParent: string[];
+	inheritChild: string[];
+	aggregation: string[];
+	similar: string[];
+	other: string[];
+}
+
+function classifyNeighborEdges(
+	edges: readonly GraphEdge[],
+	centerId: string,
+	memberSet: ReadonlySet<string>,
+): EgoEdgeBuckets {
+	const buckets: EgoEdgeBuckets = {
+		inheritParent: [],
+		inheritChild: [],
+		aggregation: [],
+		similar: [],
+		other: [],
+	};
+	for (const e of edges) {
+		if (!memberSet.has(e.source) || !memberSet.has(e.target)) continue;
+		const neighborId = e.source === centerId ? e.target : e.target === centerId ? e.source : null;
+		if (!neighborId) continue;
+
+		if (e.type === EDGE_TYPE_INHERITANCE) {
+			if (e.target === centerId) buckets.inheritParent.push(neighborId);
+			else buckets.inheritChild.push(neighborId);
+		} else if (e.type === EDGE_TYPE_AGGREGATION) {
+			buckets.aggregation.push(neighborId);
+		} else if (e.type === EDGE_TYPE_SIMILAR || e.type === EDGE_TYPE_SIBLING) {
+			buckets.similar.push(neighborId);
+		} else {
+			buckets.other.push(neighborId);
+		}
+	}
+	return buckets;
+}
+
+function placeSectorNodes(
+	buckets: EgoEdgeBuckets,
+	ringR: number,
+	placed: Set<string>,
+	offsets: Map<string, { dx: number; dy: number }>,
+): void {
+	const sectorDefs: { key: keyof EgoEdgeBuckets; centerAngle: number; spread: number }[] = [
+		{ key: "inheritParent", centerAngle: (3 * Math.PI) / 2, spread: Math.PI / 3 },
+		{ key: "inheritChild", centerAngle: Math.PI / 2, spread: Math.PI / 3 },
+		{ key: "aggregation", centerAngle: Math.PI, spread: Math.PI / 3 },
+		{ key: "similar", centerAngle: 0, spread: Math.PI / 3 },
+		{ key: "other", centerAngle: Math.PI / 4, spread: Math.PI / 2 },
+	];
+	for (const sector of sectorDefs) {
+		const ids = buckets[sector.key].filter((id) => !placed.has(id));
+		if (ids.length === 0) continue;
+		const startAngle = sector.centerAngle - sector.spread / 2;
+		const step = ids.length > 1 ? sector.spread / (ids.length - 1) : 0;
+		for (let i = 0; i < ids.length; i++) {
+			const angle = startAngle + step * i;
+			offsets.set(ids[i], {
+				dx: ringR * Math.cos(angle),
+				dy: ringR * Math.sin(angle),
+			});
+			placed.add(ids[i]);
+		}
+	}
+}
+
 function egoOffsets(p: ArrangementParams): ArrangementResult {
 	const { members, degrees, edges, nodeSpacing, groupScale, nodeSize } = p;
 	const offsets = new Map<string, { dx: number; dy: number }>();
@@ -2927,60 +2995,12 @@ function egoOffsets(p: ArrangementParams): ArrangementResult {
 	}
 	offsets.set(centerId, { dx: 0, dy: 0 });
 
-	// Classify neighbors by edge type
 	const memberSet = new Set(members.map((m) => m.id));
-	const buckets: Record<string, string[]> = {
-		inheritParent: [],
-		inheritChild: [],
-		aggregation: [],
-		similar: [],
-		other: [],
-	};
+	const buckets = classifyNeighborEdges(edges, centerId, memberSet);
 
-	for (const e of edges) {
-		const isInGroup = memberSet.has(e.source) && memberSet.has(e.target);
-		if (!isInGroup) continue;
-		const neighborId = e.source === centerId ? e.target : e.target === centerId ? e.source : null;
-		if (!neighborId) continue;
-
-		if (e.type === EDGE_TYPE_INHERITANCE) {
-			if (e.target === centerId) buckets.inheritParent.push(neighborId);
-			else buckets.inheritChild.push(neighborId);
-		} else if (e.type === EDGE_TYPE_AGGREGATION) {
-			buckets.aggregation.push(neighborId);
-		} else if (e.type === EDGE_TYPE_SIMILAR || e.type === EDGE_TYPE_SIBLING) {
-			buckets.similar.push(neighborId);
-		} else {
-			buckets.other.push(neighborId);
-		}
-	}
-
-	// Remove duplicates (a node may appear in multiple edges)
 	const placed = new Set<string>([centerId]);
-	const sectorDefs: { key: string; centerAngle: number; spread: number }[] = [
-		{ key: "inheritParent", centerAngle: (3 * Math.PI) / 2, spread: Math.PI / 3 }, // up
-		{ key: "inheritChild", centerAngle: Math.PI / 2, spread: Math.PI / 3 }, // down
-		{ key: "aggregation", centerAngle: Math.PI, spread: Math.PI / 3 }, // left
-		{ key: "similar", centerAngle: 0, spread: Math.PI / 3 }, // right
-		{ key: "other", centerAngle: Math.PI / 4, spread: Math.PI / 2 }, // diagonal
-	];
-
 	const ringR = nodeSize * 3 * groupScale * nodeSpacing;
-
-	for (const sector of sectorDefs) {
-		const ids = (buckets[sector.key] ?? []).filter((id) => !placed.has(id));
-		if (ids.length === 0) continue;
-		const startAngle = sector.centerAngle - sector.spread / 2;
-		const step = ids.length > 1 ? sector.spread / (ids.length - 1) : 0;
-		for (let i = 0; i < ids.length; i++) {
-			const angle = startAngle + step * i;
-			offsets.set(ids[i], {
-				dx: ringR * Math.cos(angle),
-				dy: ringR * Math.sin(angle),
-			});
-			placed.add(ids[i]);
-		}
-	}
+	placeSectorNodes(buckets, ringR, placed, offsets);
 
 	// Non-adjacent members → outer ring
 	const outerR = ringR * 1.8;

@@ -254,10 +254,11 @@ describe("layoutConcentric", () => {
 		}
 	});
 
-	it("first ring nodes are at radius 80", () => {
+	it("first ring nodes are at radius equal to radiusStep (80)", () => {
 		const nodes = [makeNode("center"), makeNode("ring1")];
 		layoutConcentric(nodes, "center");
 		const dist = Math.sqrt(nodes[1].x ** 2 + nodes[1].y ** 2);
+		// radiusStep = 80 in layoutConcentric (EmbeddedGraphRenderer.ts)
 		expect(dist).toBeCloseTo(80, 1);
 	});
 
@@ -288,11 +289,12 @@ describe("getColor", () => {
 
 	it("wraps around for large indices", () => {
 		const c0 = getColor(0);
+		// 100000 is not a multiple of palette length (12), so compare with correct wrap
 		const cWrap = getColor(100000);
-		// Should still return a valid string
 		expect(typeof cWrap).toBe("string");
-		// getColor(0) and getColor(N*palette.length) should match
-		expect(cWrap).toBeDefined();
+		expect(cWrap).toBe(getColor(100000 % 12));
+		// Exact palette-length multiple wraps back to index 0
+		expect(getColor(12)).toBe(c0);
 	});
 
 	it("returns different colors for different indices", () => {
