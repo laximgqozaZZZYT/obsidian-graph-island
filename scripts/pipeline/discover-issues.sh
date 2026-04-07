@@ -79,14 +79,7 @@ ISSUES_FOUND=0
 # ============================================================
 # 1. BUILD REGRESSION — does it still build?
 # ============================================================
-if false; then # Build checked by enforce-gates
-if timeout 30 node esbuild.config.mjs production >/dev/null 2>&1; then
-  file_issue "build-broken" "critical" \
-    "ビルドが壊れている" \
-    "esbuild production build が失敗する。" \
-    "- [ ] pnpm build が成功すること"
-  ISSUES_FOUND=$((ISSUES_FOUND + 1))
-fi
+# Build check disabled — already covered by enforce-gates.sh
 
 # ============================================================
 # 2. TEST REGRESSION — any failing tests?
