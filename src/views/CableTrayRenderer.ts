@@ -1162,6 +1162,66 @@ function computeGroupPerimInfo(
 	return { bbox, face, port, perimeterPath, grid, polarGrid };
 }
 
+/** Collect all group keys referenced by the source and external edge maps. */
+function collectAllGroupKeys(
+	groupSourceMap: Map<string, Map<string, GraphEdge[]>>,
+	groupExternalMap: Map<string, Map<string, GraphEdge[]>>,
+): Set<string> {
+	const keys = new Set<string>();
+	for (const gk of groupSourceMap.keys()) keys.add(gk);
+	for (const gk of groupExternalMap.keys()) keys.add(gk);
+	return keys;
+}
+
+/** Pre-compute perimeter info for every referenced group. */
+function buildGroupPerimeterMap(
+	allGroupKeys: Set<string>,
+	graphCenter: { x: number; y: number },
+	isPolar: boolean,
+	clusterCentroids: Map<string, { x: number; y: number }>,
+	nodeClusterMap: Map<string, string>,
+	resolvePos: (ref: string | object) => Pos | undefined,
+	cache?: { groupBBox: Map<string, GroupBBox | null>; graphCenter: { x: number; y: number } | null },
+): Map<string, GroupPerimInfo> {
+	const map = new Map<string, GroupPerimInfo>();
+	for (const groupKey of allGroupKeys) {
+		const info = computeGroupPerimInfo(groupKey, graphCenter, isPolar, clusterCentroids, nodeClusterMap, resolvePos, cache);
+		if (info) map.set(groupKey, info);
+	}
+	return map;
+}
+
+/** Route cables for nodes that are only targets of cross-group edges (no intra-group source edges). */
+function routeExternalOnlyCables(
+	groupExternalMap: Map<string, Map<string, GraphEdge[]>>,
+	groupSourceMap: Map<string, Map<string, GraphEdge[]>>,
+	clusterCentroids: Map<string, { x: number; y: number }>,
+	groupPorts: Map<string, GroupPort>,
+	groupPerimeters: Map<string, GroupPerimInfo>,
+	isPolar: boolean,
+	resolvePos: (ref: string | object) => Pos | undefined,
+	cables: IntraGroupCable[],
+): void {
+	for (const [groupKey, extNodeMap] of groupExternalMap) {
+		const centroid = clusterCentroids.get(groupKey);
+		if (!centroid) continue;
+		const portForKey = groupPorts.get(groupKey);
+		if (!portForKey) continue;
+
+		const sourceMap = groupSourceMap.get(groupKey);
+		const perimInfo = groupPerimeters.get(groupKey);
+
+		for (const [nodeId, externalEdges] of extNodeMap) {
+			if (sourceMap?.has(nodeId)) continue;
+			const cable = routeExternalOnlyNode(
+				nodeId, externalEdges, groupKey, centroid,
+				portForKey, perimInfo ?? null, isPolar, resolvePos,
+			);
+			if (cable) cables.push(cable);
+		}
+	}
+}
+
 /**
  * Build intra-group cables using perimeter routing.
  *
@@ -1191,17 +1251,9 @@ export function buildIntraGroupCables(
 
 	// Step 2: Pre-compute group bboxes, perimeter paths, and junction grids
 	const isPolar = cfg.coordinateSystem === "polar";
-	const groupPerimeters = new Map<string, GroupPerimInfo>();
 	const graphCenter = cache?.graphCenter ?? computeGraphCenter(clusterCentroids);
-
-	const allGroupKeys = new Set<string>();
-	for (const gk of groupSourceMap.keys()) allGroupKeys.add(gk);
-	for (const gk of groupExternalMap.keys()) allGroupKeys.add(gk);
-
-	for (const groupKey of allGroupKeys) {
-		const info = computeGroupPerimInfo(groupKey, graphCenter, isPolar, clusterCentroids, nodeClusterMap, resolvePos, cache);
-		if (info) groupPerimeters.set(groupKey, info);
-	}
+	const allGroupKeys = collectAllGroupKeys(groupSourceMap, groupExternalMap);
+	const groupPerimeters = buildGroupPerimeterMap(allGroupKeys, graphCenter, isPolar, clusterCentroids, nodeClusterMap, resolvePos, cache);
 
 	// Step 3: Build cables with perimeter routing
 	for (const [groupKey, sourceMap] of groupSourceMap) {
@@ -1221,24 +1273,7 @@ export function buildIntraGroupCables(
 	}
 
 	// Step 4: Handle nodes that are only targets of cross-group edges
-	for (const [groupKey, extNodeMap] of groupExternalMap) {
-		const centroid = clusterCentroids.get(groupKey);
-		if (!centroid) continue;
-		const portForKey = groupPorts.get(groupKey);
-		if (!portForKey) continue;
-
-		const sourceMap = groupSourceMap.get(groupKey);
-		const perimInfo = groupPerimeters.get(groupKey);
-
-		for (const [nodeId, externalEdges] of extNodeMap) {
-			if (sourceMap?.has(nodeId)) continue;
-			const cable = routeExternalOnlyNode(
-				nodeId, externalEdges, groupKey, centroid,
-				portForKey, perimInfo ?? null, isPolar, resolvePos,
-			);
-			if (cable) cables.push(cable);
-		}
-	}
+	routeExternalOnlyCables(groupExternalMap, groupSourceMap, clusterCentroids, groupPorts, groupPerimeters, isPolar, resolvePos, cables);
 
 	return { cables, handledEdgeIds };
 }
