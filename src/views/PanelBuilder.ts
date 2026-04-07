@@ -18,8 +18,6 @@ import type {
 	DonutDisplayConfig,
 	CoordinateLayout,
 	AxisSource,
-	AxisConfig,
-	AxisTransform,
 	ClusterGravityConfig,
 	EdgeCardinalityMode,
 	CardinalityRule,
@@ -30,7 +28,7 @@ import type {
 import { mergeRenderThresholds } from "../types";
 import { setIcon, Menu } from "obsidian";
 import type { App } from "obsidian";
-import { t, tHelp, getLocale } from "../i18n";
+import { t, tHelp } from "../i18n";
 import type { ShapeRule, NodeShape } from "../utils/node-shapes";
 import { ALL_SHAPES } from "../utils/node-shapes";
 import { exportPreset, exportPresetDiff, importPreset, applyPreset, type PresetMigrationInfo } from "../utils/presets";
@@ -42,12 +40,6 @@ import {
 	buildConstantsUI as coordBuildConstantsUI,
 	getAxisSourceSuggestions as coordGetAxisSourceSuggestions,
 } from "./coord-panel";
-import { CURVE_REGISTRY } from "../layouts/coordinate-presets";
-import { validateExpr, parseExpr, evalExpr, setUserVars } from "../utils/expr-eval";
-import {
-	parseTransformExpr,
-	transformExprToString,
-} from "../utils/transform-expr";
 import {
 	TAG_DISPLAY_ENCLOSURE,
 	TAG_DISPLAY_NODE,
@@ -62,7 +54,6 @@ import {
 	addSelect,
 	addTextInput,
 	addCheckboxGroup,
-	getUnifiedFieldSuggestions,
 	renderGroupByRules,
 	attachQueryHint,
 	setCachedFieldSuggestions,
@@ -87,8 +78,6 @@ import {
 	buildSpacingAndGroupArrangement,
 	buildDirectionalGravityRules,
 	buildSortRules,
-	syncArrangementFromLayout,
-	getOrCreateCoordLayout,
 	type ClusterSectionCtx,
 } from "./panel-sections-layout";
 
