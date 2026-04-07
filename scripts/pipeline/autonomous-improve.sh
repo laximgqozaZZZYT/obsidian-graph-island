@@ -618,6 +618,10 @@ else
   log "No commits to merge"
 fi
 
+# ── Update progress report ──
+log "Updating progress report..."
+bash "$PROJECT_DIR/scripts/pipeline/progress-report.sh" 2>/dev/null || true
+
 # ── Result file ──
 cat > "$RESULT_DIR/$SESSION_ID.json" << ENDJSON
 {
