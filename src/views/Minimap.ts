@@ -42,6 +42,52 @@ const MINIMAP_VIEWPORT_LINE_WIDTH = 1.5;
 /** Minimum viewport rect dimension to trigger drawing */
 const MINIMAP_VIEWPORT_MIN_SIZE = 2;
 
+// ---------------------------------------------------------------------------
+// Pure helpers extracted from draw() to reduce cyclomatic complexity
+// ---------------------------------------------------------------------------
+
+/** Compute the dot radius for minimap nodes based on graph size. */
+export function minimapDotRadius(nodeCount: number, baseDotR: number): number {
+	if (nodeCount > MINIMAP_LARGE_GRAPH_THRESHOLD) return baseDotR * MINIMAP_DOT_SCALE_LARGE;
+	if (nodeCount > MINIMAP_MEDIUM_GRAPH_THRESHOLD) return baseDotR * MINIMAP_DOT_SCALE_MEDIUM;
+	return baseDotR;
+}
+
+/**
+ * Compute the clamped viewport rectangle on the minimap canvas.
+ * Returns null if the rectangle should not be drawn (too small or covers entire minimap).
+ */
+export function clampViewportRect(
+	vpWorldX: number,
+	vpWorldY: number,
+	vpWorldW: number,
+	vpWorldH: number,
+	toMx: (wx: number) => number,
+	toMy: (wy: number) => number,
+	scale: number,
+): { rx: number; ry: number; rw: number; rh: number } | null {
+	let rx = toMx(vpWorldX);
+	let ry = toMy(vpWorldY);
+	let rw = vpWorldW * scale;
+	let rh = vpWorldH * scale;
+
+	// Clamp to minimap canvas
+	if (rx < 0) { rw += rx; rx = 0; }
+	if (ry < 0) { rh += ry; ry = 0; }
+	if (rx + rw > MINIMAP_WIDTH) rw = MINIMAP_WIDTH - rx;
+	if (ry + rh > MINIMAP_HEIGHT) rh = MINIMAP_HEIGHT - ry;
+
+	// Only draw if viewport doesn't cover the entire minimap
+	if (
+		rw > MINIMAP_VIEWPORT_MIN_SIZE &&
+		rh > MINIMAP_VIEWPORT_MIN_SIZE &&
+		(rw < MINIMAP_WIDTH - MINIMAP_VIEWPORT_MIN_SIZE || rh < MINIMAP_HEIGHT - MINIMAP_VIEWPORT_MIN_SIZE)
+	) {
+		return { rx, ry, rw, rh };
+	}
+	return null;
+}
+
 interface MinimapBounds {
 	minX: number;
 	minY: number;
@@ -168,13 +214,7 @@ export class Minimap {
 		const thinStep = this.renderThresholds?.minimapThinStep ?? 3;
 		const baseDotR = this.renderThresholds?.minimapDotRadius ?? 2.5;
 		const step = nodes.length > thinThreshold ? thinStep : 1;
-		// Scale dot radius down slightly for very large graphs
-		const dotR =
-			nodes.length > MINIMAP_LARGE_GRAPH_THRESHOLD
-				? baseDotR * MINIMAP_DOT_SCALE_LARGE
-				: nodes.length > MINIMAP_MEDIUM_GRAPH_THRESHOLD
-					? baseDotR * MINIMAP_DOT_SCALE_MEDIUM
-					: baseDotR;
+		const dotR = minimapDotRadius(nodes.length, baseDotR);
 		for (let i = 0; i < nodes.length; i += step) {
 			const n = nodes[i];
 			ctx.beginPath();
@@ -190,32 +230,11 @@ export class Minimap {
 		const vpWorldW = vp.width / wt.scaleX;
 		const vpWorldH = vp.height / wt.scaleY;
 
-		let rx = toMx(vpWorldX);
-		let ry = toMy(vpWorldY);
-		let rw = vpWorldW * scale;
-		let rh = vpWorldH * scale;
-
-		// Clamp to minimap canvas
-		if (rx < 0) {
-			rw += rx;
-			rx = 0;
-		}
-		if (ry < 0) {
-			rh += ry;
-			ry = 0;
-		}
-		if (rx + rw > MINIMAP_WIDTH) rw = MINIMAP_WIDTH - rx;
-		if (ry + rh > MINIMAP_HEIGHT) rh = MINIMAP_HEIGHT - ry;
-
-		// Only draw if viewport doesn't cover the entire minimap
-		if (
-			rw > MINIMAP_VIEWPORT_MIN_SIZE &&
-			rh > MINIMAP_VIEWPORT_MIN_SIZE &&
-			(rw < MINIMAP_WIDTH - MINIMAP_VIEWPORT_MIN_SIZE || rh < MINIMAP_HEIGHT - MINIMAP_VIEWPORT_MIN_SIZE)
-		) {
+		const vpRect = clampViewportRect(vpWorldX, vpWorldY, vpWorldW, vpWorldH, toMx, toMy, scale);
+		if (vpRect) {
 			ctx.strokeStyle = this.colorViewport;
 			ctx.lineWidth = MINIMAP_VIEWPORT_LINE_WIDTH;
-			ctx.strokeRect(rx, ry, rw, rh);
+			ctx.strokeRect(vpRect.rx, vpRect.ry, vpRect.rw, vpRect.rh);
 		}
 	}
 

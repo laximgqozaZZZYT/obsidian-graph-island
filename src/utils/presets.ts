@@ -328,30 +328,30 @@ export interface PresetMigrationInfo {
 /** Metadata fields added by exportPreset — stripped during import */
 const EXPORT_META_FIELDS = new Set(["_version", "_exportedAt"]);
 
-/** Extract metadata and apply legacy field migrations to the raw preset object */
-function migratePresetFields(raw: Record<string, unknown>, migrationInfo?: PresetMigrationInfo): void {
-	// Extract export metadata before processing
+/** Extract _version / _exportedAt from raw and populate migrationInfo */
+function extractExportMeta(raw: Record<string, unknown>, migrationInfo?: PresetMigrationInfo): void {
 	if (migrationInfo) {
 		if (typeof raw._version === "string") migrationInfo.sourceVersion = raw._version;
 		if (typeof raw._exportedAt === "string") migrationInfo.exportedAt = raw._exportedAt;
 	}
 	for (const metaKey of EXPORT_META_FIELDS) delete raw[metaKey];
+}
 
-	// Migrate removed arrangement patterns to "grid"
+/** Strip deprecated settings and migrate removed arrangement patterns */
+function stripDeprecatedFields(raw: Record<string, unknown>, migrationInfo?: PresetMigrationInfo): void {
 	if (typeof raw.clusterArrangement === "string" && REMOVED_ARRANGEMENTS.has(raw.clusterArrangement)) {
+		const old = raw.clusterArrangement;
 		raw.clusterArrangement = ARRANGEMENT_GRID;
-		migrationInfo?.migratedFields.push(`clusterArrangement: ${raw.clusterArrangement} → grid`);
+		migrationInfo?.migratedFields.push(`clusterArrangement: ${old} → grid`);
 	}
-
-	// Strip deprecated settings
 	for (const key of REMOVED_SETTINGS) {
-		if (raw[key] !== undefined) {
-			migrationInfo?.removedFields.push(key);
-		}
+		if (raw[key] !== undefined) migrationInfo?.removedFields.push(key);
 		delete raw[key];
 	}
+}
 
-	// Migrate legacy field names
+/** Rename legacy field names to their current equivalents */
+function migrateLegacyFieldNames(raw: Record<string, unknown>, migrationInfo?: PresetMigrationInfo): void {
 	if (raw.showTags !== undefined && raw.includeTagsInData === undefined) {
 		raw.includeTagsInData = raw.showTags;
 		delete raw.showTags;
@@ -363,11 +363,17 @@ function migratePresetFields(raw: Record<string, unknown>, migrationInfo?: Prese
 		delete raw.colorNodesByCategory;
 		delete raw.heatmapMode;
 	}
-	// Migrate removed "edges" tab → "display"
 	if (raw.activeTab === "edges") {
 		raw.activeTab = "display";
 		migrationInfo?.migratedFields.push("activeTab: edges → display");
 	}
+}
+
+/** Extract metadata and apply legacy field migrations to the raw preset object */
+function migratePresetFields(raw: Record<string, unknown>, migrationInfo?: PresetMigrationInfo): void {
+	extractExportMeta(raw, migrationInfo);
+	stripDeprecatedFields(raw, migrationInfo);
+	migrateLegacyFieldNames(raw, migrationInfo);
 }
 
 /** Validate and assign a single field value to the result object by type category */
@@ -405,19 +411,9 @@ export function importPreset(json: string, migrationInfo?: PresetMigrationInfo):
  * Any Set fields in the preset (stored as arrays) are converted back to Sets.
  */
 export function applyPreset(current: PanelState, preset: Partial<PanelState>): PanelState {
-	// Migrate legacy fields
 	const raw = preset as Record<string, unknown>;
-	if (!raw.nodeColorMode && (raw.colorNodesByCategory !== undefined || raw.heatmapMode !== undefined)) {
-		raw.nodeColorMode = raw.heatmapMode ? "heatmap" : raw.colorNodesByCategory ? "category" : "default";
-	}
-	if (raw.showTags !== undefined && raw.includeTagsInData === undefined) {
-		raw.includeTagsInData = raw.showTags;
-		delete raw.showTags;
-	}
-	// Migrate removed "edges" tab → "display"
-	if (raw.activeTab === "edges") {
-		raw.activeTab = "display";
-	}
+	stripDeprecatedFields(raw);
+	migrateLegacyFieldNames(raw);
 	// Validate enum fields: drop any value not in the allowed list
 	for (const [key, allowed] of Object.entries(ENUM_VALUES)) {
 		if (key in raw && allowed && !allowed.includes(raw[key] as string)) {
