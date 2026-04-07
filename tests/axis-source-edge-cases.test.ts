@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseAxisSourceString, axisSourceToString } from "../src/views/PanelBuilder";
+import { parseAxisSourceString, axisSourceToString } from "../src/utils/axis-source";
 
 // ---------------------------------------------------------------------------
 // parseAxisSourceString — edge cases not covered by axis-source-parse.test.ts
