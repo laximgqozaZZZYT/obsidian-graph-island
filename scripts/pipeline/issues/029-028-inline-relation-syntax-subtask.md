@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-07
-status: pending
+status: in-progress
 source: decomposed
 parent: 028-inline-relation-syntax
 depends: none
