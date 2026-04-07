@@ -17,7 +17,6 @@ import type {
 	CardDisplayConfig,
 	DonutDisplayConfig,
 	CoordinateLayout,
-	AxisSource,
 	ClusterGravityConfig,
 	EdgeCardinalityMode,
 	CardinalityRule,
