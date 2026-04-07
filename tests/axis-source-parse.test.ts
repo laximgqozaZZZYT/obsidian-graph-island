@@ -1,7 +1,5 @@
 import { describe, it, expect } from "vitest";
-// Import the parse/stringify functions
-// They are exported from PanelBuilder — we re-export for testability
-import { parseAxisSourceString, axisSourceToString } from "../src/views/PanelBuilder";
+import { parseAxisSourceString, axisSourceToString } from "../src/utils/axis-source";
 
 describe("parseAxisSourceString", () => {
   it("parses 'index'", () => {
