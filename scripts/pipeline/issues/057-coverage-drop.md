@@ -1,7 +1,7 @@
 ---
 priority: high
 reported: 2026-04-07
-status: pending
+status: in-progress
 source: auto-discovered
 summary: カバレッジ低下: statements 48.4% < 50.7%|functions 45.7% < 48.1%
 ---
