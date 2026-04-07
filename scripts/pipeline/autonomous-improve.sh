@@ -620,7 +620,8 @@ fi
 
 # ── Update progress report ──
 log "Updating progress report..."
-bash "$PROJECT_DIR/scripts/pipeline/progress-report.sh" 2>/dev/null || true
+bash "$PROJECT_DIR/scripts/pipeline/progress-report.sh" >>"$SESSION_LOG" 2>&1 \
+  || log "progress-report failed (see $SESSION_LOG)"
 
 # ── Result file ──
 cat > "$RESULT_DIR/$SESSION_ID.json" << ENDJSON
