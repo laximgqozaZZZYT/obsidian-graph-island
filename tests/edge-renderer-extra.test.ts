@@ -113,6 +113,7 @@ describe("shouldSkipEdge (extra)", () => {
       showSimilar: true,
       showSibling: true,
       showSequence: true,
+      showNamedRelation: true,
       worldScale: 1,
       edgeDensityFloor: 0.25,
       ...overrides,
@@ -133,6 +134,14 @@ describe("shouldSkipEdge (extra)", () => {
 
   it("skips similar when showSimilar=false", () => {
     expect(shouldSkipEdge({ source: "a", target: "b", type: "similar" } as any, makeCfg({ showSimilar: false }))).toBe(true);
+  });
+
+  it("skips named-relation when showNamedRelation=false", () => {
+    expect(shouldSkipEdge({ source: "a", target: "b", type: "named-relation" } as any, makeCfg({ showNamedRelation: false }))).toBe(true);
+  });
+
+  it("keeps named-relation when showNamedRelation=true", () => {
+    expect(shouldSkipEdge({ source: "a", target: "b", type: "named-relation" } as any, makeCfg({ showNamedRelation: true }))).toBe(false);
   });
 
   it("keeps unknown edge type", () => {

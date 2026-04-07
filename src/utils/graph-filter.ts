@@ -6,7 +6,7 @@
 // ---------------------------------------------------------------------------
 
 import type { GraphNode, GraphEdge } from "../types";
-import { EDGE_TYPE_HAS_TAG, EDGE_TYPE_SIMILAR, TAG_DISPLAY_ENCLOSURE } from "../constants";
+import { EDGE_TYPE_HAS_TAG, EDGE_TYPE_NAMED_RELATION, EDGE_TYPE_SIMILAR, TAG_DISPLAY_ENCLOSURE } from "../constants";
 import { incCounter } from "./graph-helpers";
 import { addToMapSet } from "./map-helpers";
 
@@ -63,6 +63,11 @@ export function filterSimilarEdges(edges: GraphEdge[]): GraphEdge[] {
 	return edges.filter((e) => e.type !== EDGE_TYPE_SIMILAR);
 }
 
+/** Remove named-relation edges. */
+export function filterNamedRelationEdges(edges: GraphEdge[]): GraphEdge[] {
+	return edges.filter((e) => e.type !== EDGE_TYPE_NAMED_RELATION);
+}
+
 /** Filter nodes by degree (min/max bounds). */
 export function filterByDegree(nodes: GraphNode[], edges: GraphEdge[], minDeg: number, maxDeg: number): GraphNode[] {
 	if (minDeg <= 0 && maxDeg <= 0) return nodes;
@@ -108,6 +113,7 @@ export interface VisibilityOptions {
 	showTagNodes: boolean;
 	tagDisplay: string;
 	showSimilar: boolean;
+	showNamedRelation: boolean;
 }
 
 /** Apply all visibility filters in pipeline order. */
@@ -122,6 +128,7 @@ export function applyVisibilityFilters(
 		({ nodes, edges } = filterTagNodes(nodes, edges));
 	}
 	if (!opts.showSimilar) edges = filterSimilarEdges(edges);
+	if (!opts.showNamedRelation) edges = filterNamedRelationEdges(edges);
 	return { nodes, edges };
 }
 
