@@ -1,7 +1,7 @@
 ---
 priority: critical
 reported: 2026-04-07
-status: in-progress
+status: done
 source: decomposed
 parent: 040-merge-skip-silent-failure
 depends: subtask-1
