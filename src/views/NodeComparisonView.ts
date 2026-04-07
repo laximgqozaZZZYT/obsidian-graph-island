@@ -65,44 +65,54 @@ export function bfsShortestPath(adj: Map<string, Set<string>>, startId: string, 
 	return path;
 }
 
+/** Classify neighbors of two nodes into shared / unique-to-A / unique-to-B. */
+export function classifyNeighbors(
+	neighborsA: Set<string>,
+	neighborsB: Set<string>,
+	idA: string,
+	idB: string,
+): { shared: string[]; uniqueToA: string[]; uniqueToB: string[] } {
+	const shared: string[] = [];
+	const uniqueToA: string[] = [];
+	for (const id of neighborsA) {
+		if (id === idA || id === idB) continue;
+		if (neighborsB.has(id)) shared.push(id);
+		else uniqueToA.push(id);
+	}
+	const uniqueToB: string[] = [];
+	for (const id of neighborsB) {
+		if (id !== idA && !neighborsA.has(id)) uniqueToB.push(id);
+	}
+	return { shared, uniqueToA, uniqueToB };
+}
+
+/** Classify tags into shared / unique-to-A / unique-to-B. */
+export function classifyTags(
+	tagsA: readonly string[] | undefined,
+	tagsB: readonly string[] | undefined,
+): { shared: string[]; uniqueToA: string[]; uniqueToB: string[] } {
+	const setA = new Set(tagsA ?? []);
+	const setB = new Set(tagsB ?? []);
+	const shared: string[] = [];
+	const uniqueToA: string[] = [];
+	for (const tg of setA) {
+		if (setB.has(tg)) shared.push(tg);
+		else uniqueToA.push(tg);
+	}
+	const uniqueToB: string[] = [];
+	for (const tg of setB) {
+		if (!setA.has(tg)) uniqueToB.push(tg);
+	}
+	return { shared, uniqueToA, uniqueToB };
+}
+
 /** Compute comparison data between two nodes (shared/unique neighbors, tags, path). */
 export function computeComparison(nodeA: GraphNode, nodeB: GraphNode, adj: Map<string, Set<string>>): ComparisonResult {
 	const neighborsA = adj.get(nodeA.id) ?? new Set<string>();
 	const neighborsB = adj.get(nodeB.id) ?? new Set<string>();
 
-	const sharedNeighbors: string[] = [];
-	for (const id of neighborsA) {
-		if (id !== nodeA.id && id !== nodeB.id && neighborsB.has(id)) {
-			sharedNeighbors.push(id);
-		}
-	}
-
-	const uniqueToA: string[] = [];
-	for (const id of neighborsA) {
-		if (id !== nodeB.id && !neighborsB.has(id)) {
-			uniqueToA.push(id);
-		}
-	}
-
-	const uniqueToB: string[] = [];
-	for (const id of neighborsB) {
-		if (id !== nodeA.id && !neighborsA.has(id)) {
-			uniqueToB.push(id);
-		}
-	}
-
-	const tagsA = new Set(nodeA.tags ?? []);
-	const tagsB = new Set(nodeB.tags ?? []);
-	const sharedTags: string[] = [];
-	const uniqueTagsA: string[] = [];
-	const uniqueTagsB: string[] = [];
-	for (const tg of tagsA) {
-		if (tagsB.has(tg)) sharedTags.push(tg);
-		else uniqueTagsA.push(tg);
-	}
-	for (const tg of tagsB) {
-		if (!tagsA.has(tg)) uniqueTagsB.push(tg);
-	}
+	const neighbors = classifyNeighbors(neighborsA, neighborsB, nodeA.id, nodeB.id);
+	const tags = classifyTags(nodeA.tags, nodeB.tags);
 
 	const sharedCategories: string[] = [];
 	if (nodeA.category && nodeB.category && nodeA.category === nodeB.category) {
@@ -113,12 +123,12 @@ export function computeComparison(nodeA: GraphNode, nodeB: GraphNode, adj: Map<s
 	const pathLength = shortestPath ? shortestPath.length - 1 : -1;
 
 	return {
-		sharedNeighbors,
-		uniqueToA,
-		uniqueToB,
-		sharedTags,
-		uniqueTagsA,
-		uniqueTagsB,
+		sharedNeighbors: neighbors.shared,
+		uniqueToA: neighbors.uniqueToA,
+		uniqueToB: neighbors.uniqueToB,
+		sharedTags: tags.shared,
+		uniqueTagsA: tags.uniqueToA,
+		uniqueTagsB: tags.uniqueToB,
 		sharedCategories,
 		shortestPath,
 		pathLength,
