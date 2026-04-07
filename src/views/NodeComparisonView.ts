@@ -81,7 +81,7 @@ export function classifyNeighbors(
 	}
 	const uniqueToB: string[] = [];
 	for (const id of neighborsB) {
-		if (id !== idA && !neighborsA.has(id)) uniqueToB.push(id);
+		if (id !== idA && id !== idB && !neighborsA.has(id)) uniqueToB.push(id);
 	}
 	return { shared, uniqueToA, uniqueToB };
 }
