@@ -103,7 +103,11 @@ export interface GroupNodeInfo {
 
 /** Resolve a single groupBy field value from a node */
 export function resolveGroupFieldValue(field: string, pn: GroupNodeInfo): string {
-	if (field === "folder") return pn.filePath?.replace(/\/[^/]*$/, "") || "root";
+	if (field === "folder") {
+		const fp = pn.filePath;
+		if (!fp || !fp.includes("/")) return "root";
+		return fp.replace(/\/[^/]*$/, "");
+	}
 	if (field === "tag") return pn.tags?.[0] || "ungrouped";
 	return (pn.meta?.[field] as string | undefined) || "ungrouped";
 }
@@ -114,7 +118,7 @@ export function buildCompositeGroupKey(fields: string[], pn: GroupNodeInfo): str
 }
 
 /** Incrementally update a running centroid with a new member */
-function addGroupMember(
+export function addGroupMember(
 	groups: Map<string, GroupCentroid>,
 	members: Map<string, Set<string>>,
 	key: string,
