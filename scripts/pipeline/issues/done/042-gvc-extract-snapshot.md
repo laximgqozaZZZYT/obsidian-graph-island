@@ -1,7 +1,7 @@
 ---
 priority: high
 reported: 2026-04-07
-status: decomposed
+status: done
 summary: GraphViewContainer.ts (8735行) から snapshot/export 系ロジックを抽出
 ---
 
