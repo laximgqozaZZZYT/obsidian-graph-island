@@ -34,19 +34,11 @@ trap 'rm -f "$LOCK_FILE"' EXIT
 
 log() { echo "[$(date -Iseconds)] [e2e-patrol] $*"; }
 
-# ── Ensure CDP ──
-if ! curl -sf "http://localhost:9222/json/version" >/dev/null 2>&1; then
-  log "CDP unavailable — restarting Obsidian..."
-  killall obsidian 2>/dev/null; sleep 3
-  nohup /opt/Obsidian/obsidian --remote-debugging-port=9222 > /dev/null 2>&1 &
-  for i in $(seq 1 15); do sleep 2
-    curl -sf "http://localhost:9222/json/version" >/dev/null 2>&1 && break
-  done
-  if ! curl -sf "http://localhost:9222/json/version" >/dev/null 2>&1; then
-    log "ERROR: CDP failed"; exit 1
-  fi
-  log "CDP connected"
-fi
+# ── Ensure CDP (headless Obsidian on Xvfb, isolated from main session) ──
+LOG_PREFIX="e2e-patrol" bash "$PROJECT_DIR/scripts/pipeline/ensure-cdp.sh" || {
+  log "ERROR: ensure-cdp.sh failed — see /tmp/obsidian-e2e-launch.log"
+  exit 1
+}
 
 # ── Rotation ──
 ROTATION=0
