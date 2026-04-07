@@ -5,7 +5,6 @@ import {
 	TFile,
 	FileView,
 	setIcon,
-	MarkdownView,
 	Notice,
 	type ViewStateResult,
 } from "obsidian";
@@ -54,7 +53,7 @@ import {
 } from "../analysis/graph-analysis";
 import type { RoadNetwork } from "../layouts/cable-tray";
 import { RoadNetworkBuilder, getBestRoadNetwork, type RoadNetworkHost } from "../layouts/RoadNetworkBuilder";
-import { downloadFile } from "./ExportManager";
+import * as ExportManager from "./ExportManager";
 import {
 	yieldFrame,
 	buildAdj,
@@ -63,11 +62,6 @@ import {
 	edgeSourceId,
 	edgeTargetId,
 	bfsNeighborSet,
-	collectSubgraph,
-	exportSubgraphJSON,
-	exportFullGraphJSON,
-	exportGraphCSV,
-	exportGraphMermaid,
 	incCounter,
 	computeGaps,
 	hitTestTimelineBars,
@@ -152,7 +146,7 @@ import { renderGraphStats, renderBreadcrumb, renderRelationMatrix } from "./Stat
 import { buildPanelCallbacks, type PanelCallbackHost } from "./panel-callbacks";
 import { renderLegend, type LegendHost, type LegendPanel } from "./LegendRenderer";
 import { renderTimelineBars } from "./timeline-bar-renderer";
-import { asInternalWorkspace, type ObsidianVaultInternal } from "../obsidian-internals";
+import { asInternalWorkspace } from "../obsidian-internals";
 import { generatePhantomNodes } from "./phantom-node-generator";
 import { adjustTooltipPosition, type PanelRect } from "../utils/tooltip-position";
 import { handleShortcutKey, type KeyboardHost } from "./KeyboardHandler";
@@ -240,7 +234,6 @@ const SEARCH_PULSE_MS = 300;
 
 // ---- Toast / Notice durations (ms) ----
 const TOAST_SHORT_MS = 2000;
-const TOAST_MEDIUM_MS = 3000;
 const TOAST_LONG_MS = 5000;
 
 // ---- Cache TTL (ms) ----
@@ -3285,31 +3278,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	// =========================================================================
 	/** Export an N-hop subgraph around a node as a JSON download. */
 	exportSubgraph(nodeId: string): void {
-		if (!this.adj || !this.graphEdges) return;
-		const nodes = [...this.pixiNodes.values()].map((pn) => pn.data);
-		const edges = this.graphEdges;
-		const hops = this.panel.hoverHops || 2;
-		const sub = collectSubgraph(this.adj, nodeId, hops, nodes, edges);
-		const json = exportSubgraphJSON(sub);
-
-		// Download as file
-		const blob = new Blob([json], { type: "application/json" });
-		const url = URL.createObjectURL(blob);
-		const a = document.createElement("a");
-		a.href = url;
-		const pn = this.pixiNodes.get(nodeId);
-		const label = pn?.data?.label ?? nodeId;
-		a.download = `subgraph-${label.replace(/[^a-zA-Z0-9_-]/g, "_")}.json`;
-		document.body.appendChild(a);
-		a.click();
-		document.body.removeChild(a);
-		URL.revokeObjectURL(url);
-
-		// Toast notification
-		const msg = t("toast.subgraphExported")
-			.replace("{nodes}", String(sub.nodes.length))
-			.replace("{edges}", String(sub.edges.length));
-		new Notice(msg, TOAST_MEDIUM_MS);
+		ExportManager.exportSubgraph(this as unknown as ExportManager.ExportHost, nodeId);
 	}
 
 	setSearchQuery(query: string): void {
@@ -3387,51 +3356,19 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
 	// FC: Export graph canvas as PNG
 	exportPng(): void {
-		const canvas = this.pixiApp?.view;
-		if (!canvas) return;
-		canvas.toBlob((blob: Blob | null) => {
-			if (!blob) return;
-			const url = URL.createObjectURL(blob);
-			const a = document.createElement("a");
-			a.href = url;
-			a.download = `graph-island-${new Date().toISOString().slice(0, 10)}.png`;
-			document.body.appendChild(a);
-			a.click();
-			document.body.removeChild(a);
-			URL.revokeObjectURL(url);
-			new Notice("Graph exported as PNG", TOAST_SHORT_MS);
-		}, "image/png");
+		ExportManager.exportPng(this as unknown as ExportManager.ExportHost);
 	}
 
 	exportFullGraph(): void {
-		const gd = this.getGraphData();
-		const json = exportFullGraphJSON(gd.nodes, gd.edges);
-		downloadFile(
-			json,
-			"application/json",
-			`graph-island-export-${new Date().toISOString().slice(0, 10)}.json`,
-		);
-		new Notice(`Graph exported: ${gd.nodes.length} nodes, ${gd.edges.length} edges`, TOAST_MEDIUM_MS);
+		ExportManager.exportFullGraph(this as unknown as ExportManager.ExportHost);
 	}
 
 	exportGraphAsCSV(): void {
-		const gd = this.getGraphData();
-		const csv = exportGraphCSV(gd.nodes, gd.edges);
-		downloadFile(csv, "text/csv", `graph-island-${new Date().toISOString().slice(0, 10)}.csv`);
-		new Notice(`CSV exported: ${gd.nodes.length} nodes, ${gd.edges.length} edges`, TOAST_MEDIUM_MS);
+		ExportManager.exportGraphAsCSV(this as unknown as ExportManager.ExportHost);
 	}
 
 	exportGraphAsMermaid(): void {
-		const gd = this.getGraphData();
-		const mmd = exportGraphMermaid(gd.nodes, gd.edges);
-		navigator.clipboard
-			.writeText(mmd)
-			.then(() => {
-				new Notice(`Mermaid diagram copied to clipboard (${Math.min(MOBILE_NODE_CAP, gd.nodes.length)} nodes)`, TOAST_MEDIUM_MS);
-			})
-			.catch(() => {
-				downloadFile(mmd, "text/plain", `graph-island-${new Date().toISOString().slice(0, 10)}.mmd`);
-			});
+		ExportManager.exportGraphAsMermaid(this as unknown as ExportManager.ExportHost);
 	}
 
 
@@ -7794,15 +7731,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
 	/** Copy the current graph view as PNG to clipboard */
 	private async copyGraphToClipboard() {
-		if (!this.pixiApp) return;
-		try {
-			const { exportGraphAsPng } = await import("../utils/export-png");
-			const blob = await exportGraphAsPng(this.pixiApp);
-			await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
-			showToast(t("toast.copiedToClipboard"));
-		} catch (_e) {
-			showToast(t("toast.clipboardFailed"), TOAST_LONG_MS);
-		}
+		await ExportManager.copyGraphToClipboard(this as unknown as ExportManager.ExportHost);
 	}
 
 	/**
@@ -7810,57 +7739,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	 * ツールバーボタンおよびコマンドパレットから呼び出される。
 	 */
 	public async embedGraphInNote(): Promise<void> {
-		// アクティブなエディタを取得
-		const mdView = this.app.workspace.getActiveViewOfType(MarkdownView);
-		if (!mdView || !mdView.editor) {
-			showToast(t("toast.embedNoEditor"), TOAST_LONG_MS);
-			return;
-		}
-		if (!this.pixiApp) {
-			showToast(t("toast.embedNoGraph"), TOAST_LONG_MS);
-			return;
-		}
-
-		try {
-			const { exportGraphAsPng } = await import("../utils/export-png");
-			const blob = await exportGraphAsPng(this.pixiApp);
-
-			// タイムスタンプ付きファイル名を生成
-			const now = new Date();
-			const ts = [
-				now.getFullYear(),
-				String(now.getMonth() + 1).padStart(2, "0"),
-				String(now.getDate()).padStart(2, "0"),
-				String(now.getHours()).padStart(2, "0"),
-				String(now.getMinutes()).padStart(2, "0"),
-				String(now.getSeconds()).padStart(2, "0"),
-			].join("");
-			const filename = `graph-island-${ts}.png`;
-
-			// Obsidianの添付ファイルフォルダ設定を尊重してパスを決定
-			const vault = this.app.vault as ObsidianVaultInternal;
-			const attachPath = vault.getAvailablePath
-				? vault.getAvailablePath(
-						(vault.config?.attachmentFolderPath || "") +
-							"/" +
-							filename.replace(".png", ""),
-						"png",
-					)
-				: filename;
-
-			// バイナリデータとしてvaultに保存
-			const buffer = await blob.arrayBuffer();
-			await this.app.vault.createBinary(attachPath, buffer);
-
-			// エディタのカーソル位置にwikilink画像を挿入
-			const editor = mdView.editor;
-			const basename = attachPath.replace(/^.*\//, "");
-			editor.replaceSelection(`![[${basename}]]\n`);
-
-			showToast(t("toast.embedSuccess"));
-		} catch (_e) {
-			showToast(t("toast.embedFailed"), TOAST_LONG_MS);
-		}
+		await ExportManager.embedGraphInNote(this as unknown as ExportManager.ExportHost);
 	}
 
 	/**
@@ -7868,9 +7747,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	 * コマンドパレットからの呼び出し用。
 	 */
 	public async exportCanvasAsBlob(): Promise<Blob | null> {
-		if (!this.pixiApp) return null;
-		const { exportGraphAsPng } = await import("../utils/export-png");
-		return exportGraphAsPng(this.pixiApp);
+		return ExportManager.exportCanvasAsBlob(this as unknown as ExportManager.ExportHost);
 	}
 
 	/** Collect all unique tag names from graph nodes */
