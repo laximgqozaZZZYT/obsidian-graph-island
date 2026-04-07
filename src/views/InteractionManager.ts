@@ -405,70 +405,81 @@ export class InteractionManager {
 	private handlePointerDown(e: PointerEvent) {
 		const app = this.host.getPixiApp();
 		if (!app) return;
-		const world = this.world;
 
 		const rect = this.canvas.getBoundingClientRect();
 		const mx = e.clientX - rect.left;
 		const my = e.clientY - rect.top;
-		const worldPt = world.toLocal({ x: mx, y: my }, app.stage);
+		const worldPt = this.world.toLocal({ x: mx, y: my }, app.stage);
 
 		const hit = this.host.hitTestNode(worldPt.x, worldPt.y);
-		// Mobile tap-to-hover: trigger hover highlight on tap (no pointermove hover on touch)
 		if (Platform.isMobile && hit) {
-			const newId = hit.data.id;
-			if (newId !== this.host.getHighlightedNodeId()) {
-				this.host.setHighlightedNodeId(newId);
-				this.host.applyHover();
-				this.host.markDirty(true);
-			}
+			this._downMobileTapHover(hit);
 		}
 		if (hit) {
-			// ビジュアルリンクエディタ: Alt+ドラッグでリンク作成開始
-			if (e.altKey && this.host.isVisualLinkEditorEnabled?.()) {
-				this.dragLinkSource = hit;
+			this._downOnNode(e, hit, worldPt);
+		} else {
+			this._downOnEmpty(e, app, mx, my);
+		}
+	}
+
+	/** Mobile tap-to-hover: trigger hover highlight on tap (no pointermove hover on touch). */
+	private _downMobileTapHover(hit: PixiNode) {
+		const newId = hit.data.id;
+		if (newId !== this.host.getHighlightedNodeId()) {
+			this.host.setHighlightedNodeId(newId);
+			this.host.applyHover();
+			this.host.markDirty(true);
+		}
+	}
+
+	/** Handle pointer-down on an existing node (link editor, shell rotate, or drag). */
+	private _downOnNode(e: PointerEvent, hit: PixiNode, worldPt: { x: number; y: number }) {
+		// ビジュアルリンクエディタ: Alt+ドラッグでリンク作成開始
+		if (e.altKey && this.host.isVisualLinkEditorEnabled?.()) {
+			this.dragLinkSource = hit;
+			this.hasDragged = false;
+			return;
+		}
+		// Concentric: rotate shell instead of dragging individual node
+		if (this.host.getCurrentLayout() === LAYOUT_CONCENTRIC && this.host.getShells().length > 0) {
+			const shellIdx = this.host.getNodeShellIndex().get(hit.data.id);
+			if (shellIdx !== undefined && shellIdx > 0) {
+				const shell = this.host.getShells()[shellIdx];
+				this.rotatingShellIdx = shellIdx;
+				this.rotateStartAngle = Math.atan2(worldPt.y - shell.centerY, worldPt.x - shell.centerX);
+				this.rotateStartOffset = shell.angleOffset;
 				this.hasDragged = false;
 				return;
 			}
-			// Concentric: rotate shell instead of dragging individual node
-			if (this.host.getCurrentLayout() === LAYOUT_CONCENTRIC && this.host.getShells().length > 0) {
-				const shellIdx = this.host.getNodeShellIndex().get(hit.data.id);
-				if (shellIdx !== undefined && shellIdx > 0) {
-					const shell = this.host.getShells()[shellIdx];
-					this.rotatingShellIdx = shellIdx;
-					this.rotateStartAngle = Math.atan2(worldPt.y - shell.centerY, worldPt.x - shell.centerX);
-					this.rotateStartOffset = shell.angleOffset;
-					this.hasDragged = false;
-					return;
-				}
-			}
-			this.draggedNode = hit;
-			this.hasDragged = false;
-			this.dragOffset.x = worldPt.x - hit.data.x;
-			this.dragOffset.y = worldPt.y - hit.data.y;
-			this._dragStartX = hit.data.x;
-			this._dragStartY = hit.data.y;
-			const sim = this.host.getSimulation();
-			if (sim) {
-				hit.data.fx = hit.data.x;
-				hit.data.fy = hit.data.y;
-				sim.alphaTarget(DRAG_ALPHA_TARGET).restart();
-			}
-		} else if (e.button === 1 || e.altKey) {
+		}
+		this.draggedNode = hit;
+		this.hasDragged = false;
+		this.dragOffset.x = worldPt.x - hit.data.x;
+		this.dragOffset.y = worldPt.y - hit.data.y;
+		this._dragStartX = hit.data.x;
+		this._dragStartY = hit.data.y;
+		const sim = this.host.getSimulation();
+		if (sim) {
+			hit.data.fx = hit.data.x;
+			hit.data.fy = hit.data.y;
+			sim.alphaTarget(DRAG_ALPHA_TARGET).restart();
+		}
+	}
+
+	/** Handle pointer-down on empty canvas (pan, lasso, or marquee). */
+	private _downOnEmpty(e: PointerEvent, app: IApp, mx: number, my: number) {
+		if (e.button === 1 || e.altKey) {
 			// Middle-click or Alt+drag → pan
-			this.isPanning = true;
-			this.panStart = { x: mx, y: my };
-			this.worldStart = { x: world.x, y: world.y };
+			this._startPan(mx, my);
 		} else if (this.lassoMode) {
 			this.isLassoActive = true;
 			this.lassoPoints = [{ x: mx, y: my }];
-			const lApp = this.host.getPixiApp();
-			if (lApp && !this.lassoGraphics) {
+			if (!this.lassoGraphics) {
 				this.lassoGraphics = new CanvasGraphics();
-				lApp.stage.addChild(this.lassoGraphics);
+				app.stage.addChild(this.lassoGraphics);
 			}
-			if (this.lassoGraphics) this.lassoGraphics.clear();
+			this.lassoGraphics.clear();
 		} else if (this.marqueeMode) {
-			// Marquee mode active → left-click drag for range zoom
 			this.isMarqueeActive = true;
 			this.marqueeStart = { x: mx, y: my };
 			if (!this.marqueeGraphics) {
@@ -478,10 +489,15 @@ export class InteractionManager {
 			this.marqueeGraphics.clear();
 		} else {
 			// Default left-click drag on empty space → pan
-			this.isPanning = true;
-			this.panStart = { x: mx, y: my };
-			this.worldStart = { x: world.x, y: world.y };
+			this._startPan(mx, my);
 		}
+	}
+
+	/** Begin panning from the given screen position. */
+	private _startPan(mx: number, my: number) {
+		this.isPanning = true;
+		this.panStart = { x: mx, y: my };
+		this.worldStart = { x: this.world.x, y: this.world.y };
 	}
 
 	// -----------------------------------------------------------------------
