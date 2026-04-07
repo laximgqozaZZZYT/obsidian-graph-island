@@ -79,8 +79,7 @@ if [[ -d "$ISSUE_DIR" ]]; then
     esac
   done
   # done/ サブディレクトリ内のアーカイブ分も DONE に加算
-  done_archive=( "$ISSUE_DIR/done"/*.md )
-  DONE=$(( DONE + ${#done_archive[@]} ))
+  DONE=$(( DONE + $(find "$ISSUE_DIR/done" -maxdepth 1 -name '*.md' 2>/dev/null | wc -l) ))
   shopt -u nullglob
 fi
 
