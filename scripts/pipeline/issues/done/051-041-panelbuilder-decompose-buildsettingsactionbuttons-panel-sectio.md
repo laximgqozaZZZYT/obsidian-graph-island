@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-07
-status: in-progress
+status: done
 source: decomposed
 parent: 041-panelbuilder-decompose
 depends: subtask-2

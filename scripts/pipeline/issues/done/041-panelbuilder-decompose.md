@@ -1,7 +1,7 @@
 ---
 priority: high
 reported: 2026-04-07
-status: decomposed
+status: done
 summary: PanelBuilder.ts (2945行) からセクションビルダーを純粋関数として抽出
 ---
 
