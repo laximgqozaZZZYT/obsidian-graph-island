@@ -12,10 +12,10 @@ export default defineConfig({
       reporter: ["text-summary", "json-summary"],
       reportsDirectory: "coverage",
       thresholds: {
-        // Ratchet: fix over-ratcheted thresholds to actual coverage
-        statements: 50.1,
+        // Ratchet: floor to 1 decimal of actual coverage
+        statements: 50.0,
         branches: 44.6,
-        functions: 47.2,
+        functions: 47.1,
         lines: 50.4,
       },
     },

@@ -12,11 +12,11 @@ if [[ ! -f "$COVERAGE_FILE" ]]; then
   exit 1
 fi
 
-# Extract current coverage percentages (floor to 1 decimal)
-STMT=$(python3 -c "import json; d=json.load(open('$COVERAGE_FILE')); print(f'{d[\"total\"][\"statements\"][\"pct\"]:.1f}')")
-BRANCH=$(python3 -c "import json; d=json.load(open('$COVERAGE_FILE')); print(f'{d[\"total\"][\"branches\"][\"pct\"]:.1f}')")
-FUNC=$(python3 -c "import json; d=json.load(open('$COVERAGE_FILE')); print(f'{d[\"total\"][\"functions\"][\"pct\"]:.1f}')")
-LINE=$(python3 -c "import json; d=json.load(open('$COVERAGE_FILE')); print(f'{d[\"total\"][\"lines\"][\"pct\"]:.1f}')")
+# Extract current coverage percentages (floor to 1 decimal — must use math.floor, not round)
+STMT=$(python3 -c "import json,math; v=json.load(open('$COVERAGE_FILE'))['total']['statements']['pct']; print(math.floor(v*10)/10)")
+BRANCH=$(python3 -c "import json,math; v=json.load(open('$COVERAGE_FILE'))['total']['branches']['pct']; print(math.floor(v*10)/10)")
+FUNC=$(python3 -c "import json,math; v=json.load(open('$COVERAGE_FILE'))['total']['functions']['pct']; print(math.floor(v*10)/10)")
+LINE=$(python3 -c "import json,math; v=json.load(open('$COVERAGE_FILE'))['total']['lines']['pct']; print(math.floor(v*10)/10)")
 
 echo "Current coverage: statements=$STMT branches=$BRANCH functions=$FUNC lines=$LINE"
 
