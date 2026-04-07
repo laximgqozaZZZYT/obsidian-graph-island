@@ -101,6 +101,39 @@ export interface GroupNodeInfo {
 // 1. Collect group centroids + members
 // ---------------------------------------------------------------------------
 
+/** Resolve a single groupBy field value from a node */
+export function resolveGroupFieldValue(field: string, pn: GroupNodeInfo): string {
+	if (field === "folder") return pn.filePath?.replace(/\/[^/]*$/, "") || "root";
+	if (field === "tag") return pn.tags?.[0] || "ungrouped";
+	return (pn.meta?.[field] as string | undefined) || "ungrouped";
+}
+
+/** Build a composite groupBy key from multiple fields */
+export function buildCompositeGroupKey(fields: string[], pn: GroupNodeInfo): string {
+	return fields.map((f) => resolveGroupFieldValue(f, pn)).join(" · ");
+}
+
+/** Incrementally update a running centroid with a new member */
+function addGroupMember(
+	groups: Map<string, GroupCentroid>,
+	members: Map<string, Set<string>>,
+	key: string,
+	nodeId: string,
+	px: number,
+	py: number,
+): void {
+	const existing = groups.get(key);
+	if (existing) {
+		const n = existing.memberCount + 1;
+		existing.x += (px - existing.x) / n;
+		existing.y += (py - existing.y) / n;
+		existing.memberCount = n;
+	} else {
+		groups.set(key, { x: px, y: py, memberCount: 1 });
+	}
+	addToMapSet(members, key, nodeId);
+}
+
 /**
  * Collect group centroids and member sets from nodes based on groupBy fields,
  * tag enclosures, or auto-folder grouping.
@@ -117,19 +150,6 @@ export function collectGroupCentroids(
 	const groups = new Map<string, GroupCentroid>();
 	const members = new Map<string, Set<string>>();
 
-	const addMember = (key: string, nodeId: string, px: number, py: number) => {
-		const existing = groups.get(key);
-		if (existing) {
-			const n = existing.memberCount + 1;
-			existing.x += (px - existing.x) / n;
-			existing.y += (py - existing.y) / n;
-			existing.memberCount = n;
-		} else {
-			groups.set(key, { x: px, y: py, memberCount: 1 });
-		}
-		addToMapSet(members, key, nodeId);
-	};
-
 	if (opts.hasGroupBy) {
 		for (const pn of nodes) {
 			if (pn.id.startsWith("__super__")) {
@@ -144,25 +164,15 @@ export function collectGroupCentroids(
 				}
 				continue;
 			}
-			// Build composite key from ALL fields (e.g. "character · classic-hamlet")
-			const vals: string[] = [];
-			for (const field of opts.groupByFields) {
-				let val: string | undefined;
-				if (field === "folder") val = pn.filePath?.replace(/\/[^/]*$/, "") || "root";
-				else if (field === "tag") val = pn.tags?.[0];
-				else val = pn.meta?.[field] as string | undefined;
-				vals.push(val || "ungrouped");
-			}
-			const compositeKey = vals.join(" · ");
-			addMember(compositeKey, pn.id, pn.gfxX, pn.gfxY);
+			const compositeKey = buildCompositeGroupKey(opts.groupByFields, pn);
+			addGroupMember(groups, members, compositeKey, pn.id, pn.gfxX, pn.gfxY);
 		}
 	} else if (opts.hasTagEnclosures || opts.autoFolderGroups) {
-		// Auto-generate folder-based groups from file paths
 		for (const pn of nodes) {
 			const path = pn.filePath ?? "";
 			const folder = path.split("/")[0] || "root";
 			if (!folder || folder === "root") continue;
-			addMember(`folder:${folder}`, pn.id, pn.gfxX, pn.gfxY);
+			addGroupMember(groups, members, `folder:${folder}`, pn.id, pn.gfxX, pn.gfxY);
 		}
 	}
 
