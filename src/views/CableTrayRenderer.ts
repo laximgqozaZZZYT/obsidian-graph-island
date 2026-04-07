@@ -511,6 +511,58 @@ export function filterPolarGridForPort(grid: PolarJunctionGrid, portR: number): 
 	return { ...grid, ringGaps: filtered };
 }
 
+/** Find the ringGap closest to `midR`, preferring gaps between `loR` and `hiR`. */
+function findBestRingGap(ringGaps: number[], loR: number, hiR: number, midR: number): number {
+	let best = ringGaps[0];
+	let bestDist = Math.abs(best - midR);
+	let bestBetween = false;
+	for (const r of ringGaps) {
+		const between = r > loR && r < hiR;
+		const d = Math.abs(r - midR);
+		if ((between && !bestBetween) || (between === bestBetween && d < bestDist)) {
+			best = r;
+			bestDist = d;
+			bestBetween = between;
+		}
+	}
+	return best;
+}
+
+/** Find the angleGap closest to `targetAngle`. */
+function findNearestAngleGap(angleGaps: number[], targetAngle: number): number | null {
+	if (angleGaps.length === 0) return null;
+	let best = angleGaps[0];
+	let bestD = angleDist(best, targetAngle);
+	for (const a of angleGaps) {
+		const d = angleDist(a, targetAngle);
+		if (d < bestD) {
+			bestD = d;
+			best = a;
+		}
+	}
+	return best;
+}
+
+/** Add arc interpolation points along a ring at radius `r` from `startAngle` to `endAngle`. */
+function addArcPoints(
+	addPt: (x: number, y: number) => void,
+	cx: number,
+	cy: number,
+	r: number,
+	startAngle: number,
+	endAngle: number,
+): void {
+	let dAngle = endAngle - startAngle;
+	if (dAngle > Math.PI) dAngle -= 2 * Math.PI;
+	if (dAngle < -Math.PI) dAngle += 2 * Math.PI;
+	const arcSteps = Math.max(4, Math.ceil(Math.abs(dAngle) / (Math.PI / 12)));
+	for (let i = 1; i < arcSteps; i++) {
+		const t = i / arcSteps;
+		const a = startAngle + dAngle * t;
+		addPt(cx + r * Math.cos(a), cy + r * Math.sin(a));
+	}
+}
+
 /**
  * Route between two points within a polar group using the ring/angle grid.
  * Wires run along ringGap arcs and radial lines through angleGaps.
@@ -541,88 +593,24 @@ export function routeViaPolarGrid(
 		}
 	};
 
-	// Find the best ringGap to route through (between from and to radii)
-	const midR = (fromR + toR) / 2;
-	let gapR: number | null = null;
-	if (ringGaps.length > 0) {
-		gapR = ringGaps[0];
-		let bestDist = Math.abs(gapR - midR);
-		// Prefer gap between the two radii
-		const loR = Math.min(fromR, toR),
-			hiR = Math.max(fromR, toR);
-		for (const r of ringGaps) {
-			if (r > loR && r < hiR) {
-				const d = Math.abs(r - midR);
-				if (d < bestDist) {
-					bestDist = d;
-					gapR = r;
-				}
-			}
-		}
-		// If none between, use nearest
-		if (!(gapR > loR && gapR < hiR)) {
-			gapR = ringGaps[0];
-			bestDist = Math.abs(gapR - midR);
-			for (const r of ringGaps) {
-				const d = Math.abs(r - midR);
-				if (d < bestDist) {
-					bestDist = d;
-					gapR = r;
-				}
-			}
-		}
-	}
+	const gapR = ringGaps.length > 0
+		? findBestRingGap(ringGaps, Math.min(fromR, toR), Math.max(fromR, toR), (fromR + toR) / 2)
+		: null;
 
-	// Find angleGap nearest to from's angle (for radial exit)
-	const findAngleGap = (targetA: number): number | null => {
-		if (angleGaps.length === 0) return null;
-		let best = angleGaps[0];
-		let bestD = angleDist(best, targetA);
-		for (const a of angleGaps) {
-			const d = angleDist(a, targetA);
-			if (d < bestD) {
-				bestD = d;
-				best = a;
-			}
-		}
-		return best;
-	};
-
-	const srcAngleGap = findAngleGap(fromA);
-	const tgtAngleGap = findAngleGap(toA);
+	const srcAngleGap = findNearestAngleGap(angleGaps, fromA);
+	const tgtAngleGap = findNearestAngleGap(angleGaps, toA);
 
 	if (gapR !== null && srcAngleGap !== null && tgtAngleGap !== null) {
-		// Full polar routing:
-		// 1. Radial from source to srcAngleGap at source's ring
+		// Full polar routing: radial to srcAngleGap, arc to tgtAngleGap, radial to target
 		addPt(cx + fromR * Math.cos(srcAngleGap), cy + fromR * Math.sin(srcAngleGap));
-		// 2. Move to ringGap along srcAngleGap
 		addPt(cx + gapR * Math.cos(srcAngleGap), cy + gapR * Math.sin(srcAngleGap));
-		// 3. Arc along ringGap from srcAngleGap to tgtAngleGap
-		let dAngle = tgtAngleGap - srcAngleGap;
-		if (dAngle > Math.PI) dAngle -= 2 * Math.PI;
-		if (dAngle < -Math.PI) dAngle += 2 * Math.PI;
-		const arcSteps = Math.max(4, Math.ceil(Math.abs(dAngle) / (Math.PI / 12)));
-		for (let i = 1; i < arcSteps; i++) {
-			const t = i / arcSteps;
-			const a = srcAngleGap + dAngle * t;
-			addPt(cx + gapR * Math.cos(a), cy + gapR * Math.sin(a));
-		}
-		// 4. Arrive at tgtAngleGap on ringGap
+		addArcPoints(addPt, cx, cy, gapR, srcAngleGap, tgtAngleGap);
 		addPt(cx + gapR * Math.cos(tgtAngleGap), cy + gapR * Math.sin(tgtAngleGap));
-		// 5. Radial to target's ring at tgtAngleGap
 		addPt(cx + toR * Math.cos(tgtAngleGap), cy + toR * Math.sin(tgtAngleGap));
 	} else if (gapR !== null) {
-		// No angle gaps: just radial out, arc, radial in
+		// No angle gaps: radial out, arc, radial in
 		addPt(cx + gapR * Math.cos(fromA), cy + gapR * Math.sin(fromA));
-		let dAngle = toA - fromA;
-		if (dAngle > Math.PI) dAngle -= 2 * Math.PI;
-		if (dAngle < -Math.PI) dAngle += 2 * Math.PI;
-		const arcSteps = Math.max(4, Math.ceil(Math.abs(dAngle) / (Math.PI / 12)));
-		for (let i = 1; i < arcSteps; i++) {
-			const t = i / arcSteps;
-			const a = fromA + dAngle * t;
-			addPt(cx + gapR * Math.cos(a), cy + gapR * Math.sin(a));
-		}
+		addArcPoints(addPt, cx, cy, gapR, fromA, toA);
 		addPt(cx + gapR * Math.cos(toA), cy + gapR * Math.sin(toA));
 	} else {
 		// No ring gaps: direct radial (fallback)

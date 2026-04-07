@@ -900,7 +900,7 @@ describe("deriveClusterRules", () => {
       },
     } as any;
     const rules = deriveClusterRules(preset);
-    expect(rules.length).toBeGreaterThanOrEqual(0);
+    expect(rules).toHaveLength(1);
   });
 
   it("returns empty for legacy commonQuery with null expression", () => {
