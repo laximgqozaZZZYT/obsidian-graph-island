@@ -1,7 +1,7 @@
 ---
 priority: critical
 reported: 2026-04-07
-status: pending
+status: decomposed
 summary: autonomous-improve.sh の merge-skip 競合で issue が偽完了する silent failure を防ぐ
 ---
 
