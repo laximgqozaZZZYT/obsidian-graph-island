@@ -35,6 +35,13 @@ import type { ShapeRule, NodeShape } from "../utils/node-shapes";
 import { ALL_SHAPES } from "../utils/node-shapes";
 import { exportPreset, exportPresetDiff, importPreset, applyPreset, type PresetMigrationInfo } from "../utils/presets";
 import { showToast } from "../utils/toast";
+import {
+	buildAxisTextInput as coordBuildAxisTextInput,
+	buildCoordPreview as coordBuildCoordPreview,
+	buildExprLibrary as coordBuildExprLibrary,
+	buildConstantsUI as coordBuildConstantsUI,
+	getAxisSourceSuggestions as coordGetAxisSourceSuggestions,
+} from "./coord-panel";
 import { CURVE_REGISTRY } from "../layouts/coordinate-presets";
 import { validateExpr, parseExpr, evalExpr, setUserVars } from "../utils/expr-eval";
 import {
@@ -2103,7 +2110,7 @@ function buildLayoutTab(layoutTab: HTMLElement, panel: PanelState, ctx: PanelCon
 				// --- 3. Coordinate controls ---
 				if (v("coordinateControls")) {
 					const sctx: ClusterSectionCtx = { body, panel, cb, ctx, spacingSliders: [] };
-					buildCoordinateControls(sctx, buildAxisTextInput, buildCoordPreview, buildExprLibrary, buildConstantsUI, getAxisSourceSuggestions);
+					buildCoordinateControls(sctx, coordBuildAxisTextInput, coordBuildCoordPreview, coordBuildExprLibrary, coordBuildConstantsUI, coordGetAxisSourceSuggestions);
 				}
 			},
 			tHelp("help.displayGrouping"),
