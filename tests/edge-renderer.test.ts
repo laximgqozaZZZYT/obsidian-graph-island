@@ -478,6 +478,7 @@ import {
   EDGE_TYPE_LINK, EDGE_TYPE_TAG, EDGE_TYPE_HAS_TAG,
   EDGE_TYPE_INHERITANCE, EDGE_TYPE_AGGREGATION,
   EDGE_TYPE_SIMILAR, EDGE_TYPE_SIBLING, EDGE_TYPE_SEQUENCE,
+  EDGE_TYPE_INLINE_RELATION,
 } from "../src/constants";
 
 describe("EDGE_TYPE_SPECS", () => {
@@ -486,6 +487,7 @@ describe("EDGE_TYPE_SPECS", () => {
       EDGE_TYPE_LINK, EDGE_TYPE_TAG, EDGE_TYPE_HAS_TAG,
       EDGE_TYPE_INHERITANCE, EDGE_TYPE_AGGREGATION,
       EDGE_TYPE_SIMILAR, EDGE_TYPE_SIBLING, EDGE_TYPE_SEQUENCE,
+      EDGE_TYPE_INLINE_RELATION,
       "category", "semantic", // string-literal edge types
     ];
     for (const t of expected) {
@@ -494,7 +496,7 @@ describe("EDGE_TYPE_SPECS", () => {
   });
 
   it("has no extra entries beyond known types", () => {
-    expect(EDGE_TYPE_SPECS.size).toBe(10);
+    expect(EDGE_TYPE_SPECS.size).toBe(11);
   });
 
   it("every entry has a non-empty visibilityField string", () => {

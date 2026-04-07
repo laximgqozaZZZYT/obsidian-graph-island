@@ -151,6 +151,7 @@ export interface PanelState {
 	showSimilar: boolean;
 	showSibling: boolean;
 	showSequence: boolean;
+	showInlineRelation: boolean;
 	showLinks: boolean;
 	showTagEdges: boolean;
 	showCategoryEdges: boolean;
@@ -446,6 +447,7 @@ export function createDefaultPanel(): PanelState {
 		showSimilar: false,
 		showSibling: false,
 		showSequence: false,
+		showInlineRelation: false,
 		showLinks: true,
 		showTagEdges: false,
 		showCategoryEdges: false,
@@ -1950,6 +1952,13 @@ function _buildEdgeDisplaySection(tabEl: HTMLElement, panel: PanelState, _ctx: P
 					],
 					[t("display.sibling"), "sibling", "showSibling", t("desc.sibling"), () => cb.markDirty()],
 					[t("display.sequence"), "sequence", "showSequence", t("desc.sequence"), () => cb.markDirty()],
+					[
+						t("display.inlineRelation"),
+						"inline-relation",
+						"showInlineRelation",
+						t("desc.inlineRelation"),
+						() => cb.markDirty(),
+					],
 				];
 				for (const [label, edgeType, key, desc, cb2] of edgeTypeToggles) {
 					const count = etc[edgeType] ?? 0;
@@ -1970,6 +1979,7 @@ function _buildEdgeDisplaySection(tabEl: HTMLElement, panel: PanelState, _ctx: P
 					"showSimilar",
 					"showSibling",
 					"showSequence",
+					"showInlineRelation",
 				];
 				const soloRow = adv.createDiv({ cls: "gi-setting-row" });
 				const soloBtn = soloRow.createEl("button", { cls: "gi-solo-btn", text: t("display.soloEdgeType") });

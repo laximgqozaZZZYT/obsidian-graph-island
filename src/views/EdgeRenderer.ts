@@ -17,6 +17,7 @@ import {
 	EDGE_TYPE_HAS_TAG,
 	EDGE_TYPE_LINK,
 	EDGE_TYPE_TAG,
+	EDGE_TYPE_INLINE_RELATION,
 } from "../constants";
 import {
 	type GroupPort,
@@ -78,6 +79,7 @@ export interface EdgeDrawConfig {
 	showSimilar: boolean;
 	showSibling: boolean;
 	showSequence: boolean;
+	showInlineRelation: boolean;
 	colorEdgesByRelation: boolean;
 	isArcLayout: boolean;
 	highlightedNodeId: string | null;
@@ -280,6 +282,7 @@ const SIMILAR_COLOR = 0xf59e0b; // amber-500 — similarity/semantic
 const HAS_TAG_COLOR = 0x6b7280; // gray-500 — tag membership (subtle)
 const SIBLING_COLOR = 0x10b981; // emerald-500 — peer relationship
 const SEQUENCE_COLOR = 0xef4444; // red-500 — sequential order (directional)
+const INLINE_RELATION_COLOR = 0x14b8a6; // teal-500 — explicit inline annotation
 
 // ---------------------------------------------------------------------------
 // Edge type specification map — single source of truth for per-type behavior
@@ -302,6 +305,7 @@ export const EDGE_TYPE_SPECS: ReadonlyMap<string, EdgeTypeSpec> = new Map<string
 	[EDGE_TYPE_SIMILAR, { visibilityField: "showSimilar", color: SIMILAR_COLOR }],
 	[EDGE_TYPE_SIBLING, { visibilityField: "showSibling", color: SIBLING_COLOR }],
 	[EDGE_TYPE_SEQUENCE, { visibilityField: "showSequence", color: SEQUENCE_COLOR }],
+	[EDGE_TYPE_INLINE_RELATION, { visibilityField: "showInlineRelation", color: INLINE_RELATION_COLOR }],
 ]);
 
 /** Number of angular bins over [0, π). 6 bins = 30° each. */

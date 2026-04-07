@@ -123,7 +123,8 @@ export type EdgeType =
 	| "has-tag"
 	| "similar"
 	| "sibling"
-	| "sequence";
+	| "sequence"
+	| "inline-relation";
 
 export type LayoutType = "force" | "concentric" | "tree" | "arc" | "sunburst" | "timeline";
 
