@@ -73,6 +73,54 @@ export interface SunburstArcDrawParams {
 	drawArcPath?: (gfx: CanvasGraphics, cx: number, cy: number, rInner: number, rOuter: number, startAngle: number, endAngle: number) => void;
 }
 
+/** Resolved fill + line style for a single sunburst arc. */
+export interface ArcStyle {
+	color: number;
+	fillAlpha: number;
+	lineColor: number;
+	lineWidth: number;
+	lineAlpha: number;
+}
+
+/**
+ * Compute the fill and line style for a sunburst arc.
+ * Pure function — no canvas side-effects.
+ */
+export function computeArcStyle(
+	baseColor: number,
+	depth: number,
+	maxDepth: number,
+	isSunburstView: boolean,
+	isDimmed: boolean,
+	isHovered: boolean,
+	worldScale: number,
+): ArcStyle {
+	let color = baseColor;
+	if (isSunburstView) {
+		const lightenFactor = depth > 1 ? ((depth - 1) / maxDepth) * 0.4 : 0;
+		color = lightenHex(color, lightenFactor);
+		let fillAlpha = Math.max(0.5, 0.85 - depth * 0.06);
+		if (isDimmed) fillAlpha *= 0.4;
+		else if (isHovered) fillAlpha = Math.min(1, fillAlpha * 1.2);
+		return {
+			color,
+			fillAlpha,
+			lineColor: 0xffffff,
+			lineWidth: Math.max(1, 1.5 / worldScale),
+			lineAlpha: isDimmed ? 0.2 : 0.6,
+		};
+	}
+	let fillAlpha = depth === 1 ? 0.25 : 0.15;
+	if (isDimmed) fillAlpha *= 0.3;
+	return {
+		color,
+		fillAlpha,
+		lineColor: color,
+		lineWidth: Math.max(0.5, 1.0 / worldScale),
+		lineAlpha: isDimmed ? 0.2 : 0.5,
+	};
+}
+
 /**
  * Draw sunburst layout arcs behind nodes using CanvasGraphics.
  * Extracted from GraphViewContainer.drawSunburstLayoutArcs.
@@ -100,7 +148,6 @@ export function drawSunburstLayoutArcs(params: SunburstArcDrawParams): void {
 		return null;
 	};
 
-	const strokeW = Math.max(0.5, 1.0 / worldScale);
 	let maxDepth = 1;
 	for (const arc of arcs) {
 		if (arc.depth > maxDepth) maxDepth = arc.depth;
@@ -110,36 +157,16 @@ export function drawSunburstLayoutArcs(params: SunburstArcDrawParams): void {
 		const arc = arcs[i];
 		if (arc.depth === 0) continue;
 
-		let groupName: string;
-		if (arc.depth === 1) {
-			groupName = arc.name;
-		} else {
-			groupName = arcGroupName(arc) ?? arc.name;
-		}
+		const groupName = arc.depth === 1 ? arc.name : (arcGroupName(arc) ?? arc.name);
 		const ci = groupColorMap.get(groupName) ?? 0;
-		const css = DEFAULT_COLORS[ci % DEFAULT_COLORS.length];
-		let color = cssColorToHex(css);
+		const baseColor = cssColorToHex(DEFAULT_COLORS[ci % DEFAULT_COLORS.length]);
 
-		// Hover highlight: dim non-hovered groups, brighten hovered
 		const isHovered = hoveredGroup !== null && groupName === hoveredGroup;
 		const isDimmed = hoveredGroup !== null && !isHovered;
+		const style = computeArcStyle(baseColor, arc.depth, maxDepth, isSunburstView, isDimmed, isHovered, worldScale);
 
-		if (isSunburstView) {
-			// Ring chart style: opaque fill, depth-based lightening, white borders
-			const lightenFactor = arc.depth > 1 ? ((arc.depth - 1) / maxDepth) * 0.4 : 0;
-			color = lightenHex(color, lightenFactor);
-			let fillAlpha = Math.max(0.5, 0.85 - arc.depth * 0.06);
-			if (isDimmed) fillAlpha *= 0.4;
-			else if (isHovered) fillAlpha = Math.min(1, fillAlpha * 1.2);
-			const borderAlpha = isDimmed ? 0.2 : 0.6;
-			gfx.lineStyle(Math.max(1, 1.5 / worldScale), 0xffffff, borderAlpha);
-			gfx.beginFill(color, fillAlpha);
-		} else {
-			let fillAlpha = arc.depth === 1 ? 0.25 : 0.15;
-			if (isDimmed) fillAlpha *= 0.3;
-			gfx.beginFill(color, fillAlpha);
-			gfx.lineStyle(strokeW, color, isDimmed ? 0.2 : 0.5);
-		}
+		gfx.lineStyle(style.lineWidth, style.lineColor, style.lineAlpha);
+		gfx.beginFill(style.color, style.fillAlpha);
 
 		// Draw annular sector: offset angles by -PI/2 so top is 0
 		drawArc(gfx, cx, cy, arc.y0, arc.y1, arc.x0 - Math.PI / 2, arc.x1 - Math.PI / 2);
