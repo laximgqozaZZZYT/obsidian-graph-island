@@ -17,24 +17,23 @@ SINCE="${HOURS} hours ago"
 # ─────────────────────────────────────────────
 # コミット集計
 # ─────────────────────────────────────────────
+# awk 'END{print NR+0}' は空入力でも 0 を返し pipefail 耐性があるため
+# `grep -c` + `|| true` イディオムより安全。
 COMMIT_LOG="$(git log --since="$SINCE" --pretty=format:'%H%x09%s' 2>/dev/null || true)"
-TOTAL_COMMITS=$(printf '%s\n' "$COMMIT_LOG" | grep -c . || true)
+count_log() { awk -v pat="$1" '$0 ~ pat { c++ } END { print c+0 }' <<<"$COMMIT_LOG"; }
 
-count_focus() {
-  local key="$1"
-  printf '%s\n' "$COMMIT_LOG" | grep -c "chore(auto): ${key} improvement" || true
-}
-C_COVERAGE=$(count_focus coverage)
-C_ESLINT=$(count_focus eslint)
-C_REFACTOR=$(count_focus refactor)
-C_SUBTASK=$(count_focus subtask)
+TOTAL_COMMITS=$(awk 'NF { c++ } END { print c+0 }' <<<"$COMMIT_LOG")
+C_COVERAGE=$(count_log 'chore\(auto\): coverage improvement')
+C_ESLINT=$(count_log 'chore\(auto\): eslint improvement')
+C_REFACTOR=$(count_log 'chore\(auto\): refactor improvement')
+C_SUBTASK=$(count_log 'chore\(auto\): subtask improvement')
 
 # ─────────────────────────────────────────────
 # アクティブセッション
 # ─────────────────────────────────────────────
-ACTIVE=$(pgrep -f autonomous-improve.sh 2>/dev/null | wc -l)
-# pgrep は親 sh と bash の両方を拾うので半減
-ACTIVE=$(( ACTIVE / 2 ))
+# pgrep -fc はマッチ件数を直接返す。パターンに `/` と `\b` を含めることで
+# 子 bash/親 sh/worktree サブシェル等の重複マッチを避ける。
+ACTIVE=$(pgrep -fc '/autonomous-improve\.sh( |$)' 2>/dev/null || echo 0)
 MAX_SESSIONS=$(grep -E '^MAX_SESSIONS=' scripts/pipeline/autonomous-improve.sh 2>/dev/null | head -1 | cut -d= -f2)
 MAX_SESSIONS="${MAX_SESSIONS:-2}"
 
@@ -44,6 +43,9 @@ MAX_SESSIONS="${MAX_SESSIONS:-2}"
 SESSION_TABLE=""
 if [[ -d "$RESULTS_DIR" ]]; then
   CUTOFF_EPOCH=$(date -d "$SINCE" +%s 2>/dev/null || echo 0)
+  # find -printf で NUL 区切りに近い安全な列挙（ls パイプより堅牢）。
+  # 結果 JSON はセッション ID ベースで空白/改行は含まれない前提だが、
+  # ポータビリティのため mtime 昇順で列挙する。
   while IFS= read -r jf; do
     [[ -f "$jf" ]] || continue
     sess=$(grep -oP '"session":\s*"\K[^"]+' "$jf" || echo "")
@@ -56,24 +58,30 @@ if [[ -d "$RESULTS_DIR" ]]; then
       [[ $ts_epoch -lt $CUTOFF_EPOCH ]] && continue
     fi
     SESSION_TABLE+="| ${sess} | ${focus} | ${commits} | ${ts} |"$'\n'
-  done < <(ls -tr "$RESULTS_DIR"/*.json 2>/dev/null)
+  done < <(find "$RESULTS_DIR" -maxdepth 1 -name '*.json' -printf '%T@\t%p\n' 2>/dev/null | sort -n | cut -f2-)
 fi
 
 # ─────────────────────────────────────────────
 # Issue キュー
 # ─────────────────────────────────────────────
 ISSUE_DIR="scripts/pipeline/issues"
-PENDING=0; INPROG=0; DONE=0
+PENDING=0; INPROG=0; DONE=0; UNKNOWN=0
 if [[ -d "$ISSUE_DIR" ]]; then
+  # glob を nullglob で空ループ安全に
+  shopt -s nullglob
   for f in "$ISSUE_DIR"/*.md; do
-    [[ -f "$f" ]] || continue
     status=$(grep -oP '^status:\s*\K\S+' "$f" 2>/dev/null || echo "pending")
     case "$status" in
       in-progress) INPROG=$(( INPROG + 1 )) ;;
-      pending|*)   PENDING=$(( PENDING + 1 )) ;;
+      done)        DONE=$(( DONE + 1 )) ;;
+      pending)     PENDING=$(( PENDING + 1 )) ;;
+      *)           UNKNOWN=$(( UNKNOWN + 1 )) ;;
     esac
   done
-  DONE=$(ls "$ISSUE_DIR/done"/*.md 2>/dev/null | wc -l)
+  # done/ サブディレクトリ内のアーカイブ分も DONE に加算
+  done_archive=( "$ISSUE_DIR/done"/*.md )
+  DONE=$(( DONE + ${#done_archive[@]} ))
+  shopt -u nullglob
 fi
 
 RECENT_DONE=""
@@ -83,7 +91,7 @@ if [[ -d "$ISSUE_DIR/done" ]]; then
     base=$(basename "$f" .md)
     summary=$(grep -oP '^summary:\s*\K.+' "$f" 2>/dev/null | head -1 || echo "")
     RECENT_DONE+="- ${base}: ${summary}"$'\n'
-  done < <(ls -t "$ISSUE_DIR/done"/*.md 2>/dev/null | head -5)
+  done < <(find "$ISSUE_DIR/done" -maxdepth 1 -name '*.md' -printf '%T@\t%p\n' 2>/dev/null | sort -rn | head -5 | cut -f2-)
 fi
 
 # ─────────────────────────────────────────────
@@ -104,20 +112,22 @@ CURRENT_THRESH=$(extract_thresholds HEAD)
 read -r CUR_S CUR_B CUR_F CUR_L <<<"$CURRENT_THRESH"
 
 THRESH_ROWS=""
-RATCHET_SHAS=$(git log --since="$SINCE" --pretty=format:'%h %ad' --date=short -- vitest.config.ts 2>/dev/null | head -5 || true)
+# --reverse で時系列順（古い→新しい）にイテレートし、delta を
+# 「この行のコミットで何が変わったか」として正しく紐付ける。
+# --since で既に期間フィルタ済みなので head は不要。
+RATCHET_SHAS=$(git log --reverse --since="$SINCE" --pretty=format:'%h %ad' --date=short -- vitest.config.ts 2>/dev/null || true)
 if [[ -n "$RATCHET_SHAS" ]]; then
   prev_s="" prev_b="" prev_f="" prev_l=""
-  while IFS= read -r line; do
-    sha=$(echo "$line" | awk '{print $1}')
-    date=$(echo "$line" | awk '{print $2}')
+  while IFS=' ' read -r sha date; do
+    [[ -z "$sha" ]] && continue
     th=$(extract_thresholds "$sha")
     [[ -z "$th" ]] && continue
     read -r s b f l <<<"$th"
     if [[ -n "$prev_s" ]]; then
-      ds=$(awk -v a="$prev_s" -v b="$s" 'BEGIN{printf "%+.1f", a-b}')
-      db=$(awk -v a="$prev_b" -v b="$b" 'BEGIN{printf "%+.1f", a-b}')
-      df=$(awk -v a="$prev_f" -v b="$f" 'BEGIN{printf "%+.1f", a-b}')
-      dl=$(awk -v a="$prev_l" -v b="$l" 'BEGIN{printf "%+.1f", a-b}')
+      ds=$(awk -v a="$s" -v p="$prev_s" 'BEGIN{printf "%+.1f", a-p}')
+      db=$(awk -v a="$b" -v p="$prev_b" 'BEGIN{printf "%+.1f", a-p}')
+      df=$(awk -v a="$f" -v p="$prev_f" 'BEGIN{printf "%+.1f", a-p}')
+      dl=$(awk -v a="$l" -v p="$prev_l" 'BEGIN{printf "%+.1f", a-p}')
     else
       ds="+0.0" db="+0.0" df="+0.0" dl="+0.0"
     fi
