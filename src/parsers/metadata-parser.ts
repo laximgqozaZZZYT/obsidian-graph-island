@@ -10,6 +10,7 @@ import {
 	EDGE_TYPE_LINK,
 	EDGE_TYPE_TAG,
 	EDGE_TYPE_HAS_TAG,
+	EDGE_TYPE_INLINE_RELATION,
 } from "../constants";
 import { incCounter } from "../utils/graph-helpers";
 import { pushToMapArray } from "../utils/map-helpers";
@@ -311,9 +312,12 @@ function addRegularLinkEdges(
 		const isOntologyInline = inlineResult?.isOntology ?? false;
 
 		const { edgeType, reverse } = resolveRelationEdge(relation, isOntologyInline, settings.ontology);
+		// Inline relation annotations that aren't ontology-classified get their own type
+		const hasInlineAnnotation = inlineResult != null && fmRel == null;
+		const finalType = hasInlineAnnotation && edgeType === "semantic" ? EDGE_TYPE_INLINE_RELATION : edgeType;
 		const src = reverse ? targetFile.path : file.path;
 		const tgt = reverse ? file.path : targetFile.path;
-		edges.push({ id: edgeId, source: src, target: tgt, type: edgeType, relation });
+		edges.push({ id: edgeId, source: src, target: tgt, type: finalType, relation });
 	}
 }
 
@@ -357,9 +361,11 @@ function addInlineRelationEdges(
 		edgeSet.add(edgeId);
 
 		const { edgeType, reverse } = resolveRelationEdge(result.relation, result.isOntology, settings.ontology);
+		// Unclassified inline relations get their own type instead of falling back to "semantic"
+		const finalType = edgeType === "semantic" ? EDGE_TYPE_INLINE_RELATION : edgeType;
 		const src = reverse ? targetPath : file.path;
 		const tgt = reverse ? file.path : targetPath;
-		edges.push({ id: edgeId, source: src, target: tgt, type: edgeType, relation: result.relation });
+		edges.push({ id: edgeId, source: src, target: tgt, type: finalType, relation: result.relation });
 	}
 }
 

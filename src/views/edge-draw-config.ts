@@ -20,6 +20,7 @@ export function createDefaultEdgeDrawConfig(): EdgeDrawConfig {
 		showSimilar: false,
 		showSibling: false,
 		showSequence: false,
+		showInlineRelation: false,
 		colorEdgesByRelation: false,
 		isArcLayout: false,
 		highlightedNodeId: null,
@@ -53,6 +54,7 @@ export interface EdgeDrawConfigInput {
 	showSimilar: boolean;
 	showSibling: boolean;
 	showSequence: boolean;
+	showInlineRelation: boolean;
 	colorEdgesByRelation: boolean;
 	showEdgeLabels: boolean;
 	showArrows: boolean;
@@ -167,6 +169,7 @@ export function populateEdgeDrawConfig(
 	cfg.showSimilar = input.showSimilar;
 	cfg.showSibling = input.showSibling;
 	cfg.showSequence = input.showSequence;
+	cfg.showInlineRelation = input.showInlineRelation;
 	cfg.colorEdgesByRelation = input.colorEdgesByRelation;
 	cfg.isArcLayout = currentLayout === LAYOUT_ARC;
 	cfg.highlightedNodeId = effectiveHighlightId;

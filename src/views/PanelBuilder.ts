@@ -35,6 +35,13 @@ import type { ShapeRule, NodeShape } from "../utils/node-shapes";
 import { ALL_SHAPES } from "../utils/node-shapes";
 import { exportPreset, exportPresetDiff, importPreset, applyPreset, type PresetMigrationInfo } from "../utils/presets";
 import { showToast } from "../utils/toast";
+import {
+	buildAxisTextInput as coordBuildAxisTextInput,
+	buildCoordPreview as coordBuildCoordPreview,
+	buildExprLibrary as coordBuildExprLibrary,
+	buildConstantsUI as coordBuildConstantsUI,
+	getAxisSourceSuggestions as coordGetAxisSourceSuggestions,
+} from "./coord-panel";
 import { CURVE_REGISTRY } from "../layouts/coordinate-presets";
 import { validateExpr, parseExpr, evalExpr, setUserVars } from "../utils/expr-eval";
 import {
@@ -144,6 +151,7 @@ export interface PanelState {
 	showSimilar: boolean;
 	showSibling: boolean;
 	showSequence: boolean;
+	showInlineRelation: boolean;
 	showLinks: boolean;
 	showTagEdges: boolean;
 	showCategoryEdges: boolean;
@@ -439,6 +447,7 @@ export function createDefaultPanel(): PanelState {
 		showSimilar: false,
 		showSibling: false,
 		showSequence: false,
+		showInlineRelation: false,
 		showLinks: true,
 		showTagEdges: false,
 		showCategoryEdges: false,
@@ -1943,6 +1952,13 @@ function _buildEdgeDisplaySection(tabEl: HTMLElement, panel: PanelState, _ctx: P
 					],
 					[t("display.sibling"), "sibling", "showSibling", t("desc.sibling"), () => cb.markDirty()],
 					[t("display.sequence"), "sequence", "showSequence", t("desc.sequence"), () => cb.markDirty()],
+					[
+						t("display.inlineRelation"),
+						"inline-relation",
+						"showInlineRelation",
+						t("desc.inlineRelation"),
+						() => cb.markDirty(),
+					],
 				];
 				for (const [label, edgeType, key, desc, cb2] of edgeTypeToggles) {
 					const count = etc[edgeType] ?? 0;
@@ -1963,6 +1979,7 @@ function _buildEdgeDisplaySection(tabEl: HTMLElement, panel: PanelState, _ctx: P
 					"showSimilar",
 					"showSibling",
 					"showSequence",
+					"showInlineRelation",
 				];
 				const soloRow = adv.createDiv({ cls: "gi-setting-row" });
 				const soloBtn = soloRow.createEl("button", { cls: "gi-solo-btn", text: t("display.soloEdgeType") });
@@ -2103,7 +2120,7 @@ function buildLayoutTab(layoutTab: HTMLElement, panel: PanelState, ctx: PanelCon
 				// --- 3. Coordinate controls ---
 				if (v("coordinateControls")) {
 					const sctx: ClusterSectionCtx = { body, panel, cb, ctx, spacingSliders: [] };
-					buildCoordinateControls(sctx, buildAxisTextInput, buildCoordPreview, buildExprLibrary, buildConstantsUI, getAxisSourceSuggestions);
+					buildCoordinateControls(sctx, coordBuildAxisTextInput, coordBuildCoordPreview, coordBuildExprLibrary, coordBuildConstantsUI, coordGetAxisSourceSuggestions);
 				}
 			},
 			tHelp("help.displayGrouping"),
