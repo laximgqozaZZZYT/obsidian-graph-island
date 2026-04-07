@@ -112,6 +112,30 @@ export function bfsNeighborSet(adj: Map<string, Set<string>>, startId: string, m
 	return visited;
 }
 
+/** BFS distance map from a starting node. Returns Map<nodeId, hopDistance> (start = 0). */
+export function bfsDistanceMap(
+	adj: Map<string, Set<string>>,
+	startId: string,
+	maxHops: number,
+): Map<string, number> {
+	const dist = new Map<string, number>();
+	dist.set(startId, 0);
+	let frontier = [startId];
+	for (let depth = 1; depth <= maxHops; depth++) {
+		const next: string[] = [];
+		for (const fid of frontier) {
+			for (const nb of adj.get(fid) ?? []) {
+				if (!dist.has(nb)) {
+					dist.set(nb, depth);
+					next.push(nb);
+				}
+			}
+		}
+		frontier = next;
+	}
+	return dist;
+}
+
 /** BFS shortest path between two nodes. Returns node ID array (start→end), or empty if unreachable. */
 export function bfsShortestPath(adj: Map<string, Set<string>>, startId: string, endId: string): string[] {
 	if (startId === endId) return [startId];

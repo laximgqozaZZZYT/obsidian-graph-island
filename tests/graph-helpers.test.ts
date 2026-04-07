@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
-  cssColorToHex, buildAdj, bfsNeighborSet, bfsShortestPath, collectSubgraph,
-  edgeSourceId, edgeTargetId, shiftHue, stringHash, hslToHex,
+  cssColorToHex, buildAdj, bfsNeighborSet, bfsShortestPath, bfsDistanceMap,
+  collectSubgraph, edgeSourceId, edgeTargetId, shiftHue, stringHash, hslToHex,
   incCounter, buildAdjFromEdges,
   computeNodeBBox, buildTagMembership, buildMissingNeighborSet,
   computeCompareVenn, computePathfinderResult,
@@ -645,5 +645,83 @@ describe("buildMissingNeighborSet", () => {
     expect(result!.has("b")).toBe(true);
     expect(result!.has("c")).toBe(true);
     expect(result!.has("a")).toBe(false);
+  });
+});
+
+// bfsDistanceMap
+
+describe("bfsDistanceMap", () => {
+  function makeAdj(pairs: [string, string][]): Map<string, Set<string>> {
+    const adj = new Map<string, Set<string>>();
+    for (const [a, b] of pairs) {
+      if (!adj.has(a)) adj.set(a, new Set());
+      if (!adj.has(b)) adj.set(b, new Set());
+      adj.get(a)!.add(b);
+      adj.get(b)!.add(a);
+    }
+    return adj;
+  }
+
+  it("returns only start node at distance 0 when maxHops=0", () => {
+    const adj = makeAdj([["a", "b"], ["b", "c"]]);
+    const dist = bfsDistanceMap(adj, "a", 0);
+    expect(dist.size).toBe(1);
+    expect(dist.get("a")).toBe(0);
+  });
+
+  it("returns direct neighbors at hop 1", () => {
+    const adj = makeAdj([["a", "b"], ["a", "c"], ["b", "d"]]);
+    const dist = bfsDistanceMap(adj, "a", 1);
+    expect(dist.get("a")).toBe(0);
+    expect(dist.get("b")).toBe(1);
+    expect(dist.get("c")).toBe(1);
+    expect(dist.has("d")).toBe(false);
+  });
+
+  it("returns multi-hop distances in a chain", () => {
+    const adj = makeAdj([["a", "b"], ["b", "c"], ["c", "d"]]);
+    const dist = bfsDistanceMap(adj, "a", 3);
+    expect(dist.get("a")).toBe(0);
+    expect(dist.get("b")).toBe(1);
+    expect(dist.get("c")).toBe(2);
+    expect(dist.get("d")).toBe(3);
+  });
+
+  it("respects maxHops and does not include nodes beyond it", () => {
+    const adj = makeAdj([["a", "b"], ["b", "c"], ["c", "d"]]);
+    const dist = bfsDistanceMap(adj, "a", 2);
+    expect(dist.has("d")).toBe(false);
+    expect(dist.get("c")).toBe(2);
+  });
+
+  it("handles isolated node (no neighbors in adj)", () => {
+    const adj = new Map<string, Set<string>>();
+    const dist = bfsDistanceMap(adj, "isolated", 5);
+    expect(dist.size).toBe(1);
+    expect(dist.get("isolated")).toBe(0);
+  });
+
+  it("handles cyclic graph without infinite loop", () => {
+    // a - b - c - a (triangle)
+    const adj = makeAdj([["a", "b"], ["b", "c"], ["c", "a"]]);
+    const dist = bfsDistanceMap(adj, "a", 10);
+    expect(dist.get("a")).toBe(0);
+    expect(dist.get("b")).toBe(1);
+    expect(dist.get("c")).toBe(1);
+    expect(dist.size).toBe(3);
+  });
+
+  it("picks shortest distance in a graph with multiple paths", () => {
+    // a-b (hop1), a-c-b (hop2) → b should be 1
+    const adj = makeAdj([["a", "b"], ["a", "c"], ["c", "b"]]);
+    const dist = bfsDistanceMap(adj, "a", 3);
+    expect(dist.get("b")).toBe(1);
+  });
+
+  it("returns empty map for start not in adj with maxHops=0", () => {
+    const adj = makeAdj([["x", "y"]]);
+    const dist = bfsDistanceMap(adj, "z", 0);
+    expect(dist.size).toBe(1);
+    expect(dist.get("z")).toBe(0);
   });
 });
