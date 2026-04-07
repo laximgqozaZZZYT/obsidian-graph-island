@@ -19,6 +19,7 @@ export const EDGE_TYPE_LINK = "link" as const;
 export const EDGE_TYPE_TAG = "tag" as const;
 export const EDGE_TYPE_HAS_TAG = "has-tag" as const;
 export const EDGE_TYPE_INLINE_RELATION = "inline-relation" as const;
+export const EDGE_TYPE_NAMED_RELATION = "named-relation" as const;
 
 // ---------------------------------------------------------------------------
 // Cluster arrangement types  (ClusterArrangement union values)

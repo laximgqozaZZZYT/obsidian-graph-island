@@ -6803,6 +6803,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			showTagNodes: this.panel.showTagNodes ?? true,
 			tagDisplay: this.panel.tagDisplay ?? "node",
 			showSimilar: this.panel.showSimilar ?? true,
+			showNamedRelation: this.panel.showNamedRelation ?? false,
 		}));
 
 		// existingOnly requires vault access — kept in GVC

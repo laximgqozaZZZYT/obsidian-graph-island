@@ -18,6 +18,7 @@ import {
 	EDGE_TYPE_LINK,
 	EDGE_TYPE_TAG,
 	EDGE_TYPE_INLINE_RELATION,
+	EDGE_TYPE_NAMED_RELATION,
 } from "../constants";
 import {
 	type GroupPort,
@@ -80,6 +81,7 @@ export interface EdgeDrawConfig {
 	showSibling: boolean;
 	showSequence: boolean;
 	showInlineRelation: boolean;
+	showNamedRelation: boolean;
 	colorEdgesByRelation: boolean;
 	isArcLayout: boolean;
 	highlightedNodeId: string | null;
@@ -306,6 +308,7 @@ export const EDGE_TYPE_SPECS: ReadonlyMap<string, EdgeTypeSpec> = new Map<string
 	[EDGE_TYPE_SIBLING, { visibilityField: "showSibling", color: SIBLING_COLOR }],
 	[EDGE_TYPE_SEQUENCE, { visibilityField: "showSequence", color: SEQUENCE_COLOR }],
 	[EDGE_TYPE_INLINE_RELATION, { visibilityField: "showInlineRelation", color: INLINE_RELATION_COLOR }],
+	[EDGE_TYPE_NAMED_RELATION, { visibilityField: "showNamedRelation", color: null }],
 ]);
 
 /** Number of angular bins over [0, π). 6 bins = 30° each. */

@@ -340,6 +340,7 @@ describe("shouldSkipEdge (unit)", () => {
       ["similar", "showSimilar"],
       ["sibling", "showSibling"],
       ["sequence", "showSequence"],
+      ["named-relation", "showNamedRelation"],
     ];
     for (const [type, field] of cases) {
       expect(shouldSkipEdge(makeEdge({ type }), baseCfg({ [field]: false }))).toBe(true);
@@ -496,7 +497,7 @@ describe("EDGE_TYPE_SPECS", () => {
   });
 
   it("has no extra entries beyond known types", () => {
-    expect(EDGE_TYPE_SPECS.size).toBe(11);
+    expect(EDGE_TYPE_SPECS.size).toBe(12);
   });
 
   it("every entry has a non-empty visibilityField string", () => {

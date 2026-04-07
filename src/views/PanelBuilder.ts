@@ -141,6 +141,7 @@ export interface PanelState {
 	showSibling: boolean;
 	showSequence: boolean;
 	showInlineRelation: boolean;
+	showNamedRelation: boolean;
 	showLinks: boolean;
 	showTagEdges: boolean;
 	showCategoryEdges: boolean;
@@ -437,6 +438,7 @@ export function createDefaultPanel(): PanelState {
 		showSibling: false,
 		showSequence: false,
 		showInlineRelation: false,
+		showNamedRelation: false,
 		showLinks: true,
 		showTagEdges: false,
 		showCategoryEdges: false,

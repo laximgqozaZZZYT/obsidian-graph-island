@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  filterOrphans, filterAttachments, filterTagNodes, filterSimilarEdges,
+  filterOrphans, filterAttachments, filterTagNodes, filterSimilarEdges, filterNamedRelationEdges,
   filterByDegree, filterEdgesByNodeSet, filterExcludedNodes,
   applyVisibilityFilters, filterBySubgraph, filterByLocalGraph, type VisibilityOptions,
 } from "../src/utils/graph-filter";
@@ -114,6 +114,15 @@ describe("filterSimilarEdges", () => {
   });
 });
 
+describe("filterNamedRelationEdges", () => {
+  it("removes named-relation edges only", () => {
+    const edges = [edge("a", "b", "link"), edge("a", "c", "named-relation"), edge("b", "c", "tag")];
+    const result = filterNamedRelationEdges(edges);
+    expect(result).toHaveLength(2);
+    expect(result.every(e => e.type !== "named-relation")).toBe(true);
+  });
+});
+
 describe("filterByDegree", () => {
   const nodes = [node("hub"), node("a"), node("b"), node("leaf")];
   const edges = [edge("hub", "a"), edge("hub", "b"), edge("hub", "leaf"), edge("a", "b")];
@@ -188,6 +197,7 @@ describe("applyVisibilityFilters", () => {
     showTagNodes: true,
     tagDisplay: "node",
     showSimilar: true,
+    showNamedRelation: true,
   };
 
   it("passes through when all options enabled", () => {
@@ -217,6 +227,19 @@ describe("applyVisibilityFilters", () => {
     const edges = [edge("a", "b", "link"), edge("a", "b", "similar")];
     const result = applyVisibilityFilters([node("a"), node("b")], edges, { ...defaultOpts, showSimilar: false });
     expect(result.edges).toHaveLength(1);
+  });
+
+  it("removes named-relation edges when showNamedRelation=false", () => {
+    const edges = [edge("a", "b", "link"), edge("a", "b", "named-relation")];
+    const result = applyVisibilityFilters([node("a"), node("b")], edges, { ...defaultOpts, showNamedRelation: false });
+    expect(result.edges).toHaveLength(1);
+    expect(result.edges[0].type).toBe("link");
+  });
+
+  it("keeps named-relation edges when showNamedRelation=true", () => {
+    const edges = [edge("a", "b", "link"), edge("a", "b", "named-relation")];
+    const result = applyVisibilityFilters([node("a"), node("b")], edges, { ...defaultOpts, showNamedRelation: true });
+    expect(result.edges).toHaveLength(2);
   });
 
   it("combines multiple filters", () => {

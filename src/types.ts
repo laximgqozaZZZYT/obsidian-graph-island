@@ -124,7 +124,8 @@ export type EdgeType =
 	| "similar"
 	| "sibling"
 	| "sequence"
-	| "inline-relation";
+	| "inline-relation"
+	| "named-relation";
 
 export type LayoutType = "force" | "concentric" | "tree" | "arc" | "sunburst" | "timeline";
 

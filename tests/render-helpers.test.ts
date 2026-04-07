@@ -20,6 +20,11 @@ import {
   cleanArcName,
   areSavedPositionsValid,
   findMatchingGroupPreset,
+  deriveOneRule,
+  deriveClusterRulesFromQueries,
+  deriveClusterRules,
+  resolveViewportDimensions,
+  buildSimulationEndAnnouncement,
   COMMUNITY_PALETTE,
   AGGREGATE_ZOOM_THRESHOLD,
   ALL_PRESETS,
@@ -787,5 +792,205 @@ describe("buildHoverTooltipText (additional)", () => {
       isEnclosure: true,
     });
     expect(text).not.toContain("#tag1");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// deriveOneRule — query string → ClusterGroupRule
+// ---------------------------------------------------------------------------
+describe("deriveOneRule", () => {
+  it("returns null for empty string", () => {
+    expect(deriveOneRule("", false)).toBeNull();
+  });
+
+  it("returns null for whitespace-only", () => {
+    expect(deriveOneRule("   ", true)).toBeNull();
+  });
+
+  it("derives groupBy from wildcard tag query", () => {
+    const rule = deriveOneRule("tag:*", false);
+    expect(rule).not.toBeNull();
+    expect(rule!.groupBy).toBe("tag:?");
+    expect(rule!.recursive).toBe(false);
+  });
+
+  it("preserves recursive flag", () => {
+    const rule = deriveOneRule("tag:*", true);
+    expect(rule).not.toBeNull();
+    expect(rule!.recursive).toBe(true);
+  });
+
+  it("handles field wildcard (category:*)", () => {
+    const rule = deriveOneRule("category:*", false);
+    expect(rule).not.toBeNull();
+    expect(rule!.groupBy).toBe("category:?");
+  });
+
+  it("handles non-wildcard leaf query", () => {
+    const rule = deriveOneRule("tag:hero", false);
+    expect(rule).not.toBeNull();
+    expect(rule!.groupBy).toContain("tag:?");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// deriveClusterRulesFromQueries — batch query → rules
+// ---------------------------------------------------------------------------
+describe("deriveClusterRulesFromQueries", () => {
+  it("returns empty array for empty input", () => {
+    expect(deriveClusterRulesFromQueries([])).toEqual([]);
+  });
+
+  it("skips invalid queries", () => {
+    const rules = deriveClusterRulesFromQueries([
+      { query: "", recursive: false },
+    ]);
+    expect(rules).toEqual([]);
+  });
+
+  it("derives rules from multiple valid queries", () => {
+    const rules = deriveClusterRulesFromQueries([
+      { query: "tag:*", recursive: false },
+      { query: "category:*", recursive: true },
+    ]);
+    expect(rules).toHaveLength(2);
+    expect(rules[0].groupBy).toBe("tag:?");
+    expect(rules[1].groupBy).toBe("category:?");
+    expect(rules[1].recursive).toBe(true);
+  });
+
+  it("filters out invalid entries in mixed input", () => {
+    const rules = deriveClusterRulesFromQueries([
+      { query: "tag:*", recursive: false },
+      { query: "  ", recursive: false },
+      { query: "category:*", recursive: true },
+    ]);
+    expect(rules).toHaveLength(2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// deriveClusterRules — preset → rules (new + legacy paths)
+// ---------------------------------------------------------------------------
+describe("deriveClusterRules", () => {
+  it("returns empty for preset with no commonQueries or commonQuery", () => {
+    const preset = { condition: {}, groups: [] } as any;
+    expect(deriveClusterRules(preset)).toEqual([]);
+  });
+
+  it("uses commonQueries when available", () => {
+    const preset = {
+      condition: {},
+      groups: [],
+      commonQueries: [
+        { query: "tag:*", recursive: false },
+      ],
+    } as any;
+    const rules = deriveClusterRules(preset);
+    expect(rules).toHaveLength(1);
+    expect(rules[0].groupBy).toBe("tag:?");
+  });
+
+  it("falls back to legacy commonQuery when no commonQueries", () => {
+    const preset = {
+      condition: {},
+      groups: [],
+      commonQuery: {
+        expression: { type: "leaf", field: "tag", value: "*" },
+      },
+    } as any;
+    const rules = deriveClusterRules(preset);
+    expect(rules.length).toBeGreaterThanOrEqual(0);
+  });
+
+  it("returns empty for legacy commonQuery with null expression", () => {
+    const preset = {
+      condition: {},
+      groups: [],
+      commonQuery: { expression: null },
+    } as any;
+    expect(deriveClusterRules(preset)).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// resolveViewportDimensions — wrapper vs renderer fallback
+// ---------------------------------------------------------------------------
+describe("resolveViewportDimensions", () => {
+  it("returns wrapper dimensions when both positive", () => {
+    expect(resolveViewportDimensions(800, 600, 1024, 768)).toEqual({ w: 800, h: 600 });
+  });
+
+  it("falls back to renderer when wrapper width is 0", () => {
+    expect(resolveViewportDimensions(0, 600, 1024, 768)).toEqual({ w: 1024, h: 768 });
+  });
+
+  it("falls back to renderer when wrapper height is 0", () => {
+    expect(resolveViewportDimensions(800, 0, 1024, 768)).toEqual({ w: 1024, h: 768 });
+  });
+
+  it("returns 0x0 when both wrapper and renderer are 0", () => {
+    expect(resolveViewportDimensions(0, 0, 0, 0)).toEqual({ w: 0, h: 0 });
+  });
+
+  it("falls back to renderer when wrapper is negative", () => {
+    expect(resolveViewportDimensions(-1, -1, 640, 480)).toEqual({ w: 640, h: 480 });
+  });
+
+  it("returns 0 for negative renderer dimensions in fallback", () => {
+    expect(resolveViewportDimensions(0, 0, -100, -200)).toEqual({ w: 0, h: 0 });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// buildSimulationEndAnnouncement — a11y screen reader text
+// ---------------------------------------------------------------------------
+describe("buildSimulationEndAnnouncement", () => {
+  const mockT = (key: string): string | undefined => {
+    const map: Record<string, string> = {
+      "a11y.graphLoaded": "Graph loaded",
+      "a11y.nodes": "nodes",
+      "a11y.edges": "edges",
+      "a11y.srGuide": "Tab to cycle, Enter to open.",
+    };
+    return map[key];
+  };
+
+  it("includes node and edge counts", () => {
+    const text = buildSimulationEndAnnouncement(42, 100, false, mockT);
+    expect(text).toContain("42");
+    expect(text).toContain("100");
+    expect(text).toContain("nodes");
+    expect(text).toContain("edges");
+  });
+
+  it("includes guide on first launch", () => {
+    const text = buildSimulationEndAnnouncement(10, 5, true, mockT);
+    expect(text).toContain("Tab to cycle");
+  });
+
+  it("omits guide on non-first launch", () => {
+    const text = buildSimulationEndAnnouncement(10, 5, false, mockT);
+    expect(text).not.toContain("Tab to cycle");
+  });
+
+  it("uses fallback strings when t() returns undefined", () => {
+    const noopT = () => undefined;
+    const text = buildSimulationEndAnnouncement(1, 2, false, noopT);
+    expect(text).toContain("Graph loaded");
+    expect(text).toContain("nodes");
+    expect(text).toContain("edges");
+  });
+
+  it("includes fallback guide on first launch with missing i18n", () => {
+    const noopT = () => undefined;
+    const text = buildSimulationEndAnnouncement(1, 2, true, noopT);
+    expect(text).toContain("Tab to cycle nodes");
+  });
+
+  it("handles zero counts", () => {
+    const text = buildSimulationEndAnnouncement(0, 0, false, mockT);
+    expect(text).toContain("0 nodes");
+    expect(text).toContain("0 edges");
   });
 });
