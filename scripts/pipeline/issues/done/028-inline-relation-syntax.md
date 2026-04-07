@@ -1,7 +1,7 @@
 ---
 priority: high
 reported: 2026-04-06
-status: decomposed
+status: done
 summary: ノート間のインライン関係記法 [[note|alias]@relation] のパースとグラフ表示
 ---
 
