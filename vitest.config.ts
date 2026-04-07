@@ -15,7 +15,7 @@ export default defineConfig({
         // Ratchet: floor to 1 decimal of actual coverage
         statements: 50.0,
         branches: 44.6,
-        functions: 47.1,
+        functions: 47.2,
         lines: 50.4,
       },
     },
