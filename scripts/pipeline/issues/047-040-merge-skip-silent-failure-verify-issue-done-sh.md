@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-07
-status: pending
+status: in-progress
 source: decomposed
 parent: 040-merge-skip-silent-failure
 depends: subtask-1
