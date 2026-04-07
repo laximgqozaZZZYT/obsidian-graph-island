@@ -1,7 +1,7 @@
 ---
 priority: high
 reported: 2026-04-07
-status: pending
+status: in-progress
 source: decomposed
 parent: 034-pipeline-progress-report
 depends: none
