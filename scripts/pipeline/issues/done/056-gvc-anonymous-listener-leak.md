@@ -1,7 +1,7 @@
 ---
 priority: high
 reported: 2026-04-07
-status: in-progress
+status: done
 source: kaizen
 summary: _wireCanvasManagers の匿名 addEventListener が removeEventListener 不可能でリークする
 ---
