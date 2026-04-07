@@ -7,7 +7,7 @@ JSON_OUTPUT=false
 [[ "${1:-}" == "--json" ]] && JSON_OUTPUT=true
 
 declare -A LIMITS
-LIMITS["src/views/GraphViewContainer.ts"]=9947
+LIMITS["src/views/GraphViewContainer.ts"]=8612
 LIMITS["src/views/PanelBuilder.ts"]=4377
 LIMITS["src/views/EdgeRenderer.ts"]=3853
 LIMITS["src/views/RenderPipeline.ts"]=3438
