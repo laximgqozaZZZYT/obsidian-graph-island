@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-07
-status: decomposed
+status: done
 summary: 自律パイプラインに進捗レポート生成機能を追加
 ---
 
