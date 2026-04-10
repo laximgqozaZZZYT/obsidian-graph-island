@@ -1,7 +1,7 @@
 ---
 priority: high
 reported: 2026-04-10
-status: pending
+status: decomposed
 summary: Obsidianコアグラフプラグインのようなシームレスなアニメーションを実現
 ---
 
