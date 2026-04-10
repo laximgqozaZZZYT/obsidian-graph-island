@@ -9,6 +9,7 @@ import {
   extractBodyInfo,
   buildSunburstData,
   parseInlineRelationLinksRaw,
+  snapshotMeta,
 } from "../src/parsers/metadata-parser";
 import { DEFAULT_COLORS } from "../src/types";
 import type { GraphNode, GraphEdge, OntologyConfig } from "../src/types";
@@ -1098,5 +1099,27 @@ describe("parseInlineRelationLinksRaw", () => {
     expect(results).toHaveLength(2);
     expect(results[0].relation).toBe("x");
     expect(results[1].relation).toBe("y");
+  });
+});
+
+describe("snapshotMeta", () => {
+  it("returns undefined for undefined input", () => {
+    expect(snapshotMeta(undefined)).toBeUndefined();
+  });
+
+  it("strips the position key from frontmatter", () => {
+    const fm = { title: "Hello", position: { start: 0, end: 10 }, tags: ["a"] };
+    const result = snapshotMeta(fm);
+    expect(result).toEqual({ title: "Hello", tags: ["a"] });
+    expect(result).not.toHaveProperty("position");
+  });
+
+  it("returns undefined when frontmatter contains only position", () => {
+    expect(snapshotMeta({ position: { start: 0, end: 5 } })).toBeUndefined();
+  });
+
+  it("returns all entries when no position key exists", () => {
+    const fm = { author: "A", year: 2025 };
+    expect(snapshotMeta(fm)).toEqual({ author: "A", year: 2025 });
   });
 });
