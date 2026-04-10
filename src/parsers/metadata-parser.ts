@@ -111,7 +111,7 @@ function createFileNodes(
 			mtime: file.stat.mtime,
 			ctime: file.stat.ctime,
 		};
-		node.meta = snapshotMeta(cache?.frontmatter);
+		defineLazyMeta(node, frontmatter);
 		attachBodyPreview(node, app, file, contentCache);
 		nodes.push(node);
 		nodeMap.set(file.path, node);
@@ -127,10 +127,10 @@ function attachBodyPreview(node: GraphNode, app: App, file: TFile, contentCache:
 		node.bodyPreview = info.preview;
 		node.bodyLength = info.length;
 	} else if (rawContent && typeof (rawContent as unknown as Promise<string>).then === "function") {
-		// async path: content won't be in contentCache for Phase 3, but
-		// collectInlineRelations falls back to cachedRead (sync by then).
+		// async path: warm contentCache so Phase 3 collectInlineRelations hits cache.
 		(rawContent as Promise<string>)
 			.then((text) => {
+				contentCache.set(file.path, text);
 				const info = extractBodyInfo(text, 100);
 				node.bodyPreview = info.preview;
 				node.bodyLength = info.length;
@@ -266,34 +266,25 @@ function collectFrontmatterRelations(
 	return fmRelations;
 }
 
-/** Parse inline fields + relation links from content, merging into `out`. */
-function parseInlineContent(
-	text: string,
-	filePath: string,
-	app: App,
-	out: Map<string, InlineFieldResult>,
-): void {
-	parseInlineFields(text, filePath, app).forEach((result, tPath) => out.set(tPath, result));
-	parseInlineRelationLinks(text, filePath, app).forEach((result, tPath) => {
-		if (!out.has(tPath)) out.set(tPath, result);
-	});
-}
-
 /** Collect inline Dataview fields (e.g. Author::[[Jesus]], @Parent::[[Entity]]). */
 function collectInlineRelations(
 	app: App,
 	file: TFile,
 	contentCache: Map<string, string>,
 ): Map<string, InlineFieldResult> {
-	const out = new Map<string, InlineFieldResult>();
 	const content = contentCache.get(file.path);
-	if (content !== undefined) {
-		parseInlineContent(content, file.path, app, out);
-	} else {
-		// Fallback: content not in cache (async read not yet resolved)
-		const raw = app.vault.cachedRead(file);
-		if (typeof raw === "string") parseInlineContent(raw, file.path, app, out);
-	}
+	const text =
+		content !== undefined
+			? content
+			: (() => {
+					const raw = app.vault.cachedRead(file);
+					return typeof raw === "string" ? raw : undefined;
+				})();
+	if (text === undefined) return new Map();
+	const out = parseInlineFields(text, file.path, app);
+	parseInlineRelationLinks(text, file.path, app).forEach((result, tPath) => {
+		if (!out.has(tPath)) out.set(tPath, result);
+	});
 	return out;
 }
 
@@ -762,6 +753,31 @@ export function buildRelationColorMap(edges: GraphEdge[]): Map<string, string> {
 		i++;
 	}
 	return colorMap;
+}
+
+/**
+ * Install a lazy getter on `node.meta` that defers snapshotMeta until first access.
+ * On first read the getter replaces itself with the computed static value.
+ */
+export function defineLazyMeta(
+	node: GraphNode,
+	frontmatter: Record<string, unknown> | undefined,
+): void {
+	if (!frontmatter) return;
+	Object.defineProperty(node, "meta", {
+		get() {
+			const value = snapshotMeta(frontmatter);
+			Object.defineProperty(this, "meta", {
+				value,
+				writable: true,
+				enumerable: true,
+				configurable: true,
+			});
+			return value;
+		},
+		enumerable: true,
+		configurable: true,
+	});
 }
 
 /**
