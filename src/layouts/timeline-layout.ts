@@ -690,67 +690,44 @@ export function timelineBuildSequenceEdges(sortedTimed: { node: GraphNode; value
 // ---------------------------------------------------------------------------
 
 /**
- * シーケンスリンクチェーンから順序を構築。
- * オントロジー設定の forward フィールド (例: "next") と reverse フィールド (例: "prev") を読み取る。
- * フィールド名はハードコードされず、settings.ontology.sequenceFields / reverseSequenceFields から取得。
- * フラットな順序マップ (X 軸配置用) と個別チェーン配列 (ルートライン生成用) の両方を返す。
+ * Resolve the first valid wikilink target from a list of metadata fields.
+ * Returns undefined when no field yields a target inside idSet.
  */
-export function buildLinkChainOrder(
-	members: GraphNode[],
+function resolveFirstLink(
+	nodeId: string,
+	fields: string[],
 	getNodeProperty: (id: string, key: string) => string | undefined,
-	fwdFields: string[] = [],
-	revFields: string[] = [],
+	idSet: Set<string>,
+): string | undefined {
+	for (const field of fields) {
+		const val = getNodeProperty(nodeId, field);
+		if (val) {
+			const target = extractWikilink(val);
+			if (target && idSet.has(target)) return target;
+		}
+	}
+	return undefined;
+}
+
+/**
+ * Walk linked chains from detected heads and produce flat order + chain arrays.
+ */
+function walkChains(
+	nextMap: Map<string, string>,
+	hasIncoming: Set<string>,
 ): { order: Map<string, number>; chains: string[][] } {
 	const order = new Map<string, number>();
 	const chains: string[][] = [];
-	const idSet = new Set(members.map((n) => n.id));
-
-	// Forward リンク構築: id → next id
-	const nextMap = new Map<string, string>();
-	const hasIncoming = new Set<string>();
-
-	for (const nd of members) {
-		// Forward シーケンスフィールド (例: "next") — nd が次のノードを指す
-		for (const field of fwdFields) {
-			const val = getNodeProperty(nd.id, field);
-			if (val) {
-				const target = extractWikilink(val);
-				if (target && idSet.has(target)) {
-					nextMap.set(nd.id, target);
-					hasIncoming.add(target);
-					break; // 最初のマッチが優先
-				}
-			}
-		}
-		// Reverse シーケンスフィールド (例: "prev") — nd が前のノードを指す
-		for (const field of revFields) {
-			const val = getNodeProperty(nd.id, field);
-			if (val) {
-				const target = extractWikilink(val);
-				if (target && idSet.has(target)) {
-					hasIncoming.add(nd.id); // nd は target からの incoming を持つ
-					if (!nextMap.has(target)) {
-						nextMap.set(target, nd.id);
-					}
-					break; // 最初のマッチが優先
-				}
-			}
-		}
-	}
-
-	if (nextMap.size === 0) return { order, chains };
 
 	// チェーンヘッドを検出 (outgoing next があるが incoming がないノード)
 	const heads: string[] = [];
 	for (const id of nextMap.keys()) {
 		if (!hasIncoming.has(id)) heads.push(id);
 	}
-	// 明確なヘッドが見つからない場合、next リンクを持つ任意のノードを使用
 	if (heads.length === 0 && nextMap.size > 0) {
 		heads.push(nextMap.keys().next().value!);
 	}
 
-	// 各チェーンをウォーク — フラット順序とチェーン配列の両方を追跡
 	let globalIdx = 0;
 	const visited = new Set<string>();
 	for (const head of heads) {
@@ -766,6 +743,42 @@ export function buildLinkChainOrder(
 	}
 
 	return { order, chains };
+}
+
+/**
+ * シーケンスリンクチェーンから順序を構築。
+ * オントロジー設定の forward フィールド (例: "next") と reverse フィールド (例: "prev") を読み取る。
+ * フィールド名はハードコードされず、settings.ontology.sequenceFields / reverseSequenceFields から取得。
+ * フラットな順序マップ (X 軸配置用) と個別チェーン配列 (ルートライン生成用) の両方を返す。
+ */
+export function buildLinkChainOrder(
+	members: GraphNode[],
+	getNodeProperty: (id: string, key: string) => string | undefined,
+	fwdFields: string[] = [],
+	revFields: string[] = [],
+): { order: Map<string, number>; chains: string[][] } {
+	const idSet = new Set(members.map((n) => n.id));
+	const nextMap = new Map<string, string>();
+	const hasIncoming = new Set<string>();
+
+	for (const nd of members) {
+		const fwdTarget = resolveFirstLink(nd.id, fwdFields, getNodeProperty, idSet);
+		if (fwdTarget) {
+			nextMap.set(nd.id, fwdTarget);
+			hasIncoming.add(fwdTarget);
+		}
+		const revTarget = resolveFirstLink(nd.id, revFields, getNodeProperty, idSet);
+		if (revTarget) {
+			hasIncoming.add(nd.id);
+			if (!nextMap.has(revTarget)) {
+				nextMap.set(revTarget, nd.id);
+			}
+		}
+	}
+
+	if (nextMap.size === 0) return { order: new Map(), chains: [] };
+
+	return walkChains(nextMap, hasIncoming);
 }
 
 /**

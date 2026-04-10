@@ -478,23 +478,7 @@ export function buildClusterForce(
 
 	// Phase 1c: C4 Manual cluster overrides — move nodes between groups
 	if (cfg.manualClusterOverrides) {
-		const overrides = cfg.manualClusterOverrides;
-		for (const [nodeId, targetGroup] of Object.entries(overrides)) {
-			// Remove from current group
-			for (const [, members] of groups) {
-				const idx = members.findIndex((n) => n.id === nodeId);
-				if (idx >= 0) {
-					const [node] = members.splice(idx, 1);
-					// Add to target group (create if needed)
-					pushToMapArray(groups, targetGroup, node);
-					break;
-				}
-			}
-		}
-		// Remove empty groups
-		for (const [gk, members] of groups) {
-			if (members.length === 0) groups.delete(gk);
-		}
+		applyManualClusterOverrides(groups, cfg.manualClusterOverrides);
 	}
 
 	// Phase 2: Merge small groups
@@ -517,18 +501,8 @@ export function buildClusterForce(
 	resolveGapsAndOverlaps(targets, groups, allBars, clusterRadii, clusterCentroids, cfg, degrees);
 
 	// Phase 5b: Re-align guide centers after overlap resolution.
-	// resolveGapsAndOverlaps shifts group positions but doesn't update
-	// groupGuides[].centerX/centerY, causing guides to render at stale positions.
 	if (groupGuides) {
-		for (const entry of groupGuides) {
-			if (entry.groupKey) {
-				const updatedCenter = clusterCentroids.get(entry.groupKey);
-				if (updatedCenter) {
-					entry.centerX = updatedCenter.x;
-					entry.centerY = updatedCenter.y;
-				}
-			}
-		}
+		realignGuideCenters(groupGuides, clusterCentroids);
 	}
 
 	// Assemble final metadata
@@ -554,6 +528,42 @@ export function buildClusterForce(
 // ---------------------------------------------------------------------------
 // buildClusterForce phase functions — file-private
 // ---------------------------------------------------------------------------
+
+/** Re-align guide centers after overlap resolution shifts group positions */
+function realignGuideCenters(
+	groupGuides: GroupGuideEntry[],
+	clusterCentroids: Map<string, { x: number; y: number }>,
+): void {
+	for (const entry of groupGuides) {
+		if (entry.groupKey) {
+			const updatedCenter = clusterCentroids.get(entry.groupKey);
+			if (updatedCenter) {
+				entry.centerX = updatedCenter.x;
+				entry.centerY = updatedCenter.y;
+			}
+		}
+	}
+}
+
+/** Apply manual cluster overrides — move nodes between groups, prune empties */
+function applyManualClusterOverrides(
+	groups: Map<string, GraphNode[]>,
+	overrides: Record<string, string>,
+): void {
+	for (const [nodeId, targetGroup] of Object.entries(overrides)) {
+		for (const [, members] of groups) {
+			const idx = members.findIndex((n) => n.id === nodeId);
+			if (idx >= 0) {
+				const [node] = members.splice(idx, 1);
+				pushToMapArray(groups, targetGroup, node);
+				break;
+			}
+		}
+	}
+	for (const [gk, members] of groups) {
+		if (members.length === 0) groups.delete(gk);
+	}
+}
 
 /** Multi-rule pipeline: subdivide groups by each rule, then filter empty */
 function applyAllGroupRules(
