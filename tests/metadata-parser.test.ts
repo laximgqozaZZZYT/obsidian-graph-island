@@ -9,6 +9,8 @@ import {
   extractBodyInfo,
   buildSunburstData,
   parseInlineRelationLinksRaw,
+  snapshotMeta,
+  defineLazyMeta,
 } from "../src/parsers/metadata-parser";
 import { DEFAULT_COLORS } from "../src/types";
 import type { GraphNode, GraphEdge, OntologyConfig } from "../src/types";
@@ -1098,5 +1100,73 @@ describe("parseInlineRelationLinksRaw", () => {
     expect(results).toHaveLength(2);
     expect(results[0].relation).toBe("x");
     expect(results[1].relation).toBe("y");
+  });
+});
+
+describe("snapshotMeta", () => {
+  it("returns undefined for undefined input", () => {
+    expect(snapshotMeta(undefined)).toBeUndefined();
+  });
+
+  it("strips the position key from frontmatter", () => {
+    const fm = { title: "Hello", position: { start: 0, end: 10 }, tags: ["a"] };
+    const result = snapshotMeta(fm);
+    expect(result).toEqual({ title: "Hello", tags: ["a"] });
+    expect(result).not.toHaveProperty("position");
+  });
+
+  it("returns undefined when frontmatter contains only position", () => {
+    expect(snapshotMeta({ position: { start: 0, end: 5 } })).toBeUndefined();
+  });
+
+  it("returns all entries when no position key exists", () => {
+    const fm = { author: "A", year: 2025 };
+    expect(snapshotMeta(fm)).toEqual({ author: "A", year: 2025 });
+  });
+});
+
+describe("defineLazyMeta", () => {
+  function makeNode(): import("../src/types").GraphNode {
+    return { id: "test.md", label: "test", x: 0, y: 0, vx: 0, vy: 0 };
+  }
+
+  it("does nothing when frontmatter is undefined", () => {
+    const node = makeNode();
+    defineLazyMeta(node, undefined);
+    expect(node.meta).toBeUndefined();
+  });
+
+  it("defers snapshotMeta until first access", () => {
+    const node = makeNode();
+    const fm = { title: "Hello", position: { start: 0, end: 10 } };
+    defineLazyMeta(node, fm);
+    // Before access: property is a getter, not a static value
+    const descriptor = Object.getOwnPropertyDescriptor(node, "meta");
+    expect(descriptor?.get).toBeDefined();
+    // First access triggers snapshotMeta
+    expect(node.meta).toEqual({ title: "Hello" });
+    // After access: replaced with static value
+    const after = Object.getOwnPropertyDescriptor(node, "meta");
+    expect(after?.get).toBeUndefined();
+    expect(after?.value).toEqual({ title: "Hello" });
+  });
+
+  it("returns consistent value on repeated access", () => {
+    const node = makeNode();
+    defineLazyMeta(node, { author: "A", year: 2025 });
+    const first = node.meta;
+    const second = node.meta;
+    expect(first).toEqual({ author: "A", year: 2025 });
+    expect(first).toBe(second);
+  });
+
+  it("allows meta to be overwritten after lazy resolution", () => {
+    const node = makeNode();
+    defineLazyMeta(node, { title: "Original" });
+    // Trigger lazy resolution
+    void node.meta;
+    // Overwrite
+    node.meta = { title: "Updated" };
+    expect(node.meta).toEqual({ title: "Updated" });
   });
 });

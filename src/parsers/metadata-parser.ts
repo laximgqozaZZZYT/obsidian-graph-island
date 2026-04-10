@@ -60,14 +60,16 @@ export function buildGraphFromVault(app: App, settings: GraphViewsSettings): Gra
 	const nodeMap = new Map<string, GraphNode>();
 	const edgeSet = new Set<string>();
 
-	// Phase 1: Create nodes from files
-	createFileNodes(app, files, settings, nodes, nodeMap);
+	// Phase 1: Create nodes from files (also caches file content for Phase 3)
+	const contentCache = new Map<string, string>();
+	createFileNodes(app, files, settings, nodes, nodeMap, contentCache);
 
 	// Phase 2: Place nodes at tag-group enclosure centers
 	placeNodesByTagGroups(nodes);
 
 	// Phase 3: Build edges from links + relation-typed edges
-	buildEdgesFromLinks(app, files, settings, nodeMap, edgeSet, edges);
+	buildEdgesFromLinks(app, files, settings, nodeMap, edgeSet, edges, contentCache);
+	contentCache.clear(); // free memory after Phase 3
 
 	// Phase 4: Build edges from shared metadata values
 	buildSharedMetadataEdges(app, settings, nodes, edgeSet, edges);
@@ -88,6 +90,7 @@ function createFileNodes(
 	settings: GraphViewsSettings,
 	nodes: GraphNode[],
 	nodeMap: Map<string, GraphNode>,
+	contentCache: Map<string, string>,
 ): void {
 	for (const file of files) {
 		const cache = app.metadataCache.getFileCache(file);
@@ -108,23 +111,26 @@ function createFileNodes(
 			mtime: file.stat.mtime,
 			ctime: file.stat.ctime,
 		};
-		defineLiveMeta(node, app);
-		attachBodyPreview(node, app, file);
+		defineLazyMeta(node, frontmatter);
+		attachBodyPreview(node, app, file, contentCache);
 		nodes.push(node);
 		nodeMap.set(file.path, node);
 	}
 }
 
 /** Extract body preview (first 100 chars, YAML stripped) + full body length. */
-function attachBodyPreview(node: GraphNode, app: App, file: TFile): void {
+function attachBodyPreview(node: GraphNode, app: App, file: TFile, contentCache: Map<string, string>): void {
 	const rawContent = app.vault.cachedRead(file);
 	if (typeof rawContent === "string") {
+		contentCache.set(file.path, rawContent);
 		const info = extractBodyInfo(rawContent, 100);
 		node.bodyPreview = info.preview;
 		node.bodyLength = info.length;
-		} else if (rawContent && typeof (rawContent as unknown as Promise<string>).then === "function") {
+	} else if (rawContent && typeof (rawContent as unknown as Promise<string>).then === "function") {
+		// async path: warm contentCache so Phase 3 collectInlineRelations hits cache.
 		(rawContent as Promise<string>)
 			.then((text) => {
+				contentCache.set(file.path, text);
 				const info = extractBodyInfo(text, 100);
 				node.bodyPreview = info.preview;
 				node.bodyLength = info.length;
@@ -228,11 +234,12 @@ function buildEdgesFromLinks(
 	nodeMap: Map<string, GraphNode>,
 	edgeSet: Set<string>,
 	edges: GraphEdge[],
+	contentCache: Map<string, string>,
 ): void {
 	for (const file of files) {
 		const cache = app.metadataCache.getFileCache(file);
 		const fmRelations = collectFrontmatterRelations(app, cache, file);
-		const inlineRelations = collectInlineRelations(app, file);
+		const inlineRelations = collectInlineRelations(app, file, contentCache);
 
 		if (cache?.links) {
 			addRegularLinkEdges(app, file, cache.links, fmRelations, inlineRelations, settings, nodeMap, edgeSet, edges);
@@ -260,18 +267,25 @@ function collectFrontmatterRelations(
 }
 
 /** Collect inline Dataview fields (e.g. Author::[[Jesus]], @Parent::[[Entity]]). */
-function collectInlineRelations(app: App, file: TFile): Map<string, InlineFieldResult> {
-	const inlineRelations = new Map<string, InlineFieldResult>();
-	const contentOrPromise = app.vault.cachedRead(file);
-	if (typeof contentOrPromise === "string") {
-		parseInlineFields(contentOrPromise, file.path, app).forEach((result, tPath) =>
-			inlineRelations.set(tPath, result),
-		);
-		parseInlineRelationLinks(contentOrPromise, file.path, app).forEach((result, tPath) => {
-			if (!inlineRelations.has(tPath)) inlineRelations.set(tPath, result);
-		});
-	}
-	return inlineRelations;
+function collectInlineRelations(
+	app: App,
+	file: TFile,
+	contentCache: Map<string, string>,
+): Map<string, InlineFieldResult> {
+	const content = contentCache.get(file.path);
+	const text =
+		content !== undefined
+			? content
+			: (() => {
+					const raw = app.vault.cachedRead(file);
+					return typeof raw === "string" ? raw : undefined;
+				})();
+	if (text === undefined) return new Map();
+	const out = parseInlineFields(text, file.path, app);
+	parseInlineRelationLinks(text, file.path, app).forEach((result, tPath) => {
+		if (!out.has(tPath)) out.set(tPath, result);
+	});
+	return out;
 }
 
 /** Resolve edge type and direction from a relation name. */
@@ -742,22 +756,40 @@ export function buildRelationColorMap(edges: GraphEdge[]): Map<string, string> {
 }
 
 /**
- * Define `meta` as a live getter that reads from metadataCache on every access.
- * This ensures frontmatter changes are always reflected without manual refresh.
+ * Install a lazy getter on `node.meta` that defers snapshotMeta until first access.
+ * On first read the getter replaces itself with the computed static value.
  */
-function defineLiveMeta(node: GraphNode, app: App): void {
+export function defineLazyMeta(
+	node: GraphNode,
+	frontmatter: Record<string, unknown> | undefined,
+): void {
+	if (!frontmatter) return;
 	Object.defineProperty(node, "meta", {
 		get() {
-			if (!node.filePath) return undefined;
-			const f = app.vault.getAbstractFileByPath(node.filePath);
-			if (!(f instanceof TFile)) return undefined;
-			const fm = app.metadataCache.getFileCache(f)?.frontmatter;
-			if (!fm) return undefined;
-			return Object.fromEntries(Object.entries(fm).filter(([k]) => k !== "position"));
+			const value = snapshotMeta(frontmatter);
+			Object.defineProperty(this, "meta", {
+				value,
+				writable: true,
+				enumerable: true,
+				configurable: true,
+			});
+			return value;
 		},
 		enumerable: true,
 		configurable: true,
 	});
+}
+
+/**
+ * Snapshot frontmatter into a plain object, stripping the `position` key.
+ * rawData is invalidated on file changes, so a static snapshot is sufficient.
+ */
+export function snapshotMeta(
+	frontmatter: Record<string, unknown> | undefined,
+): Record<string, unknown> | undefined {
+	if (!frontmatter) return undefined;
+	const entries = Object.entries(frontmatter).filter(([k]) => k !== "position");
+	return entries.length > 0 ? Object.fromEntries(entries) : undefined;
 }
 
 function extractTags(
