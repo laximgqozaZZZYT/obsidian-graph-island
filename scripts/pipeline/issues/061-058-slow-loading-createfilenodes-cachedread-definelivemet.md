@@ -1,7 +1,7 @@
 ---
 priority: high
 reported: 2026-04-10
-status: pending
+status: in-progress
 source: decomposed
 parent: 058-slow-loading
 depends: subtask-1
