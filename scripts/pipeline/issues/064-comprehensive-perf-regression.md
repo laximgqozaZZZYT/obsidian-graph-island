@@ -1,7 +1,7 @@
 ---
 priority: high
 reported: 2026-04-10
-status: pending
+status: decomposed
 summary: 全般的なパフォーマンス低下 — 起動・画面遷移・ズーム・レイアウト切替
 ---
 
