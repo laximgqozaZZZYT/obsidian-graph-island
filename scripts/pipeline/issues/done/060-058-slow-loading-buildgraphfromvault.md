@@ -1,7 +1,7 @@
 ---
 priority: high
 reported: 2026-04-10
-status: in-progress
+status: done
 source: decomposed
 parent: 058-slow-loading
 depends: none
