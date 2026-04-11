@@ -1058,6 +1058,8 @@ export interface RenderThresholds {
 	 *  When enabled, nodeSize counter-scales with zoom to maintain consistent
 	 *  screen-space size, and layout is recalculated on zoom changes. */
 	zoomNodeSizeAdapt?: boolean;
+	/** Minimum relative zoom change to trigger layout recalculation (default 0.2 = 20%) */
+	zoomLayoutDeltaThreshold?: number;
 	/** Show FPS counter in toolbar (debug) */
 	showFpsMonitor?: boolean;
 	/** Scale node radius proportional to degree (sqrt dampened) */
@@ -1572,6 +1574,7 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
 	minNodeRadius: 15,
 	minHoverScreenPx: 16,
 	zoomNodeSizeAdapt: true,
+	zoomLayoutDeltaThreshold: 0.2,
 	showFpsMonitor: false,
 	nodeSizeByDegree: true,
 	labelLeaderLines: true,

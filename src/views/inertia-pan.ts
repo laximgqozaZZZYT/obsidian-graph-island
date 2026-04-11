@@ -14,11 +14,15 @@ export class InertiaPan {
 	private vx = 0;
 	private vy = 0;
 	private active = false;
+	private isEnabled: () => boolean;
 
 	constructor(
-		private isEnabled: () => boolean,
+		isEnabled: boolean | (() => boolean),
 		private applyDelta: (dx: number, dy: number) => void,
-	) {}
+	) {
+		this.isEnabled =
+			typeof isEnabled === "function" ? isEnabled : () => isEnabled;
+	}
 
 	trackPointer(screenX: number, screenY: number, timestamp: number): void {
 		const cutoff = timestamp - HISTORY_WINDOW_MS;
