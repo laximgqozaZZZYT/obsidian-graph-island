@@ -112,40 +112,28 @@ test.describe("2-Settings", () => {
     expect(count).toBeGreaterThan(0);
   });
 
-  test("arrangement changes node positions", async () => {
-    const posGrid = await page.evaluate(async () => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")
-        .find((l: any) => "pixiNodes" in l.view)?.view;
-      if (!v) return [];
-      v.panel.clusterArrangement = "grid";
-      v.rawData = null;
-      await v.doRender();
-      await new Promise(r => setTimeout(r, 2000));
-      const pts: number[] = [];
-      let i = 0;
-      for (const [, pn] of v.pixiNodes) {
-        if (i++ >= 5) break;
-        pts.push(Math.round(pn.data.x), Math.round(pn.data.y));
-      }
-      return pts;
-    });
+  test("arrangement changes node positions (groupBy=folder)", async () => {
+    const getPositions = (arrangement: string) =>
+      page.evaluate(async (arr) => {
+        const v = (window as any).app.workspace.getLeavesOfType("graph-view")
+          .find((l: any) => "pixiNodes" in l.view)?.view;
+        if (!v) return [];
+        v.panel.groupBy = "folder";
+        v.panel.clusterArrangement = arr;
+        v.rawData = null;
+        await v.doRender();
+        await new Promise(r => setTimeout(r, 3000));
+        const pts: number[] = [];
+        let i = 0;
+        for (const [, pn] of v.pixiNodes) {
+          if (i++ >= 5) break;
+          pts.push(Math.round(pn.data.x), Math.round(pn.data.y));
+        }
+        return pts;
+      }, arrangement);
 
-    const posConcentric = await page.evaluate(async () => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")
-        .find((l: any) => "pixiNodes" in l.view)?.view;
-      if (!v) return [];
-      v.panel.clusterArrangement = "concentric";
-      v.rawData = null;
-      await v.doRender();
-      await new Promise(r => setTimeout(r, 2000));
-      const pts: number[] = [];
-      let i = 0;
-      for (const [, pn] of v.pixiNodes) {
-        if (i++ >= 5) break;
-        pts.push(Math.round(pn.data.x), Math.round(pn.data.y));
-      }
-      return pts;
-    });
+    const posGrid = await getPositions("grid");
+    const posConcentric = await getPositions("concentric");
 
     expect(posGrid).not.toEqual(posConcentric);
     await reset();
