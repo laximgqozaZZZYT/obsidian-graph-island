@@ -1,7 +1,7 @@
 ---
 priority: high
 reported: 2026-04-11
-status: pending
+status: in-progress
 source: kaizen
 summary: onClose で annotationLayer.empty() を呼ばずに null 化し、イベントリスナーがリークする
 ---
