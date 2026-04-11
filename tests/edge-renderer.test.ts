@@ -474,7 +474,7 @@ describe("buildPairCounts", () => {
 // ---------------------------------------------------------------------------
 // EDGE_TYPE_SPECS — single source of truth cross-reference
 // ---------------------------------------------------------------------------
-import { EDGE_TYPE_SPECS } from "../src/views/EdgeRenderer";
+import { EDGE_TYPE_SPECS, pushSrcEntry, pushTgtExit } from "../src/views/EdgeRenderer";
 import {
   EDGE_TYPE_LINK, EDGE_TYPE_TAG, EDGE_TYPE_HAS_TAG,
   EDGE_TYPE_INHERITANCE, EDGE_TYPE_AGGREGATION,
@@ -817,5 +817,45 @@ describe("EdgeDrawConfig.trunkMinEdges", () => {
   it("can be set to higher values for sparse bundling", () => {
     const cfg = baseCfg({ trunkMinEdges: 5 });
     expect(cfg.trunkMinEdges).toBe(5);
+  });
+});
+
+describe("pushSrcEntry", () => {
+  it("pushes L-shape when row is non-null", () => {
+    const pts: [number, number][] = [];
+    pushSrcEntry(pts, 10, 20, 50, 30);
+    expect(pts).toEqual([[10, 30], [50, 30]]);
+  });
+
+  it("pushes direct column entry when row is null", () => {
+    const pts: [number, number][] = [];
+    pushSrcEntry(pts, 10, 20, 50, null);
+    expect(pts).toEqual([[50, 20]]);
+  });
+
+  it("appends to existing points", () => {
+    const pts: [number, number][] = [[0, 0]];
+    pushSrcEntry(pts, 10, 20, 50, 30);
+    expect(pts).toHaveLength(3);
+  });
+});
+
+describe("pushTgtExit", () => {
+  it("pushes L-shape when row is non-null", () => {
+    const pts: [number, number][] = [];
+    pushTgtExit(pts, 80, 90, 50, 70);
+    expect(pts).toEqual([[50, 70], [80, 70]]);
+  });
+
+  it("pushes direct target when row is null", () => {
+    const pts: [number, number][] = [];
+    pushTgtExit(pts, 80, 90, 50, null);
+    expect(pts).toEqual([[80, 90]]);
+  });
+
+  it("appends to existing points", () => {
+    const pts: [number, number][] = [[0, 0]];
+    pushTgtExit(pts, 80, 90, 50, 70);
+    expect(pts).toHaveLength(3);
   });
 });
