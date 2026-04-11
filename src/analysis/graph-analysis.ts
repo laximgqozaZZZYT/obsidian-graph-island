@@ -120,6 +120,55 @@ export function computeInDegree(nodes: GraphNode[], edges: GraphEdge[]): Map<str
  * @param maxNodes  Skip computation if node count exceeds this (returns empty map)
  * @returns Map<nodeId, centrality> — normalized by 2/((V-1)(V-2)) for V≥3
  */
+function _brandesBfsPass(
+	sourceId: string,
+	nodeIds: string[],
+	adj: Map<string, string[]>,
+	bc: Map<string, number>,
+): void {
+	const stack: string[] = [];
+	const pred = new Map<string, string[]>();
+	const sigma = new Map<string, number>();
+	const dist = new Map<string, number>();
+	for (const id of nodeIds) {
+		pred.set(id, []);
+		sigma.set(id, 0);
+		dist.set(id, -1);
+	}
+	sigma.set(sourceId, 1);
+	dist.set(sourceId, 0);
+	const queue: string[] = [sourceId];
+
+	while (queue.length > 0) {
+		const v = queue.shift()!;
+		stack.push(v);
+		const dv = dist.get(v)!;
+		for (const w of adj.get(v) ?? []) {
+			if (dist.get(w)! < 0) {
+				dist.set(w, dv + 1);
+				queue.push(w);
+			}
+			if (dist.get(w) === dv + 1) {
+				sigma.set(w, sigma.get(w)! + sigma.get(v)!);
+				pred.get(w)!.push(v);
+			}
+		}
+	}
+
+	const delta = new Map<string, number>();
+	for (const id of nodeIds) delta.set(id, 0);
+	while (stack.length > 0) {
+		const w = stack.pop()!;
+		for (const v of pred.get(w)!) {
+			const d = (sigma.get(v)! / sigma.get(w)!) * (1 + delta.get(w)!);
+			delta.set(v, delta.get(v)! + d);
+		}
+		if (w !== sourceId) {
+			bc.set(w, bc.get(w)! + delta.get(w)!);
+		}
+	}
+}
+
 export function computeBetweennessCentrality(
 	nodes: GraphNode[],
 	edges: GraphEdge[],
@@ -130,64 +179,18 @@ export function computeBetweennessCentrality(
 	if (V === 0) return bc;
 	for (const n of nodes) bc.set(n.id, 0);
 
-	// Skip for very large graphs
 	if (V > maxNodes) return bc;
 
 	const adj = buildAdjFromEdges(nodes, edges);
+	const nodeIds = nodes.map((n) => n.id);
 
-	// Brandes: BFS from each source
 	for (const s of nodes) {
-		const stack: string[] = [];
-		const pred = new Map<string, string[]>();
-		for (const n of nodes) pred.set(n.id, []);
-		const sigma = new Map<string, number>();
-		for (const n of nodes) sigma.set(n.id, 0);
-		sigma.set(s.id, 1);
-		const dist = new Map<string, number>();
-		for (const n of nodes) dist.set(n.id, -1);
-		dist.set(s.id, 0);
-		const queue: string[] = [s.id];
-
-		// BFS
-		while (queue.length > 0) {
-			const v = queue.shift()!;
-			stack.push(v);
-			const dv = dist.get(v)!;
-			for (const w of adj.get(v) ?? []) {
-				const dw = dist.get(w)!;
-				if (dw < 0) {
-					// First visit
-					dist.set(w, dv + 1);
-					queue.push(w);
-				}
-				if (dist.get(w) === dv + 1) {
-					sigma.set(w, sigma.get(w)! + sigma.get(v)!);
-					pred.get(w)!.push(v);
-				}
-			}
-		}
-
-		// Accumulation
-		const delta = new Map<string, number>();
-		for (const n of nodes) delta.set(n.id, 0);
-		while (stack.length > 0) {
-			const w = stack.pop()!;
-			for (const v of pred.get(w)!) {
-				const d = (sigma.get(v)! / sigma.get(w)!) * (1 + delta.get(w)!);
-				delta.set(v, delta.get(v)! + d);
-			}
-			if (w !== s.id) {
-				bc.set(w, bc.get(w)! + delta.get(w)!);
-			}
-		}
+		_brandesBfsPass(s.id, nodeIds, adj, bc);
 	}
 
-	// Normalize for undirected graph: divide by 2
-	// (each pair counted twice in undirected BFS)
 	if (V >= 3) {
-		const norm = 2.0; // undirected
 		for (const [id, val] of bc) {
-			bc.set(id, val / norm);
+			bc.set(id, val / 2.0);
 		}
 	}
 
