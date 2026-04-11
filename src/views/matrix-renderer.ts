@@ -9,6 +9,13 @@ import { edgeSourceId, edgeTargetId, incCounter } from "../utils/graph-helpers";
 import { t } from "../i18n";
 
 // ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+const MATRIX_MAX_NODES = 50;
+const MATRIX_CELL_SIZE_DIVISOR = 16;
+
+// ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
@@ -253,7 +260,7 @@ export function renderMatrixViewMode(params: MatrixRenderParams): HTMLElement {
 	matrixEl.style.width = W + "px";
 	matrixEl.style.height = H + "px";
 
-	const maxNodes = Math.min(50, Math.floor(Math.min(W, H) / 16));
+	const maxNodes = Math.min(MATRIX_MAX_NODES, Math.floor(Math.min(W, H) / MATRIX_CELL_SIZE_DIVISOR));
 	const data = buildMatrixData(gd, sortMode, maxNodes);
 
 	// Title + sort selector

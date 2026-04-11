@@ -44,6 +44,7 @@ export interface KeyboardHost {
 }
 
 const PAN_STEP = 50;
+const HOVER_HOPS_MAX = 10;
 
 /** Helper: check that neither Ctrl nor Meta is held */
 function isPlainKey(e: KeyboardEvent): boolean {
@@ -190,7 +191,7 @@ function handleToggleKey(host: KeyboardHost, key: string, e: KeyboardEvent): boo
 	}
 	// ]: increase hoverHops
 	if (key === "]") {
-		host.panel.hoverHops = Math.min(10, host.panel.hoverHops + 1);
+		host.panel.hoverHops = Math.min(HOVER_HOPS_MAX, host.panel.hoverHops + 1);
 		host.applyHover();
 		host.markDirty(true);
 		return true;

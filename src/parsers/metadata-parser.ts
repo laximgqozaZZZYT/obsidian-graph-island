@@ -402,7 +402,9 @@ function buildSharedMetadataEdges(
 
 		const valueToNodes = new Map<string, string[]>();
 		for (const node of nodes) {
-			const cache = app.metadataCache.getFileCache(app.vault.getAbstractFileByPath(node.id) as TFile);
+			const abstractFile = app.vault.getAbstractFileByPath(node.id);
+			if (!(abstractFile instanceof TFile)) continue;
+			const cache = app.metadataCache.getFileCache(abstractFile);
 			const frontmatter = cache?.frontmatter;
 			if (!frontmatter?.[field]) continue;
 

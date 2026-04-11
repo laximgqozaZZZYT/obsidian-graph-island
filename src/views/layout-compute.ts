@@ -23,6 +23,21 @@ import {
 // i18n not needed here — error messages are handled by callers
 
 // ---------------------------------------------------------------------------
+// Timeline layout constants
+// ---------------------------------------------------------------------------
+
+const TIMELINE_STEP_WIDTH_MIN = 8;
+const TIMELINE_CANVAS_MARGIN = 120;
+const TIMELINE_LANE_HEIGHT_MIN = 20;
+const TIMELINE_LANE_DIVISIONS = 20;
+const TIMELINE_BAR_HEIGHT_RATIO = 0.3;
+const TIMELINE_BAR_HEIGHT_MIN = 4;
+const TIMELINE_START_OFFSET = 60;
+const TIMELINE_BAR_MAX_WIDTH_FACTOR = 3;
+const TIMELINE_BAR_MAX_WIDTH_MIN = 30;
+const TIMELINE_BAR_WIDTH_MIN = 10;
+
+// ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
@@ -184,7 +199,7 @@ export function buildTimelineBars(
 	getNodeProp: (nodeId: string, key: string) => string | undefined,
 ): TimelineBarInfo[] {
 	const bars: TimelineBarInfo[] = [];
-	const maxBarWidth = Math.max(stepW * 3, 30);
+	const maxBarWidth = Math.max(stepW * TIMELINE_BAR_MAX_WIDTH_FACTOR, TIMELINE_BAR_MAX_WIDTH_MIN);
 
 	for (const p of placements) {
 		const node = nodes.find((n) => n.id === p.nodeId);
@@ -193,12 +208,12 @@ export function buildTimelineBars(
 		if (endVal && endVal !== p.timeValue) {
 			const endIdx = timeIdxMap.get(endVal);
 			if (endIdx !== undefined && endIdx > p.timeIndex) {
-				const clampedEnd = Math.min(60 + endIdx * stepW, node.x + maxBarWidth);
+				const clampedEnd = Math.min(TIMELINE_START_OFFSET + endIdx * stepW, node.x + maxBarWidth);
 				bars.push({ nodeId: p.nodeId, xStart: node.x, xEnd: clampedEnd, barHeight: barH, yCenter: node.y });
 				continue;
 			}
 		}
-		const defaultBarW = Math.max(stepW, 10);
+		const defaultBarW = Math.max(stepW, TIMELINE_BAR_WIDTH_MIN);
 		bars.push({ nodeId: p.nodeId, xStart: node.x, xEnd: node.x + defaultBarW, barHeight: barH, yCenter: node.y });
 	}
 	return bars;
@@ -279,14 +294,14 @@ function computeTimelineLayout(
 		if (tv) timeVals.add(tv);
 	}
 	const numSteps = Math.max(timeVals.size, 1);
-	const stepW = Math.max(8, (W - 120) / numSteps);
-	const laneH = Math.max(20, Math.round(H / 20));
-	const barH = Math.max(Math.round(laneH * 0.3), 4);
+	const stepW = Math.max(TIMELINE_STEP_WIDTH_MIN, (W - TIMELINE_CANVAS_MARGIN) / numSteps);
+	const laneH = Math.max(TIMELINE_LANE_HEIGHT_MIN, Math.round(H / TIMELINE_LANE_DIVISIONS));
+	const barH = Math.max(Math.round(laneH * TIMELINE_BAR_HEIGHT_RATIO), TIMELINE_BAR_HEIGHT_MIN);
 
 	const tlResult = applyTimelineLayout(gd, {
 		timeKey,
-		startX: 60,
-		startY: 60,
+		startX: TIMELINE_START_OFFSET,
+		startY: TIMELINE_START_OFFSET,
 		stepWidth: stepW,
 		laneHeight: laneH,
 		stackSpacing: barH + 1,
