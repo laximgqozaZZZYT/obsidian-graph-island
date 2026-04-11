@@ -1,7 +1,7 @@
 ---
 priority: high
 reported: 2026-04-11
-status: pending
+status: in-progress
 source: kaizen
 summary: StatsRenderer/SnapshotManager にハードコード英語文字列（i18n t() 未使用）
 ---
