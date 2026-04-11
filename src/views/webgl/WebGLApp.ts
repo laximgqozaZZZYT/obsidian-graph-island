@@ -335,40 +335,17 @@ export class WebGLApp implements IApp {
 
 	// -- Dot grid (WebGL) ----------------------------------------------------
 
-	/**
-	 * Draw the background dot grid using the dedicated dot grid shader.
-	 * Renders a fullscreen quad and computes dots procedurally in the
-	 * fragment shader.
-	 */
-	private _drawDotGrid(): void {
+	private _ensureDotGridResources(): void {
 		const gl = this._gl;
-
-		// Get world transform from stage's first child (the world container)
-		const world = this.stage.children[0];
-		if (!world || !(world instanceof CanvasContainer)) return;
-
-		const dpr = this._resolution;
-		const wx = world.x * dpr;
-		const wy = world.y * dpr;
-		const ws = (world.scale?.x ?? 1) * dpr;
-
-		const spacing = 30; // world-units between dots
-		const screenSpacing = spacing * ws;
-		if (screenSpacing < 4) return; // Too zoomed out
-
-		// Lazily build dot grid shader program
 		if (!this._dotGridProgram) {
 			this._dotGridProgram = buildProgram(gl, DOT_GRID_VERTEX_SRC, DOT_GRID_FRAGMENT_SRC);
 		}
-
-		// Lazily create fullscreen quad VAO/VBO
 		if (!this._dotGridVAO) {
 			this._dotGridVAO = gl.createVertexArray();
 			this._dotGridVBO = gl.createBuffer();
 			if (this._dotGridVAO && this._dotGridVBO) {
 				gl.bindVertexArray(this._dotGridVAO);
 				gl.bindBuffer(gl.ARRAY_BUFFER, this._dotGridVBO);
-				// Fullscreen quad (two triangles in clip space)
 				const quadVerts = new Float32Array([-1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, 1]);
 				gl.bufferData(gl.ARRAY_BUFFER, quadVerts, gl.STATIC_DRAW);
 				const aPos = gl.getAttribLocation(this._dotGridProgram, "a_position");
@@ -379,11 +356,16 @@ export class WebGLApp implements IApp {
 				gl.bindVertexArray(null);
 			}
 		}
+	}
 
-		const prog = this._dotGridProgram;
-		gl.useProgram(prog);
-
-		// Set uniforms
+	private _setDotGridUniforms(
+		prog: WebGLProgram,
+		wx: number,
+		wy: number,
+		ws: number,
+		spacing: number,
+	): void {
+		const gl = this._gl;
 		const cw = gl.canvas.width;
 		const ch = gl.canvas.height;
 
@@ -399,25 +381,39 @@ export class WebGLApp implements IApp {
 		if (uScale) gl.uniform1f(uScale, ws);
 		if (uSpacing) gl.uniform1f(uSpacing, spacing);
 
-		// Theme-aware dot color
 		const { r, g, b } = hexToRgb(this._bgColor);
 		const brightness = getLuminance(r, g, b);
-		const dotAlpha = brightness > 128 ? 0.08 : 0.12;
-		const dotR = brightness > 128 ? 0 : 1;
-		const dotG = brightness > 128 ? 0 : 1;
-		const dotB = brightness > 128 ? 0 : 1;
+		const isDark = brightness <= 128;
+		const dotChannel = isDark ? 1 : 0;
 
-		if (uDotColor) gl.uniform4f(uDotColor, dotR, dotG, dotB, dotAlpha);
-		if (uDotRadius) gl.uniform1f(uDotRadius, Math.max(0.5, (ws * 0.8) / dpr));
+		if (uDotColor) gl.uniform4f(uDotColor, dotChannel, dotChannel, dotChannel, isDark ? 0.12 : 0.08);
+		if (uDotRadius) gl.uniform1f(uDotRadius, Math.max(0.5, (ws * 0.8) / this._resolution));
+	}
 
-		// Draw fullscreen quad
+	private _drawDotGrid(): void {
+		const world = this.stage.children[0];
+		if (!world || !(world instanceof CanvasContainer)) return;
+
+		const dpr = this._resolution;
+		const wx = world.x * dpr;
+		const wy = world.y * dpr;
+		const ws = (world.scale?.x ?? 1) * dpr;
+
+		const spacing = 30;
+		if (spacing * ws < 4) return;
+
+		this._ensureDotGridResources();
+
+		const prog = this._dotGridProgram!;
+		this._gl.useProgram(prog);
+		this._setDotGridUniforms(prog, wx, wy, ws, spacing);
+
 		if (this._dotGridVAO) {
-			gl.bindVertexArray(this._dotGridVAO);
-			gl.drawArrays(gl.TRIANGLES, 0, 6);
-			gl.bindVertexArray(null);
+			this._gl.bindVertexArray(this._dotGridVAO);
+			this._gl.drawArrays(this._gl.TRIANGLES, 0, 6);
+			this._gl.bindVertexArray(null);
 		}
 
-		// Restore main program
-		gl.useProgram(this._program);
+		this._gl.useProgram(this._program);
 	}
 }
