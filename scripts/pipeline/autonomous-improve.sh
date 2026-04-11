@@ -97,7 +97,7 @@ for lockfile in "$LOCK_DIR"/*.pid; do
   LOCK_PID=$(cat "$lockfile" 2>/dev/null || echo "0")
   kill -0 "$LOCK_PID" 2>/dev/null || rm -f "$lockfile"
 done
-ACTIVE_COUNT=$(ls "$LOCK_DIR"/*.pid 2>/dev/null | wc -l || echo "0")
+ACTIVE_COUNT=$(find "$LOCK_DIR" -maxdepth 1 -name '*.pid' 2>/dev/null | wc -l)
 if [[ $ACTIVE_COUNT -ge $MAX_SESSIONS ]]; then
   log "SKIP: $ACTIVE_COUNT sessions running (max $MAX_SESSIONS)"
   exit 0
