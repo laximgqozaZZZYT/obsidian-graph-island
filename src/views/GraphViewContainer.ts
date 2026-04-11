@@ -191,6 +191,7 @@ import {
 } from "./sunburst-renderer";
 import { renderMatrixViewMode as renderMatrixViewModeImpl, type MatrixSortMode } from "./matrix-renderer";
 import { computeStaticLayout, type StaticLayoutResult } from "./layout-compute";
+import { computeEgoSectorPositions } from "../layouts/ego-sector";
 import {
 	labelModeChar,
 	buildLabelInfo,
@@ -6478,71 +6479,28 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	/** M2: Apply ego layout to visible nodes centered on highlighted/focused node */
 	private applyEgoToVisible(): void {
 		const centerId = this.highlightedNodeId || this.panel.focusNodeId || this.panel.localGraphCenter;
-		if (!centerId) {
-			// No node selected — show toast
-			return;
-		}
+		if (!centerId) return;
 
 		const centerPn = this.pixiNodes.get(centerId);
 		if (!centerPn) return;
+		if (!this.worldContainer) return;
 
-		// Collect visible nodes in viewport
-		const wc = this.worldContainer;
-		if (!wc) return;
-		const cx = centerPn.data.x;
-		const cy = centerPn.data.y;
+		const validIds = new Set(this.pixiNodes.keys());
+		const placements = computeEgoSectorPositions(
+			centerId,
+			centerPn.data.x,
+			centerPn.data.y,
+			this.graphEdges,
+			validIds,
+		);
 
-		// Classify neighbors by edge type
-		const neighbors = new Map<string, string[]>(); // bucket → nodeIds
-		neighbors.set("inheritParent", []);
-		neighbors.set("inheritChild", []);
-		neighbors.set("aggregation", []);
-		neighbors.set("similar", []);
-		neighbors.set("other", []);
-
-		for (const e of this.graphEdges) {
-			const isNeighbor = e.source === centerId || e.target === centerId;
-			if (!isNeighbor) continue;
-			const nbId = e.source === centerId ? e.target : e.source;
-			if (!this.pixiNodes.has(nbId)) continue;
-			if (e.type === "inheritance") {
-				if (e.target === centerId) neighbors.get("inheritParent")!.push(nbId);
-				else neighbors.get("inheritChild")!.push(nbId);
-			} else if (e.type === "aggregation") {
-				neighbors.get("aggregation")!.push(nbId);
-			} else if (e.type === "similar" || e.type === "sibling") {
-				neighbors.get("similar")!.push(nbId);
-			} else {
-				neighbors.get("other")!.push(nbId);
-			}
-		}
-
-		const placed = new Set<string>([centerId]);
-		const sectorDefs: { key: string; centerAngle: number; spread: number }[] = [
-			{ key: "inheritParent", centerAngle: (3 * Math.PI) / 2, spread: Math.PI / 3 },
-			{ key: "inheritChild", centerAngle: Math.PI / 2, spread: Math.PI / 3 },
-			{ key: "aggregation", centerAngle: Math.PI, spread: Math.PI / 3 },
-			{ key: "similar", centerAngle: 0, spread: Math.PI / 3 },
-			{ key: "other", centerAngle: Math.PI / 4, spread: Math.PI / 2 },
-		];
-
-		const ringR = 150;
-
-		for (const sector of sectorDefs) {
-			const ids = (neighbors.get(sector.key) ?? []).filter((id) => !placed.has(id));
-			if (ids.length === 0) continue;
-			const startAngle = sector.centerAngle - sector.spread / 2;
-			const step = ids.length > 1 ? sector.spread / (ids.length - 1) : 0;
-			for (let i = 0; i < ids.length; i++) {
-				const angle = startAngle + step * i;
-				const pn = this.pixiNodes.get(ids[i]);
-				if (pn) {
-					pn.data.fx = cx + ringR * Math.cos(angle);
-					pn.data.fy = cy + ringR * Math.sin(angle);
-					pn.data.x = pn.data.fx;
-					pn.data.y = pn.data.fy;
-					placed.add(ids[i]);
-				}
+		for (const p of placements) {
+			const pn = this.pixiNodes.get(p.id);
+			if (pn) {
+				pn.data.fx = p.x;
+				pn.data.fy = p.y;
+				pn.data.x = p.x;
+				pn.data.y = p.y;
 			}
 		}
 
