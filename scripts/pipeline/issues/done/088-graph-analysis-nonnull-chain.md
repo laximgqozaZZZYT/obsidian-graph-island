@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-11
-status: in-progress
+status: done
 source: kaizen
 summary: graph-analysis.ts の betweennessCentrality に非null assertion が連鎖しており防御がない
 ---
