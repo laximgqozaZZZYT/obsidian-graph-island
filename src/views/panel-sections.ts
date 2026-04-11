@@ -99,6 +99,16 @@ function _buildNodeHoverAndShapeControls(
 	panel: PanelState,
 	cb: PanelCallbacks,
 ): void {
+	_buildHoverEdgeTypeControls(adv, panel, cb);
+	_buildFocusModeControls(adv, panel, cb);
+	_buildNodeShapeControls(adv, panel, cb);
+}
+
+function _buildHoverEdgeTypeControls(
+	adv: HTMLElement,
+	panel: PanelState,
+	cb: PanelCallbacks,
+): void {
 	addSlider(
 		adv,
 		t("display.hoverHops"),
@@ -114,7 +124,6 @@ function _buildNodeHoverAndShapeControls(
 		},
 		t("desc.hoverHops"),
 	);
-	// Hover edge type filter — which edge types to follow during hover BFS
 	const het = panel.hoverEdgeTypes ?? {
 		link: true,
 		semantic: false,
@@ -147,7 +156,6 @@ function _buildNodeHoverAndShapeControls(
 			cb.markDirty();
 		});
 	}
-	// HR: Max hover neighbor labels
 	const rtHover = mergeRenderThresholds(panel.renderThresholds);
 	addSlider(
 		adv,
@@ -162,7 +170,13 @@ function _buildNodeHoverAndShapeControls(
 			cb.announceA11y?.(`${t("display.maxHoverLabels") ?? "Max Hover Labels"}: ${v}`);
 		},
 	);
-	// フォーカスモード: クリックでハイライトを固定
+}
+
+function _buildFocusModeControls(
+	adv: HTMLElement,
+	panel: PanelState,
+	cb: PanelCallbacks,
+): void {
 	addToggle(
 		adv,
 		t("display.focusMode"),
@@ -178,7 +192,6 @@ function _buildNodeHoverAndShapeControls(
 		},
 		t("desc.focusMode"),
 	);
-	// R2: フォーカスコーン — only shown when focusMode is enabled (progressive disclosure)
 	if (panel.focusMode) {
 		addToggle(
 			adv,
@@ -191,9 +204,13 @@ function _buildNodeHoverAndShapeControls(
 			t("desc.focusCone"),
 		);
 	}
-	// R2: highlightMissingNeighbors toggle removed — now controlled via analysisOverlay dropdown
-	// --- ノード形状 ---
-	// GH: Shape preview swatches
+}
+
+function _buildNodeShapeControls(
+	adv: HTMLElement,
+	panel: PanelState,
+	cb: PanelCallbacks,
+): void {
 	const shapeIcons: Record<string, string> = {
 		circle: "O",
 		triangle: "^",

@@ -48,6 +48,37 @@ export function findCellIndex(value: number, positions: number[]): number {
 	return -1;
 }
 
+/** Count nodes falling into each grid cell defined by sorted boundary positions. */
+export function countNodesPerCell(
+	nodes: GraphNode[],
+	cx: number,
+	cy: number,
+	xPositions: number[],
+	yPositions: number[],
+): { cellCounts: Map<string, number>; maxCount: number } {
+	const cellCounts = new Map<string, number>();
+	let maxCount = 0;
+	const xExtentMin = xPositions[0];
+	const xExtentMax = xPositions[xPositions.length - 1];
+	const yExtentMin = yPositions[0];
+	const yExtentMax = yPositions[yPositions.length - 1];
+	for (const node of nodes) {
+		const nodeX = node.x - cx;
+		const nodeY = node.y - cy;
+		if (nodeX < xExtentMin - 1 || nodeX > xExtentMax + 1) continue;
+		if (nodeY < yExtentMin - 1 || nodeY > yExtentMax + 1) continue;
+		const xi = findCellIndex(nodeX, xPositions);
+		const yi = findCellIndex(nodeY, yPositions);
+		if (xi >= 0 && yi >= 0) {
+			const key = `${xi}-${yi}`;
+			const count = (cellCounts.get(key) ?? 0) + 1;
+			cellCounts.set(key, count);
+			if (count > maxCount) maxCount = count;
+		}
+	}
+	return { cellCounts, maxCount };
+}
+
 // ---------------------------------------------------------------------------
 // GuideRenderer
 // ---------------------------------------------------------------------------
@@ -490,43 +521,16 @@ export class GuideRenderer {
 		bounds: { xMin: number; yMin: number; xMax: number; yMax: number },
 		color: number,
 	) {
-		// Count nodes per cell
-		const cellCounts = new Map<string, number>();
-		let maxCount = 0;
-
-		// Build cell boundaries from line positions
 		const xPositions = axis1Lines.map((l) => l.position).sort((a, b) => a - b);
 		const yPositions = axis2Lines.map((l) => l.position).sort((a, b) => a - b);
 		if (xPositions.length < 2 || yPositions.length < 2) return;
 
-		// Count nodes in each cell
 		const nodes = this.host.getCurrentNodes();
 		if (!nodes) return;
 
-		const xExtentMin = xPositions[0];
-		const xExtentMax = xPositions[xPositions.length - 1];
-		const yExtentMin = yPositions[0];
-		const yExtentMax = yPositions[yPositions.length - 1];
-		for (const node of nodes) {
-			const nodeX = node.x - cx;
-			const nodeY = node.y - cy;
-
-			if (nodeX < xExtentMin - 1 || nodeX > xExtentMax + 1) continue;
-			if (nodeY < yExtentMin - 1 || nodeY > yExtentMax + 1) continue;
-
-			const xi = findCellIndex(nodeX, xPositions);
-			const yi = findCellIndex(nodeY, yPositions);
-			if (xi >= 0 && yi >= 0) {
-				const key = `${xi}-${yi}`;
-				const count = (cellCounts.get(key) ?? 0) + 1;
-				cellCounts.set(key, count);
-				if (count > maxCount) maxCount = count;
-			}
-		}
-
+		const { cellCounts, maxCount } = countNodesPerCell(nodes, cx, cy, xPositions, yPositions);
 		if (maxCount === 0) return;
 
-		// Draw shaded rectangles
 		const rt = this.host.getPanel().renderThresholds ?? {};
 		const shadingMin = rt.gridCellShadingMin ?? DEFAULT_RENDER_THRESHOLDS.gridCellShadingMin;
 		const shadingRange = rt.gridCellShadingRange ?? DEFAULT_RENDER_THRESHOLDS.gridCellShadingRange;
