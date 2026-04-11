@@ -25,9 +25,19 @@ describe("obsidian-internals cast helpers", () => {
 		vi.unstubAllGlobals();
 	});
 
-	it("asGraphView returns view cast", () => {
-		const leaf = { view: { panel: {} } } as any;
+	it("asGraphView returns view when pixiNodes present", () => {
+		const leaf = { view: { panel: {}, pixiNodes: new Map() } } as any;
 		const result = asGraphView(leaf);
 		expect(result).toBe(leaf.view);
+	});
+
+	it("asGraphView returns null for non-Graph-Island view", () => {
+		const leaf = { view: { panel: {} } } as any;
+		expect(asGraphView(leaf)).toBeNull();
+	});
+
+	it("asGraphView returns null for missing view", () => {
+		const leaf = { view: null } as any;
+		expect(asGraphView(leaf)).toBeNull();
 	});
 });

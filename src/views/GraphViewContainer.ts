@@ -10,6 +10,7 @@ import {
 } from "obsidian";
 import { CanvasContainer, CanvasGraphics, CanvasText } from "./canvas2d";
 import { drawArcLine, drawArcPath, createSunburstArcLabel } from "./arc-drawing";
+import { extractFrontmatterImage, isNodeOnScreen, createThumbnailClone, resolveThumbnailUrl } from "./thumbnail-helpers";
 import type { IApp } from "./canvas2d/interfaces";
 import { createApp } from "./renderer-factory";
 import type { Simulation } from "d3-force";
@@ -6317,76 +6318,47 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		const vw = wrap?.clientWidth ?? 800;
 		const vh = wrap?.clientHeight ?? 600;
 		const MAX_THUMBNAILS = 50;
+		const MARGIN = 50;
 
-		// Remove all existing children first (simple approach)
 		layer.empty();
 
 		let count = 0;
 		for (const [id, pn] of this.pixiNodes) {
 			if (count >= MAX_THUMBNAILS) break;
 
-			// Check if node has image/thumbnail in frontmatter
-			const meta = pn.data.meta;
-			const imgPath = meta?.image || meta?.thumbnail || meta?.cover;
-			if (!imgPath || typeof imgPath !== "string") continue;
+			const imgPath = extractFrontmatterImage(pn.data.meta);
+			if (!imgPath) continue;
 
-			// Screen coordinates
 			const sx = pn.data.x * scaleX + offsetX;
 			const sy = pn.data.y * scaleY + offsetY;
+			if (!isNodeOnScreen(sx, sy, vw, vh, MARGIN)) continue;
 
-			// Culling: skip off-screen nodes
-			const margin = 50;
-			if (sx < -margin || sx > vw + margin || sy < -margin || sy > vh + margin) continue;
-
-			// Get or load image
-			let img = this.thumbnailCache.get(id);
-			if (img === undefined) {
-				// Try to resolve the path
-				const resolved = this._resolveThumbnailUrl(imgPath);
-				if (resolved) {
-					img = document.createElement("img");
-					img.src = resolved;
-					img.className = "gi-node-thumbnail";
-					img.addEventListener("error", () => {
-						this.thumbnailCache.set(id, null);
-					});
-					this.thumbnailCache.set(id, img);
-				} else {
-					this.thumbnailCache.set(id, null);
-					continue;
-				}
-			}
+			const img = this._getOrLoadThumbnail(id, imgPath);
 			if (!img) continue;
 
-			// Clone for this frame
-			const clone = img.cloneNode() as HTMLImageElement;
-			clone.className = "gi-node-thumbnail";
 			const size = pn.radius * scaleX * 2;
-			clone.style.width = `${size}px`;
-			clone.style.height = `${size}px`;
-			clone.style.left = `${sx - size / 2}px`;
-			clone.style.top = `${sy - size / 2}px`;
-			layer.appendChild(clone);
+			layer.appendChild(createThumbnailClone(img, sx, sy, size));
 			count++;
 		}
 	}
 
-	/** Resolve a frontmatter image path to a usable URL. */
-	private _resolveThumbnailUrl(path: string): string | null {
-		// If it's already a URL, use directly
-		if (path.startsWith("http://") || path.startsWith("https://")) return path;
-		// Try vault resource path
-		const tf = this.app.vault.getAbstractFileByPath(path);
-		if (tf instanceof TFile) {
-			return this.app.vault.getResourcePath(tf);
+	private _getOrLoadThumbnail(id: string, imgPath: string): HTMLImageElement | null {
+		let img = this.thumbnailCache.get(id);
+		if (img === undefined) {
+			const resolved = resolveThumbnailUrl(imgPath, this.app.vault);
+			if (resolved) {
+				img = document.createElement("img");
+				img.src = resolved;
+				img.className = "gi-node-thumbnail";
+				img.addEventListener("error", () => {
+					this.thumbnailCache.set(id, null);
+				});
+				this.thumbnailCache.set(id, img);
+			} else {
+				this.thumbnailCache.set(id, null);
+			}
 		}
-		// Try without leading /
-		const cleanPath = path.replace(/^\/+/, "");
-		const tf2 = this.app.vault.getAbstractFileByPath(cleanPath);
-		if (tf2 instanceof TFile) {
-			return this.app.vault.getResourcePath(tf2);
-		}
-		return null;
+		return img ?? null;
 	}
 
 	/** F5: Update the relation matrix floating panel. */

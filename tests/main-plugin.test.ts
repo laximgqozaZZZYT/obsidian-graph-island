@@ -267,7 +267,7 @@ describe("openSubgraphInNewTab", () => {
   it("sets subgraph config after delay", async () => {
     await plugin.openSubgraphInNewTab(["node1", "node2"], "force-layout");
     const leaf = (plugin as any).app.workspace.getLeaf.mock.results[0].value;
-    leaf.view = { panel: {} };
+    leaf.view = { panel: {}, pixiNodes: new Map() };
 
     vi.advanceTimersByTime(100);
 
@@ -280,7 +280,7 @@ describe("openSubgraphInNewTab", () => {
   it("triggers render after subgraph config", async () => {
     await plugin.openSubgraphInNewTab(["node1"], "timeline");
     const leaf = (plugin as any).app.workspace.getLeaf.mock.results[0].value;
-    leaf.view = { panel: {}, doRender: vi.fn(), rawData: null };
+    leaf.view = { panel: {}, doRender: vi.fn(), rawData: null, pixiNodes: new Map() };
 
     vi.advanceTimersByTime(100);
 
@@ -334,7 +334,7 @@ describe("ribbon icon + commands", () => {
   it("mode commands access active graph view", async () => {
     await plugin.onload();
 
-    const graphViewMock = { applyPresetByKey: vi.fn() };
+    const graphViewMock = { applyPresetByKey: vi.fn(), pixiNodes: new Map() };
     (plugin as any).app.workspace.getLeavesOfType.mockReturnValue([
       { view: graphViewMock },
     ]);
@@ -378,6 +378,7 @@ describe("graph control commands", () => {
       exportGraphAsCSV: vi.fn(),
       exportGraphAsMermaid: vi.fn(),
       panelEl: {},
+      pixiNodes: new Map(),
     };
     (plugin as any).app.workspace.getLeavesOfType.mockReturnValue([
       { view: graphViewMock },
@@ -567,8 +568,8 @@ describe("saveSettings", () => {
   });
 
   it("notifies graph views to rebuild when settings change", async () => {
-    const graphView1 = { rawData: { nodes: [] }, doRender: vi.fn() };
-    const graphView2 = { rawData: { nodes: [] }, doRender: vi.fn() };
+    const graphView1 = { rawData: { nodes: [] }, doRender: vi.fn(), pixiNodes: new Map() };
+    const graphView2 = { rawData: { nodes: [] }, doRender: vi.fn(), pixiNodes: new Map() };
     (plugin as any).app.workspace.getLeavesOfType.mockReturnValue([
       { view: graphView1 },
       { view: graphView2 },
