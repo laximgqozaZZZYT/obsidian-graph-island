@@ -212,7 +212,7 @@ export function showSnapshotTimeline(host: SnapshotHost): void {
 		bars.push(bar);
 		const h = Math.max(2, (entry.nodeCount / maxNodes) * 36);
 		bar.style.height = `${h}px`;
-		bar.title = `${entry.name}: ${entry.nodeCount}n, ${entry.edgeCount}e — Shift+click to compare two`;
+		bar.title = t("snapshot.compareTip").replace("{name}", entry.name).replace("{nodeCount}", String(entry.nodeCount)).replace("{edgeCount}", String(entry.edgeCount));
 		bar.addEventListener("click", (ev: MouseEvent) => {
 			const snap = snapshots.find((s) => s.name === entry.name);
 			if (!snap) return;

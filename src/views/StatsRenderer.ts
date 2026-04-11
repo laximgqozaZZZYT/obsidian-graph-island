@@ -98,7 +98,7 @@ export function renderGraphStats(el: HTMLElement, gd: GraphData, panel: StatsPan
 	const overlapRow = addRow(t("stats.overlap") ?? "Overlap", overlapPct);
 	if (overlapRatio > 0.1) {
 		overlapRow.style.color = "var(--text-warning, #d4a017)";
-		overlapRow.title = "High overlap — try increasing node spacing or enabling auto-optimize";
+		overlapRow.title = t("stats.overlapTip");
 	}
 
 	// HI: Edge density warning
@@ -156,7 +156,7 @@ function renderDegreeChart(el: HTMLElement, degrees: Map<string, number>, panel:
 		const bar = chartEl.createDiv();
 		const h = Math.max(1, (count / maxBucket) * 28);
 		bar.style.cssText = `width:6px;height:${h}px;background:var(--interactive-accent);opacity:0.7;border-radius:1px 1px 0 0;cursor:pointer;`;
-		bar.title = `degree ${d}${d === 20 ? "+" : ""}: ${count} nodes — click to filter`;
+		bar.title = t("stats.degreeTip").replace("{degree}", String(d)).replace("{plus}", d === 20 ? "+" : "").replace("{count}", String(count));
 		const deg = d;
 		bar.setAttribute("role", "button");
 		bar.setAttribute("tabindex", "0");
