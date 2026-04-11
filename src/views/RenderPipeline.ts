@@ -64,6 +64,14 @@ import {
 } from "./node-decorations";
 
 // ---------------------------------------------------------------------------
+// Shared render context type for node rendering methods
+// ---------------------------------------------------------------------------
+interface NormalZoomCtx {
+	visible: PixiNode[]; pixiNodes: Map<string, PixiNode>; tlFilteredOut: Set<string> | null;
+	alpha: number; nodeCount: number; shapeRules: ShapeRule[]; worldScale: number; minWorldRadius: number; lodLevel: number;
+}
+
+// ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 const EDGE_REDRAW_SKIP = 3;
@@ -1063,78 +1071,62 @@ export class RenderPipeline {
 	}
 
 	/** Normal zoom: full shape + optional gradient, with display mode support. */
-	private _renderNormalZoom(
-		g: CanvasGraphics,
-		ctx: {
-			visible: PixiNode[];
-			pixiNodes: Map<string, PixiNode>;
-			tlFilteredOut: Set<string> | null;
-			alpha: number;
-			nodeCount: number;
-			shapeRules: ShapeRule[];
-			worldScale: number;
-			minWorldRadius: number;
-			lodLevel: number;
-		},
-		crc: ReturnType<typeof Object.assign>,
-		rt: ReturnType<typeof Object.assign>,
-	) {
-		const { pixiNodes } = ctx;
+	private _renderNormalZoom(g: CanvasGraphics, ctx: NormalZoomCtx, crc: ReturnType<typeof Object.assign>, rt: ReturnType<typeof Object.assign>) {
 		const displayMode = this.host.getNodeDisplayMode();
-		const autoLOD = rt.autoLOD;
 
-		// Clean up stale card text when NOT in table card mode
 		if (displayMode !== "card" || (this.host.getCardDisplayConfig().headerStyle ?? "plain") !== "table") {
-			this._cleanupCardTextAll(pixiNodes);
+			this._cleanupCardTextAll(ctx.pixiNodes);
 		}
 
-		// Auto-LOD: override display mode based on lodLevel
-		if (autoLOD && displayMode === "node") {
-			if (ctx.lodLevel >= 5) {
-				// LOD 5: full card mode
-				this._renderCardMode(g, ctx, crc, rt);
-			} else if (ctx.lodLevel >= 4) {
-				// LOD 4: compact card background + node rendering
-				this._renderNodeModeAutoLOD(g, ctx, crc, rt);
-			} else if (this.host.getSemanticZoom?.()) {
-				this._renderSemanticZoomMode(g, ctx, crc, rt);
-			} else {
-				this._renderNodeMode(g, ctx, crc, rt);
-			}
+		if (rt.autoLOD && displayMode === "node") {
+			this._renderAutoLODNode(g, ctx, crc, rt);
 			return;
 		}
 
 		switch (displayMode) {
 			case "node":
-				if (this.host.getSemanticZoom?.()) {
-					this._renderSemanticZoomMode(g, ctx, crc, rt);
-				} else {
-					this._renderNodeMode(g, ctx, crc, rt);
-				}
+				this._renderNodeOrSemantic(g, ctx, crc, rt);
 				break;
-			case "card": {
-				// IC: Tiered density fallback to prevent card overlap at various zoom/density
-				// LOD < 3: always circles (extreme zoom)
-				// LOD 3 + >150 visible: circles (dense mid-zoom)
-				// LOD 4 + >500 visible: node mode with labels (high density)
-				// LOD 4/5 + <=500 or LOD 5: full cards
-				const cardDensityThreshold = rt.cardDensityFallbackCount;
-				const cardDensityThresholdHigh = rt.cardDensityFallbackCountHigh;
-				if (ctx.lodLevel < 3 || (ctx.lodLevel === 3 && ctx.visible.length > cardDensityThreshold)) {
-					this._renderNodeMode(g, ctx, crc, rt);
-				} else if (ctx.lodLevel === 4 && ctx.visible.length > cardDensityThresholdHigh) {
-					this._renderNodeMode(g, ctx, crc, rt);
-				} else {
-					this._renderCardMode(g, ctx, crc, rt);
-				}
+			case "card":
+				this._renderCardWithDensityFallback(g, ctx, crc, rt);
 				break;
-			}
 			case "donut":
 				this._renderDonutMode(g, ctx, crc);
 				break;
 			case "sunburst-segment":
 				this._renderSunburstSegmentMode(g, ctx, crc);
 				break;
+		}
+	}
+
+	/** Auto-LOD node rendering: selects card/compact/semantic/node based on lodLevel. */
+	private _renderAutoLODNode(g: CanvasGraphics, ctx: NormalZoomCtx, crc: ReturnType<typeof Object.assign>, rt: ReturnType<typeof Object.assign>) {
+		if (ctx.lodLevel >= 5) {
+			this._renderCardMode(g, ctx, crc, rt);
+		} else if (ctx.lodLevel >= 4) {
+			this._renderNodeModeAutoLOD(g, ctx, crc, rt);
+		} else {
+			this._renderNodeOrSemantic(g, ctx, crc, rt);
+		}
+	}
+
+	/** Delegates to semantic zoom or standard node rendering. */
+	private _renderNodeOrSemantic(g: CanvasGraphics, ctx: NormalZoomCtx, crc: ReturnType<typeof Object.assign>, rt: ReturnType<typeof Object.assign>) {
+		if (this.host.getSemanticZoom?.()) {
+			this._renderSemanticZoomMode(g, ctx, crc, rt);
+		} else {
+			this._renderNodeMode(g, ctx, crc, rt);
+		}
+	}
+
+	/** Card mode with tiered density fallback to prevent overlap at low zoom/high density. */
+	private _renderCardWithDensityFallback(g: CanvasGraphics, ctx: NormalZoomCtx, crc: ReturnType<typeof Object.assign>, rt: ReturnType<typeof Object.assign>) {
+		const tLow = rt.cardDensityFallbackCount;
+		const tHigh = rt.cardDensityFallbackCountHigh;
+		if (ctx.lodLevel < 3 || (ctx.lodLevel === 3 && ctx.visible.length > tLow) || (ctx.lodLevel === 4 && ctx.visible.length > tHigh)) {
+			this._renderNodeMode(g, ctx, crc, rt);
+		} else {
+			this._renderCardMode(g, ctx, crc, rt);
 		}
 	}
 
