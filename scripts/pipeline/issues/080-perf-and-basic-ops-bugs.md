@@ -1,7 +1,7 @@
 ---
 priority: critical
 reported: 2026-04-11
-status: pending
+status: decomposed
 summary: パフォーマンスが重く基本操作にバグが多い — E2Eテストで検出・修正せよ
 ---
 
