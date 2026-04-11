@@ -1,7 +1,7 @@
 ---
 priority: high
 reported: 2026-04-11
-status: in-progress
+status: done
 source: decomposed
 parent: 080-perf-and-basic-ops-bugs
 depends: subtask-3
