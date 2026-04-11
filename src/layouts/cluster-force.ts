@@ -2099,6 +2099,49 @@ function layoutGroupsCircle(
 	}
 }
 
+/** Pack as many groups as fit onto one concentric ring, returning the consumed keys. */
+function fillConcentricRing(
+	keys: string[],
+	startIdx: number,
+	ringRadius: number,
+	groupRadii: Map<string, number>,
+	groupSpacing: number,
+): { ringGroups: string[]; nextIdx: number } {
+	const circumference = 2 * Math.PI * ringRadius;
+	const ringGroups: string[] = [];
+	let totalDiam = 0;
+	let idx = startIdx;
+
+	while (idx < keys.length) {
+		const r = groupRadii.get(keys[idx]) ?? 0;
+		const prevOnRing = ringGroups.length > 0 ? (groupRadii.get(ringGroups[ringGroups.length - 1]) ?? 0) : r;
+		const diam = r + prevOnRing + pairwiseGap(r, prevOnRing, groupSpacing);
+		if (ringGroups.length > 0 && totalDiam + diam > circumference) break;
+		ringGroups.push(keys[idx]);
+		totalDiam += diam;
+		idx++;
+	}
+
+	return { ringGroups, nextIdx: idx };
+}
+
+/** Evenly distribute groups around a ring at the given radius. */
+function placeRingGroups(
+	ringGroups: string[],
+	ringRadius: number,
+	centerX: number,
+	centerY: number,
+	out: Map<string, { x: number; y: number }>,
+): void {
+	for (let j = 0; j < ringGroups.length; j++) {
+		const angle = (j / ringGroups.length) * Math.PI * 2 - Math.PI / 2;
+		out.set(ringGroups[j], {
+			x: centerX + ringRadius * Math.cos(angle),
+			y: centerY + ringRadius * Math.sin(angle),
+		});
+	}
+}
+
 /**
  * Place groups on concentric rings around the canvas center.
  * The first key goes to the center; remaining groups are distributed
@@ -2145,36 +2188,16 @@ function layoutGroupsConcentric(
 	if (keys.length === 1) return;
 
 	// Step 4-5: Distribute remaining groups across concentric rings
-	// using pairwise max-reference for inter-group distance
 	const centerR = groupRadii.get(keys[0]) ?? 0;
 	let ringRadius = centerR + pairwiseGap(centerR, groupRadii.get(keys[1]) ?? 0, cfg.groupSpacing);
 	let idx = 1;
 
 	while (idx < keys.length) {
-		const circumference = 2 * Math.PI * ringRadius;
-		const ringGroups: string[] = [];
-		let totalDiam = 0;
+		const { ringGroups, nextIdx } = fillConcentricRing(keys, idx, ringRadius, groupRadii, cfg.groupSpacing);
+		idx = nextIdx;
 
-		while (idx < keys.length) {
-			const r = groupRadii.get(keys[idx]) ?? 0;
-			// Pairwise gap with previous group on ring (or first on ring)
-			const prevOnRing = ringGroups.length > 0 ? (groupRadii.get(ringGroups[ringGroups.length - 1]) ?? 0) : r;
-			const diam = r + prevOnRing + pairwiseGap(r, prevOnRing, cfg.groupSpacing);
-			if (ringGroups.length > 0 && totalDiam + diam > circumference) break;
-			ringGroups.push(keys[idx]);
-			totalDiam += diam;
-			idx++;
-		}
+		placeRingGroups(ringGroups, ringRadius, cfg.centerX, cfg.centerY, out);
 
-		for (let j = 0; j < ringGroups.length; j++) {
-			const angle = (j / ringGroups.length) * Math.PI * 2 - Math.PI / 2;
-			out.set(ringGroups[j], {
-				x: cfg.centerX + ringRadius * Math.cos(angle),
-				y: cfg.centerY + ringRadius * Math.sin(angle),
-			});
-		}
-
-		// Next ring: gap references max of current ring vs next group
 		const ringMaxR = Math.max(...ringGroups.map((k) => groupRadii.get(k) ?? 0));
 		const nextR = idx < keys.length ? (groupRadii.get(keys[idx]) ?? 0) : ringMaxR;
 		ringRadius += ringMaxR + pairwiseGap(ringMaxR, nextR, cfg.groupSpacing) + nextR;
