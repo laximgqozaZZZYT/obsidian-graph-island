@@ -171,9 +171,8 @@ export interface IApp {
 	onPreFlush: ((ctx: CanvasRenderingContext2D, dpr: number) => void) | null;
 	onPostFlush: ((ctx: CanvasRenderingContext2D, dpr: number) => void) | null;
 
-	/** Whether the backend supports GPU-accelerated animations.
-	 *  Canvas2D returns false; WebGL returns true.
-	 *  Consumers should skip heavy animations when false. */
+	/** Whether the backend supports rAF-based animations (zoom easing,
+	 *  layout transitions, pan, focus zoom). Both backends return true. */
 	readonly supportsAnimation: boolean;
 
 	/** Create a graphics object appropriate for this backend.

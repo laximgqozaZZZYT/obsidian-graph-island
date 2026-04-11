@@ -249,6 +249,10 @@ const LASSO_STROKE_ALPHA = 0.9;
 const LASSO_FILL_ALPHA = 0.06;
 /** Minimum lasso points to form a polygon */
 const LASSO_MIN_POINTS = 5;
+/** Smooth zoom lerp factor per frame (0–1; higher = snappier) */
+const SMOOTH_ZOOM_LERP = 0.25;
+/** Smooth zoom convergence threshold — stop animating below this */
+const SMOOTH_ZOOM_EPSILON = 0.001;
 
 // ---------------------------------------------------------------------------
 // InteractionManager — owns all pointer/wheel event handling
@@ -298,6 +302,12 @@ export class InteractionManager {
 	// Debounced label cull (expensive overlap detection) during rapid zoom
 	private _zoomCullTimer = 0;
 
+	// Smooth zoom interpolation state
+	private _targetScale = 1;
+	private _smoothZoomId = 0;
+	private _smoothZoomCursorX = 0;
+	private _smoothZoomCursorY = 0;
+
 	// Hover preview: track last hovered node to avoid redundant hover-link events
 	private lastHoveredId: string | null = null;
 
@@ -314,6 +324,7 @@ export class InteractionManager {
 		this.host = host;
 		this.canvas = canvas;
 		this.world = world;
+		this._targetScale = world.scale.x;
 
 		this._onWheel = this.handleWheel.bind(this);
 		this._onPointerDown = this.handlePointerDown.bind(this);
@@ -337,6 +348,8 @@ export class InteractionManager {
 
 	/** Remove all event listeners and clean up PIXI resources */
 	detach() {
+		cancelAnimationFrame(this._smoothZoomId);
+		this._smoothZoomId = 0;
 		clearTimeout(this._zoomLayoutTimer);
 		clearTimeout(this._zoomCullTimer);
 		this.canvas.removeEventListener("wheel", this._onWheel);
@@ -367,34 +380,54 @@ export class InteractionManager {
 		e.preventDefault();
 		const app = this.host.getPixiApp();
 		if (!app) return;
-		const world = this.world;
 
-		// IL: Apply user-configurable zoom sensitivity (0.5x–2.0x, default 1.0)
 		const sens = this.host.getZoomSensitivity?.() ?? 1.0;
 		const scaleFactor = computeZoomFactor(e.deltaY, sens);
 		const rect = this.canvas.getBoundingClientRect();
-		const mx = e.clientX - rect.left;
-		const my = e.clientY - rect.top;
+		this._smoothZoomCursorX = e.clientX - rect.left;
+		this._smoothZoomCursorY = e.clientY - rect.top;
 
+		this._targetScale = clampScale(this._targetScale * scaleFactor);
+
+		if (!this._smoothZoomId) {
+			this._smoothZoomId = requestAnimationFrame(() => this.smoothZoomTick());
+		}
+	}
+
+	private smoothZoomTick() {
+		this._smoothZoomId = 0;
+		const app = this.host.getPixiApp();
+		if (!app) return;
+		const world = this.world;
+
+		const current = world.scale.x;
+		const diff = this._targetScale - current;
+		if (Math.abs(diff) < SMOOTH_ZOOM_EPSILON) {
+			world.scale.set(this._targetScale);
+			this.afterZoomStep(this._targetScale);
+			return;
+		}
+
+		const next = clampScale(current + diff * SMOOTH_ZOOM_LERP);
+		const mx = this._smoothZoomCursorX;
+		const my = this._smoothZoomCursorY;
 		const worldPos = world.toLocal({ x: mx, y: my }, app.stage);
-		world.scale.x *= scaleFactor;
-		world.scale.y *= scaleFactor;
-		// Clamp scale
-		const s = clampScale(world.scale.x);
-		world.scale.set(s);
+		world.scale.set(next);
 		const newScreenPos = world.toGlobal(worldPos);
 		world.x += mx - newScreenPos.x;
 		world.y += my - newScreenPos.y;
 
+		this.afterZoomStep(next);
+		this._smoothZoomId = requestAnimationFrame(() => this.smoothZoomTick());
+	}
+
+	private afterZoomStep(s: number) {
 		this.host.markDirty();
-		// Expensive overlap cull — debounced to fire once after rapid zoom ends
 		clearTimeout(this._zoomCullTimer);
 		this._zoomCullTimer = window.setTimeout(() => {
 			this.host.updateLabelsForZoom?.();
 		}, 50) as unknown as number;
-		// Update zoom percentage indicator
 		this.host.updateZoomIndicator?.(s);
-		// Debounced layout recalculation — skip if zoom delta is below threshold
 		const zoomDelta = Math.abs(s - this._lastLayoutZoom) / (this._lastLayoutZoom || 1);
 		if (zoomDelta >= ZOOM_LAYOUT_DELTA_THRESHOLD) {
 			clearTimeout(this._zoomLayoutTimer);
