@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-11
-status: pending
+status: in-progress
 source: decomposed
 parent: 093-perf-animation-smoothness
 depends: none
