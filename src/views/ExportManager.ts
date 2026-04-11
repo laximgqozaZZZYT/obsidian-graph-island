@@ -80,8 +80,8 @@ export function exportSubgraph(host: ExportHost, nodeId: string): void {
 
 	// Toast notification
 	const msg = t("toast.subgraphExported")
-		.replace("{nodes}", String(sub.nodes.length))
-		.replace("{edges}", String(sub.edges.length));
+		.replace(/{nodes}/g, String(sub.nodes.length))
+		.replace(/{edges}/g, String(sub.edges.length));
 	new Notice(msg, TOAST_MEDIUM_MS);
 }
 
@@ -108,7 +108,7 @@ export function exportFullGraph(host: ExportHost): void {
 	const gd = host.getGraphData();
 	const json = exportFullGraphJSON(gd.nodes, gd.edges);
 	downloadFile(json, "application/json", `graph-island-export-${new Date().toISOString().slice(0, 10)}.json`);
-	new Notice(t("export.graphDone").replace("{nodes}", String(gd.nodes.length)).replace("{edges}", String(gd.edges.length)), TOAST_MEDIUM_MS);
+	new Notice(t("export.graphDone").replace(/{nodes}/g, String(gd.nodes.length)).replace(/{edges}/g, String(gd.edges.length)), TOAST_MEDIUM_MS);
 }
 
 /** Export graph as CSV download. */
@@ -116,7 +116,7 @@ export function exportGraphAsCSV(host: ExportHost): void {
 	const gd = host.getGraphData();
 	const csv = exportGraphCSV(gd.nodes, gd.edges);
 	downloadFile(csv, "text/csv", `graph-island-${new Date().toISOString().slice(0, 10)}.csv`);
-	new Notice(t("export.csvDone").replace("{nodes}", String(gd.nodes.length)).replace("{edges}", String(gd.edges.length)), TOAST_MEDIUM_MS);
+	new Notice(t("export.csvDone").replace(/{nodes}/g, String(gd.nodes.length)).replace(/{edges}/g, String(gd.edges.length)), TOAST_MEDIUM_MS);
 }
 
 /** Export graph as Mermaid diagram (clipboard or download fallback). */
@@ -126,7 +126,7 @@ export function exportGraphAsMermaid(host: ExportHost): void {
 	navigator.clipboard
 		.writeText(mmd)
 		.then(() => {
-			new Notice(t("export.mermaidDone").replace("{nodes}", String(Math.min(MERMAID_NODE_CAP, gd.nodes.length))), TOAST_MEDIUM_MS);
+			new Notice(t("export.mermaidDone").replace(/{nodes}/g, String(Math.min(MERMAID_NODE_CAP, gd.nodes.length))), TOAST_MEDIUM_MS);
 		})
 		.catch(() => {
 			downloadFile(mmd, "text/plain", `graph-island-${new Date().toISOString().slice(0, 10)}.mmd`);
