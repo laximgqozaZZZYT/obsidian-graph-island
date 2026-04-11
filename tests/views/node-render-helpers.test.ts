@@ -22,6 +22,10 @@ describe("computeZoomNodeBoost", () => {
 });
 
 describe("computeBaseStrokeWidth", () => {
+	it("clamps to maxWidth at worldScale=0 (Infinity guard)", () => {
+		expect(computeBaseStrokeWidth(0, false, DS)).toBe(DS.maxWidth);
+	});
+
 	it("uses maxWidth cap at very low zoom", () => {
 		expect(computeBaseStrokeWidth(0.1, false, DS)).toBeCloseTo(Math.min(20, 6));
 	});
