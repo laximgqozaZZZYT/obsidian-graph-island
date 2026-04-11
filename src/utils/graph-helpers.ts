@@ -912,6 +912,37 @@ export function autoFitVisibleThreshold(nodeCount: number): number {
 	return 0.8 + ((nodeCount - 100) / (2000 - 100)) * (0.95 - 0.8);
 }
 
+function buildAutoFitResult(
+	cx: number,
+	cy: number,
+	scale: number,
+	canvasW: number,
+	canvasH: number,
+): AutoFitResult | null {
+	if (!isFinite(scale) || scale <= 0 || !isFinite(cx) || !isFinite(cy)) return null;
+	return { scale, x: canvasW / 2 - cx * scale, y: canvasH / 2 - cy * scale, cx, cy };
+}
+
+function tryTrimmedAutoFit(
+	nodes: { x: number; y: number; r: number }[],
+	padding: number,
+	maxScale: number,
+	currentScale: number,
+	threshold: number,
+	canvasW: number,
+	canvasH: number,
+): AutoFitResult | null {
+	const trimmed = computeAutoFitBoundsTrimmed(nodes, padding);
+	if (!trimmed || trimmed.inlierCount >= nodes.length) return null;
+	const trimScale = Math.min(canvasW / trimmed.bw, canvasH / trimmed.bh, maxScale);
+	if (!isFinite(trimScale) || trimScale <= currentScale) return null;
+	const trimCx = (trimmed.minX + trimmed.maxX) / 2;
+	const trimCy = (trimmed.minY + trimmed.maxY) / 2;
+	const trimFrac = computeVisibleFraction(nodes, trimCx, trimCy, trimScale, canvasW, canvasH);
+	if (trimFrac < threshold) return null;
+	return buildAutoFitResult(trimCx, trimCy, trimScale, canvasW, canvasH);
+}
+
 /**
  * Compute the transform (scale, x, y) that fits all nodes within the canvas.
  * For large graphs where minScale would clip nodes, the minScale is relaxed
@@ -934,7 +965,6 @@ export function computeAutoFitTransform(input: AutoFitInput): AutoFitResult | nu
 	const naturalScale = Math.min(canvasW / bw, canvasH / bh, maxScale);
 	const threshold = autoFitVisibleThreshold(nodes.length);
 
-	// If minScale would cause clipping, relax it for large graphs
 	let scale = naturalScale;
 	if (configMinScale > 0 && naturalScale < configMinScale) {
 		const cx0 = (minX + maxX) / 2;
@@ -943,40 +973,10 @@ export function computeAutoFitTransform(input: AutoFitInput): AutoFitResult | nu
 		scale = fraction < threshold ? naturalScale : configMinScale;
 	}
 
-	// Try trimmed bounds (outlier exclusion) for skewed distributions.
-	// Prefer trimmed fit when it improves scale while still showing enough nodes.
-	const trimmed = computeAutoFitBoundsTrimmed(nodes, padding);
-	if (trimmed && trimmed.inlierCount < nodes.length) {
-		const trimScale = Math.min(canvasW / trimmed.bw, canvasH / trimmed.bh, maxScale);
-		if (trimScale > scale) {
-			const trimCx = (trimmed.minX + trimmed.maxX) / 2;
-			const trimCy = (trimmed.minY + trimmed.maxY) / 2;
-			const trimFrac = computeVisibleFraction(nodes, trimCx, trimCy, trimScale, canvasW, canvasH);
-			if (trimFrac >= threshold && isFinite(trimScale) && isFinite(trimCx) && isFinite(trimCy)) {
-				return {
-					scale: trimScale,
-					x: canvasW / 2 - trimCx * trimScale,
-					y: canvasH / 2 - trimCy * trimScale,
-					cx: trimCx,
-					cy: trimCy,
-				};
-			}
-		}
-	}
+	const trimResult = tryTrimmedAutoFit(nodes, padding, maxScale, scale, threshold, canvasW, canvasH);
+	if (trimResult) return trimResult;
 
-	if (!isFinite(scale) || scale <= 0) return null;
-
-	const cx = (minX + maxX) / 2;
-	const cy = (minY + maxY) / 2;
-	if (!isFinite(cx) || !isFinite(cy)) return null;
-
-	return {
-		scale,
-		x: canvasW / 2 - cx * scale,
-		y: canvasH / 2 - cy * scale,
-		cx,
-		cy,
-	};
+	return buildAutoFitResult((minX + maxX) / 2, (minY + maxY) / 2, scale, canvasW, canvasH);
 }
 
 /**
