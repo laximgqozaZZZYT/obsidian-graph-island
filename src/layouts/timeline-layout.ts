@@ -781,6 +781,37 @@ export function buildLinkChainOrder(
 	return walkChains(nextMap, hasIncoming);
 }
 
+function findHierarchyRoots(
+	children: Map<string, { id: string; storyOrder: number }[]>,
+	parentMap: Map<string, string>,
+): string[] {
+	const roots: string[] = [];
+	for (const id of children.keys()) {
+		if (!parentMap.has(id)) roots.push(id);
+	}
+	if (roots.length > 0) return roots;
+
+	let maxCount = 0;
+	let bestId = "";
+	for (const [id, ch] of children) {
+		if (ch.length > maxCount) {
+			maxCount = ch.length;
+			bestId = id;
+		}
+	}
+	return bestId ? [bestId] : [];
+}
+
+function toChildrenIdMap(
+	children: Map<string, { id: string; storyOrder: number }[]>,
+): Map<string, string[]> {
+	const out = new Map<string, string[]>();
+	for (const [pid, ch] of children) {
+		out.set(pid, ch.map((c) => c.id));
+	}
+	return out;
+}
+
 /**
  * parent_id + story_order 階層から順序を構築。
  * ツリーを構築し、story_order 順で DFS トラバースを行う。
@@ -818,23 +849,7 @@ export function buildHierarchyOrder(
 		ch.sort((a, b) => a.storyOrder - b.storyOrder);
 	}
 
-	// ルートを検出 (親だが自身は親を持たないノード)
-	const roots: string[] = [];
-	for (const id of children.keys()) {
-		if (!parentMap.has(id)) roots.push(id);
-	}
-	// ルートが見つからない場合、最も子を持つノードを使用
-	if (roots.length === 0) {
-		let maxChildren = 0;
-		let bestId = "";
-		for (const [id, ch] of children) {
-			if (ch.length > maxChildren) {
-				maxChildren = ch.length;
-				bestId = id;
-			}
-		}
-		if (bestId) roots.push(bestId);
-	}
+	const roots = findHierarchyRoots(children, parentMap);
 
 	// DFS トラバース
 	let idx = 0;
@@ -857,16 +872,8 @@ export function buildHierarchyOrder(
 		}
 	}
 
-	// childrenMap を id リストとして構築
-	const childrenMapOut = new Map<string, string[]>();
-	for (const [pid, ch] of children) {
-		childrenMapOut.set(
-			pid,
-			ch.map((c) => c.id),
-		);
-	}
 	order.parentMap = parentMap;
-	order.childrenMap = childrenMapOut;
+	order.childrenMap = toChildrenIdMap(children);
 
 	return order;
 }
