@@ -1,7 +1,7 @@
 ---
 priority: high
 reported: 2026-04-11
-status: in-progress
+status: done
 source: e2e-patrol
 summary: E2E smoke test failure — 4 failed
 ---
