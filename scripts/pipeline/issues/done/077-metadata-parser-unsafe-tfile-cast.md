@@ -1,7 +1,7 @@
 ---
 priority: high
 reported: 2026-04-11
-status: in-progress
+status: done
 source: kaizen
 summary: metadata-parser.ts で getAbstractFileByPath の戻り値を null チェックなしに as TFile キャストしている
 ---
