@@ -1,7 +1,7 @@
 ---
 priority: high
 reported: 2026-04-11
-status: in-progress
+status: done
 source: kaizen
 summary: main.ts のコマンドハンドラが getLeavesOfType 結果を検証なしに GraphViewContainer へキャスト
 ---
