@@ -1,7 +1,7 @@
 ---
 priority: critical
 reported: 2026-04-11
-status: in-progress
+status: done
 source: decomposed
 parent: 093-perf-animation-smoothness
 depends: none
