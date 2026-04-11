@@ -5,8 +5,10 @@
  */
 
 import { cssColorToHex } from "../utils/graph-helpers";
-import { DEFAULT_COLORS, type GroupRule } from "../types";
+import { DEFAULT_COLORS, type GroupRule, type NodeRule } from "../types";
 import { evaluateExpr } from "../utils/query-expr";
+import { matchesFilter } from "../layouts/force";
+import { heatmapColor } from "../views/RenderHelpers";
 import type { GraphNode } from "../types";
 
 /** D3-category-20 palette for community coloring. */
@@ -15,7 +17,7 @@ export const COMMUNITY_PALETTE: readonly number[] = [
 	0xaec7e8, 0xffbb78, 0x98df8a, 0xff9896, 0xc5b0d5, 0xc49c94, 0xf7b6d2, 0xc7c7c7, 0xdbdb8d, 0x9edae5,
 ];
 
-interface NodeColorContext {
+export interface NodeColorContext {
 	groups: GroupRule[];
 	colorMode: string;
 	colorField?: string;
@@ -23,6 +25,9 @@ interface NodeColorContext {
 	colorMap: Map<string, string>;
 	communityMap: Map<string, number> | null;
 	getNodeProperty: (nodeId: string, field: string) => string | undefined;
+	nodeRulesWithColor?: { query: string; color: string }[];
+	degrees?: Map<string, number>;
+	maxDegree?: number;
 }
 
 function resolveGroupColor(node: GraphNode, groups: GroupRule[]): number | null {
@@ -78,9 +83,18 @@ export function computeNodeDisplayColor(
 	ctx: NodeColorContext,
 	defaultColor: number,
 ): number {
+	if (ctx.nodeRulesWithColor) {
+		for (const rule of ctx.nodeRulesWithColor) {
+			if (matchesFilter(node, rule.query)) return cssColorToHex(rule.color);
+		}
+	}
+
 	const groupHit = resolveGroupColor(node, ctx.groups);
 	if (groupHit != null) return groupHit;
 
+	if (ctx.colorMode === "heatmap") {
+		return heatmapColor((ctx.degrees?.get(node.id) ?? 0), ctx.maxDegree ?? 1);
+	}
 	if (ctx.colorMode === "category") return resolveCategoryColor(node, ctx.colorMap) ?? defaultColor;
 	if (ctx.colorMode === "field") return resolveFieldColor(node, ctx) ?? defaultColor;
 	if (ctx.colorMode === "community") return resolveCommunityColor(node.id, ctx.communityMap) ?? defaultColor;
