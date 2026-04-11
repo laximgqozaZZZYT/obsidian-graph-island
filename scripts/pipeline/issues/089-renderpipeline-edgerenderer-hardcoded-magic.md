@@ -1,7 +1,7 @@
 ---
 priority: high
 reported: 2026-04-11
-status: pending
+status: in-progress
 source: kaizen
 summary: RenderPipeline.ts と EdgeRenderer.ts に RenderThresholds を経由しないハードコード数値が20箇所以上ある
 ---
