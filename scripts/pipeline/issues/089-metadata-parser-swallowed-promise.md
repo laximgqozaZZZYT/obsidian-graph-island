@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-11
-status: pending
+status: in-progress
 source: kaizen
 summary: metadata-parser.ts の body preview Promise が空 catch でエラーを握りつぶしている
 ---
