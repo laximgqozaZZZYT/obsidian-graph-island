@@ -1,7 +1,7 @@
 /**
- * Pure-function node color resolution extracted from GraphViewContainer.recolorNodes.
- * Resolves the display color for a single graph node based on group rules, color mode,
- * and community detection — without any DOM or Obsidian API dependency.
+ * Node color resolution extracted from GraphViewContainer.recolorNodes.
+ * No DOM or Obsidian API dependency. Note: resolveFieldColor mutates ctx.colorMap
+ * as a cache side-effect (consistent with the original inline implementation).
  */
 
 import { cssColorToHex } from "../utils/graph-helpers";

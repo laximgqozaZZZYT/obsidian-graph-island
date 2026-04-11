@@ -35,8 +35,6 @@ import {
 	cleanArcName,
 	areSavedPositionsValid,
 	lightenHex,
-	heatmapColor,
-	COMMUNITY_PALETTE,
 } from "../utils/gvc-helpers";
 import {
 	buildGraphFromVault,
@@ -102,7 +100,7 @@ import {
 	type GroupCentroid,
 } from "./group-label-manager";
 import { expandSuperNodeIds } from "../utils/node-grouping";
-import { computeNodeDisplayColor } from "./node-coloring";
+import { computeNodeDisplayColor, type NodeColorContext } from "./node-coloring";
 import {
 	buildPanel as buildPanelUI,
 	type PanelState,
@@ -125,7 +123,6 @@ import { showToast } from "../utils/toast";
 import { drawEnclosures as drawEnclosuresImpl, type OverlapCache, type EnclosureConfig } from "./EnclosureRenderer";
 import type { ClusterMetadata, TimelineRoute } from "../layouts/cluster-force";
 import { analyzeOverlap, computeAutoOptimize, effectiveRadius, nodeRadius } from "../layouts/cluster-force";
-import { matchesFilter } from "../layouts/force";
 import { InteractionManager, type PixiNode, type InteractionHost } from "./InteractionManager";
 import { RenderPipeline, MIN_WORLD_RADIUS_PX, type RenderHost } from "./RenderPipeline";
 import { LayoutController, type LayoutHost } from "./LayoutController";
@@ -7029,61 +7026,22 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		}
 		// COMMUNITY_PALETTE is now a top-level exported constant
 
-		// ノードルールのカラーオーバーライドをプリコンパイル
 		const nodeRulesWithColor = (this.panel.nodeRules ?? []).filter((r) => r.color);
 
-		const baseFn = (n: GraphNode): number => {
-			// NodeRule カラーオーバーライドが最優先
-			for (const rule of nodeRulesWithColor) {
-				if (matchesFilter(n, rule.query)) return cssColorToHex(rule.color!);
-			}
-			// Manual group overrides take priority
-			for (const grp of this.panel.groups) {
-				if (grp.expression && evaluateExpr(grp.expression, n)) return cssColorToHex(grp.color);
-			}
-			// Heatmap mode: color by degree
-			if (colorMode === "heatmap") {
-				return heatmapColor(this.degrees.get(n.id) || 0, maxDegree);
-			}
-			// Community mode: color by Louvain community
-			if (colorMode === "community" && communityMap) {
-				const cid = communityMap.get(n.id) ?? 0;
-				return COMMUNITY_PALETTE[cid % COMMUNITY_PALETTE.length];
-			}
-			// EO: Field-based coloring (initial render path)
-			if (colorMode === "field" && this.panel.nodeColorField) {
-				const fieldVal = this.getNodeProperty(n.id, this.panel.nodeColorField);
-				if (fieldVal !== undefined && fieldVal !== "") {
-					const key = String(fieldVal);
-					if (!colorMap.has(key)) {
-						const customPalette = this.panel.customColorPalette
-							? this.panel.customColorPalette
-									.split(",")
-									.map((s) => s.trim())
-									.filter(Boolean)
-							: [];
-						const palette =
-							customPalette.length > 0 ? customPalette : (DEFAULT_COLORS as unknown as string[]);
-						colorMap.set(key, palette[colorMap.size % palette.length]);
-					}
-					return cssColorToHex(colorMap.get(key)!);
-				}
-				return defaultNodeColor;
-			}
-			if (colorMode !== "category") return defaultNodeColor;
-			// Category-based coloring
-			if (n.category) {
-				const css = colorMap.get(n.category) || DEFAULT_COLORS[0];
-				return cssColorToHex(css);
-			}
-			// Tag-based coloring: tag nodes use their own tag, file nodes use first tag
-			if (n.tags && n.tags.length > 0) {
-				const tagKey = `tag:${n.tags[0]}`;
-				const css = colorMap.get(tagKey) || DEFAULT_COLORS[0];
-				return cssColorToHex(css);
-			}
-			return defaultNodeColor;
+		const ctx: NodeColorContext = {
+			groups: this.panel.groups,
+			colorMode,
+			colorField: this.panel.nodeColorField,
+			customColorPalette: this.panel.customColorPalette,
+			colorMap,
+			communityMap,
+			getNodeProperty: (id: string, field: string) => this.getNodeProperty(id, field),
+			nodeRulesWithColor: nodeRulesWithColor as { query: string; color: string }[],
+			degrees: this.degrees,
+			maxDegree,
 		};
+
+		const baseFn = (n: GraphNode): number => computeNodeDisplayColor(n, ctx, defaultNodeColor);
 
 		// Monochrome fallback: when category/field coloring produces only 1 distinct
 		// color for 5+ nodes, automatically diversify using hash-based coloring.
