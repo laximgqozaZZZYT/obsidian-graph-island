@@ -368,6 +368,48 @@ function resolveGroupOverlaps(
 	}
 }
 
+function pushGroupMembersApart(
+	members: GraphNode[],
+	targets: Map<string, { x: number; y: number }>,
+	effR: (n: GraphNode) => number,
+	labelExt: (n: GraphNode) => number,
+	minGap: number,
+): void {
+	for (let iter = 0; iter < 3; iter++) {
+		let anyPush = false;
+		for (let i = 0; i < members.length; i++) {
+			const ti = targets.get(members[i].id);
+			if (!ti) continue;
+			const ri = effR(members[i]) + labelExt(members[i]);
+
+			for (let j = i + 1; j < members.length; j++) {
+				const tj = targets.get(members[j].id);
+				if (!tj) continue;
+				const rj = effR(members[j]) + labelExt(members[j]);
+
+				const dx = tj.x - ti.x;
+				const dy = tj.y - ti.y;
+				const dist = magnitude(dx, dy);
+				const required = ri + rj + minGap;
+
+				if (dist >= required) continue;
+				anyPush = true;
+
+				const overlap = required - dist;
+				const nx = dist > 0.01 ? dx / dist : 1;
+				const ny = dist > 0.01 ? dy / dist : 0;
+				const half = overlap / 2;
+
+				ti.x -= nx * half;
+				ti.y -= ny * half;
+				tj.x += nx * half;
+				tj.y += ny * half;
+			}
+		}
+		if (!anyPush) break;
+	}
+}
+
 /**
  * Post-expression minimum gap correction.
  * For each group, find node pairs closer than minGap and push them apart.
@@ -387,7 +429,6 @@ function resolveIntraGroupGaps(
 ): void {
 	if (minGap <= 0) return;
 
-	// Pre-compute max degree across all nodes for label extent estimation
 	let maxDeg = 0;
 	if (labelSpacingFactor > 0) {
 		for (const d of degrees.values()) {
@@ -403,40 +444,7 @@ function resolveIntraGroupGaps(
 
 	for (const [, members] of groups) {
 		if (members.length < 2) continue;
-
-		for (let iter = 0; iter < 3; iter++) {
-			let anyPush = false;
-			for (let i = 0; i < members.length; i++) {
-				const ti = targets.get(members[i].id);
-				if (!ti) continue;
-				const ri = effR(members[i]) + labelExt(members[i]);
-
-				for (let j = i + 1; j < members.length; j++) {
-					const tj = targets.get(members[j].id);
-					if (!tj) continue;
-					const rj = effR(members[j]) + labelExt(members[j]);
-
-					const dx = tj.x - ti.x;
-					const dy = tj.y - ti.y;
-					const dist = magnitude(dx, dy);
-					const required = ri + rj + minGap;
-
-					if (dist >= required) continue;
-					anyPush = true;
-
-					const overlap = required - dist;
-					const nx = dist > 0.01 ? dx / dist : 1;
-					const ny = dist > 0.01 ? dy / dist : 0;
-					const half = overlap / 2;
-
-					ti.x -= nx * half;
-					ti.y -= ny * half;
-					tj.x += nx * half;
-					tj.y += ny * half;
-				}
-			}
-			if (!anyPush) break;
-		}
+		pushGroupMembersApart(members, targets, effR, labelExt, minGap);
 	}
 }
 
