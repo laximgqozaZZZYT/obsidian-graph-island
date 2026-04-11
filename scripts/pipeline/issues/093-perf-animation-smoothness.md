@@ -1,7 +1,7 @@
 ---
 priority: critical
 reported: 2026-04-11
-status: pending
+status: decomposed
 summary: 動作が重くアニメーションが効いていない — コアプラグイン並のなめらかさを実現せよ
 ---
 
