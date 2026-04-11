@@ -1,7 +1,7 @@
 ---
 priority: high
 reported: 2026-04-11
-status: in-progress
+status: done
 source: kaizen
 summary: zoomToScreenRect 等で pixiApp! を null チェックなしに使用し、view 破棄中にクラッシュする
 ---
