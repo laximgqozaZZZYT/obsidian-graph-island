@@ -223,6 +223,16 @@ describe("computeCablePath", () => {
     expect(p.length).toBeGreaterThan(2);
   });
 
+  it("near-coincident endpoints produce finite fallback coordinates", () => {
+    const from = { x: 100, y: 200 };
+    const to = { x: 100, y: 200 };
+    const p = computeCablePath(from, to, 10);
+    for (const pt of p) {
+      expect(Number.isFinite(pt.x)).toBe(true);
+      expect(Number.isFinite(pt.y)).toBe(true);
+    }
+  });
+
   it("fallback produces 3 points with perpendicular offset", () => {
     const p = computeCablePath({ x: 0, y: 0 }, { x: 100, y: 0 }, 20);
     expect(p).toHaveLength(3);
