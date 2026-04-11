@@ -789,11 +789,11 @@ export function toCartesian(
 
 function computeCentroidShift(
 	system: CoordinateSystem,
-	offsets: Map<string, { dx: number; dy: number }>,
+	hasOffsets: boolean,
 	axis1: Map<string, number>,
 	axis2: Map<string, number>,
 ): { shift1: number; shift2: number } {
-	if (system !== "cartesian" || offsets.size === 0) return { shift1: 0, shift2: 0 };
+	if (system !== "cartesian" || !hasOffsets) return { shift1: 0, shift2: 0 };
 	let sum1 = 0,
 		sum2 = 0,
 		count = 0;
@@ -838,7 +838,7 @@ function resolveCoordinateGrid(
 
 	const { shift1: centroidShift1, shift2: centroidShift2 } = computeCentroidShift(
 		layout.system,
-		offsets,
+		offsets.size > 0,
 		finalT1,
 		t2,
 	);
