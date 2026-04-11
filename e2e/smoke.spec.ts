@@ -75,7 +75,7 @@ async function reset(): Promise<number> {
     showAttachments: true,
     existingOnly: false,
     groupBy: "none",
-    clusterArrangement: "force",
+    clusterArrangement: "inherit",
     viewMode: "graph",
   });
 }
@@ -107,8 +107,8 @@ test.describe("2-Settings", () => {
     expect(count).toBeGreaterThan(0);
   });
 
-  test("force layout restores", async () => {
-    const count = await renderAndCount({ clusterArrangement: "force" });
+  test("inherit layout restores", async () => {
+    const count = await renderAndCount({ clusterArrangement: "inherit" });
     expect(count).toBeGreaterThan(0);
   });
 
