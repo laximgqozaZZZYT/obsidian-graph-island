@@ -135,7 +135,10 @@ function attachBodyPreview(node: GraphNode, app: App, file: TFile, contentCache:
 				node.bodyPreview = info.preview;
 				node.bodyLength = info.length;
 			})
-			.catch(() => {});
+			.catch(() => {
+				node.bodyPreview = "";
+				node.bodyLength = 0;
+			});
 	}
 }
 

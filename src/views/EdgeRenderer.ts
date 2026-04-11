@@ -2315,14 +2315,14 @@ function _drawNonCabledEdge(
 	densityScale: number, pairCount: Map<string, number> | null,
 	bundles: Map<string, BundleGroup> | null, bundleStrength: number,
 	ws: number, arrowGfx?: CanvasGraphics | null, cache: EdgeRenderCache = _cache,
-	alphaMul = 1, widthOff = 0,
+	alphaMul = 1, widthOff = 0, skipDesaturate = false,
 ): void {
 	let lineColor = resolveEdgeColor(e, useRelColor, cfg.relationColors, cfg.isDark);
 	const { alpha: _alpha, lineThick: _lineThick, isHighlighted: edgeHL } = resolveEdgeStyle(e, src, tgt, cfg, densityScale, pairCount);
 	let alpha = _alpha;
 	let lineThick = _lineThick;
 
-	if (!edgeHL) lineColor = desaturateAtZoom(lineColor, ws, cfg.isDark);
+	if (!edgeHL && !skipDesaturate) lineColor = desaturateAtZoom(lineColor, ws, cfg.isDark);
 	if (edgeHL) lineColor = brightenColor(lineColor, 60);
 
 	if (cfg.showOntologyBackbone && e.type === EDGE_TYPE_INHERITANCE) {
@@ -2428,7 +2428,7 @@ function _drawEdgesLayered(
 				continue;
 			}
 
-			_drawNonCabledEdge(g, e, src, tgt, cfg, useRelColor, isArcLayout, densityScale, pairCount, bundles, bundleStrength, ws, arrowGfx, cache, alphaMul, widthOff);
+			_drawNonCabledEdge(g, e, src, tgt, cfg, useRelColor, isArcLayout, densityScale, pairCount, bundles, bundleStrength, ws, arrowGfx, cache, alphaMul, widthOff, true);
 		}
 	}
 }
