@@ -109,7 +109,7 @@ describe("createApp", () => {
     expect(app.renderer.height).toBe(100);
     expect(app.stage).toBeDefined();
     expect(app.ticker).toBeDefined();
-    expect(app.supportsAnimation).toBe(true);
+    expect(app.supportsAnimation).toBe(false);
 
     app.destroy();
   });

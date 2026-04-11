@@ -143,6 +143,16 @@ describe("InteractionManager", () => {
   let interactionManager: InteractionManager | null = null;
 
   beforeEach(() => {
+    // Ensure rAF globals exist in test env
+    if (typeof globalThis.requestAnimationFrame === "undefined") {
+      (globalThis as any).requestAnimationFrame = (cb: FrameRequestCallback) =>
+        setTimeout(cb, 0) as unknown as number;
+    }
+    if (typeof globalThis.cancelAnimationFrame === "undefined") {
+      (globalThis as any).cancelAnimationFrame = (id: number) =>
+        clearTimeout(id);
+    }
+
     // Create mock canvas (mock document if needed)
     const mockDoc = (globalThis as any).document || {
       createElement: vi.fn((tag: string) => {
@@ -787,17 +797,22 @@ describe("InteractionManager event handlers", () => {
   });
 
   it("handleWheel with negative deltaY should zoom in", () => {
+    mockWorld.scale.set = vi.fn((v: number) => { mockWorld.scale.x = v; mockWorld.scale.y = v; });
     interactionManager = new InteractionManager(mockHost, canvas, mockWorld);
     const wheelEvent = { deltaY: -100, clientX: 400, clientY: 300, preventDefault: vi.fn() } as any;
     (interactionManager as any).handleWheel(wheelEvent);
+    // Smooth zoom defers work to rAF — manually run the tick
+    (interactionManager as any).smoothZoomTick();
     expect(mockHost.markDirty).toHaveBeenCalled();
     expect(mockHost.updateZoomIndicator).toHaveBeenCalled();
   });
 
   it("handleWheel with positive deltaY should zoom out", () => {
+    mockWorld.scale.set = vi.fn((v: number) => { mockWorld.scale.x = v; mockWorld.scale.y = v; });
     interactionManager = new InteractionManager(mockHost, canvas, mockWorld);
     const wheelEvent = { deltaY: 100, clientX: 400, clientY: 300, preventDefault: vi.fn() } as any;
     (interactionManager as any).handleWheel(wheelEvent);
+    (interactionManager as any).smoothZoomTick();
     expect(mockWorld.scale.set).toHaveBeenCalled();
   });
 
