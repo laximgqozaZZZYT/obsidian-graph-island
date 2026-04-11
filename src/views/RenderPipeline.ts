@@ -2066,13 +2066,6 @@ export class RenderPipeline {
 
 		const maxRadii = rt.labelForceShowMaxRadii ?? 5;
 
-		// Draw leader line for force-show displaced labels (AP-6 fix)
-		const drawForceShowLeader = (r: CullLabelRect, origLx: number, origLy: number) => {
-			if (!drawLeader) return;
-			if (Math.abs(r.label.x - origLx) < 0.1 && Math.abs(r.label.y - origLy) < 0.1) return;
-			this._drawLeaderLine(r.pn, r, zoom, llWidth, llAlpha);
-		};
-
 		// Phase 1: guarantee minNonSuper non-super labels (AP-5)
 		let nonSuperCount = placedNonSuperNow;
 		for (const r of hiddenRegulars) {
@@ -2080,11 +2073,8 @@ export class RenderPipeline {
 			const origLx = r.label.x;
 			const origLy = r.label.y;
 			if (this._tryDisplaceForceShow(r, grid, margin, zoom, maxRadii)) {
-				r.label.visible = true;
-				placed.push(r);
-				grid.insert(r);
+				this._showLabelWithLeader(r, placed, grid, origLx, origLy, drawLeader, zoom, llWidth, llAlpha);
 				nonSuperCount++;
-				drawForceShowLeader(r, origLx, origLy);
 			}
 		}
 
@@ -2192,6 +2182,25 @@ export class RenderPipeline {
 		return false;
 	}
 
+	private _showLabelWithLeader(
+		r: CullLabelRect,
+		placed: CullLabelRect[],
+		grid: SpatialHashGrid<CullLabelRect>,
+		origLx: number,
+		origLy: number,
+		drawLeader: boolean,
+		zoom: number,
+		llWidth: number,
+		llAlpha: number,
+	): void {
+		r.label.visible = true;
+		placed.push(r);
+		grid.insert(r);
+		if (drawLeader && (Math.abs(r.label.x - origLx) >= 0.1 || Math.abs(r.label.y - origLy) >= 0.1)) {
+			this._drawLeaderLine(r.pn, r, zoom, llWidth, llAlpha);
+		}
+	}
+
 	/**
 	 * AP-5 super-node concession: hide lowest-degree super labels
 	 * and replace them with regular labels to improve label diversity.
@@ -2246,15 +2255,9 @@ export class RenderPipeline {
 			const origLx = reg.label.x;
 			const origLy = reg.label.y;
 			if (this._tryDisplaceForceShow(reg, grid, margin, zoom, maxRadii)) {
-				reg.label.visible = true;
-				placed.push(reg);
-				grid.insert(reg);
+				this._showLabelWithLeader(reg, placed, grid, origLx, origLy, drawLeader, zoom, llWidth, llAlpha);
 				nonSuperCount++;
-				if (drawLeader && (Math.abs(reg.label.x - origLx) >= 0.1 || Math.abs(reg.label.y - origLy) >= 0.1)) {
-					this._drawLeaderLine(reg.pn, reg, zoom, llWidth, llAlpha);
-				}
 			} else {
-				// Fallback: place at super's world position with leader line — but only if it doesn't overlap
 				const wdx = zoom > 0 ? (supScreenX - reg.pn.data.x * zoom) / zoom : 0;
 				const wdy = zoom > 0 ? (supScreenY - reg.pn.data.y * zoom) / zoom : 0;
 				reg.label.x = wdx;
@@ -2263,18 +2266,9 @@ export class RenderPipeline {
 				reg.y = supScreenY;
 				const testRect: CullLabelRect = { ...reg, x: supScreenX, y: supScreenY };
 				if (!grid.checkOverlap(testRect)) {
-					reg.label.visible = true;
-					placed.push(reg);
-					grid.insert(reg);
+					this._showLabelWithLeader(reg, placed, grid, origLx, origLy, drawLeader, zoom, llWidth, llAlpha);
 					nonSuperCount++;
-					if (
-						drawLeader &&
-						(Math.abs(reg.label.x - origLx) >= 0.1 || Math.abs(reg.label.y - origLy) >= 0.1)
-					) {
-						this._drawLeaderLine(reg.pn, reg, zoom, llWidth, llAlpha);
-					}
 				} else {
-					// Cannot place without overlap — restore super label instead
 					sup.label.visible = true;
 					placed.push(sup);
 					sacrificed--;
@@ -2307,13 +2301,8 @@ export class RenderPipeline {
 			const origLx = r.label.x;
 			const origLy = r.label.y;
 			if (this._tryDisplaceForceShow(r, grid, margin, zoom, maxRadii)) {
-				r.label.visible = true;
-				placed.push(r);
-				grid.insert(r);
+				this._showLabelWithLeader(r, placed, grid, origLx, origLy, drawLeader, zoom, llWidth, llAlpha);
 				totalCount++;
-				if (drawLeader && (Math.abs(r.label.x - origLx) >= 0.1 || Math.abs(r.label.y - origLy) >= 0.1)) {
-					this._drawLeaderLine(r.pn, r, zoom, llWidth, llAlpha);
-				}
 			}
 		}
 	}
