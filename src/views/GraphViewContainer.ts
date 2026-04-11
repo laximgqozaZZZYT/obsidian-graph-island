@@ -35,8 +35,6 @@ import {
 	cleanArcName,
 	areSavedPositionsValid,
 	lightenHex,
-	heatmapColor,
-	COMMUNITY_PALETTE,
 } from "../utils/gvc-helpers";
 import {
 	buildGraphFromVault,
@@ -125,7 +123,6 @@ import { showToast } from "../utils/toast";
 import { drawEnclosures as drawEnclosuresImpl, type OverlapCache, type EnclosureConfig } from "./EnclosureRenderer";
 import type { ClusterMetadata, TimelineRoute } from "../layouts/cluster-force";
 import { analyzeOverlap, computeAutoOptimize, effectiveRadius, nodeRadius } from "../layouts/cluster-force";
-import { matchesFilter } from "../layouts/force";
 import { InteractionManager, type PixiNode, type InteractionHost } from "./InteractionManager";
 import { RenderPipeline, MIN_WORLD_RADIUS_PX, type RenderHost } from "./RenderPipeline";
 import { LayoutController, type LayoutHost } from "./LayoutController";
