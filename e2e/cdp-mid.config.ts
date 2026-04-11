@@ -2,9 +2,9 @@ import { defineConfig } from "@playwright/test";
 
 /**
  * Mid-tier test suite — 16 files covering all major feature areas.
- * Use for thorough validation without running the full 231-file suite.
- * Smoke (8 files): use cdp-smoke.config.ts
- * Full (231 files): use cdp-e2e.config.ts
+ * Run: pnpm test:e2e:mid
+ * Smoke (1 file):     pnpm test:e2e:smoke
+ * Full (all files):   pnpm test:e2e:full
  */
 export default defineConfig({
   testDir: "./",
