@@ -195,28 +195,17 @@ export class LabelManager {
 		// Sort by priority and assign minShowZoom based on rank
 		const sorted = [...pixiArr].filter((p) => p.label).sort((a, b) => b.priorityScore - a.priorityScore);
 		const n = sorted.length;
-		// LOD tiers — all boundaries from RenderThresholds (no hardcoded values)
-		const lodZoom1 = rt.labelZoomTier1 ?? 0.01;
-		const lodZoom2 = rt.labelZoomTier2 ?? 0.02;
-		const lodZoom3 = rt.labelZoomTier3 ?? 0.03;
-		const lodPct1 = rt.labelDegreePctTier1 ?? 0.03;
-		const lodPct2 = rt.labelDegreePctTier2 ?? 0.1;
-		const lodPct3 = rt.labelDegreePctTier3 ?? 0.3;
-		// Interpolation: rank percentile -> minShowZoom
-		const lodZoomFloor = rt.nodeLabelZoomMin ?? 0.9;
+		const tiers: LodTierConfig = {
+			zoomTier1: rt.labelZoomTier1 ?? 0.01,
+			zoomTier2: rt.labelZoomTier2 ?? 0.02,
+			zoomTier3: rt.labelZoomTier3 ?? 0.03,
+			pctTier1: rt.labelDegreePctTier1 ?? 0.03,
+			pctTier2: rt.labelDegreePctTier2 ?? 0.1,
+			pctTier3: rt.labelDegreePctTier3 ?? 0.3,
+			zoomFloor: rt.nodeLabelZoomMin ?? 0.9,
+		};
 		for (let i = 0; i < n; i++) {
-			const pct = i / n; // 0 = highest priority, 1 = lowest
-			let minZ: number;
-			if (pct < lodPct1 * 0.1)
-				minZ = lodZoom1 * 0.2; // top ~1%: near-always visible
-			else if (pct < lodPct1)
-				minZ = lodZoom1; // top tier1%
-			else if (pct < lodPct2)
-				minZ = lodZoom2; // top tier2%
-			else if (pct < lodPct3)
-				minZ = lodZoom3; // top tier3%
-			else minZ = lodZoomFloor; // rest
-			sorted[i].minShowZoom = minZ;
+			sorted[i].minShowZoom = computeMinShowZoom(i / n, tiers);
 		}
 	}
 
@@ -757,4 +746,22 @@ export function selectLabelMode(
 	if (zoom < initialsZoom) return "initials";
 	if (zoom < truncateZoom) return "truncated";
 	return "full";
+}
+
+export interface LodTierConfig {
+	zoomTier1: number;
+	zoomTier2: number;
+	zoomTier3: number;
+	pctTier1: number;
+	pctTier2: number;
+	pctTier3: number;
+	zoomFloor: number;
+}
+
+export function computeMinShowZoom(rankPct: number, tiers: LodTierConfig): number {
+	if (rankPct < tiers.pctTier1 * 0.1) return tiers.zoomTier1 * 0.2;
+	if (rankPct < tiers.pctTier1) return tiers.zoomTier1;
+	if (rankPct < tiers.pctTier2) return tiers.zoomTier2;
+	if (rankPct < tiers.pctTier3) return tiers.zoomTier3;
+	return tiers.zoomFloor;
 }
