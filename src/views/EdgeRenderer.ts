@@ -895,10 +895,16 @@ interface JunctionGaps {
 	midRow: number | null;
 }
 
-/**
- * Compute axis-aligned waypoints through junction gaps.
- * Each branch selects segments based on which gaps are available.
- */
+export function pushSrcEntry(pts: [number, number][], fx: number, fy: number, col: number, row: number | null): void {
+	if (row !== null) pts.push([fx, row]);
+	pts.push([col, row ?? fy]);
+}
+
+export function pushTgtExit(pts: [number, number][], tx: number, ty: number, col: number, row: number | null): void {
+	if (row !== null) pts.push([col, row]);
+	pts.push([tx, row ?? ty]);
+}
+
 export function computeJunctionWaypoints(
 	from: { x: number; y: number },
 	to: { x: number; y: number },
@@ -908,29 +914,24 @@ export function computeJunctionWaypoints(
 	const { srcCol, tgtCol, srcRow, tgtRow, midRow } = g;
 
 	if (srcCol !== null && tgtCol !== null && midRow !== null) {
-		if (srcRow !== null) pts.push([from.x, srcRow]);
-		pts.push([srcCol, srcRow ?? from.y]);
+		pushSrcEntry(pts, from.x, from.y, srcCol, srcRow);
 		pts.push([srcCol, midRow]);
 		pts.push([tgtCol, midRow]);
-		if (tgtRow !== null) pts.push([tgtCol, tgtRow]);
-		pts.push([to.x, tgtRow ?? to.y]);
+		pushTgtExit(pts, to.x, to.y, tgtCol, tgtRow);
 	} else if (srcCol !== null && midRow !== null) {
-		if (srcRow !== null) pts.push([from.x, srcRow]);
-		pts.push([srcCol, srcRow ?? from.y]);
+		pushSrcEntry(pts, from.x, from.y, srcCol, srcRow);
 		pts.push([srcCol, midRow]);
 		pts.push([to.x, midRow]);
 	} else if (tgtCol !== null && midRow !== null) {
 		pts.push([from.x, midRow]);
 		pts.push([tgtCol, midRow]);
-		if (tgtRow !== null) pts.push([tgtCol, tgtRow]);
-		pts.push([to.x, tgtRow ?? to.y]);
+		pushTgtExit(pts, to.x, to.y, tgtCol, tgtRow);
 	} else if (midRow !== null && srcRow !== null) {
 		pts.push([from.x, srcRow]);
 		pts.push([from.x, midRow]);
 		pts.push([to.x, midRow]);
 	} else if (srcCol !== null) {
-		if (srcRow !== null) pts.push([from.x, srcRow]);
-		pts.push([srcCol, srcRow ?? from.y]);
+		pushSrcEntry(pts, from.x, from.y, srcCol, srcRow);
 		pts.push([srcCol, to.y]);
 	} else if (srcRow !== null) {
 		pts.push([from.x, srcRow]);
