@@ -54,13 +54,14 @@ fi
 # ── Coverage ratchet guard: thresholds must never decrease ──
 if [[ -f vitest.config.ts ]]; then
   _extract_thresh() {
-    awk -v k="$1" '/thresholds:/,/\}/' vitest.config.ts | grep "$k:" | grep -oP '[0-9]+\.[0-9]+'
+    local m="$1"
+    awk '/thresholds:/,/\}/' vitest.config.ts | grep "$m:" | grep -oP '[0-9]+\.[0-9]+'
   }
   PREV_THRESH=$(git show HEAD:vitest.config.ts 2>/dev/null || true)
   if [[ -n "$PREV_THRESH" ]]; then
     for metric in statements branches functions lines; do
       cur=$(_extract_thresh "$metric")
-      prev=$(echo "$PREV_THRESH" | awk -v k="$metric" '/thresholds:/,/\}/' | grep "$k:" | grep -oP '[0-9]+\.[0-9]+')
+      prev=$(echo "$PREV_THRESH" | awk '/thresholds:/,/\}/' | grep "$metric:" | grep -oP '[0-9]+\.[0-9]+')
       if [[ -n "$cur" && -n "$prev" ]]; then
         decreased=$(awk -v c="$cur" -v p="$prev" 'BEGIN{print (c < p) ? 1 : 0}')
         if [[ "$decreased" -eq 1 ]]; then
