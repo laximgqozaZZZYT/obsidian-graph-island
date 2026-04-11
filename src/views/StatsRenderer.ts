@@ -73,7 +73,7 @@ export function renderGraphStats(el: HTMLElement, gd: GraphData, panel: StatsPan
 			}
 		}
 		navigator.clipboard.writeText(lines.join("\n"));
-		new Notice("Stats copied as Markdown", 2000);
+		new Notice(t("export.statsCopied"), 2000);
 	});
 
 	// --- Stats table ---
