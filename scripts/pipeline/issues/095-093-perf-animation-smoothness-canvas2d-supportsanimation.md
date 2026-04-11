@@ -1,35 +1,31 @@
 ---
 priority: critical
 reported: 2026-04-11
-status: in-progress
+status: pending
 source: decomposed
 parent: 093-perf-animation-smoothness
 depends: none
-summary: Canvas2D バックエンドでアニメーションを有効化 — supportsAnimation 廃止と軽量アニメーション許可
+summary: Canvas2D supportsAnimation有効化 + レイアウト遷移アニメーション修正
 ---
 
 ## Description (subtask of 093-perf-animation-smoothness)
 
-Canvas2D の supportsAnimation=false が全アニメーションを殺している根本原因を修正する。
+Canvas2Dバックエンドでアニメーションがすべてスキップされているのが最大の原因。
 
-  1. IApp インターフェースから supportsAnimation プロパティを削除
-     - src/views/canvas2d/interfaces.ts: readonly supportsAnimation 行を削除
-     - src/views/canvas2d/CanvasApp.ts: supportsAnimation = false 行を削除
-     - src/views/webgl/WebGLApp.ts: supportsAnimation = true 行を削除
+  1. src/views/canvas2d/CanvasApp.ts:34 — `supportsAnimation = false` → `true` に変更
+     Canvas2DでもrequestAnimationFrameベースのアニメーションは問題なく動作する。
+     WebGLとの差はGPUアクセラレーションであり、アニメーション機能の有無ではない。
 
-  2. GVC 内の supportsAnimation ガードを撤廃し、全バックエンドでアニメーションを有効化
-     - src/views/GraphViewContainer.ts:5833 — setZoom() の !this.pixiApp?.supportsAnimation 条件を削除
-     - src/views/GraphViewContainer.ts:7354 — _applyLayoutTransition() の supportsAnimation チェックを削除
-       ただしノード数が TRANSITION_SKIP_THRESHOLD (500) を超える場合のスキップは維持
-       （条件を「transitionData.length > TRANSITION_SKIP_THRESHOLD」のみに変更）
-     - src/views/GraphViewContainer.ts:7734 — panToNode() の supportsAnimation チェックを削除
-     - src/views/GraphViewContainer.ts:7774 — focusZoomToNode() の supportsAnimation チェックを削除
+  2. src/views/GraphViewContainer.ts:7354 — TRANSITION_SKIP_THRESHOLD ガードの見直し
+     supportsAnimation=true後はこのガードは大規模グラフ(2000+)のみに絞る:
+     - TRANSITION_SKIP_THRESHOLD を 500 → 2000 に引き上げ
+     - または `supportsAnimation` チェックを削除して純粋にノード数のみで判断
 
-  3. prefers-reduced-motion チェックは全箇所で維持すること
+  3. src/views/GraphViewContainer.ts:5833, 7734, 7774 — supportsAnimationガード3箇所
+     全て supportsAnimation=true になるため自動的に有効化される。追加変更不要。
 
-  4. 既存テストの supportsAnimation 参照箇所を更新（grep で全件確認）
-
-  enforce-gates (lint/test/build) 全パスを確認してコミット。
+  テスト: pnpm test でレイアウト遷移テスト既存パス確認。
+  確認: pnpm build → E2E smoke でレイアウト切替時にノードが滑らかに移動すること。
 ```
 
 ##
