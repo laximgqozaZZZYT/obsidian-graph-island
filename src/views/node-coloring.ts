@@ -5,7 +5,7 @@
  */
 
 import { cssColorToHex } from "../utils/graph-helpers";
-import { DEFAULT_COLORS, type GroupRule, type NodeRule } from "../types";
+import { DEFAULT_COLORS, type GroupRule } from "../types";
 import { evaluateExpr } from "../utils/query-expr";
 import { matchesFilter } from "../layouts/force";
 import { heatmapColor } from "../views/RenderHelpers";
