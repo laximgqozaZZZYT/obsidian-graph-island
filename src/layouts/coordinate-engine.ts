@@ -787,6 +787,25 @@ export function toCartesian(
 // Grid resolution for coordinateOffsets
 // ---------------------------------------------------------------------------
 
+function computeCentroidShift(
+	system: CoordinateSystem,
+	offsets: Map<string, { dx: number; dy: number }>,
+	axis1: Map<string, number>,
+	axis2: Map<string, number>,
+): { shift1: number; shift2: number } {
+	if (system !== "cartesian" || offsets.size === 0) return { shift1: 0, shift2: 0 };
+	let sum1 = 0,
+		sum2 = 0,
+		count = 0;
+	for (const [id, val1] of axis1) {
+		sum1 += val1;
+		sum2 += axis2.get(id) ?? 0;
+		count++;
+	}
+	if (count === 0) return { shift1: 0, shift2: 0 };
+	return { shift1: sum1 / count, shift2: sum2 / count };
+}
+
 /**
  * Resolve and attach grid info (axis lines, shapes, shading) to the guide.
  * Always generates gridInfo so axis labels/ticks render even without explicit
@@ -817,24 +836,12 @@ function resolveCoordinateGrid(
 		ticks: { show: true, labels: { kind: "auto" as const } },
 	};
 
-	// Compute centroid shift applied by toCartesian() so grid lines align
-	// with actual node positions after normalization.
-	let centroidShift1 = 0,
-		centroidShift2 = 0;
-	if (layout.system === "cartesian" && offsets.size > 0) {
-		let sum1 = 0,
-			sum2 = 0,
-			count = 0;
-		for (const [id] of finalT1) {
-			sum1 += finalT1.get(id) ?? 0;
-			sum2 += t2.get(id) ?? 0;
-			count++;
-		}
-		if (count > 0) {
-			centroidShift1 = sum1 / count;
-			centroidShift2 = sum2 / count;
-		}
-	}
+	const { shift1: centroidShift1, shift2: centroidShift2 } = computeCentroidShift(
+		layout.system,
+		offsets,
+		finalT1,
+		t2,
+	);
 
 	const gridStyle = effectiveGrid.style ?? "lines";
 	const rawAxis1Lines = resolveGridLines(
@@ -1088,36 +1095,12 @@ export function resolveAxisCategories(
 	source: AxisSource,
 	ctx: CoordinateContext,
 ): string[] | undefined {
-	if (source.kind === SOURCE_FIELD) {
-		const rawValues: string[] = [];
-		for (const m of members) {
-			const vals = getNodeFieldValues(m, source.field);
-			rawValues.push(vals[0] ?? "");
-		}
-		const allNumeric = rawValues.every((v) => v === "" || !isNaN(Number(v)));
-		if (!allNumeric) {
-			return [...new Set(rawValues)].sort();
-		}
-		return undefined; // numeric field → continuous
-	}
-	if (source.kind === SOURCE_PROPERTY) {
-		const rawValues: string[] = [];
-		for (const m of members) {
-			let val: string | undefined;
-			if (ctx.getNodeProperty) {
-				val = ctx.getNodeProperty(m.id, source.key);
-			}
-			if (val === undefined && m.meta) {
-				const mv = m.meta[source.key];
-				val = mv != null ? String(mv) : undefined;
-			}
-			rawValues.push(val ?? "");
-		}
-		const numeric = rawValues.every((v) => v === "" || !isNaN(Number(v)));
-		if (!numeric) {
-			return [...new Set(rawValues)].sort();
-		}
-		return undefined;
+	const entries = collectRawEntries(members, source, ctx);
+	if (entries.length === 0) return undefined;
+
+	const allNumeric = entries.every((v) => v.raw === "" || !isNaN(Number(v.raw)));
+	if (!allNumeric) {
+		return [...new Set(entries.map((v) => v.raw))].sort();
 	}
 	return undefined;
 }
@@ -1259,53 +1242,66 @@ function resolveGridLines(
 }
 
 /** Collect unique category positions by matching categories to their transformed values */
+function collectRawEntries(
+	members: GraphNode[],
+	source: AxisSource,
+	ctx: CoordinateContext,
+): { id: string; raw: string }[] {
+	const entries: { id: string; raw: string }[] = [];
+	if (source.kind === SOURCE_FIELD) {
+		for (const m of members) {
+			const vals = getNodeFieldValues(m, source.field);
+			entries.push({ id: m.id, raw: vals[0] ?? "" });
+		}
+	} else if (source.kind === SOURCE_PROPERTY) {
+		for (const m of members) {
+			let val: string | undefined;
+			if (ctx.getNodeProperty) {
+				val = ctx.getNodeProperty(m.id, source.key);
+			}
+			if (val === undefined && m.meta) {
+				const mv = m.meta[source.key];
+				val = mv != null ? String(mv) : undefined;
+			}
+			entries.push({ id: m.id, raw: val ?? "" });
+		}
+	}
+	return entries;
+}
+
+function buildCategoryGroups(
+	rawEntries: { id: string; raw: string }[],
+	rawMap: Map<string, number>,
+): Map<number, { ids: string[]; label: string }> {
+	const groups = new Map<number, { ids: string[]; label: string }>();
+	const allNumeric = rawEntries.every((v) => v.raw === "" || !isNaN(Number(v.raw)));
+	if (allNumeric) return groups;
+
+	const sorted = [...new Set(rawEntries.map((v) => v.raw))].sort();
+	for (let i = 0; i < sorted.length; i++) {
+		groups.set(i, { ids: [], label: sorted[i] });
+	}
+	for (const entry of rawEntries) {
+		const idx = rawMap.get(entry.id) ?? 0;
+		const g = groups.get(idx);
+		if (g) g.ids.push(entry.id);
+	}
+	return groups;
+}
+
 function collectCategoryPositions(
 	members: GraphNode[],
 	source: AxisSource,
 	ctx: CoordinateContext,
 	transformedValues: Map<string, number>,
 ): { position: number; label: string }[] {
-	// Resolve raw values to get category→index mapping
 	const rawMap = resolveAxisValues(members, source, ctx);
-	// Group nodes by raw value (category index)
-	const groups = new Map<number, { ids: string[]; label: string }>();
+	const rawEntries = collectRawEntries(members, source, ctx);
+	if (rawEntries.length === 0) return [];
 
-	if (source.kind === SOURCE_FIELD || source.kind === SOURCE_PROPERTY) {
-		const rawEntries: { id: string; raw: string }[] = [];
-		for (const m of members) {
-			if (source.kind === SOURCE_FIELD) {
-				const vals = getNodeFieldValues(m, source.field);
-				rawEntries.push({ id: m.id, raw: vals[0] ?? "" });
-			} else {
-				// property kind — mirror resolveAxisValues logic
-				let val: string | undefined;
-				if (ctx.getNodeProperty) {
-					val = ctx.getNodeProperty(m.id, source.key);
-				}
-				if (val === undefined && m.meta) {
-					const mv = m.meta[source.key];
-					val = mv != null ? String(mv) : undefined;
-				}
-				rawEntries.push({ id: m.id, raw: val ?? "" });
-			}
-		}
-		const allNumeric = rawEntries.every((v) => v.raw === "" || !isNaN(Number(v.raw)));
-		if (!allNumeric) {
-			const sorted = [...new Set(rawEntries.map((v) => v.raw))].sort();
-			for (let i = 0; i < sorted.length; i++) {
-				groups.set(i, { ids: [], label: sorted[i] });
-			}
-			for (const entry of rawEntries) {
-				const idx = rawMap.get(entry.id) ?? 0;
-				const g = groups.get(idx);
-				if (g) g.ids.push(entry.id);
-			}
-		}
-	}
-
+	const groups = buildCategoryGroups(rawEntries, rawMap);
 	if (groups.size === 0) return [];
 
-	// Compute average transformed position per category
 	const result: { position: number; label: string }[] = [];
 	for (const [, group] of [...groups.entries()].sort((a, b) => a[0] - b[0])) {
 		let sum = 0,
