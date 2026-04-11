@@ -69,13 +69,12 @@ export default class GraphViewsPlugin extends Plugin {
 			id: "embed-graph-in-note",
 			name: "Embed graph in note",
 			editorCallback: async () => {
-				const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_GRAPH);
-				if (leaves.length === 0) {
+				const view = this._findGraphIslandView();
+				if (!view) {
 					showToast(t("toast.embedNoGraph"), 5000);
 					return;
 				}
-				const view = leaves[0].view as GraphViewContainer;
-				await view.embedGraphInNote();
+				await (view as unknown as GraphViewContainer).embedGraphInNote();
 			},
 		});
 
@@ -84,30 +83,24 @@ export default class GraphViewsPlugin extends Plugin {
 			id: "graph-mode-explore",
 			name: "Graph: Explore mode",
 			callback: () => {
-				const view = this.app.workspace.getLeavesOfType(VIEW_TYPE_GRAPH)[0]?.view;
-				if (view) {
-					(view as GraphViewContainer).applyPresetByKey("explore");
-				}
+				const view = this._findGraphIslandView();
+				if (view) (view as unknown as GraphViewContainer).applyPresetByKey("explore");
 			},
 		});
 		this.addCommand({
 			id: "graph-mode-analyze",
 			name: "Graph: Analyze mode",
 			callback: () => {
-				const view = this.app.workspace.getLeavesOfType(VIEW_TYPE_GRAPH)[0]?.view;
-				if (view) {
-					(view as GraphViewContainer).applyPresetByKey("analyze");
-				}
+				const view = this._findGraphIslandView();
+				if (view) (view as unknown as GraphViewContainer).applyPresetByKey("analyze");
 			},
 		});
 		this.addCommand({
 			id: "graph-mode-write",
 			name: "Graph: Write mode",
 			callback: () => {
-				const view = this.app.workspace.getLeavesOfType(VIEW_TYPE_GRAPH)[0]?.view;
-				if (view) {
-					(view as GraphViewContainer).applyPresetByKey("write");
-				}
+				const view = this._findGraphIslandView();
+				if (view) (view as unknown as GraphViewContainer).applyPresetByKey("write");
 			},
 		});
 		this.addCommand({
@@ -231,6 +224,14 @@ export default class GraphViewsPlugin extends Plugin {
 				if (v) v.exportGraphAsMermaid?.();
 			},
 		});
+	}
+
+	private _findGraphIslandView(): GraphViewInternal | null {
+		for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_GRAPH)) {
+			const v = asGraphView(leaf);
+			if (v) return v;
+		}
+		return null;
 	}
 
 	onunload() {}

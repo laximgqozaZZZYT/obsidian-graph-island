@@ -99,7 +99,9 @@ export function asObsidianWindow(): ObsidianWindow {
 	return window as unknown as ObsidianWindow;
 }
 
-/** Access a leaf's view as a Graph Island view with internal properties. */
+/** Access a leaf's view as a Graph Island view with internal properties. Returns null for non-Graph-Island views (e.g. Obsidian built-in graph). */
 export function asGraphView(leaf: WorkspaceLeaf): GraphViewInternal | null {
-	return leaf.view as unknown as GraphViewInternal;
+	const view = leaf.view;
+	if (!view || !("pixiNodes" in view)) return null;
+	return view as unknown as GraphViewInternal;
 }
