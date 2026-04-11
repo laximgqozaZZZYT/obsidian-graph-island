@@ -1,4 +1,5 @@
 import { CanvasGraphics } from "./canvas2d";
+import { computeEdgeViewport, isBothEndpointsOutside } from "./edge-viewport";
 import type { GraphEdge, EdgeCardinalityMode, Cardinality, CardinalityRule, CardinalityRenderConfig } from "../types";
 import { DEFAULT_CARDINALITY_RENDER_CONFIG } from "../types";
 import { cssColorToHex, edgeSourceId, edgeTargetId, incCounter } from "../utils/graph-helpers";
@@ -2284,16 +2285,8 @@ function _drawEdgesSinglePass(
 	arrowGfx?: CanvasGraphics | null,
 	cache: EdgeRenderCache = _cache,
 ): void {
-	// Viewport culling bounds (world coords) — skip edges where BOTH endpoints are off-screen
 	const ws = cfg.worldScale ?? 1;
-	const vx = cfg.viewportX ?? 0;
-	const vy = cfg.viewportY ?? 0;
-	const vw = cfg.viewportW ?? 10000;
-	const vh = cfg.viewportH ?? 10000;
-	const vpLeft = -vx / ws - 200;
-	const vpRight = (vw - vx) / ws + 200;
-	const vpTop = -vy / ws - 200;
-	const vpBottom = (vh - vy) / ws + 200;
+	const vp = computeEdgeViewport(cfg);
 
 	for (const e of edges) {
 		const isCabled = cablePrep.cabledEdgeIds.has(e.id) || cablePrep.intraHandledIds.has(e.id);
@@ -2302,12 +2295,8 @@ function _drawEdgesSinglePass(
 		const tgt = resolvePos(e.target);
 		if (!src || !tgt) continue;
 
-		// Skip edges where both endpoints are outside the viewport
-		const srcOut = src.x < vpLeft || src.x > vpRight || src.y < vpTop || src.y > vpBottom;
-		const tgtOut = tgt.x < vpLeft || tgt.x > vpRight || tgt.y < vpTop || tgt.y > vpBottom;
-		if (srcOut && tgtOut) continue;
+		if (isBothEndpointsOutside(src, tgt, vp)) continue;
 
-		// When cable-tray handles this edge, skip the line segment but still draw decorations (arrows etc.)
 		if (isCabled || cablePrep.hasClusters) {
 			const lineColor = resolveEdgeColor(e, useRelColor, cfg.relationColors, cfg.isDark);
 			const { alpha } = resolveEdgeStyle(e, src, tgt, cfg, densityScale, pairCount);
