@@ -233,6 +233,8 @@ const MARQUEE_MIN_SIZE_PX = 10;
 
 /** Debounce delay (ms) for zoom-dependent layout recalculation */
 const ZOOM_LAYOUT_DEBOUNCE_MS = 400;
+/** Minimum relative zoom change to trigger layout recalculation (matches DEFAULT_RENDER_THRESHOLDS.zoomLayoutDeltaThreshold) */
+const ZOOM_LAYOUT_DELTA_THRESHOLD = 0.2;
 /** Marquee selection stroke width */
 const MARQUEE_STROKE_WIDTH = 1.5;
 /** Marquee selection stroke alpha */
@@ -291,6 +293,8 @@ export class InteractionManager {
 	private _lastHoverY = 0;
 	// Debounced zoom layout recalculation
 	private _zoomLayoutTimer = 0;
+	// Last zoom scale at which layout was recalculated (for delta threshold)
+	private _lastLayoutZoom = 1;
 	// Debounced label cull (expensive overlap detection) during rapid zoom
 	private _zoomCullTimer = 0;
 
@@ -383,8 +387,6 @@ export class InteractionManager {
 		world.y += my - newScreenPos.y;
 
 		this.host.markDirty();
-		// Lightweight LOD fade — immediate response (O(n), fast)
-		this.host.applyTextFade?.();
 		// Expensive overlap cull — debounced to fire once after rapid zoom ends
 		clearTimeout(this._zoomCullTimer);
 		this._zoomCullTimer = window.setTimeout(() => {
@@ -392,11 +394,15 @@ export class InteractionManager {
 		}, 50) as unknown as number;
 		// Update zoom percentage indicator
 		this.host.updateZoomIndicator?.(s);
-		// Debounced layout recalculation for zoom-correlated node sizes
-		clearTimeout(this._zoomLayoutTimer);
-		this._zoomLayoutTimer = window.setTimeout(() => {
-			this.host.onZoomLayoutUpdate?.(s);
-		}, ZOOM_LAYOUT_DEBOUNCE_MS) as unknown as number;
+		// Debounced layout recalculation — skip if zoom delta is below threshold
+		const zoomDelta = Math.abs(s - this._lastLayoutZoom) / (this._lastLayoutZoom || 1);
+		if (zoomDelta >= ZOOM_LAYOUT_DELTA_THRESHOLD) {
+			clearTimeout(this._zoomLayoutTimer);
+			this._zoomLayoutTimer = window.setTimeout(() => {
+				this._lastLayoutZoom = s;
+				this.host.onZoomLayoutUpdate?.(s);
+			}, ZOOM_LAYOUT_DEBOUNCE_MS) as unknown as number;
+		}
 	}
 
 	// -----------------------------------------------------------------------
