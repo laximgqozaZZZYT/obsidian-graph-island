@@ -284,30 +284,18 @@ function drawTimeAxis(
 }
 
 // ---------------------------------------------------------------------------
-// Main entry point
+// Helpers
 // ---------------------------------------------------------------------------
 
-/** Draw timeline duration bars — called from GVC.drawTimelineBars(). */
-export function renderTimelineBars(host: TimelineBarHost): void {
-	const g = host.barGraphics;
-	if (!g) return;
-	g.clear();
-
-	// Clear previous bar labels
-	if (host.barLabelContainer) {
-		for (const child of [...host.barLabelContainer.children]) {
-			host.barLabelContainer.removeChild(child);
-			child.destroy();
-		}
+function clearBarLabels(container: CanvasContainer): void {
+	for (const child of [...container.children]) {
+		container.removeChild(child);
+		child.destroy();
 	}
+}
 
-	if (!host.panel.showDurationBars && host.panel.viewMode !== "timeline") return;
-	const bars: TimelineBarInfo[] | undefined = host.clusterMeta?.timelineBars;
-	if (!bars || bars.length === 0) return;
-
-	const worldScale = host.worldContainer?.scale.x ?? 1;
-	const rt = mergeRenderThresholds(host.panel.renderThresholds);
-	const cfg: BarRenderConfig = {
+function buildBarRenderConfig(rt: Required<RenderThresholds>, worldScale: number): BarRenderConfig {
+	return {
 		fillAlpha: rt.timelineBarFillAlpha,
 		strokeAlpha: rt.timelineBarStrokeAlpha,
 		hoverAlpha: rt.timelineBarHoverAlpha,
@@ -318,6 +306,48 @@ export function renderTimelineBars(host: TimelineBarHost): void {
 		lineW: Math.max(0.5, 1.0 / worldScale),
 		worldScale,
 	};
+}
+
+function drawTimelineOverlays(
+	g: CanvasGraphics,
+	container: CanvasContainer,
+	host: TimelineBarHost,
+	bars: TimelineBarInfo[],
+	worldScale: number,
+	isDark: boolean,
+): void {
+	const workGroups = host.clusterMeta?.timelineWorkGroups as
+		| { name: string; minY: number; maxY: number }[]
+		| undefined;
+	if (workGroups) {
+		drawWorkGroupSeparators(g, container, workGroups, bars, worldScale, isDark);
+	}
+
+	const steps = host.clusterMeta?.timelineSteps;
+	const stepW = host.clusterMeta?.timelineStepWidth;
+	if (steps && stepW && steps.length > 0) {
+		drawTimeAxis(g, container, steps, stepW, bars, worldScale, isDark);
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Main entry point
+// ---------------------------------------------------------------------------
+
+/** Draw timeline duration bars — called from GVC.drawTimelineBars(). */
+export function renderTimelineBars(host: TimelineBarHost): void {
+	const g = host.barGraphics;
+	if (!g) return;
+	g.clear();
+
+	if (host.barLabelContainer) clearBarLabels(host.barLabelContainer);
+
+	if (!host.panel.showDurationBars && host.panel.viewMode !== "timeline") return;
+	const bars: TimelineBarInfo[] | undefined = host.clusterMeta?.timelineBars;
+	if (!bars || bars.length === 0) return;
+
+	const worldScale = host.worldContainer?.scale.x ?? 1;
+	const cfg = buildBarRenderConfig(mergeRenderThresholds(host.panel.renderThresholds), worldScale);
 
 	const hoveredId = host.highlightedNodeId;
 	const siblingIds = hoveredId ? buildSiblingSet(hoveredId, bars, host.pixiNodes, host.app) : null;
@@ -326,19 +356,7 @@ export function renderTimelineBars(host: TimelineBarHost): void {
 
 	drawBars(g, bars, cfg, vp, hoveredId, siblingIds, host.pixiNodes, host.barLabelContainer, isDark);
 
-	// Timeline viewMode overlays
 	if (host.panel.viewMode === "timeline" && host.barLabelContainer) {
-		const workGroups = host.clusterMeta?.timelineWorkGroups as
-			| { name: string; minY: number; maxY: number }[]
-			| undefined;
-		if (workGroups) {
-			drawWorkGroupSeparators(g, host.barLabelContainer, workGroups, bars, worldScale, isDark);
-		}
-
-		const steps = host.clusterMeta?.timelineSteps;
-		const stepW = host.clusterMeta?.timelineStepWidth;
-		if (steps && stepW && steps.length > 0) {
-			drawTimeAxis(g, host.barLabelContainer, steps, stepW, bars, worldScale, isDark);
-		}
+		drawTimelineOverlays(g, host.barLabelContainer, host, bars, worldScale, isDark);
 	}
 }

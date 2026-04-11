@@ -145,81 +145,46 @@ export function groupNodesByField(nodes: GraphNode[], field: string, opts?: Grou
 	return groups;
 }
 
-/**
- * Collapse a group: hide member nodes and create a super node.
- * Edges to/from members are re-routed to the super node.
- * Returns a new GraphData (does not mutate the input).
- */
-export function collapseGroup(data: GraphData, group: GroupSpec): GraphData {
-	const memberSet = new Set(group.memberIds);
-	const superNodeId = `__super__${group.key}`;
+interface MemberSummary {
+	cx: number;
+	cy: number;
+	tags: string[];
+	firstCategory: string | undefined;
+}
 
-	// Compute position of super node as centroid of members
+export function summarizeMembers(nodes: GraphNode[], memberSet: Set<string>): MemberSummary {
 	let sumX = 0,
 		sumY = 0,
 		count = 0;
-	for (const n of data.nodes) {
-		if (memberSet.has(n.id)) {
-			sumX += n.x;
-			sumY += n.y;
-			count++;
-		}
-	}
-	const cx = count > 0 ? sumX / count : 0;
-	const cy = count > 0 ? sumY / count : 0;
-
-	// Collect tags/category from members for the super node
 	const allTags = new Set<string>();
 	let firstCategory: string | undefined;
-	for (const n of data.nodes) {
-		if (memberSet.has(n.id)) {
-			if (n.tags) n.tags.forEach((t) => allTags.add(t));
-			if (n.category && !firstCategory) firstCategory = n.category;
-		}
+	for (const n of nodes) {
+		if (!memberSet.has(n.id)) continue;
+		sumX += n.x;
+		sumY += n.y;
+		count++;
+		if (n.tags) n.tags.forEach((t) => allTags.add(t));
+		if (n.category && !firstCategory) firstCategory = n.category;
 	}
-
-	const superNode: GraphNode = {
-		id: superNodeId,
-		label: `${group.label} (${group.memberIds.length})`,
-		x: cx,
-		y: cy,
-		vx: 0,
-		vy: 0,
+	return {
+		cx: count > 0 ? sumX / count : 0,
+		cy: count > 0 ? sumY / count : 0,
 		tags: [...allTags],
-		category: firstCategory,
-		collapsedMembers: [...group.memberIds],
+		firstCategory,
 	};
+}
 
-	// Filter out member nodes, mark them as collapsed
-	const newNodes: GraphNode[] = [];
-	for (const n of data.nodes) {
-		if (memberSet.has(n.id)) {
-			// Keep the node data but mark it as collapsed (for expandGroup to restore)
-			continue; // remove from active graph
-		}
-		newNodes.push(n);
-	}
-	newNodes.push(superNode);
-
-	// Re-route edges: edges between members become internal (removed),
-	// edges from/to members become edges from/to super node
+export function rerouteEdges(edges: GraphEdge[], memberSet: Set<string>, superNodeId: string): GraphEdge[] {
 	const newEdges: GraphEdge[] = [];
 	const seenEdges = new Set<string>();
-	for (const e of data.edges) {
+	for (const e of edges) {
 		const srcMember = memberSet.has(e.source);
 		const tgtMember = memberSet.has(e.target);
+		if (srcMember && tgtMember) continue;
 
-		if (srcMember && tgtMember) {
-			// Internal edge — drop it
-			continue;
-		}
+		const newSource = srcMember ? superNodeId : e.source;
+		const newTarget = tgtMember ? superNodeId : e.target;
 
-		let newSource = e.source;
-		let newTarget = e.target;
-		if (srcMember) newSource = superNodeId;
-		if (tgtMember) newTarget = superNodeId;
-
-		// Deduplicate edges to/from super node
 		const edgeKey = `${newSource}->${newTarget}`;
 		if (seenEdges.has(edgeKey)) continue;
 		seenEdges.add(edgeKey);
@@ -231,6 +196,36 @@ export function collapseGroup(data: GraphData, group: GroupSpec): GraphData {
 			target: newTarget,
 		});
 	}
+	return newEdges;
+}
+
+/**
+ * Collapse a group: hide member nodes and create a super node.
+ * Edges to/from members are re-routed to the super node.
+ * Returns a new GraphData (does not mutate the input).
+ */
+export function collapseGroup(data: GraphData, group: GroupSpec): GraphData {
+	const memberSet = new Set(group.memberIds);
+	const superNodeId = `__super__${group.key}`;
+
+	const summary = summarizeMembers(data.nodes, memberSet);
+
+	const superNode: GraphNode = {
+		id: superNodeId,
+		label: `${group.label} (${group.memberIds.length})`,
+		x: summary.cx,
+		y: summary.cy,
+		vx: 0,
+		vy: 0,
+		tags: summary.tags,
+		category: summary.firstCategory,
+		collapsedMembers: [...group.memberIds],
+	};
+
+	const newNodes = data.nodes.filter((n) => !memberSet.has(n.id));
+	newNodes.push(superNode);
+
+	const newEdges = rerouteEdges(data.edges, memberSet, superNodeId);
 
 	return { nodes: newNodes, edges: newEdges };
 }
