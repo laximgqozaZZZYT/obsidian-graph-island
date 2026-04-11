@@ -1,7 +1,7 @@
 ---
 priority: high
 reported: 2026-04-11
-status: pending
+status: in-progress
 source: kaizen
 summary: CableTrayRenderer.buildRoutingPath で同一座標ノード間のエッジがゼロ除算を起こす
 ---
