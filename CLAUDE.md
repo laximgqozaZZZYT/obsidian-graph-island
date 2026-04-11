@@ -16,7 +16,7 @@ These files are oversized. **Do NOT grow them**. Extract logic into new files in
 | File | Lines | Max Allowed | Decomposition Priority |
 |------|-------|-------------|----------------------|
 | `src/views/GraphViewContainer.ts` | 8612 | 8612 | 1 — extract: snapshot, export, filter orchestration |
-| `src/views/PanelBuilder.ts` | 2305 | 2305 | 2 — extract: individual panel sections |
+| `src/views/PanelBuilder.ts` | 2218 | 2218 | 2 — extract: individual panel sections |
 | `src/views/EdgeRenderer.ts` | 2747 | 2747 | 3 — extract: cable-tray rendering, label rendering |
 | `src/views/RenderPipeline.ts` | 2361 | 2361 | 4 — extract: LOD logic, culling logic |
 

@@ -51,6 +51,27 @@ else
   RESULTS["coverage"]="skip"
 fi
 
+# ── Coverage ratchet guard: thresholds must never decrease ──
+if [[ -f vitest.config.ts ]]; then
+  _extract_thresh() {
+    awk -v k="$1" '/thresholds:/,/\}/' vitest.config.ts | grep "$k:" | grep -oP '[0-9]+\.[0-9]+'
+  }
+  PREV_THRESH=$(git show HEAD:vitest.config.ts 2>/dev/null || true)
+  if [[ -n "$PREV_THRESH" ]]; then
+    for metric in statements branches functions lines; do
+      cur=$(_extract_thresh "$metric")
+      prev=$(echo "$PREV_THRESH" | awk -v k="$metric" '/thresholds:/,/\}/' | grep "$k:" | grep -oP '[0-9]+\.[0-9]+')
+      if [[ -n "$cur" && -n "$prev" ]]; then
+        decreased=$(awk -v c="$cur" -v p="$prev" 'BEGIN{print (c < p) ? 1 : 0}')
+        if [[ "$decreased" -eq 1 ]]; then
+          OVERALL_EXIT=1
+          [[ "$JSON_OUTPUT" == false ]] && echo "FAIL [ratchet] $metric decreased: $prev → $cur"
+        fi
+      fi
+    done
+  fi
+fi
+
 # ── E2E: handled by e2e-patrol.sh (separate cron, no timeout, background) ──
 
 # ── JSON output ──

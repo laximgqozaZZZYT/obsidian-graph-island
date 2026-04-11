@@ -235,6 +235,19 @@ fi
 # Issue queue check + focus selection now happens at the start of each iteration
 # to ensure clean context and pick up newly filed issues mid-session.
 
+# ── Focus exhaustion check ──
+# Returns 0 (true) if the last 3 sessions with this focus all had 0 commits.
+_focus_exhausted() {
+  local f="$1"
+  local recent_commits
+  recent_commits=$(grep -l "\"focus\": \"$f\"" "$RESULT_DIR"/*.json 2>/dev/null \
+    | xargs ls -t 2>/dev/null | head -3 \
+    | xargs grep -h '"commits":' 2>/dev/null \
+    | grep -oP '"commits":\s*\K[0-9]+' \
+    | awk '{s+=$1} END{print s+0}')
+  [[ "$recent_commits" -eq 0 ]]
+}
+
 # ── E2E/CDP: handled by e2e-patrol.sh (separate cron, background) ──
 
 # ============================================================
@@ -320,6 +333,14 @@ for iter in $(seq 1 "$MAX_ITERATIONS"); do
         FOCUS_AREAS=("coverage" "eslint" "refactor")
         FOCUS_INDEX=$(( (HOUR / 2) % 3 ))
         FOCUS="${FOCUS_AREAS[$FOCUS_INDEX]}"
+        # Reuse exhaustion check (function defined in else branch below, safe in bash)
+        TRIED=0
+        while _focus_exhausted "$FOCUS" && [[ $TRIED -lt 3 ]]; do
+          log "SKIP focus=$FOCUS (exhausted) — trying next"
+          FOCUS_INDEX=$(( (FOCUS_INDEX + 1) % 3 ))
+          FOCUS="${FOCUS_AREAS[$FOCUS_INDEX]}"
+          TRIED=$((TRIED + 1))
+        done
       fi
 
     # Auto-discovered issue → treat directly (simpler)
@@ -334,6 +355,19 @@ for iter in $(seq 1 "$MAX_ITERATIONS"); do
     FOCUS_AREAS=("coverage" "eslint" "refactor")
     FOCUS_INDEX=$(( (HOUR / 2) % 3 ))
     FOCUS="${FOCUS_AREAS[$FOCUS_INDEX]}"
+
+    # ── Skip exhausted focus areas ──
+    TRIED=0
+    while _focus_exhausted "$FOCUS" && [[ $TRIED -lt 3 ]]; do
+      log "SKIP focus=$FOCUS (last 3 sessions: 0 commits) — trying next"
+      FOCUS_INDEX=$(( (FOCUS_INDEX + 1) % 3 ))
+      FOCUS="${FOCUS_AREAS[$FOCUS_INDEX]}"
+      TRIED=$((TRIED + 1))
+    done
+    if [[ $TRIED -ge 3 ]]; then
+      log "ALL focus areas exhausted (0 commits each). Skipping session."
+      exit 0
+    fi
   fi
 
   log "── Iteration $iter/$MAX_ITERATIONS (focus: $FOCUS, context: clean) ──"
