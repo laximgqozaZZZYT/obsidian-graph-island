@@ -111,15 +111,6 @@ export function computeInDegree(nodes: GraphNode[], edges: GraphEdge[]): Map<str
 // Betweenness Centrality — Brandes algorithm O(V*E)
 // ---------------------------------------------------------------------------
 
-/**
- * Compute betweenness centrality for all nodes using Brandes' algorithm.
- * For unweighted, undirected graphs this runs in O(V*E).
- *
- * @param nodes  Graph nodes
- * @param edges  Graph edges (treated as undirected)
- * @param maxNodes  Skip computation if node count exceeds this (returns empty map)
- * @returns Map<nodeId, centrality> — normalized by 2/((V-1)(V-2)) for V≥3
- */
 function _brandesBfsPass(
 	sourceId: string,
 	nodeIds: string[],
@@ -169,6 +160,15 @@ function _brandesBfsPass(
 	}
 }
 
+/**
+ * Compute betweenness centrality for all nodes using Brandes' algorithm.
+ * For unweighted, undirected graphs this runs in O(V*E).
+ *
+ * @param nodes  Graph nodes
+ * @param edges  Graph edges (treated as undirected)
+ * @param maxNodes  Skip computation if node count exceeds this (returns empty map)
+ * @returns Map<nodeId, centrality> — normalized by 2/((V-1)(V-2)) for V≥3
+ */
 export function computeBetweennessCentrality(
 	nodes: GraphNode[],
 	edges: GraphEdge[],
