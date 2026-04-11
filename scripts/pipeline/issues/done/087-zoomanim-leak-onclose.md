@@ -1,7 +1,7 @@
 ---
 priority: high
 reported: 2026-04-11
-status: in-progress
+status: done
 source: kaizen
 summary: onClose() で _zoomAnimId の cancelAnimationFrame が漏れている (リソースリーク)
 ---
