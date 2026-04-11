@@ -1,7 +1,7 @@
 ---
 priority: high
 reported: 2026-04-11
-status: pending
+status: in-progress
 source: kaizen
 summary: layout-compute.ts のタイムライン計算に 5 箇所のハードコードマジックナンバーがある (CLAUDE.md 違反)
 ---
