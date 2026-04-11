@@ -25,6 +25,50 @@ interface NodeColorContext {
 	getNodeProperty: (nodeId: string, field: string) => string | undefined;
 }
 
+function resolveGroupColor(node: GraphNode, groups: GroupRule[]): number | null {
+	for (const grp of groups) {
+		if (grp.expression && evaluateExpr(grp.expression, node)) {
+			return cssColorToHex(grp.color);
+		}
+	}
+	return null;
+}
+
+function resolveCategoryColor(node: GraphNode, colorMap: Map<string, string>): number | null {
+	if (node.category) {
+		return cssColorToHex(colorMap.get(node.category) || DEFAULT_COLORS[0]);
+	}
+	if (node.tags && node.tags.length > 0) {
+		return cssColorToHex(colorMap.get(`tag:${node.tags[0]}`) || DEFAULT_COLORS[0]);
+	}
+	return null;
+}
+
+function resolveFieldColor(node: GraphNode, ctx: NodeColorContext): number | null {
+	if (!ctx.colorField) return null;
+	const fieldVal = ctx.getNodeProperty(node.id, ctx.colorField);
+	if (fieldVal === undefined || fieldVal === "") return null;
+
+	const key = String(fieldVal);
+	if (!ctx.colorMap.has(key)) {
+		const customPalette = ctx.customColorPalette
+			? ctx.customColorPalette
+					.split(",")
+					.map((s) => s.trim())
+					.filter(Boolean)
+			: [];
+		const palette = customPalette.length > 0 ? customPalette : (DEFAULT_COLORS as unknown as string[]);
+		ctx.colorMap.set(key, palette[ctx.colorMap.size % palette.length]);
+	}
+	return cssColorToHex(ctx.colorMap.get(key)!);
+}
+
+function resolveCommunityColor(nodeId: string, communityMap: Map<string, number> | null): number | null {
+	if (!communityMap) return null;
+	const cid = communityMap.get(nodeId) ?? 0;
+	return COMMUNITY_PALETTE[cid % COMMUNITY_PALETTE.length];
+}
+
 /**
  * Resolve the display color for a single node.
  * Returns a numeric hex color (e.g. 0xff0000).
@@ -34,45 +78,12 @@ export function computeNodeDisplayColor(
 	ctx: NodeColorContext,
 	defaultColor: number,
 ): number {
-	// Manual group overrides take priority
-	for (const grp of ctx.groups) {
-		if (grp.expression && evaluateExpr(grp.expression, node)) {
-			return cssColorToHex(grp.color);
-		}
-	}
+	const groupHit = resolveGroupColor(node, ctx.groups);
+	if (groupHit != null) return groupHit;
 
-	if (ctx.colorMode === "category") {
-		if (node.category) {
-			return cssColorToHex(ctx.colorMap.get(node.category) || DEFAULT_COLORS[0]);
-		}
-		if (node.tags && node.tags.length > 0) {
-			return cssColorToHex(ctx.colorMap.get(`tag:${node.tags[0]}`) || DEFAULT_COLORS[0]);
-		}
-	}
-
-	if (ctx.colorMode === "field" && ctx.colorField) {
-		const fieldVal = ctx.getNodeProperty(node.id, ctx.colorField);
-		if (fieldVal !== undefined && fieldVal !== "") {
-			const key = String(fieldVal);
-			if (!ctx.colorMap.has(key)) {
-				const customPalette = ctx.customColorPalette
-					? ctx.customColorPalette
-							.split(",")
-							.map((s) => s.trim())
-							.filter(Boolean)
-					: [];
-				const palette = customPalette.length > 0 ? customPalette : (DEFAULT_COLORS as unknown as string[]);
-				const idx = ctx.colorMap.size % palette.length;
-				ctx.colorMap.set(key, palette[idx]);
-			}
-			return cssColorToHex(ctx.colorMap.get(key)!);
-		}
-	}
-
-	if (ctx.colorMode === "community" && ctx.communityMap) {
-		const cid = ctx.communityMap.get(node.id) ?? 0;
-		return COMMUNITY_PALETTE[cid % COMMUNITY_PALETTE.length];
-	}
+	if (ctx.colorMode === "category") return resolveCategoryColor(node, ctx.colorMap) ?? defaultColor;
+	if (ctx.colorMode === "field") return resolveFieldColor(node, ctx) ?? defaultColor;
+	if (ctx.colorMode === "community") return resolveCommunityColor(node.id, ctx.communityMap) ?? defaultColor;
 
 	return defaultColor;
 }

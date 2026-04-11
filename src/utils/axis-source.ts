@@ -21,51 +21,44 @@ import type { AxisSource, MetricKind } from "../types";
 const METRIC_NAMES = new Set(["degree", "in-degree", "out-degree", "bfs-depth", "sibling-rank"]);
 const BUILT_IN_FIELDS = new Set(["path", "file", "folder", "tag", "category", "id", "isTag"]);
 
+function parseRandom(trimmed: string): AxisSource | null {
+	if (trimmed === "random") return { kind: "random", seed: 42 };
+	if (!trimmed.startsWith("random:")) return null;
+	const seed = parseInt(trimmed.slice(7), 10);
+	return { kind: "random", seed: isNaN(seed) ? 42 : seed };
+}
+
+function parseConst(trimmed: string): AxisSource | null {
+	if (trimmed === "const") return { kind: "const", value: 1 };
+	if (!trimmed.startsWith("const:")) return null;
+	const v = parseFloat(trimmed.slice(6));
+	return { kind: "const", value: isNaN(v) ? 1 : v };
+}
+
+function parseHop(trimmed: string): AxisSource | null {
+	if (trimmed === "hop") return { kind: "hop", from: "" };
+	if (!trimmed.startsWith("hop:")) return null;
+	const parts = trimmed.slice(4).split(":");
+	const from = parts[0] || "";
+	const maxDepth = parts[1] ? parseInt(parts[1], 10) : undefined;
+	return { kind: "hop", from, ...(maxDepth != null && !isNaN(maxDepth) ? { maxDepth } : {}) };
+}
+
+function parseField(trimmed: string): AxisSource {
+	if (BUILT_IN_FIELDS.has(trimmed)) return { kind: "field", field: trimmed };
+	const fieldMatch = trimmed.replace(/:[?*]?$/, "");
+	if (fieldMatch && fieldMatch !== trimmed) return { kind: "field", field: fieldMatch };
+	return { kind: "field", field: trimmed };
+}
+
 export function parseAxisSourceString(s: string): AxisSource | null {
 	const trimmed = s.trim();
 	if (!trimmed) return null;
 
-	// Exact matches for keywords
 	if (trimmed === "index") return { kind: "index" };
 	if (METRIC_NAMES.has(trimmed)) return { kind: "metric", metric: trimmed as MetricKind };
 
-	// random / random:seed
-	if (trimmed === "random") return { kind: "random", seed: 42 };
-	if (trimmed.startsWith("random:")) {
-		const seed = parseInt(trimmed.slice(7), 10);
-		return { kind: "random", seed: isNaN(seed) ? 42 : seed };
-	}
-
-	// const:value
-	if (trimmed.startsWith("const")) {
-		if (trimmed === "const") return { kind: "const", value: 1 };
-		if (trimmed.startsWith("const:")) {
-			const v = parseFloat(trimmed.slice(6));
-			return { kind: "const", value: isNaN(v) ? 1 : v };
-		}
-	}
-
-	// hop:from or hop:from:maxDepth
-	if (trimmed.startsWith("hop:")) {
-		const parts = trimmed.slice(4).split(":");
-		const from = parts[0] || "";
-		const maxDepth = parts[1] ? parseInt(parts[1], 10) : undefined;
-		return { kind: "hop", from, ...(maxDepth != null && !isNaN(maxDepth) ? { maxDepth } : {}) };
-	}
-	if (trimmed === "hop") return { kind: "hop", from: "" };
-
-	// Built-in fields (path, file, folder, tag, category, id, isTag)
-	if (BUILT_IN_FIELDS.has(trimmed)) return { kind: "field", field: trimmed };
-
-	// Anything else with ":" suffix pattern like "tag:?" → treat as field name before ":"
-	// But "tag:?" is just "tag" effectively, so strip trailing ":?" or ":*"
-	const fieldMatch = trimmed.replace(/:[?*]?$/, "");
-	if (fieldMatch && fieldMatch !== trimmed) {
-		return { kind: "field", field: fieldMatch };
-	}
-
-	// Fallback: treat as a frontmatter field name
-	return { kind: "field", field: trimmed };
+	return parseRandom(trimmed) ?? parseConst(trimmed) ?? parseHop(trimmed) ?? parseField(trimmed);
 }
 
 export function axisSourceToString(src: AxisSource): string {
