@@ -62,6 +62,7 @@ import {
 	edgeSourceId,
 	edgeTargetId,
 	bfsNeighborSet,
+	bfsDistanceMap,
 	incCounter,
 	computeGaps,
 	hitTestTimelineBars,
@@ -4027,25 +4028,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		const effectiveHId = hId || (focusActive ? this.panel.focusNodeId : null);
 
 		// R2: Build distance map for focus cone + DS: edge alpha gradient
-		const distMap = new Map<string, number>();
+		const distMap = this.panel.focusConeEnabled && effectiveHId
+			? bfsDistanceMap(this.adj, effectiveHId, this.panel.hoverHops)
+			: new Map<string, number>();
 		this._hoverDistMap = distMap;
-		if (this.panel.focusConeEnabled && effectiveHId) {
-			distMap.set(effectiveHId, 0);
-			let frontier = [effectiveHId];
-			const hoverHops = this.panel.hoverHops;
-			for (let depth = 1; depth <= hoverHops; depth++) {
-				const next: string[] = [];
-				for (const fid of frontier) {
-					for (const nb of this.adj.get(fid) ?? []) {
-						if (!distMap.has(nb)) {
-							distMap.set(nb, depth);
-							next.push(nb);
-						}
-					}
-				}
-				frontier = next;
-			}
-		}
 
 		for (const pn of nodesToUpdate) {
 			if (!effectiveHId) {
