@@ -21,6 +21,8 @@ interface PerformanceWithMemory extends Performance {
 import type { StatsHost } from "./GraphViewContainer";
 import { incCounter } from "../utils/graph-helpers";
 
+const TOAST_SHORT_MS = 2000;
+
 /** Minimal panel state needed for stats rendering */
 export interface StatsPanel {
 	showGraphStats: boolean;
@@ -73,7 +75,7 @@ export function renderGraphStats(el: HTMLElement, gd: GraphData, panel: StatsPan
 			}
 		}
 		navigator.clipboard.writeText(lines.join("\n"));
-		new Notice("Stats copied as Markdown", 2000);
+		new Notice(t("export.statsCopied"), TOAST_SHORT_MS);
 	});
 
 	// --- Stats table ---

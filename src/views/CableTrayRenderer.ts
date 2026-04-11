@@ -377,7 +377,7 @@ export function computeCablePath(
 	// -- Fallback: perpendicular offset --
 	const dx = to.x - from.x,
 		dy = to.y - from.y;
-	const len = Math.sqrt(dx * dx + dy * dy);
+	const len = Math.sqrt(dx * dx + dy * dy) || 1;
 	const perpX = -dy / len,
 		perpY = dx / len;
 	const sign = perpY >= 0 ? 1 : -1;
