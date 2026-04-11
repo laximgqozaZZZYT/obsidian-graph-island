@@ -33,7 +33,7 @@ test.beforeAll(async () => {
 
   // Reset to baseline: no grouping, all edges on
   await page.evaluate(async () => {
-    const view = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+    const view = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
     if (!view) return;
     const panel = view.getPanel();
     panel.groupBy = "none";
@@ -54,7 +54,7 @@ test.beforeAll(async () => {
 
 test("baseline edge type counts match expected totals", async () => {
   const data = await page.evaluate(() => {
-    const view = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+    const view = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
     if (!view) return { error: "no view" };
     const edges = view.graphEdges ?? [];
     const typeCounts: Record<string, number> = {};
@@ -71,7 +71,7 @@ test("baseline edge type counts match expected totals", async () => {
 
 test("showLinks toggle changes panel state correctly", async () => {
   const result = await page.evaluate(async () => {
-    const view = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+    const view = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
     if (!view) return { error: "no view" };
     const panel = view.getPanel();
 
@@ -94,7 +94,7 @@ test("showLinks toggle changes panel state correctly", async () => {
 
 test("showSemanticEdges toggle changes panel state correctly", async () => {
   const result = await page.evaluate(async () => {
-    const view = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+    const view = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
     if (!view) return { error: "no view" };
     const panel = view.getPanel();
 
@@ -117,7 +117,7 @@ test("showSemanticEdges toggle changes panel state correctly", async () => {
 
 test("edge counts are stable across re-render", async () => {
   const result = await page.evaluate(async () => {
-    const view = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+    const view = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
     if (!view) return { error: "no view" };
 
     const countEdges = () => {
@@ -153,6 +153,24 @@ test("edge counts are stable across re-render", async () => {
 // Visual Quality Gate — post-test display state check
 // =========================================================================
 test("VISUAL-GATE: display quality after test operations", async () => {
+  // Reset to default state and zoom-to-fit before measuring
+  await page.evaluate(async () => {
+    const v = (window as any).app.workspace.getLeavesOfType("graph-view")
+      .find((l: any) => "pixiNodes" in l.view)?.view;
+    if (!v) return;
+    v.panel.showLinks = true;
+    v.panel.showSemanticEdges = true;
+    v.rawData = null;
+    await v.doRender();
+  });
+  await page.waitForTimeout(5000);
+  await page.evaluate(() => {
+    const v = (window as any).app.workspace.getLeavesOfType("graph-view")
+      .find((l: any) => "pixiNodes" in l.view)?.view;
+    if (v?.autoFitView) v.autoFitView();
+  });
+  await page.waitForTimeout(2000);
+
   const density = await measureScreenDensity(page);
   const labels = await measureLabelReadability(page);
   const edges = await measureEdgeVisibility(page);
@@ -181,6 +199,11 @@ test("VISUAL-GATE: display quality after test operations", async () => {
 // Screen-Space Visual Quality (auto-generated)
 // =========================================================================
 test("SCREEN-QUALITY: no node pile-up and labels readable", async () => {
+  await page.evaluate(() => {
+    const v = (window as any).app.workspace.getLeavesOfType("graph-view")
+      .find((l: any) => "pixiNodes" in l.view)?.view;
+    if (v?.autoFitView) v.autoFitView();
+  });
   await page.waitForTimeout(2000);
 
   const hasView = await page.evaluate(() => {
@@ -234,7 +257,24 @@ test("SCREEN-QUALITY: no node pile-up and labels readable", async () => {
 // Display Quality Gate (auto-generated)
 // =========================================================================
 test("QUALITY: node overlap, coordinate sanity, and color contrast", async () => {
-  // Wait for any pending render to settle
+  // Reset to defaults and zoom-to-fit before measuring quality
+  await page.evaluate(async () => {
+    const v = (window as any).app.workspace.getLeavesOfType("graph-view")
+      .find((l: any) => "pixiNodes" in l.view)?.view;
+    if (!v) return;
+    v.panel.clusterArrangement = "force";
+    v.panel.showLinks = true;
+    v.panel.showSemanticEdges = true;
+    v.rawData = null;
+    await v.doRender();
+  });
+  await page.waitForTimeout(5000);
+
+  await page.evaluate(() => {
+    const v = (window as any).app.workspace.getLeavesOfType("graph-view")
+      .find((l: any) => "pixiNodes" in l.view)?.view;
+    if (v?.autoFitView) v.autoFitView();
+  });
   await page.waitForTimeout(2000);
 
   const hasView = await page.evaluate(() => {

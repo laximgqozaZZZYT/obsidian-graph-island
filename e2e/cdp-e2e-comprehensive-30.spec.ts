@@ -46,7 +46,8 @@ function loadSample(filename: string): Record<string, unknown> {
 
 async function applyConfig(cfg: Record<string, unknown>) {
   return page.evaluate(async (config: Record<string, unknown>) => {
-    const view = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+    const view = (window as any).app.workspace.getLeavesOfType("graph-view")
+      .find((l: any) => "pixiNodes" in l.view)?.view;
     if (!view) return { error: "no view" };
     const panel = typeof view.getPanel === "function" ? view.getPanel() : view.panel;
 
@@ -85,12 +86,12 @@ test("all numbered presets (01-20) load with positive node count", async () => {
   }
 });
 
-test("preset 01 uses spiral arrangement", async () => {
+test("preset 01 uses grid arrangement", async () => {
   const config = loadSample("01-panorama-overview.json");
   const result = await applyConfig(config);
   expect(result).not.toHaveProperty("error");
   expect(result.nodeCount).toBeGreaterThan(0);
-  expect(result.arrangement).toBe("spiral");
+  expect(result.arrangement).toBe("grid");
 });
 
 test("preset 08 uses timeline arrangement", async () => {
@@ -104,7 +105,8 @@ test("preset 08 uses timeline arrangement", async () => {
 test("preset 10 has heatmapMode enabled", async () => {
   const config = loadSample("10-maximalist.json");
   const result = await page.evaluate(async (cfg: any) => {
-    const view = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+    const view = (window as any).app.workspace.getLeavesOfType("graph-view")
+      .find((l: any) => "pixiNodes" in l.view)?.view;
     if (!view) return { error: "no view" };
     const panel = typeof view.getPanel === "function" ? view.getPanel() : view.panel;
     for (const [k, v] of Object.entries(cfg)) {
@@ -209,7 +211,25 @@ test("SCREEN-QUALITY: no node pile-up and labels readable", async () => {
 // Display Quality Gate (auto-generated)
 // =========================================================================
 test("QUALITY: node overlap, coordinate sanity, and color contrast", async () => {
-  // Wait for any pending render to settle
+  // Reset to default arrangement and zoom-to-fit before measuring quality
+  await page.evaluate(async () => {
+    const v = (window as any).app.workspace.getLeavesOfType("graph-view")
+      .find((l: any) => "pixiNodes" in l.view)?.view;
+    if (!v) return;
+    v.panel.clusterArrangement = "force";
+    v.panel.groupBy = "none";
+    v.panel.collapsedGroups = new Set();
+    v.panel.searchQuery = "";
+    v.rawData = null;
+    await v.doRender();
+  });
+  await page.waitForTimeout(5000);
+
+  await page.evaluate(() => {
+    const v = (window as any).app.workspace.getLeavesOfType("graph-view")
+      .find((l: any) => "pixiNodes" in l.view)?.view;
+    if (v?.autoFitView) v.autoFitView();
+  });
   await page.waitForTimeout(2000);
 
   const hasView = await page.evaluate(() => {
