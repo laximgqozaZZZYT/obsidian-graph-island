@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-11
-status: in-progress
+status: done
 source: kaizen
 summary: ExportManager と StatsRenderer の Notice 文字列が i18n t() を経由していない
 ---
