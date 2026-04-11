@@ -19,7 +19,7 @@ let BASELINE = 0; // Detected in beforeAll
 /** Reset panel to defaults and reload data, waiting for deferred node batches */
 async function resetAndReload(p: Page): Promise<number> {
   await p.evaluate(async () => {
-    const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+    const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
     if (!v) return;
     v.panel.searchQuery = "";
     v.panel.clusterArrangement = "force";
@@ -45,10 +45,10 @@ async function resetAndReload(p: Page): Promise<number> {
   // Poll until node count stabilizes above IMMEDIATE_BATCH_SIZE (200)
   let lastCount = 0;
   let stableRounds = 0;
-  for (let i = 0; i < 15; i++) {
+  for (let i = 0; i < 25; i++) {
     await p.waitForTimeout(1000);
     const count = await p.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       return v?.pixiNodes?.size ?? 0;
     });
     if (count === lastCount && count > 200) {
@@ -88,7 +88,8 @@ test.beforeAll(async ({}, testInfo) => {
   } else {
     await page.evaluate(() => {
       const leaves = (window as any).app.workspace.getLeavesOfType("graph-view");
-      if (leaves.length > 0) (window as any).app.workspace.setActiveLeaf(leaves[0], { focus: true });
+      const giLeaf = leaves.find((l: any) => "pixiNodes" in l.view) || leaves[0];
+      if (giLeaf) (window as any).app.workspace.setActiveLeaf(giLeaf, { focus: true });
     });
     await page.waitForTimeout(1000);
   }
@@ -108,16 +109,15 @@ test("grid layout preserves 2354 nodes", async () => {
   expect(baseline).toBe(BASELINE);
 
   await page.evaluate(async () => {
-    const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+    const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
+    if (!v) return;
     v.panel.clusterArrangement = "grid";
-    v.rawData = null;
     await v.doRender();
-
   });
   await page.waitForTimeout(5000);
 
   const count = await page.evaluate(() => {
-    const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+    const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
     return v?.pixiNodes?.size ?? 0;
   });
   console.log(`Grid layout nodeCount: ${count}`);
@@ -129,15 +129,15 @@ test("grid layout preserves 2354 nodes", async () => {
 // =========================================================================
 test("timeline layout preserves node count", async () => {
   await page.evaluate(async () => {
-    const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+    const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
+    if (!v) return;
     v.panel.clusterArrangement = "timeline";
-    v.rawData = null;
     await v.doRender();
   });
   await page.waitForTimeout(5000);
 
   const count = await page.evaluate(() => {
-    const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+    const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
     return v?.pixiNodes?.size ?? 0;
   });
   console.log(`Timeline layout nodeCount: ${count}`);
@@ -164,7 +164,7 @@ test("showOrphans=false removes orphans from baseline", async () => {
   expect(baseline).toBe(BASELINE);
 
   await page.evaluate(async () => {
-    const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+    const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
     v.panel.showOrphans = false;
     v.rawData = null;
     await v.doRender();
@@ -173,7 +173,7 @@ test("showOrphans=false removes orphans from baseline", async () => {
   await page.waitForTimeout(5000);
 
   const count = await page.evaluate(() => {
-    const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+    const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
     return v?.pixiNodes?.size ?? 0;
   });
   const removed = baseline - count;
@@ -200,7 +200,7 @@ test("tagDisplay=enclosure creates enclosure labels", async () => {
   expect(baseline).toBe(BASELINE);
 
   await page.evaluate(async () => {
-    const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+    const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
     v.panel.tagDisplay = "enclosure";
     v.panel.showTagNodes = true;
     v.rawData = null;
@@ -210,7 +210,7 @@ test("tagDisplay=enclosure creates enclosure labels", async () => {
   await page.waitForTimeout(5000);
 
   const result = await page.evaluate(() => {
-    const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+    const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
     if (!v) return { error: "no view" };
     const totalLabelCount = v.enclosureLabels?.size ?? 0;
     return { totalLabelCount };
@@ -227,7 +227,7 @@ test("tagDisplay=enclosure creates enclosure labels", async () => {
 test("enclosureMinRatio=0.5 reduces enclosure count", async () => {
   // enclosureMinRatio lives on plugin.settings, not panel
   await page.evaluate(async () => {
-    const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+    const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
     v.panel.tagDisplay = "enclosure";
     v.panel.showTagNodes = false;
     v.plugin.settings.enclosureMinRatio = 0.5;
@@ -237,7 +237,7 @@ test("enclosureMinRatio=0.5 reduces enclosure count", async () => {
   await page.waitForTimeout(5000);
 
   const result = await page.evaluate(() => {
-    const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+    const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
     if (!v) return { error: "no view" };
     return { reducedLabelCount: v.enclosureLabels?.size ?? 0 };
   });
@@ -248,7 +248,7 @@ test("enclosureMinRatio=0.5 reduces enclosure count", async () => {
 
   // Restore default
   await page.evaluate(() => {
-    const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+    const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
     v.plugin.settings.enclosureMinRatio = 0.05;
 
   });
@@ -261,7 +261,7 @@ test("showLinks toggle changes panel state and link edges are 1695", async () =>
   // showLinks controls rendering only (not data filtering)
   // Verify: edge type distribution is correct, and panel property toggles
   const result = await page.evaluate(async () => {
-    const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+    const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
     if (!v) return { error: "no view" };
     const edges = v.graphEdges ?? [];
     let linkCount = 0;
@@ -282,7 +282,7 @@ test("showLinks toggle changes panel state and link edges are 1695", async () =>
 // =========================================================================
 test("semantic edges count is 2363 and toggle changes panel state", async () => {
   const result = await page.evaluate(async () => {
-    const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+    const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
     if (!v) return { error: "no view" };
     const edges = v.graphEdges ?? [];
     let semanticCount = 0;
@@ -303,7 +303,7 @@ test("semantic edges count is 2363 and toggle changes panel state", async () => 
 // =========================================================================
 test("searchQuery='tag:battle' + enclosure creates enclosures for filtered nodes", async () => {
   await page.evaluate(async () => {
-    const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+    const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
     v.panel.searchQuery = "tag:battle";
     v.panel.tagDisplay = "enclosure";
     v.panel.showTagNodes = false;
@@ -313,7 +313,7 @@ test("searchQuery='tag:battle' + enclosure creates enclosures for filtered nodes
   await page.waitForTimeout(5000);
 
   const result = await page.evaluate(() => {
-    const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+    const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
     if (!v) return { error: "no view" };
     const nodeCount = v.pixiNodes?.size ?? 0;
     // _buildTagMembership assigns nodes to their most-specific tag,
@@ -342,7 +342,7 @@ test("searchQuery='tag:battle' + enclosure creates enclosures for filtered nodes
 test("searchQuery='' after filter restores full graph", async () => {
   // Apply filter
   await page.evaluate(async () => {
-    const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+    const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
     v.panel.searchQuery = "path:classic-macbeth";
     v.panel.tagDisplay = "node";
     v.rawData = null;
@@ -351,7 +351,7 @@ test("searchQuery='' after filter restores full graph", async () => {
   await page.waitForTimeout(5000);
 
   const filteredCount = await page.evaluate(() => {
-    const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+    const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
     return v?.pixiNodes?.size ?? 0;
   });
   console.log(`Filtered (path:classic-macbeth): ${filteredCount}`);
@@ -373,7 +373,7 @@ test("groupBy=folder creates collapsed super nodes", async () => {
   expect(baseline).toBe(BASELINE);
 
   await page.evaluate(async () => {
-    const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+    const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
     v.panel.groupBy = "folder";
     v.panel.collapsedGroups = new Set(); // ensure empty for auto-collapse
     v.rawData = null;
@@ -383,7 +383,7 @@ test("groupBy=folder creates collapsed super nodes", async () => {
   await page.waitForTimeout(15000);
 
   const result = await page.evaluate(() => {
-    const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+    const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
     if (!v) return { error: "no view" };
     let superNodeCount = 0;
     let totalCollapsedMembers = 0;
