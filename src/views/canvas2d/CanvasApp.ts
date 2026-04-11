@@ -30,8 +30,8 @@ export class CanvasApp implements IApp {
 	/** Whether to show the background dot grid */
 	showDotGrid = true;
 
-	/** Canvas2D does not support GPU-accelerated animations */
-	readonly supportsAnimation = false;
+	/** Canvas2D supports rAF-based animations (coordinate interpolation only) */
+	readonly supportsAnimation = true;
 
 	/** Create a Canvas2D graphics object */
 	createGraphics(): CanvasGraphics {
