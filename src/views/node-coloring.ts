@@ -7,8 +7,8 @@
 import { cssColorToHex } from "../utils/graph-helpers";
 import { DEFAULT_COLORS, type GroupRule } from "../types";
 import { evaluateExpr } from "../utils/query-expr";
-import { matchesFilter } from "../layouts/force";
-import { heatmapColor } from "../views/RenderHelpers";
+import { matchesFilter } from "../utils/filter-match";
+import { heatmapColor } from "./RenderHelpers";
 import type { GraphNode } from "../types";
 
 /** D3-category-20 palette for community coloring. */

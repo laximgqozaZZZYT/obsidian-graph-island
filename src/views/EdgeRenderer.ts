@@ -2315,22 +2315,23 @@ function _drawNonCabledEdge(
 	densityScale: number, pairCount: Map<string, number> | null,
 	bundles: Map<string, BundleGroup> | null, bundleStrength: number,
 	ws: number, arrowGfx?: CanvasGraphics | null, cache: EdgeRenderCache = _cache,
+	alphaMul = 1, widthOff = 0,
 ): void {
 	let lineColor = resolveEdgeColor(e, useRelColor, cfg.relationColors, cfg.isDark);
 	const { alpha: _alpha, lineThick: _lineThick, isHighlighted: edgeHL } = resolveEdgeStyle(e, src, tgt, cfg, densityScale, pairCount);
 	let alpha = _alpha;
 	let lineThick = _lineThick;
 
-	// Zoom-out: desaturate edge colors toward gray for visual calm (skip highlighted)
 	if (!edgeHL) lineColor = desaturateAtZoom(lineColor, ws, cfg.isDark);
-	// Brighten highlighted edges for visual emphasis
 	if (edgeHL) lineColor = brightenColor(lineColor, 60);
 
-	// S6: Ontology backbone — thicken inheritance edges (merged from showHierarchyOverlay)
 	if (cfg.showOntologyBackbone && e.type === EDGE_TYPE_INHERITANCE) {
 		lineThick *= cfg.edgeHierarchyThickFactor ?? 2.5;
 		alpha = Math.min(1.0, alpha + (cfg.edgeHierarchyBoost ?? 0.3));
 	}
+
+	alpha *= alphaMul;
+	lineThick = Math.max(0.5, lineThick + widthOff);
 
 	g.lineStyle({ width: lineThick, color: lineColor, alpha, native: true });
 	const hasDash = applyDashPattern(g, e, lineThick);
@@ -2406,23 +2407,20 @@ function _drawEdgesLayered(
 	arrowGfx?: CanvasGraphics | null,
 	cache: EdgeRenderCache = _cache,
 ): void {
-	// レイヤー順にエッジを描画
+	const ws = cfg.worldScale ?? 1;
 	for (let li = 0; li < EDGE_LAYER_ORDER.length; li++) {
 		const layerType = EDGE_LAYER_ORDER[li];
 		const alphaMul = LAYER_ALPHA_MULTIPLIERS[li];
 		const widthOff = LAYER_WIDTH_OFFSETS[li];
 
 		for (const e of edges) {
-			// このレイヤーに属さないエッジはスキップ
 			if ((e.type ?? undefined) !== layerType) continue;
 
 			const isCabledL = cablePrep.cabledEdgeIds.has(e.id) || cablePrep.intraHandledIds.has(e.id);
-
 			const src = resolvePos(e.source);
 			const tgt = resolvePos(e.target);
 			if (!src || !tgt) continue;
 
-			// When cable-tray handles this edge, skip the line segment but still draw decorations (arrows etc.)
 			if (isCabledL || cablePrep.hasClusters) {
 				const lineColor = resolveEdgeColor(e, useRelColor, cfg.relationColors, cfg.isDark);
 				const { alpha } = resolveEdgeStyle(e, src, tgt, cfg, densityScale, pairCount);
@@ -2430,40 +2428,7 @@ function _drawEdgesLayered(
 				continue;
 			}
 
-			let lineColor = resolveEdgeColor(e, useRelColor, cfg.relationColors, cfg.isDark);
-			const {
-				alpha: _alpha2,
-				lineThick: _lineThick2,
-				isHighlighted: edgeHLL,
-			} = resolveEdgeStyle(e, src, tgt, cfg, densityScale, pairCount);
-			let alpha = _alpha2;
-			let lineThick = _lineThick2;
-
-			// Brighten highlighted edges for visual emphasis
-			if (edgeHLL) {
-				const rr = Math.min(255, ((lineColor >> 16) & 0xff) + 60);
-				const gg = Math.min(255, ((lineColor >> 8) & 0xff) + 60);
-				const bb = Math.min(255, (lineColor & 0xff) + 60);
-				lineColor = (rr << 16) | (gg << 8) | bb;
-			}
-
-			// S6: Ontology backbone — thicken inheritance edges (merged from showHierarchyOverlay)
-			if (cfg.showOntologyBackbone && e.type === EDGE_TYPE_INHERITANCE) {
-				lineThick *= cfg.edgeHierarchyThickFactor ?? 2.5;
-				alpha = Math.min(1.0, alpha + (cfg.edgeHierarchyBoost ?? 0.3));
-			}
-
-			// レイヤーごとに alpha と width を微調整
-			const layerAlpha = alpha * alphaMul;
-			const layerWidth = Math.max(0.5, lineThick + widthOff);
-
-			g.lineStyle({ width: layerWidth, color: lineColor, alpha: layerAlpha, native: true });
-			const hasDash = applyDashPattern(g, e, layerWidth);
-
-			drawEdgeSegment(g, src, tgt, e, lineColor, isArcLayout, bundles, bundleStrength, cfg.roadNetwork, cache);
-			drawEdgeDecorations(g, e, src, tgt, lineColor, layerAlpha, cfg, arrowGfx);
-
-			if (hasDash) g.setLineDash([]);
+			_drawNonCabledEdge(g, e, src, tgt, cfg, useRelColor, isArcLayout, densityScale, pairCount, bundles, bundleStrength, ws, arrowGfx, cache, alphaMul, widthOff);
 		}
 	}
 }

@@ -29,6 +29,10 @@ export {
 	GLOW_ATTENUATE_THRESHOLD, GLOW_ATTENUATE_RANGE, GLOW_RADIUS_ATTENUATE_FACTOR, GLOW_P90_FRACTION,
 	LABEL_Y_OFFSET_FACTOR,
 };
+import {
+	computeZoomNodeBoost, computeBaseStrokeWidth, computeNodeAlpha, resolveNodeDrawColor,
+} from "./node-render-helpers";
+import type { DenseStrokeConfig } from "./node-render-helpers";
 import { SpatialHashGrid } from "../utils/spatial-grid";
 import { computeViewportBounds, collectVisibleNodes } from "./batch-context";
 import {
@@ -1203,41 +1207,24 @@ export class RenderPipeline {
 		const nonPromSat = rt.nonProminentSaturation;
 		const useGradient = nodeCount < rt.gradientNodeCount;
 
-		// Zoom-adaptive node size: boost radius at zoom-out for visibility
-		const zoomNodeBoost = worldScale < 0.5 ? 1 + (0.5 - worldScale) * 0.5 : 1; // up to 1.25x at zoom=0
-
-		// Density-aware stroke: thicken stroke at zoom-out so overlapping nodes remain distinguishable
-		// IK: High contrast mode doubles base stroke for better visibility
+		const zoomBoost = computeZoomNodeBoost(worldScale);
 		const hc = this.host.isHighContrastMode?.() ?? false;
-		const hcMul = hc ? 2 : 1;
-		const dsZoomLow = rt.denseStrokeZoomLow;
-		const dsZoomMid = rt.denseStrokeZoomMid;
-		const dsMaxW = rt.denseStrokeMaxWidth;
-		const dsMidW = rt.denseStrokeMidWidth;
-		const baseStrokeW =
-			(worldScale < dsZoomLow ? Math.min(2 / worldScale, dsMaxW) : worldScale < dsZoomMid ? dsMidW : 1) * hcMul;
+		const ds: DenseStrokeConfig = {
+			zoomLow: rt.denseStrokeZoomLow, zoomMid: rt.denseStrokeZoomMid,
+			maxWidth: rt.denseStrokeMaxWidth, midWidth: rt.denseStrokeMidWidth,
+		};
+		const baseStrokeW = computeBaseStrokeWidth(worldScale, hc, ds);
 
 		for (const pn of visible) {
 			const shape = getNodeShape(pn.data, shapeRules);
-			const effR = Math.max(pn.radius * zoomNodeBoost, minWorldRadius);
-			let nodeAlpha = tlFilteredOut && tlFilteredOut.has(pn.data.id) ? alpha * crc.filteredNodeAlpha : alpha;
-			// Zoom-out: fade low-degree nodes for visual clarity (AM: importance fade)
-			// IA: Stronger fade so high-degree hubs stand out in dense clusters
-			if (worldScale < 0.3 && pn.sortRank >= 0 && pn.sortRank >= prominentN * 2) {
-				nodeAlpha *= Math.max(rt.fadeLowDegreeFloor, worldScale / 0.3);
-			}
-
-			// Desaturate non-prominent nodes
-			let drawColor = pn.color;
-			if (pn.sortRank >= 0 && pn.sortRank >= prominentN) {
-				drawColor = desaturateColor(pn.color, nonPromSat);
-			}
+			const effR = Math.max(pn.radius * zoomBoost, minWorldRadius);
+			const filteredOut = !!(tlFilteredOut && tlFilteredOut.has(pn.data.id));
+			const nodeAlpha = computeNodeAlpha(alpha, filteredOut, crc.filteredNodeAlpha, worldScale, pn.sortRank, prominentN, rt.fadeLowDegreeFloor);
+			const drawColor = resolveNodeDrawColor(pn.color, pn.sortRank, prominentN, nonPromSat, desaturateColor);
 			const strokeColor = darkenColor(drawColor, crc.strokeDarken);
 			g.lineStyle(baseStrokeW, strokeColor, nodeAlpha * crc.strokeAlpha);
 			if (useGradient && shape === "circle") {
-				const innerCol = lightenColor(drawColor, crc.gradientHighlight);
-				const outerCol = darkenColor(drawColor, crc.gradientShadow);
-				g.beginRadialFill(pn.data.x, pn.data.y, effR, innerCol, outerCol, nodeAlpha, nodeAlpha);
+				g.beginRadialFill(pn.data.x, pn.data.y, effR, lightenColor(drawColor, crc.gradientHighlight), darkenColor(drawColor, crc.gradientShadow), nodeAlpha, nodeAlpha);
 			} else {
 				g.beginFill(drawColor, nodeAlpha);
 			}

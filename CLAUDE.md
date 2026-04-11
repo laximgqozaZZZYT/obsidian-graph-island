@@ -17,8 +17,8 @@ These files are oversized. **Do NOT grow them**. Extract logic into new files in
 |------|-------|-------------|----------------------|
 | `src/views/GraphViewContainer.ts` | 8612 | 8612 | 1 — extract: snapshot, export, filter orchestration |
 | `src/views/PanelBuilder.ts` | 2218 | 2218 | 2 — extract: individual panel sections |
-| `src/views/EdgeRenderer.ts` | 2747 | 2747 | 3 — extract: cable-tray rendering, label rendering |
-| `src/views/RenderPipeline.ts` | 2361 | 2361 | 4 — extract: LOD logic, culling logic |
+| `src/views/EdgeRenderer.ts` | 2712 | 2712 | 3 — extract: cable-tray rendering, label rendering |
+| `src/views/RenderPipeline.ts` | 2337 | 2337 | 4 — extract: LOD logic, culling logic |
 
 "Max Allowed" = current line count. Ratchet down only.
 
