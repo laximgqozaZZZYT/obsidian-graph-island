@@ -106,7 +106,9 @@ fi
 echo $$ > "$LOCK_DIR/$SESSION_ID.pid"
 log "Active sessions: $ACTIVE_COUNT/$MAX_SESSIONS — proceeding"
 
-# ── Auto-reset stale in-progress issues (>1 hour old) ──
+# ── Carry over stale in-progress issues (>1 hour old) ──
+# Instead of blindly resetting, append attempt history so the next
+# session can continue from where the previous one left off.
 ISSUE_DIR="$PROJECT_DIR/scripts/pipeline/issues"
 if [[ -d "$ISSUE_DIR" ]]; then
   NOW=$(date +%s)
@@ -115,9 +117,34 @@ if [[ -d "$ISSUE_DIR" ]]; then
     if grep -q "status: in-progress" "$f" 2>/dev/null; then
       FILE_AGE=$(( NOW - $(stat -c%Y "$f" 2>/dev/null || echo "$NOW") ))
       if [[ $FILE_AGE -gt 3600 ]]; then
+        FNAME=$(basename "$f")
+        ATTEMPT_COUNT=$(grep -c "^### Attempt " "$f" 2>/dev/null || echo 0)
+        NEXT_ATTEMPT=$((ATTEMPT_COUNT + 1))
+
+        # Find relevant session log entries
+        SLUG="${FNAME%.md}"
+        LAST_SESSION_LOG=$(grep -l "$SLUG" /tmp/graph-island-improve-results/*.json 2>/dev/null | xargs ls -t 2>/dev/null | head -1)
+        SESSION_SUMMARY=""
+        if [[ -n "$LAST_SESSION_LOG" ]]; then
+          LAST_SID=$(grep -oP '"session":\s*"\K[^"]+' "$LAST_SESSION_LOG" 2>/dev/null || echo "unknown")
+          LAST_COMMITS=$(grep -oP '"commits":\s*\K[0-9]+' "$LAST_SESSION_LOG" 2>/dev/null || echo "0")
+          SESSION_SUMMARY="session=$LAST_SID, commits=$LAST_COMMITS"
+        fi
+
+        # Append attempt record to issue file
+        cat >> "$f" << ATTEMPT_EOF
+
+### Attempt $NEXT_ATTEMPT ($(date -Iseconds))
+- Status: timed out after 1h
+- ${SESSION_SUMMARY:-no session log found}
+- Previous session could not complete this issue within max turns.
+- **Continue from where the last session left off. Do not repeat already-attempted approaches.**
+ATTEMPT_EOF
+
+        # Reset to pending so it gets picked up again
         sed -i 's/status: in-progress/status: pending/' "$f"
-        log "RESET: $(basename $f) stale in-progress → pending (age: ${FILE_AGE}s)"
-        (cd "$PROJECT_DIR" && git add "$f" && git commit -m "chore: auto-reset stale issue $(basename $f)" --no-verify 2>/dev/null) || true
+        log "CARRYOVER: $FNAME → pending (attempt $NEXT_ATTEMPT, age: ${FILE_AGE}s)"
+        (cd "$PROJECT_DIR" && git add "$f" && git commit -m "chore: carryover stale issue $FNAME (attempt $NEXT_ATTEMPT)" --no-verify 2>/dev/null) || true
       fi
     fi
   done
