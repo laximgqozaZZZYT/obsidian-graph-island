@@ -41,10 +41,8 @@ file_issue() {
   if ls "$ISSUE_DIR"/*-"$slug".md 2>/dev/null | grep -q .; then
     return 0
   fi
-  # Skip if recently completed (avoid re-filing)
-  if ls "$DONE_DIR"/*-"$slug".md 2>/dev/null | grep -q .; then
-    return 0
-  fi
+  # NOTE: done/ is intentionally NOT checked — problems can regress and
+  # need to be re-filed. Only skip if actively pending or in-progress.
 
   # Find next number
   local last_num
