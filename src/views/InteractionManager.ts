@@ -1011,7 +1011,7 @@ export class InteractionManager {
 	private _ctxEditSection(menu: Menu, node: PixiNode) {
 		menu.addSeparator();
 		menu.addItem((item) => {
-			item.setTitle("Focus zoom")
+			item.setTitle(t("context.focusZoom"))
 				.setIcon("maximize-2")
 				.onClick(() => this.host.focusZoomToNode?.(node.data.id));
 		});
@@ -1021,7 +1021,7 @@ export class InteractionManager {
 				.onClick(() => this.host.toggleHold(node));
 		});
 		menu.addItem((item) => {
-			item.setTitle("Search in vault")
+			item.setTitle(t("context.searchInVault"))
 				.setIcon("search")
 				.onClick(() => {
 					const obsApp = this.host.getApp();
@@ -1232,7 +1232,7 @@ export class InteractionManager {
 		if (this.host.exportFullGraph) {
 			menu.addSeparator();
 			menu.addItem((item) => {
-				item.setTitle("Export Graph JSON")
+				item.setTitle(t("context.exportGraphJson"))
 					.setIcon("download")
 					.onClick(() => this.host.exportFullGraph!());
 			});
@@ -1263,7 +1263,7 @@ export class InteractionManager {
 		if (this.host.exportPng) {
 			menu.addSeparator();
 			menu.addItem((item) => {
-				item.setTitle("Export PNG")
+				item.setTitle(t("context.exportPng"))
 					.setIcon("image")
 					.onClick(() => this.host.exportPng!());
 			});

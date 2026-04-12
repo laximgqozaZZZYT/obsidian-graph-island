@@ -1,6 +1,6 @@
 type BoolOp = "AND" | "OR" | "XOR" | "NOR" | "NAND";
 
-export interface QueryLeaf {
+interface QueryLeaf {
 	type: "leaf";
 	field: string;
 	value: string;
@@ -13,7 +13,7 @@ interface QueryNot {
 	child: QueryExpression;
 }
 
-export interface QueryBranch {
+interface QueryBranch {
 	type: "branch";
 	op: BoolOp;
 	left: QueryExpression;

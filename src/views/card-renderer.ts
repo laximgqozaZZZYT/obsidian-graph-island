@@ -11,7 +11,7 @@ import type { RenderHost } from "./RenderPipeline";
 import type { ShapeRule } from "../utils/node-shapes";
 
 /** Shared rendering context for card-mode functions. */
-export interface CardRenderCtx {
+interface CardRenderCtx {
 	visible: PixiNode[];
 	pixiNodes?: Map<string, PixiNode>;
 	tlFilteredOut: Set<string> | null;

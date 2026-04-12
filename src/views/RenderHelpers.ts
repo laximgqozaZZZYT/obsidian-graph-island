@@ -371,7 +371,7 @@ export function getPresetSummary(key: string): string {
 // ---------------------------------------------------------------------------
 
 /** Options for building hover tooltip text. */
-export interface TooltipTextOptions {
+interface TooltipTextOptions {
 	label: string;
 	showTitle: boolean;
 	showTooltip: boolean;

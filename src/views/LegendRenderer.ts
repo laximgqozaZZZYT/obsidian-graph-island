@@ -61,7 +61,7 @@ export function renderLegend(el: HTMLElement, panel: LegendPanel, host: LegendHo
 	const closeBtn = header.createEl("button", {
 		cls: "gi-legend-close",
 		text: "\u00d7",
-		attr: { "aria-label": "Close legend", tabindex: "0" },
+		attr: { "aria-label": t("a11y.closeLegend"), tabindex: "0" },
 	});
 	closeBtn.addEventListener("click", (e) => {
 		e.stopPropagation();
@@ -196,7 +196,7 @@ function renderCommunitySection(body: HTMLElement, legendColorMode: string, host
 			const row = commSection.createDiv({ cls: "gi-legend-item" });
 			const dot = row.createDiv({ cls: "gi-legend-color-dot" });
 			dot.style.background = PALETTE[cid % PALETTE.length];
-			row.createEl("span", { cls: "gi-legend-label", text: `Community ${cid + 1} (${count})` });
+			row.createEl("span", { cls: "gi-legend-label", text: t("legend.communityLabel").replace("{id}", String(cid + 1)).replace("{count}", String(count)) });
 		}
 	}
 }

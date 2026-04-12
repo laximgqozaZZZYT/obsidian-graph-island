@@ -6,6 +6,7 @@
 
 import type { RenderThresholds } from "../types";
 import { computeBoundingBox } from "../utils/geometry";
+import { t } from "../i18n";
 
 export interface MinimapHost {
 	/** Get all node positions (world coordinates) */
@@ -47,7 +48,7 @@ const MINIMAP_VIEWPORT_MIN_SIZE = 2;
 // ---------------------------------------------------------------------------
 
 /** Compute the dot radius for minimap nodes based on graph size. */
-export function minimapDotRadius(nodeCount: number, baseDotR: number): number {
+function minimapDotRadius(nodeCount: number, baseDotR: number): number {
 	if (nodeCount > MINIMAP_LARGE_GRAPH_THRESHOLD) return baseDotR * MINIMAP_DOT_SCALE_LARGE;
 	if (nodeCount > MINIMAP_MEDIUM_GRAPH_THRESHOLD) return baseDotR * MINIMAP_DOT_SCALE_MEDIUM;
 	return baseDotR;
@@ -57,7 +58,7 @@ export function minimapDotRadius(nodeCount: number, baseDotR: number): number {
  * Compute the clamped viewport rectangle on the minimap canvas.
  * Returns null if the rectangle should not be drawn (too small or covers entire minimap).
  */
-export function clampViewportRect(
+function clampViewportRect(
 	vpWorldX: number,
 	vpWorldY: number,
 	vpWorldW: number,
@@ -125,7 +126,7 @@ export class Minimap {
 		this.wrapper.className = "gi-minimap-wrap";
 		// IF: Minimap a11y — focusable with keyboard pan support
 		this.wrapper.setAttribute("role", "img");
-		this.wrapper.setAttribute("aria-label", "Graph minimap — drag to navigate, arrow keys to pan");
+		this.wrapper.setAttribute("aria-label", t("a11y.minimapLabel"));
 		this.wrapper.setAttribute("tabindex", "0");
 		parentEl.appendChild(this.wrapper);
 		this.wrapper.addEventListener("keydown", this.onKeyDown);

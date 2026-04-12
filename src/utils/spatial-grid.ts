@@ -5,7 +5,7 @@
 // Used by label culling, but generic enough for any rect-based overlap test.
 // ---------------------------------------------------------------------------
 
-export interface Rect {
+interface Rect {
 	x: number;
 	y: number;
 	w: number;

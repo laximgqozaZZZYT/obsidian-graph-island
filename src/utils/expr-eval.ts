@@ -21,7 +21,7 @@ export type ExprNode =
 /** Variables available during expression evaluation.
  *  Built-in: t (normalized 0–1), i (index), n (count), v (raw value).
  *  Additional user-defined constants can be added via [key: string]. */
-export interface ExprVars {
+interface ExprVars {
 	/** Normalized position 0–1 */
 	t: number;
 	/** Node index */

@@ -11,7 +11,7 @@ import type { App, Vault, Workspace, WorkspaceLeaf } from "obsidian";
 // ---------------------------------------------------------------------------
 
 /** Obsidian App with internal plugin registry access. */
-export interface ObsidianAppInternal extends App {
+interface ObsidianAppInternal extends App {
 	plugins?: {
 		plugins?: Record<string, { api?: unknown }>;
 	};
@@ -25,7 +25,7 @@ export interface ObsidianAppInternal extends App {
 // ---------------------------------------------------------------------------
 
 /** Workspace with custom event support (non-standard event names). */
-export interface ObsidianWorkspaceInternal {
+interface ObsidianWorkspaceInternal {
 	on(name: string, callback: (...data: unknown[]) => void): import("obsidian").EventRef;
 	trigger(name: string, ...data: unknown[]): void;
 }
@@ -62,7 +62,7 @@ export interface GraphViewInternal {
 // ---------------------------------------------------------------------------
 
 /** Window with Obsidian injected globals. */
-export interface ObsidianWindow extends Window {
+interface ObsidianWindow extends Window {
 	moment?: {
 		locale: () => string;
 	};
@@ -75,7 +75,7 @@ export interface ObsidianWindow extends Window {
 // ---------------------------------------------------------------------------
 
 /** Vault with internal methods for attachment path resolution. */
-export interface ObsidianVaultInternal extends Vault {
+interface ObsidianVaultInternal extends Vault {
 	getAvailablePath?: (basePath: string, extension: string) => string;
 	config?: { attachmentFolderPath?: string };
 }

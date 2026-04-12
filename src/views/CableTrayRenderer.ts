@@ -947,7 +947,7 @@ function collectIntraTargetPositions(
 }
 
 /** Build a routing function that picks polar, cartesian, or straight-line path. */
-export function createBranchRouter(
+function createBranchRouter(
 	perimInfo: GroupPerimInfo | null,
 	isPolar: boolean,
 	portForKey: GroupPort | null,

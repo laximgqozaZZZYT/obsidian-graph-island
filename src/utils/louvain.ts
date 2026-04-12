@@ -24,7 +24,7 @@ interface AdjacencyResult {
  * エッジ配列から無向グラフの隣接リストを構築する。
  * 自己ループは無視し、同一ペアの重みは加算される。
  */
-export function buildAdjacencyList(
+function buildAdjacencyList(
 	edges: LouvainEdge[],
 	idToIdx: Map<string, number>,
 	n: number,

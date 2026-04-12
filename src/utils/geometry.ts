@@ -63,7 +63,7 @@ export function computeGroupMemberBounds(
 }
 
 /** Axis-aligned rectangle for overlap testing */
-export interface Rect {
+interface Rect {
 	x: number;
 	y: number;
 	w: number;
@@ -75,7 +75,7 @@ export function rectsOverlap(a: Rect, b: Rect): boolean {
 	return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
 }
 
-export interface BBox {
+interface BBox {
 	minX: number;
 	minY: number;
 	maxX: number;
@@ -168,7 +168,7 @@ export function findNearestIndex(
  * Find the nearest point index AND its squared distance.
  * Returns { index: -1, dist: Infinity } if the array is empty.
  */
-export function findNearestWithDist(
+function findNearestWithDist(
 	points: readonly { x: number; y: number }[],
 	qx: number,
 	qy: number,

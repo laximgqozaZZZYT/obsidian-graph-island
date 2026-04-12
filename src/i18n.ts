@@ -943,6 +943,45 @@ const en: TranslationMap = {
 	"help.mode.write": "Local graph, large nodes, minimal edges",
 	"embed.renderFailed": "Graph Island: render failed",
 	"compare.vs": "vs",
+
+	// --- Issue 102: Hardcoded string cleanup (context menus) ---
+	"context.focusZoom": "Focus zoom",
+	"context.searchInVault": "Search in vault",
+	"context.exportGraphJson": "Export Graph JSON",
+	"context.exportPng": "Export PNG",
+	"context.jumpToNode": "Jump to Node",
+	"snapshot.timeline": "Timeline",
+	"snapshot.timelineTitle": "Snapshot Timeline ({count})",
+	"diff.title": "Diff: {name}",
+	"legend.communityLabel": "Community {id} ({count})",
+
+	// --- Issue 102: Settings ---
+	"settingsTab.autoSnapshotName": "Auto-snapshot interval (minutes)",
+	"settingsTab.autoSnapshotDesc":
+		"Automatically save a graph snapshot when vault metadata changes. Set to 0 to disable.",
+
+	// --- Issue 102: Aria labels ---
+	"a11y.minimapLabel": "Graph minimap — drag to navigate, arrow keys to pan",
+	"a11y.closeTimeline": "Close timeline",
+	"a11y.closeLegend": "Close legend",
+	"a11y.closeDiffList": "Close diff list",
+	"a11y.forwardRelation": "Forward relation label",
+	"a11y.reverseRelation": "Reverse relation label",
+	"a11y.deleteRule": "Delete",
+	"a11y.gravityFilter": "Gravity rule filter",
+	"a11y.gravityDirection": "Gravity direction",
+	"a11y.gravityAngleRad": "Gravity custom angle (radians)",
+	"a11y.gravityAngleDeg": "Gravity custom angle (degrees)",
+	"a11y.gravityStrength": "Gravity strength",
+	"a11y.clearColor": "Clear color",
+	"a11y.enableColor": "Enable color override",
+	"a11y.nodeRuleQuery": "Node rule query",
+	"a11y.graphControls": "Graph controls",
+	"a11y.offScreenNodes": "Off-screen nodes",
+	"a11y.graphStatistics": "Graph statistics",
+	"a11y.graphLegend": "Graph legend",
+	"a11y.keyboardShortcuts": "Keyboard shortcuts",
+	"a11y.graphSettings": "Graph settings",
 };
 
 // ---------------------------------------------------------------------------
@@ -1872,6 +1911,44 @@ const ja: TranslationMap = {
 	"help.mode.write": "ローカルグラフ、大きいノード、最小限のエッジ",
 	"embed.renderFailed": "Graph Island: 描画に失敗しました",
 	"compare.vs": "vs",
+
+	// --- Issue 102: ハードコード文字列クリーンアップ (コンテキストメニュー) ---
+	"context.focusZoom": "フォーカスズーム",
+	"context.searchInVault": "Vault内を検索",
+	"context.exportGraphJson": "グラフJSONをエクスポート",
+	"context.exportPng": "PNGをエクスポート",
+	"context.jumpToNode": "ノードにジャンプ",
+	"snapshot.timeline": "タイムライン",
+	"snapshot.timelineTitle": "スナップショットタイムライン ({count})",
+	"diff.title": "差分: {name}",
+	"legend.communityLabel": "コミュニティ {id} ({count})",
+
+	// --- Issue 102: 設定 ---
+	"settingsTab.autoSnapshotName": "自動スナップショット間隔（分）",
+	"settingsTab.autoSnapshotDesc": "Vaultのメタデータ変更時にグラフスナップショットを自動保存。0で無効。",
+
+	// --- Issue 102: Ariaラベル ---
+	"a11y.minimapLabel": "グラフミニマップ — ドラッグで移動、矢印キーでパン",
+	"a11y.closeTimeline": "タイムラインを閉じる",
+	"a11y.closeLegend": "凡例を閉じる",
+	"a11y.closeDiffList": "差分リストを閉じる",
+	"a11y.forwardRelation": "順方向の関係ラベル",
+	"a11y.reverseRelation": "逆方向の関係ラベル",
+	"a11y.deleteRule": "削除",
+	"a11y.gravityFilter": "重力ルールフィルタ",
+	"a11y.gravityDirection": "重力方向",
+	"a11y.gravityAngleRad": "重力カスタム角度（ラジアン）",
+	"a11y.gravityAngleDeg": "重力カスタム角度（度）",
+	"a11y.gravityStrength": "重力の強さ",
+	"a11y.clearColor": "色をクリア",
+	"a11y.enableColor": "色のオーバーライドを有効化",
+	"a11y.nodeRuleQuery": "ノードルールクエリ",
+	"a11y.graphControls": "グラフコントロール",
+	"a11y.offScreenNodes": "画面外ノード",
+	"a11y.graphStatistics": "グラフ統計",
+	"a11y.graphLegend": "グラフ凡例",
+	"a11y.keyboardShortcuts": "キーボードショートカット",
+	"a11y.graphSettings": "グラフ設定",
 };
 
 // ---------------------------------------------------------------------------

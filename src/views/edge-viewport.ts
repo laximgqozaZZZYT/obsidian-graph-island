@@ -1,6 +1,6 @@
 import type { EdgeDrawConfig } from "./EdgeRenderer";
 
-export interface ViewportBounds {
+interface ViewportBounds {
 	left: number;
 	right: number;
 	top: number;

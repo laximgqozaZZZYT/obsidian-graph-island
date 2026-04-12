@@ -11,7 +11,7 @@ export interface PanelRect {
 	h: number;
 }
 
-export interface TooltipAdjustInput {
+interface TooltipAdjustInput {
 	/** Node data position (world coords) */
 	nodeX: number;
 	nodeY: number;

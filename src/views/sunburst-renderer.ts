@@ -16,7 +16,7 @@ import { drawArcPath } from "./arc-drawing";
 // Tooltip content builder (pure)
 // ---------------------------------------------------------------------------
 
-export interface SunburstTooltipLines {
+interface SunburstTooltipLines {
 	lines: string[];
 }
 
@@ -61,7 +61,7 @@ export function buildSunburstTooltipContent(
 // ---------------------------------------------------------------------------
 
 /** Parameters for drawSunburstLayoutArcs. */
-export interface SunburstArcDrawParams {
+interface SunburstArcDrawParams {
 	gfx: CanvasGraphics;
 	arcs: LayoutSunburstArc[];
 	cx: number;
@@ -74,7 +74,7 @@ export interface SunburstArcDrawParams {
 }
 
 /** Resolved fill + line style for a single sunburst arc. */
-export interface ArcStyle {
+interface ArcStyle {
 	color: number;
 	fillAlpha: number;
 	lineColor: number;
@@ -86,7 +86,7 @@ export interface ArcStyle {
  * Compute the fill and line style for a sunburst arc.
  * Pure function — no canvas side-effects.
  */
-export function computeArcStyle(
+function computeArcStyle(
 	baseColor: number,
 	depth: number,
 	maxDepth: number,
@@ -179,7 +179,7 @@ export function drawSunburstLayoutArcs(params: SunburstArcDrawParams): void {
 // ---------------------------------------------------------------------------
 
 /** Parameters for drawSunburstLabels. */
-export interface SunburstLabelDrawParams {
+interface SunburstLabelDrawParams {
 	arcs: LayoutSunburstArc[];
 	cx: number;
 	cy: number;

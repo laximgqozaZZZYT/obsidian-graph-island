@@ -124,7 +124,7 @@ function appendSimilarSuggestions(text: string, nodeId: string, opts: HoverToolt
 // Off-screen link tooltips: neighbor grouping
 // ---------------------------------------------------------------------------
 
-export interface OffScreenNodeInfo {
+interface OffScreenNodeInfo {
 	id: string;
 	gfxX: number;
 	gfxY: number;
@@ -200,7 +200,7 @@ export function computeTooltipEdgePosition(
 // Hover highlight set: shared-tags and same-folder helpers
 // ---------------------------------------------------------------------------
 
-export interface HoverHighlightNode {
+interface HoverHighlightNode {
 	id: string;
 	tags?: string[];
 	filePath?: string;

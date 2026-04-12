@@ -1542,7 +1542,7 @@ export function invalidateBundleCache(cache?: EdgeRenderCache): void {
 // ---------------------------------------------------------------------------
 
 /** Resolved visual style for a single edge */
-export interface EdgeStyle {
+interface EdgeStyle {
 	alpha: number;
 	lineThick: number;
 	isHighlighted?: boolean;

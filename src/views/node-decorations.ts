@@ -47,7 +47,7 @@ const COMPARE_RING_GAP = 0.3;
 // Decoration context types
 // ---------------------------------------------------------------------------
 
-export interface DecorationCtx {
+interface DecorationCtx {
 	visible: PixiNode[];
 	shapeRules: ShapeRule[];
 	worldScale: number;

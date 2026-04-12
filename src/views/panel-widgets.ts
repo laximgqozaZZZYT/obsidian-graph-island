@@ -167,7 +167,7 @@ export function addTextInput(
 }
 
 /** Custom filtered autocomplete popup (replaces native datalist) */
-export function attachAutocomplete(input: HTMLInputElement, suggestions: string[]) {
+function attachAutocomplete(input: HTMLInputElement, suggestions: string[]) {
 	const popup = document.createElement("div");
 	popup.className = "gi-ac-popup";
 	popup.style.display = "none";
@@ -998,7 +998,7 @@ function _setupQueryHintListeners(
 // ---------------------------------------------------------------------------
 // Fixed-option hint (lightweight autocomplete for a small set of choices)
 // ---------------------------------------------------------------------------
-export function attachFixedHint(
+function attachFixedHint(
 	input: HTMLInputElement,
 	options: { value: string; label: string }[],
 	onSelect: (value: string) => void,

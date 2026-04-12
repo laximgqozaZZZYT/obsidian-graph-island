@@ -1,5 +1,5 @@
 export const FRICTION = 0.92;
-export const MIN_VELOCITY = 0.5;
+const MIN_VELOCITY = 0.5;
 
 const HISTORY_WINDOW_MS = 100;
 

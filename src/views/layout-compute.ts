@@ -59,7 +59,7 @@ export interface StaticLayoutResult {
 }
 
 /** Configuration for computeStaticLayout. */
-export interface StaticLayoutConfig {
+interface StaticLayoutConfig {
 	layout: LayoutType;
 	cx: number;
 	cy: number;

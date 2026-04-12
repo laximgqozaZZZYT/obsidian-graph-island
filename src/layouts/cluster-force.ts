@@ -71,13 +71,13 @@ interface GridGuide {
 }
 
 /** Guide data for triangle arrangement */
-export interface TriangleGuide {
+interface TriangleGuide {
 	type: "triangle";
 	vertices: [{ x: number; y: number }, { x: number; y: number }, { x: number; y: number }];
 }
 
 /** Guide data for concentric arrangement */
-export interface ConcentricGuide {
+interface ConcentricGuide {
 	type: "concentric";
 	rings: number[]; // radius of each ring
 }
@@ -151,7 +151,7 @@ export interface ClusterMetadata {
 }
 
 /** Result of buildClusterForce: force function + cluster metadata for bundling. */
-export interface ClusterForceResult {
+interface ClusterForceResult {
 	force: (alpha: number) => void;
 	metadata: ClusterMetadata;
 }
