@@ -30,6 +30,12 @@ const SCORE = {
   LARGE_GRAPH_BONUS: 15,
   /** Bonus when ≥50% nodes in view */
   PARTIAL_VIEW_BONUS: 5,
+  /** LOD-aware label scoring: minimum visible labels for a perfect score on large graphs */
+  LABEL_LOD_MINIMUM: 20,
+  /** LOD-aware label scoring: node count above which LOD-aware scoring is used */
+  LABEL_LOD_THRESHOLD: 100,
+  /** LOD-aware label scoring: expected label ratio for graphs under LOD threshold */
+  LABEL_SMALL_GRAPH_RATIO: 0.5,
 } as const;
 
 interface QualityScore {
@@ -156,9 +162,22 @@ async function measureAll(page: Page): Promise<VisualReport> {
     return { totalNodes: count, visibleLabels: visible, labelRatio: count > 0 ? visible / count : 0, avgFontScale: count > 0 ? Math.round((fontScaleSum / count) * 100) / 100 : 0 };
   });
   {
-    const s = Math.round((labels.labelRatio ?? 0) * 100);
-    if (s < 50) allIssues.push(`Only ${labels.visibleLabels}/${labels.totalNodes} labels visible (${s}%)`);
-    scores.push({ name: "labelReadability", score: s, status: classify(s), details: labels, issues: s < 50 ? ["Low label visibility"] : [] });
+    // LOD-aware scoring: for large graphs, the LabelManager intentionally hides
+    // most labels to prevent overlap. A small number of visible labels is correct
+    // behavior, not a deficiency. Score based on whether enough labels are visible
+    // for orientation rather than raw percentage.
+    const total = labels.totalNodes;
+    const vis = labels.visibleLabels;
+    // Compute the expected visible label count once for both scoring and diagnostics.
+    // total === 0 → expected 0 → score 100 (empty graph is not a deficiency).
+    const expected = total <= SCORE.LABEL_LOD_THRESHOLD
+      ? Math.ceil(total * SCORE.LABEL_SMALL_GRAPH_RATIO)
+      : Math.max(SCORE.LABEL_LOD_MINIMUM, Math.round(Math.log2(total) * 3));
+    const s = expected > 0 ? Math.min(100, Math.round((vis / expected) * 100)) : 100;
+    const issues: string[] = [];
+    if (s < 50) issues.push(`Only ${vis}/${total} labels visible (expected ≥${expected})`);
+    scores.push({ name: "labelReadability", score: s, status: classify(s), details: labels, issues });
+    if (issues.length > 0) allIssues.push(...issues);
   }
 
   // ── 4. Edge Visibility ──
