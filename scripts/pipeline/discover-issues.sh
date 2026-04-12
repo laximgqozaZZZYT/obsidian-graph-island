@@ -478,6 +478,15 @@ if [[ $SCATTERED -gt 100 ]]; then
 fi
 
 # ============================================================
+# Commit any newly filed issues so main stays clean
+# ============================================================
+if [[ $ISSUES_FOUND -gt 0 ]]; then
+  cd "$PROJECT_DIR" 2>/dev/null || true
+  git add scripts/pipeline/issues/*.md 2>/dev/null || true
+  git commit -m "chore(kaizen): report $ISSUES_FOUND quality issues ($(ls scripts/pipeline/issues/*.md 2>/dev/null | xargs -I{} basename {} .md | grep -oP '^\d+' | sort -n | tail -"$ISSUES_FOUND" | paste -sd, -))" --no-verify 2>/dev/null || true
+fi
+
+# ============================================================
 # Summary
 # ============================================================
 echo ""
