@@ -280,8 +280,8 @@ export class GraphViewsSettingTab extends PluginSettingTab {
 
 		// --- Auto-snapshot interval ---
 		new Setting(containerEl)
-			.setName("Auto-snapshot interval (minutes)")
-			.setDesc("Automatically save a graph snapshot when vault metadata changes. Set to 0 to disable.")
+			.setName(t("settingsTab.autoSnapshotName"))
+			.setDesc(t("settingsTab.autoSnapshotDesc"))
 			.addSlider((slider) =>
 				slider
 					.setLimits(0, 30, 1)

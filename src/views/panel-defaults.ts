@@ -10,8 +10,6 @@ import type {
 	ClusterGroupRule,
 	SortKey,
 	SortOrder,
-	NodeDisplayMode,
-	EdgeCardinalityMode,
 } from "../types";
 
 /** Default hover behavior and cluster layout settings. */

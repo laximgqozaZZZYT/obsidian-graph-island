@@ -7,6 +7,7 @@
 
 import type { SnapshotDiff, SnapshotNode } from "../types";
 import type { PixiNode } from "./InteractionManager";
+import { t } from "../i18n";
 
 // ---------------------------------------------------------------------------
 // 描画定数
@@ -336,11 +337,11 @@ export class DiffOverlay {
 		const header = panel.createDiv();
 		header.style.cssText =
 			"display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;padding-bottom:4px;border-bottom:1px solid var(--background-modifier-border);";
-		header.createEl("span", { text: `Diff: ${this.snapshotName}`, attr: { style: "font-weight:600;" } });
+		header.createEl("span", { text: t("diff.title").replace("{name}", this.snapshotName), attr: { style: "font-weight:600;" } });
 		const closeBtn = header.createEl("button", {
 			text: "\u00d7",
 			attr: {
-				"aria-label": "Close diff list",
+				"aria-label": t("a11y.closeDiffList"),
 				style: "border:none;background:none;cursor:pointer;font-size:14px;padding:0 4px;",
 			},
 		});

@@ -85,7 +85,7 @@ export function showSnapshotMenu(host: SnapshotHost, evt: MouseEvent): void {
 	if (snapshots.length >= 2) {
 		menu.addSeparator();
 		menu.addItem((item) => {
-			item.setTitle("Timeline")
+			item.setTitle(t("snapshot.timeline"))
 				.setIcon("clock")
 				.onClick(() => showSnapshotTimeline(host));
 		});
@@ -194,11 +194,11 @@ export function showSnapshotTimeline(host: SnapshotHost): void {
 
 	// Header
 	const header = panel.createDiv({ cls: "gi-snapshot-timeline-header" });
-	header.createEl("span", { text: `Snapshot Timeline (${entries.length})`, cls: "gi-snapshot-timeline-title" });
+	header.createEl("span", { text: t("snapshot.timelineTitle").replace("{count}", String(entries.length)), cls: "gi-snapshot-timeline-title" });
 	const closeBtn = header.createEl("button", {
 		text: "\u00d7",
 		cls: "gi-snapshot-timeline-close",
-		attr: { "aria-label": "Close timeline" },
+		attr: { "aria-label": t("a11y.closeTimeline") },
 	});
 	closeBtn.addEventListener("click", () => panel.remove());
 

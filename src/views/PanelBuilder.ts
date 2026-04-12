@@ -1825,7 +1825,7 @@ function _buildNodesTab(tabEl: HTMLElement, panel: PanelState, _ctx: PanelContex
 				const menu = new Menu();
 				menu.addItem((item) =>
 					item
-						.setTitle("Jump to Node")
+						.setTitle(t("context.jumpToNode"))
 						.setIcon("locate")
 						.onClick(() => cb.jumpToNode(entry.id)),
 				);
@@ -1851,7 +1851,7 @@ function _buildNodesTab(tabEl: HTMLElement, panel: PanelState, _ctx: PanelContex
 				);
 				menu.addItem((item) =>
 					item
-						.setTitle("Open File")
+						.setTitle(t("context.openFile"))
 						.setIcon("file-text")
 						.onClick(() => {
 							const file = asObsidianWindow().app?.vault?.getAbstractFileByPath(entry.id);

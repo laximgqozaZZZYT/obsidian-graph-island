@@ -876,7 +876,7 @@ function renderNodeFileRow(
 		const menu = new Menu();
 		menu.addItem((item) =>
 			item
-				.setTitle("Jump to Node")
+				.setTitle(t("context.jumpToNode"))
 				.setIcon("locate")
 				.onClick(() => cb.jumpToNode(entry.id)),
 		);
@@ -902,7 +902,7 @@ function renderNodeFileRow(
 		);
 		menu.addItem((item) =>
 			item
-				.setTitle("Open File")
+				.setTitle(t("context.openFile"))
 				.setIcon("file-text")
 				.onClick(() => {
 					const file = ctx.app.vault.getAbstractFileByPath(entry.id);

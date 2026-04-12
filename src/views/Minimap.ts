@@ -6,6 +6,7 @@
 
 import type { RenderThresholds } from "../types";
 import { computeBoundingBox } from "../utils/geometry";
+import { t } from "../i18n";
 
 export interface MinimapHost {
 	/** Get all node positions (world coordinates) */
@@ -125,7 +126,7 @@ export class Minimap {
 		this.wrapper.className = "gi-minimap-wrap";
 		// IF: Minimap a11y — focusable with keyboard pan support
 		this.wrapper.setAttribute("role", "img");
-		this.wrapper.setAttribute("aria-label", "Graph minimap — drag to navigate, arrow keys to pan");
+		this.wrapper.setAttribute("aria-label", t("a11y.minimapLabel"));
 		this.wrapper.setAttribute("tabindex", "0");
 		parentEl.appendChild(this.wrapper);
 		this.wrapper.addEventListener("keydown", this.onKeyDown);
