@@ -35,7 +35,7 @@ function computeMaxRadius(realNodes: GraphNode[], cx: number, cy: number): numbe
 	return maxR < 10 ? 500 : maxR;
 }
 
-export function generatePolarPhantoms(realNodes: GraphNode[], cx: number, cy: number): GraphNode[] {
+function generatePolarPhantoms(realNodes: GraphNode[], cx: number, cy: number): GraphNode[] {
 	const spokeCount = Math.min(12, Math.max(8, Math.ceil(Math.sqrt(realNodes.length / 5))));
 	const ringCount = Math.min(8, Math.max(4, Math.ceil(Math.sqrt(realNodes.length / 10))));
 	const maxR = computeMaxRadius(realNodes, cx, cy);
@@ -81,7 +81,7 @@ function computeGridBounds(
 	return { xMin, xMax, yMin, yMax };
 }
 
-export function generateGridPhantoms(realNodes: GraphNode[], cx: number, cy: number): GraphNode[] {
+function generateGridPhantoms(realNodes: GraphNode[], cx: number, cy: number): GraphNode[] {
 	const gridSize = Math.min(10, Math.max(6, Math.ceil(Math.sqrt(realNodes.length / 8))));
 	const { xMin, xMax, yMin, yMax } = computeGridBounds(realNodes, cx, cy);
 	const w = xMax - xMin || 500;

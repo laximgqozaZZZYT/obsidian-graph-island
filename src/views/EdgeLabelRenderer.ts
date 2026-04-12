@@ -24,9 +24,9 @@ export const EDGE_LABEL_FONT_SIZE_DEFAULT = 10;
 /** A11y: edge label background for contrast (WCAG 1.4.3) */
 export const EDGE_LABEL_BG_ALPHA = 0.75;
 /** Edge label alpha */
-export const EDGE_LABEL_ALPHA = 0.7;
+const EDGE_LABEL_ALPHA = 0.7;
 /** Edge label resolution */
-export const EDGE_LABEL_RESOLUTION = 2;
+const EDGE_LABEL_RESOLUTION = 2;
 /** Maximum number of edge labels rendered */
 export const MAX_EDGE_LABELS = 200;
 

@@ -24,7 +24,7 @@ import { incCounter } from "../utils/graph-helpers";
 const TOAST_SHORT_MS = 2000;
 
 /** Minimal panel state needed for stats rendering */
-export interface StatsPanel {
+interface StatsPanel {
 	showGraphStats: boolean;
 	showStructureQuestions: boolean;
 	renderThresholds?: { labelOverlapMargin?: number };
@@ -302,7 +302,7 @@ function renderStructureQuestions(
 // ---------------------------------------------------------------------------
 
 /** Minimal host for breadcrumb rendering */
-export interface BreadcrumbHost {
+interface BreadcrumbHost {
 	getNodeLabel(id: string): string;
 	/** Trigger full re-render (for breadcrumb click navigation) */
 	invalidateAndRebuild(): void;

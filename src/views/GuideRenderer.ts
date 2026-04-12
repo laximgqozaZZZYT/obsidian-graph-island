@@ -49,7 +49,7 @@ export function findCellIndex(value: number, positions: number[]): number {
 }
 
 /** Count nodes falling into each grid cell defined by sorted boundary positions. */
-export function countNodesPerCell(
+function countNodesPerCell(
 	nodes: GraphNode[],
 	cx: number,
 	cy: number,

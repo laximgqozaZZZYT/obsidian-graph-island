@@ -8,7 +8,7 @@ import type { PixiNode } from "./InteractionManager";
 // Viewport bounds
 // ---------------------------------------------------------------------------
 
-export interface ViewportBounds {
+interface ViewportBounds {
 	minX: number;
 	minY: number;
 	maxX: number;
@@ -42,7 +42,7 @@ export function computeViewportBounds(
 // Visible-node collection
 // ---------------------------------------------------------------------------
 
-export interface VisibleNodeFilter {
+interface VisibleNodeFilter {
 	hiddenBySearch: Set<string>;
 	hasHighlight: boolean;
 	activeSet: Set<string>;

@@ -54,7 +54,7 @@ interface GridLineInput {
 	label?: string;
 }
 
-export interface RoadNetworkConfig {
+interface RoadNetworkConfig {
 	system: "polar" | "cartesian";
 	axis1Lines: GridLineInput[]; // r values (polar) or x values (cartesian)
 	axis2Lines: GridLineInput[]; // θ values in radians (polar) or y values (cartesian)

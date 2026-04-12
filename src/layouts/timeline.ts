@@ -28,7 +28,7 @@ const UNTIMED_NODE_SPACING_FACTOR = 0.6;
 // Types
 // ---------------------------------------------------------------------------
 
-export interface TimelineLayoutOptions {
+interface TimelineLayoutOptions {
 	timeKey: string;
 	timeComparator?: (a: string, b: string) => number;
 	stepWidth?: number;
@@ -39,7 +39,7 @@ export interface TimelineLayoutOptions {
 	stackSpacing?: number;
 }
 
-export interface TimelinePlacement {
+interface TimelinePlacement {
 	nodeId: string;
 	timeValue: string;
 	timeIndex: number;

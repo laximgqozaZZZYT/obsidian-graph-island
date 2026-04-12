@@ -102,7 +102,7 @@ export interface GroupNodeInfo {
 // ---------------------------------------------------------------------------
 
 /** Resolve a single groupBy field value from a node */
-export function resolveGroupFieldValue(field: string, pn: GroupNodeInfo): string {
+function resolveGroupFieldValue(field: string, pn: GroupNodeInfo): string {
 	if (field === "folder") {
 		const fp = pn.filePath;
 		if (!fp || !fp.includes("/")) return "root";
@@ -113,12 +113,12 @@ export function resolveGroupFieldValue(field: string, pn: GroupNodeInfo): string
 }
 
 /** Build a composite groupBy key from multiple fields */
-export function buildCompositeGroupKey(fields: string[], pn: GroupNodeInfo): string {
+function buildCompositeGroupKey(fields: string[], pn: GroupNodeInfo): string {
 	return fields.map((f) => resolveGroupFieldValue(f, pn)).join(" · ");
 }
 
 /** Incrementally update a running centroid with a new member */
-export function addGroupMember(
+function addGroupMember(
 	groups: Map<string, GroupCentroid>,
 	members: Map<string, Set<string>>,
 	key: string,

@@ -8,7 +8,7 @@ import { rectsOverlap } from "../utils/geometry";
 // ---------------------------------------------------------------------------
 // LabelManagerHost — the interface the LabelManager needs from its parent
 // ---------------------------------------------------------------------------
-export interface LabelManagerHost {
+interface LabelManagerHost {
 	/** The PixiNode map (id → PixiNode) */
 	getPixiNodes(): Map<string, PixiNode>;
 	/** Node degree map */
@@ -590,7 +590,7 @@ export class LabelManager {
  *  Uses path separators (/) and hyphens (-) to find segment boundaries.
  *  E.g. "classic-othello/characters" → "OC", "mythology" → "MY" */
 /** Input entry for priority score computation */
-export interface PriorityInput {
+interface PriorityInput {
 	id: string;
 	isSuper: boolean;
 	hasLabel: boolean;
@@ -725,7 +725,7 @@ export function smartTruncateLabel(fullText: string, maxChars: number): string {
 	return fullText.slice(0, maxChars - 1) + "\u2026";
 }
 
-export type LabelMode = "initials" | "truncated" | "full";
+type LabelMode = "initials" | "truncated" | "full";
 
 /** Select label display mode based on zoom with hysteresis to prevent flicker.
  *  @param zoom - current zoom level
@@ -748,7 +748,7 @@ export function selectLabelMode(
 	return "full";
 }
 
-export interface LodTierConfig {
+interface LodTierConfig {
 	zoomTier1: number;
 	zoomTier2: number;
 	zoomTier3: number;
@@ -758,7 +758,7 @@ export interface LodTierConfig {
 	zoomFloor: number;
 }
 
-export function computeMinShowZoom(rankPct: number, tiers: LodTierConfig): number {
+function computeMinShowZoom(rankPct: number, tiers: LodTierConfig): number {
 	if (rankPct < tiers.pctTier1 * 0.1) return tiers.zoomTier1 * 0.2;
 	if (rankPct < tiers.pctTier1) return tiers.zoomTier1;
 	if (rankPct < tiers.pctTier2) return tiers.zoomTier2;

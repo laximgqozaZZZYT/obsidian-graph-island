@@ -25,7 +25,7 @@ export const SUNBURST_SEGMENT_ARC_DEG = 30;
 // ---------------------------------------------------------------------------
 
 /** Rendering context shared by donut/sunburst functions. */
-export interface DonutRenderCtx {
+interface DonutRenderCtx {
 	visible: PixiNode[];
 	tlFilteredOut: Set<string> | null;
 	alpha: number;

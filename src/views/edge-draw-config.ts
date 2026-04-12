@@ -43,7 +43,7 @@ export function createDefaultEdgeDrawConfig(): EdgeDrawConfig {
 }
 
 /** Input data needed to populate edge visibility toggles on EdgeDrawConfig. */
-export interface EdgeDrawConfigInput {
+interface EdgeDrawConfigInput {
 	// Panel toggle fields
 	showLinks: boolean;
 	showTagEdges: boolean;

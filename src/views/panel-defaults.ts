@@ -13,7 +13,7 @@ import type {
 } from "../types";
 
 /** Default hover behavior and cluster layout settings. */
-export function defaultHoverAndClusterConfig() {
+function defaultHoverAndClusterConfig() {
 	return {
 		hoverHops: 1,
 		hoverHighlightTypes: {
@@ -52,7 +52,7 @@ export function defaultHoverAndClusterConfig() {
 }
 
 /** Default cable, navigation, overlay, and advanced display settings. */
-export function defaultAdvancedConfig() {
+function defaultAdvancedConfig() {
 	return {
 		cableBundleMode: "auto" as const,
 		cableTrunkWidth: 12,

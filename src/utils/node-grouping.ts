@@ -152,7 +152,7 @@ interface MemberSummary {
 	firstCategory: string | undefined;
 }
 
-export function summarizeMembers(nodes: GraphNode[], memberSet: Set<string>): MemberSummary {
+function summarizeMembers(nodes: GraphNode[], memberSet: Set<string>): MemberSummary {
 	let sumX = 0,
 		sumY = 0,
 		count = 0;
@@ -174,7 +174,7 @@ export function summarizeMembers(nodes: GraphNode[], memberSet: Set<string>): Me
 	};
 }
 
-export function rerouteEdges(edges: GraphEdge[], memberSet: Set<string>, superNodeId: string): GraphEdge[] {
+function rerouteEdges(edges: GraphEdge[], memberSet: Set<string>, superNodeId: string): GraphEdge[] {
 	const newEdges: GraphEdge[] = [];
 	const seenEdges = new Set<string>();
 	for (const e of edges) {

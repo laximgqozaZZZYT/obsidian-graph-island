@@ -21,7 +21,7 @@ const MATRIX_CELL_SIZE_DIVISOR = 16;
 
 export type MatrixSortMode = "degree" | "alpha" | "category";
 
-export interface MatrixRenderParams {
+interface MatrixRenderParams {
 	/** Container DOM element (e.g. canvasWrap) for creating child divs */
 	containerEl: HTMLElement;
 	/** Full-screen width */

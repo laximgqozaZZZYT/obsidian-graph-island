@@ -511,7 +511,7 @@ export function ghostLabel(nodeId: string, maxLen = 12): string {
 // ---------------------------------------------------------------------------
 
 /** A single point in the snapshot timeline */
-export interface TimelineEntry {
+interface TimelineEntry {
 	name: string;
 	createdAt: string;
 	nodeCount: number;

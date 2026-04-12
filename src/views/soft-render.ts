@@ -1,7 +1,7 @@
 import type { GraphData, GraphNode } from "../types";
 import type { PixiNode } from "./InteractionManager";
 
-export interface SoftRenderHost {
+interface SoftRenderHost {
 	pixiNodes: Map<string, PixiNode>;
 	_invalidateRenderCaches(): void;
 	getGraphData(): GraphData;

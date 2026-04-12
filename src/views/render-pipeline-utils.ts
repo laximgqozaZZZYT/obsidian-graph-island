@@ -127,7 +127,7 @@ export function computeLabelColors(
 // ---------------------------------------------------------------------------
 
 /** Minimal position data needed for timeline filtering. */
-export interface TimelineNodePos {
+interface TimelineNodePos {
 	id: string;
 	x: number;
 }
@@ -189,13 +189,13 @@ export function isDensityTooClose(
 // ---------------------------------------------------------------------------
 
 /** Zone placement text-anchor cosine thresholds */
-export const ZONE_ANCHOR_COS_POSITIVE = 0.3;
-export const ZONE_ANCHOR_COS_NEGATIVE = -0.3;
+const ZONE_ANCHOR_COS_POSITIVE = 0.3;
+const ZONE_ANCHOR_COS_NEGATIVE = -0.3;
 /** Default label Y-offset as a fraction of node radius */
 export const LABEL_Y_OFFSET_FACTOR = 0.4;
 
 /** Parameters for gap-dependent distance scaling in zone placement */
-export interface ZoneGapScaleParams {
+interface ZoneGapScaleParams {
 	narrowThreshold: number;
 	mediumThreshold: number;
 	narrowFactor: number;

@@ -329,7 +329,7 @@ export function buildRichStatus(
 // ---------------------------------------------------------------------------
 
 /** Result of a BFS shortest-path search */
-export interface PathfinderResult {
+interface PathfinderResult {
 	path: string[];
 	nodeSet: Set<string>;
 	edgeSet: Set<string>;

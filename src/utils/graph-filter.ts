@@ -106,7 +106,7 @@ export function filterExcludedNodes(
 }
 
 /** Visibility filter options (subset of PanelState). */
-export interface VisibilityOptions {
+interface VisibilityOptions {
 	showOrphans: boolean;
 	showAttachments: boolean;
 	includeTagsInData: boolean;

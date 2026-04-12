@@ -657,7 +657,7 @@ export function autoBundleStrength(nodeCount: number): number {
 /*  Pure geometry / graph-metadata helpers (extracted from GVC)        */
 /* ------------------------------------------------------------------ */
 
-export interface BBox {
+interface BBox {
 	minX: number;
 	minY: number;
 	maxX: number;
@@ -1068,7 +1068,7 @@ export function computeCompareVenn(
 // Pathfinder — BFS shortest path + edge set construction
 // ---------------------------------------------------------------------------
 
-export interface PathfinderResult {
+interface PathfinderResult {
 	path: string[];
 	nodeSet: Set<string>;
 	edgeSet: Set<string>;

@@ -11,7 +11,7 @@ interface EgoEdge {
 }
 
 /** A positioned node output from the ego sector layout */
-export interface EgoPlacement {
+interface EgoPlacement {
 	id: string;
 	x: number;
 	y: number;

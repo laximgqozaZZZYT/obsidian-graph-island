@@ -18,7 +18,7 @@ export const PATHFINDER_LABEL_OFFSET_X = 6;
 export const PATHFINDER_LABEL_OFFSET_Y = -14;
 
 /** A single line segment between two nodes. */
-export interface PathSegment {
+interface PathSegment {
 	ax: number;
 	ay: number;
 	bx: number;
@@ -26,7 +26,7 @@ export interface PathSegment {
 }
 
 /** Describes what the pathfinder overlay should draw in a given frame. */
-export interface PathfinderDrawData {
+interface PathfinderDrawData {
 	segments: PathSegment[];
 	glowAlpha: number;
 	solidAlpha: number;
