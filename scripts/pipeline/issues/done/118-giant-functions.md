@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-12
-status: in-progress
+status: cancelled
 source: auto-discovered
 summary: 8個の巨大関数 (120行以上) が存在
 ---

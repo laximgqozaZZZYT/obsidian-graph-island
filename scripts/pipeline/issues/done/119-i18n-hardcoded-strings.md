@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-12
-status: in-progress
+status: cancelled
 source: auto-discovered
 summary: 39箇所のハードコード文字列 (t() 未使用)
 ---

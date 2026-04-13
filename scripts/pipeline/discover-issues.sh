@@ -41,8 +41,17 @@ file_issue() {
   if ls "$ISSUE_DIR"/*-"$slug".md 2>/dev/null | grep -q .; then
     return 0
   fi
-  # NOTE: done/ is intentionally NOT checked — problems can regress and
-  # need to be re-filed. Only skip if actively pending or in-progress.
+  # Cooldown: skip if same slug was completed within the last 24 hours.
+  # This prevents infinite re-filing loops where a problem can't be fully
+  # resolved in one session but keeps getting re-detected and re-filed.
+  local latest_done
+  latest_done=$(ls -t "$DONE_DIR"/*-"$slug".md 2>/dev/null | head -1)
+  if [[ -n "$latest_done" ]]; then
+    local done_age=$(( $(date +%s) - $(stat -c%Y "$latest_done" 2>/dev/null || echo 0) ))
+    if [[ $done_age -lt 86400 ]]; then
+      return 0
+    fi
+  fi
 
   # Find next number
   local last_num
