@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-12
-status: in-progress
+status: pending
 source: auto-discovered
 summary: 8個の巨大関数 (120行以上) が存在
 ---
@@ -11,3 +11,9 @@ summary: 8個の巨大関数 (120行以上) が存在
 
 ## Acceptance criteria
 - [ ] 120行超の関数を5個以下に削減
+
+### Attempt 1 (2026-04-13T17:05:02+09:00)
+- Status: timed out after 1h
+- session=unknown, commits=0
+- Previous session could not complete this issue within max turns.
+- **Continue from where the last session left off. Do not repeat already-attempted approaches.**
