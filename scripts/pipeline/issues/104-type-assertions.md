@@ -1,7 +1,7 @@
 ---
 priority: low
 reported: 2026-04-12
-status: in-progress
+status: pending
 source: auto-discovered
 summary: 208個の型アサーション (as T) — 型安全性リスク
 ---
@@ -11,3 +11,9 @@ as キャストが208箇所。コンパイラの型チェックをバイパス�
 
 ## Acceptance criteria
 - [ ] 型アサーションを 80 個以下に
+
+### Attempt 1 (2026-04-13T17:05:01+09:00)
+- Status: timed out after 1h
+- session=unknown, commits=0
+- Previous session could not complete this issue within max turns.
+- **Continue from where the last session left off. Do not repeat already-attempted approaches.**
