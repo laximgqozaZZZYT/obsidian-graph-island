@@ -1,7 +1,7 @@
 ---
 priority: low
 reported: 2026-04-13
-status: in-progress
+status: done
 source: auto-discovered
 summary: 4個の放置されたworktree
 ---
