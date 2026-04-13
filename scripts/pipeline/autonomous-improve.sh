@@ -135,7 +135,8 @@ if [[ -d "$ISSUE_DIR" ]]; then
       fi
       if [[ "$ORPHANED" == true ]]; then
         FNAME=$(basename "$f")
-        ATTEMPT_COUNT=$(grep -c "^### Attempt " "$f" 2>/dev/null || echo 0)
+        ATTEMPT_COUNT=$(grep -c "^### Attempt " "$f" 2>/dev/null; true)
+        ATTEMPT_COUNT=${ATTEMPT_COUNT:-0}
         NEXT_ATTEMPT=$((ATTEMPT_COUNT + 1))
 
         # Find relevant session log entries
