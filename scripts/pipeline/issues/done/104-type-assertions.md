@@ -1,7 +1,7 @@
 ---
 priority: low
 reported: 2026-04-12
-status: in-progress
+status: done
 source: auto-discovered
 summary: 208個の型アサーション (as T) — 型安全性リスク
 ---
