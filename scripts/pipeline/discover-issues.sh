@@ -41,14 +41,15 @@ file_issue() {
   if ls "$ISSUE_DIR"/*-"$slug".md 2>/dev/null | grep -q .; then
     return 0
   fi
-  # Cooldown: skip if same slug was completed within the last 24 hours.
-  # This prevents infinite re-filing loops where a problem can't be fully
-  # resolved in one session but keeps getting re-detected and re-filed.
+  # Stagnation check: compare summary with the latest done issue of same slug.
+  # If the summary is identical, no progress was made → don't re-file.
+  # If it differs (e.g., "122個" → "112個"), progress happened → re-file to continue.
   local latest_done
   latest_done=$(ls -t "$DONE_DIR"/*-"$slug".md 2>/dev/null | head -1)
   if [[ -n "$latest_done" ]]; then
-    local done_age=$(( $(date +%s) - $(stat -c%Y "$latest_done" 2>/dev/null || echo 0) ))
-    if [[ $done_age -lt 86400 ]]; then
+    local prev_summary
+    prev_summary=$(grep -oP 'summary: \K.*' "$latest_done" 2>/dev/null || echo "")
+    if [[ "$prev_summary" == "$summary" ]]; then
       return 0
     fi
   fi
