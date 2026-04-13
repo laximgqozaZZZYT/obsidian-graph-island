@@ -106,17 +106,34 @@ fi
 echo $$ > "$LOCK_DIR/$SESSION_ID.pid"
 log "Active sessions: $ACTIVE_COUNT/$MAX_SESSIONS — proceeding"
 
-# ── Carry over stale in-progress issues (>1 hour old) ──
-# Instead of blindly resetting, append attempt history so the next
-# session can continue from where the previous one left off.
+# ── Carry over orphaned in-progress issues ──
+# If an issue is in-progress but no active session holds it (the session
+# that claimed it has exited), immediately carry over with attempt history.
+# This prevents the pipeline from stalling while waiting for a 1h timeout.
 ISSUE_DIR="$PROJECT_DIR/scripts/pipeline/issues"
+LOCK_DIR="/tmp/graph-island-sessions"
 if [[ -d "$ISSUE_DIR" ]]; then
   NOW=$(date +%s)
+  # Collect active session IDs from lock files
+  ACTIVE_SIDS=""
+  for pidfile in "$LOCK_DIR"/*.pid; do
+    [[ -f "$pidfile" ]] || continue
+    ACTIVE_SIDS+=" $(basename "${pidfile%.pid}") "
+  done
+
   for f in "$ISSUE_DIR"/*.md; do
     [[ -f "$f" ]] || continue
     if grep -q "status: in-progress" "$f" 2>/dev/null; then
       FILE_AGE=$(( NOW - $(stat -c%Y "$f" 2>/dev/null || echo "$NOW") ))
-      if [[ $FILE_AGE -gt 3600 ]]; then
+      # Carry over if: no active sessions at all, OR file is >10 min old
+      # (generous grace period for session startup)
+      ORPHANED=false
+      if [[ -z "$ACTIVE_SIDS" ]]; then
+        ORPHANED=true
+      elif [[ $FILE_AGE -gt 600 ]]; then
+        ORPHANED=true
+      fi
+      if [[ "$ORPHANED" == true ]]; then
         FNAME=$(basename "$f")
         ATTEMPT_COUNT=$(grep -c "^### Attempt " "$f" 2>/dev/null || echo 0)
         NEXT_ATTEMPT=$((ATTEMPT_COUNT + 1))
