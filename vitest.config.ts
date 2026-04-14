@@ -13,10 +13,10 @@ export default defineConfig({
       reportsDirectory: "coverage",
       thresholds: {
         // Baseline: v0.6.1 (2936 tests, cycle223 panel-widgets + nodeRadius/effectiveRadius)
-        statements: 29.7,
-        branches: 27.9,
-        functions: 27.7,
-        lines: 29.4,
+        statements: 30.2,
+        branches: 28.3,
+        functions: 28.1,
+        lines: 29.8,
       },
     },
   },
