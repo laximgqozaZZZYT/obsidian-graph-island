@@ -42,12 +42,7 @@ test.beforeAll(async () => {
   });
   await page.waitForTimeout(5000);
 
-  // Get baseline node count
-  BASELINE = await page.evaluate(() => {
-    const v = (window as any).app.workspace.getLeavesOfType("graph-view")
-      .find((l: any) => "pixiNodes" in l.view)?.view;
-    return v?.pixiNodes?.size ?? 0;
-  });
+  BASELINE = await renderAndCount({ showOrphans: true });
 });
 
 /** Helper: set panel props, doRender, wait, return stable node count via getGraphData(). */
