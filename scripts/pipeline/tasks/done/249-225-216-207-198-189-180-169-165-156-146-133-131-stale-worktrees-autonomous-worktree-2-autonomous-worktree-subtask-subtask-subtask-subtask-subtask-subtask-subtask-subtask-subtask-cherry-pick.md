@@ -1,7 +1,7 @@
 ---
 priority: high
 reported: 2026-04-16
-status: in-progress
+status: done
 source: decomposed
 parent: 225-216-207-198-189-180-169-165-156-146-133-131-stale-worktrees-autonomous-worktree-2-autonomous-worktree-subtask-subtask-subtask-subtask-subtask-subtask-subtask-subtask-subtask
 depends: none
