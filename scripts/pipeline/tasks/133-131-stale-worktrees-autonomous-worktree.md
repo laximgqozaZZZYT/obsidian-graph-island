@@ -1,7 +1,7 @@
 ---
 priority: high
 reported: 2026-04-15
-status: in-progress
+status: decomposed
 source: decomposed
 parent: 131-stale-worktrees
 depends: none
