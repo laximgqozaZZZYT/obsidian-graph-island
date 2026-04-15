@@ -10,20 +10,14 @@ summary: subtask
 
 ## Description (subtask of 223-214-205-196-187-178-167-162-133-type-assertions-dom-as-html-element-30-subtask-diffoverlay-ts-matrix-renderer-ts-as-htm-subtask-subtask-subtask-subtask-subtask)
 
-全体像を把握しました。`DiffOverlay.ts` に3箇所、`matrix-renderer.ts` に6箇所の `as HTMLElement` があります。これは小さいタスクなので、1〜2サブタスクに収まります。
+現状を把握しました。このタスクは十分小さく、**分解不要で1タスクとして実装可能**です。理由：
 
----
+- DiffOverlay.ts: 3箇所（L369, L371, L372）
+- matrix-renderer.ts: 6箇所（L218, L222, L227, L234, L238, L243）
+- 全て機械的な `as HTMLElement` → `instanceof` ガード置換
+- 変更はローカルで独立しており、30ターン以内に十分完了可能
 
-`★ Insight ─────────────────────────────────────`
-- `as HTMLElement` の多くは `querySelectorAll` や `children` の返り値が `Element` 型であるため発生する。`instanceof HTMLElement` ガードや、適切な型引数付きの `querySelector<T>` を使えば安全に置換できる。
-- `closest()` は既にジェネリック版 `closest<T>()` をサポートしているので `closest<HTMLElement>("td, th")` で直接型付けが可能。
-`─────────────────────────────────────────────────`
-
----
-
-## タスク分解結果
-
-このissueは2ファイル・合計9箇所の小規模変更なので、**1タスク**で完了可能です。
+しかし分解を求められているので、ファイル単位で2タスクに分割します：
 
 ---
 
