@@ -366,10 +366,13 @@ export class DiffOverlay {
 				onNodeClick(this._navIds[this._navIndex]);
 				// Highlight active row
 				const items = panel.querySelectorAll(".gi-diff-list-item");
-				items.forEach((item: Element) => ((item as HTMLElement).style.background = ""));
-				if (items[this._navIndex]) {
-					(items[this._navIndex] as HTMLElement).style.background = "var(--background-modifier-hover)";
-					(items[this._navIndex] as HTMLElement).scrollIntoView({ block: "nearest" });
+				items.forEach((item: Element) => {
+					if (item instanceof HTMLElement) item.style.background = "";
+				});
+				const active = items[this._navIndex];
+				if (active instanceof HTMLElement) {
+					active.style.background = "var(--background-modifier-hover)";
+					active.scrollIntoView({ block: "nearest" });
 				}
 			} else if (e.key === "Escape") {
 				onClose();
