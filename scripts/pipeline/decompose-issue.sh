@@ -24,9 +24,12 @@ fi
 ISSUE_NAME=$(basename "$ISSUE_FILE" .md)
 ISSUE_CONTENT=$(cat "$ISSUE_FILE")
 ISSUE_DIR="$PROJECT_DIR/scripts/pipeline/issues"
+TASK_DIR="$PROJECT_DIR/scripts/pipeline/tasks"
+TASK_DONE_DIR="$TASK_DIR/done"
+mkdir -p "$TASK_DIR" "$TASK_DONE_DIR"
 
-# Find next available number
-LAST_NUM=$(ls "$ISSUE_DIR"/*.md "$ISSUE_DIR"/done/*.md 2>/dev/null | xargs -I{} basename {} | grep -oP '^\d+' | sort -n | tail -1)
+# Find next available number (across issues + tasks)
+LAST_NUM=$(find "$ISSUE_DIR" "$ISSUE_DIR/done" "$TASK_DIR" "$TASK_DONE_DIR" -maxdepth 1 -name '*.md' 2>/dev/null | xargs -I{} basename {} | grep -oP '^\d+' | sort -n | tail -1)
 LAST_NUM=${LAST_NUM:-0}
 LAST_NUM=$(echo "$LAST_NUM" | sed 's/^0*//')
 LAST_NUM=${LAST_NUM:-0}
@@ -88,7 +91,7 @@ content = sys.stdin.read()
 blocks = re.split(r'SUBTASK\s+\d+', content)
 blocks = [b.strip() for b in blocks if b.strip()]
 
-issue_dir = '$ISSUE_DIR'
+issue_dir = '$TASK_DIR'
 parent = '$ISSUE_NAME'
 last_num = $LAST_NUM
 
@@ -150,9 +153,9 @@ print(f'  Total: {len(blocks[:5])} subtasks created')
 sed -i 's/status: pending/status: decomposed/' "$ISSUE_FILE" 2>/dev/null
 sed -i 's/status: in-progress/status: decomposed/' "$ISSUE_FILE" 2>/dev/null
 
-# Commit subtasks
-(cd "$PROJECT_DIR" && git add scripts/pipeline/issues/ && \
-  git commit -m "chore: decompose $ISSUE_NAME into subtasks
+# Commit tasks + updated issue
+(cd "$PROJECT_DIR" && git add scripts/pipeline/issues/ scripts/pipeline/tasks/ && \
+  git commit -m "chore: decompose $ISSUE_NAME into tasks
 
 Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>" --no-verify 2>/dev/null) || true
 

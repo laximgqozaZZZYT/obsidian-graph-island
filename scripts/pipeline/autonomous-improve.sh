@@ -106,29 +106,33 @@ fi
 echo $$ > "$LOCK_DIR/$SESSION_ID.pid"
 log "Active sessions: $ACTIVE_COUNT/$MAX_SESSIONS — proceeding"
 
-# ── Carry over orphaned in-progress issues ──
-# If an issue is in-progress but no active session holds it (the session
-# that claimed it has exited), immediately carry over with attempt history.
-# This prevents the pipeline from stalling while waiting for a 1h timeout.
+# ── Handle orphaned in-progress items (issues + tasks) ──
+# Issues: carry over with attempt history
+# Tasks: auto-subdivide into smaller tasks via decompose-issue.sh
 ISSUE_DIR="$PROJECT_DIR/scripts/pipeline/issues"
-LOCK_DIR="/tmp/graph-island-sessions"
-if [[ -d "$ISSUE_DIR" ]]; then
-  NOW=$(date +%s)
-  # Collect active session IDs from lock files
-  ACTIVE_SIDS=""
-  for pidfile in "$LOCK_DIR"/*.pid; do
-    [[ -f "$pidfile" ]] || continue
-    ACTIVE_SIDS+=" $(basename "${pidfile%.pid}") "
-  done
+TASK_DIR="$PROJECT_DIR/scripts/pipeline/tasks"
+TASK_DONE_DIR="$TASK_DIR/done"
+mkdir -p "$TASK_DIR" "$TASK_DONE_DIR"
 
-  for f in "$ISSUE_DIR"/*.md; do
+NOW=$(date +%s)
+for dir in "$ISSUE_DIR" "$TASK_DIR"; do
+  [[ -d "$dir" ]] || continue
+  for f in "$dir"/*.md; do
     [[ -f "$f" ]] || continue
-    if grep -q "status: in-progress" "$f" 2>/dev/null; then
-      FILE_AGE=$(( NOW - $(stat -c%Y "$f" 2>/dev/null || echo "$NOW") ))
-      # Carry over if: no active sessions at all, OR file is >10 min old
-      # (generous grace period for session startup)
+    grep -q "status: in-progress" "$f" 2>/dev/null || continue
+    FILE_AGE=$(( NOW - $(stat -c%Y "$f" 2>/dev/null || echo "$NOW") ))
+    [[ $FILE_AGE -gt 600 ]] || continue  # 10 min grace period
+
+    FNAME=$(basename "$f")
+    if [[ "$dir" == "$TASK_DIR" ]]; then
+      # Task timed out → subdivide into smaller tasks
+      log "SUBDIVIDE: $FNAME timed out (${FILE_AGE}s)"
+      bash "$PROJECT_DIR/scripts/pipeline/decompose-issue.sh" "$f" 2>&1 | while IFS= read -r line; do log "  $line"; done
+      (cd "$PROJECT_DIR" && git add scripts/pipeline/ && git commit -m "chore: subdivide timed-out task $FNAME" --no-verify 2>/dev/null) || true
+    else
+      # Issue timed out → carry over with attempt history
       ORPHANED=false
-      if [[ -z "$ACTIVE_SIDS" ]]; then
+      if [[ -z "$(find "$LOCK_DIR" -maxdepth 1 -name '*.pid' 2>/dev/null | head -1)" ]]; then
         ORPHANED=true
       elif [[ $FILE_AGE -gt 600 ]]; then
         ORPHANED=true
@@ -166,7 +170,7 @@ ATTEMPT_EOF
       fi
     fi
   done
-fi
+done
 
 # ── Ensure main is clean for worktree creation ──
 cd "$PROJECT_DIR" || exit 1
@@ -316,18 +320,33 @@ for iter in $(seq 1 "$MAX_ITERATIONS"); do
   ISSUE_CONTENT=""
   ISSUE_NAME=""
 
-  # ── Re-evaluate focus (issue queue may have changed) ──
+  # ── Work selection: tasks first → issues → focus rotation ──
   ISSUE_DIR="$PROJECT_DIR/scripts/pipeline/issues"
-  if [[ -d "$ISSUE_DIR" ]]; then
+  TASK_DIR="$PROJECT_DIR/scripts/pipeline/tasks"
+
+  # Step 1: Check tasks/ for pending work (already decomposed, ready to implement)
+  ISSUE_FILE=""
+  if [[ -d "$TASK_DIR" ]]; then
     for prio in critical high medium low; do
-      ISSUE_FILE=$(grep -rl "priority: $prio" "$ISSUE_DIR"/*.md 2>/dev/null | while read f; do
+      ISSUE_FILE=$(grep -rl "priority: $prio" "$TASK_DIR"/*.md 2>/dev/null | while read f; do
         grep -q "status: pending" "$f" || continue
-        grep -q "source: auto-discovered" "$f" && continue
         echo "$f" && break
       done)
       [[ -n "$ISSUE_FILE" ]] && break
     done
-    if [[ -z "$ISSUE_FILE" ]]; then
+  fi
+
+  if [[ -n "$ISSUE_FILE" ]]; then
+    FOCUS="task"
+    ISSUE_CONTENT=$(cat "$ISSUE_FILE")
+    ISSUE_NAME=$(basename "$ISSUE_FILE")
+    log "TASK: $ISSUE_NAME"
+    sed -i 's/status: pending/status: in-progress/' "$ISSUE_FILE" 2>/dev/null || true
+    (cd "$PROJECT_DIR" && git add scripts/pipeline/tasks/ && git commit -m "chore: start task $ISSUE_NAME" --no-verify 2>/dev/null) || true
+  else
+    # Step 2: Check issues/ for pending issues → decompose into tasks
+    ISSUE_FILE=""
+    if [[ -d "$ISSUE_DIR" ]]; then
       for prio in critical high medium low; do
         ISSUE_FILE=$(grep -rl "priority: $prio" "$ISSUE_DIR"/*.md 2>/dev/null | while read f; do
           grep -q "status: pending" "$f" || continue
@@ -336,66 +355,35 @@ for iter in $(seq 1 "$MAX_ITERATIONS"); do
         [[ -n "$ISSUE_FILE" ]] && break
       done
     fi
-  fi
 
-  if [[ -n "$ISSUE_FILE" ]]; then
-    ISSUE_CONTENT=$(cat "$ISSUE_FILE")
-    ISSUE_NAME=$(basename "$ISSUE_FILE")
-    ISSUE_SOURCE=$(grep -oP 'source: \K[\w-]+' "$ISSUE_FILE" 2>/dev/null || echo "user")
-
-    # Decomposed subtask → treat as small auto-task
-    if grep -q "source: decomposed" "$ISSUE_FILE" 2>/dev/null; then
-      FOCUS="subtask"
-      log "SUBTASK: $ISSUE_NAME"
-      sed -i 's/status: pending/status: in-progress/' "$PROJECT_DIR/scripts/pipeline/issues/$ISSUE_NAME" 2>/dev/null || true
-      (cd "$PROJECT_DIR" && git add "scripts/pipeline/issues/$ISSUE_NAME" && git commit -m "chore: mark subtask $ISSUE_NAME as in-progress" --no-verify 2>/dev/null) || true
-
-    # User issue (complex) → decompose first, then process subtasks
-    elif [[ "$ISSUE_SOURCE" == "user" ]]; then
-      log "USER ISSUE: $ISSUE_NAME — decomposing into subtasks..."
+    if [[ -n "$ISSUE_FILE" ]]; then
+      ISSUE_NAME=$(basename "$ISSUE_FILE")
+      log "ISSUE: $ISSUE_NAME — decomposing into tasks..."
       bash "$PROJECT_DIR/scripts/pipeline/decompose-issue.sh" "$ISSUE_FILE" 2>&1 | while IFS= read -r line; do log "  decompose: $line"; done
 
-      # After decomposition, pick first subtask for this iteration
+      # Pick first task from newly created tasks
       ISSUE_FILE=""
       for prio in critical high medium low; do
-        ISSUE_FILE=$(grep -rl "source: decomposed" "$ISSUE_DIR"/*.md 2>/dev/null | while read f; do
-          grep -q "status: pending" "$f" || continue
-          echo "$f" && break
-        done)
+        ISSUE_FILE=$(grep -rl "status: pending" "$TASK_DIR"/*.md 2>/dev/null | head -1)
         [[ -n "$ISSUE_FILE" ]] && break
       done
 
       if [[ -n "$ISSUE_FILE" ]]; then
-        FOCUS="subtask"
+        FOCUS="task"
         ISSUE_CONTENT=$(cat "$ISSUE_FILE")
         ISSUE_NAME=$(basename "$ISSUE_FILE")
-        log "FIRST SUBTASK: $ISSUE_NAME"
-        sed -i 's/status: pending/status: in-progress/' "$PROJECT_DIR/scripts/pipeline/issues/$ISSUE_NAME" 2>/dev/null || true
-        (cd "$PROJECT_DIR" && git add "scripts/pipeline/issues/$ISSUE_NAME" && git commit -m "chore: mark subtask $ISSUE_NAME as in-progress" --no-verify 2>/dev/null) || true
+        log "FIRST TASK: $ISSUE_NAME"
+        sed -i 's/status: pending/status: in-progress/' "$ISSUE_FILE" 2>/dev/null || true
+        (cd "$PROJECT_DIR" && git add scripts/pipeline/tasks/ && git commit -m "chore: start task $ISSUE_NAME" --no-verify 2>/dev/null) || true
       else
-        log "WARN: decomposition produced no subtasks, falling back to auto-focus"
+        log "WARN: decomposition produced no tasks, falling back to auto-focus"
         HOUR=$(date +%-H)
         FOCUS_AREAS=("coverage" "eslint" "refactor")
         FOCUS_INDEX=$(( (HOUR / 2) % 3 ))
         FOCUS="${FOCUS_AREAS[$FOCUS_INDEX]}"
-        # Reuse exhaustion check (function defined in else branch below, safe in bash)
-        TRIED=0
-        while _focus_exhausted "$FOCUS" && [[ $TRIED -lt 3 ]]; do
-          log "SKIP focus=$FOCUS (exhausted) — trying next"
-          FOCUS_INDEX=$(( (FOCUS_INDEX + 1) % 3 ))
-          FOCUS="${FOCUS_AREAS[$FOCUS_INDEX]}"
-          TRIED=$((TRIED + 1))
-        done
       fi
-
-    # Auto-discovered issue → treat directly (simpler)
     else
-      FOCUS="auto-issue"
-      log "AUTO ISSUE: $ISSUE_NAME"
-      sed -i 's/status: pending/status: in-progress/' "$PROJECT_DIR/scripts/pipeline/issues/$ISSUE_NAME" 2>/dev/null || true
-      (cd "$PROJECT_DIR" && git add "scripts/pipeline/issues/$ISSUE_NAME" && git commit -m "chore: mark issue $ISSUE_NAME as in-progress" --no-verify 2>/dev/null) || true
-    fi
-  else
+      # Step 3: No issues or tasks → focus rotation
     HOUR=$(date +%-H)
     FOCUS_AREAS=("coverage" "eslint" "refactor")
     FOCUS_INDEX=$(( (HOUR / 2) % 3 ))
@@ -413,7 +401,8 @@ for iter in $(seq 1 "$MAX_ITERATIONS"); do
       log "ALL focus areas exhausted (0 commits each). Skipping session."
       exit 0
     fi
-  fi
+    fi  # end: if [[ -n "$ISSUE_FILE" ]] (Step 2)
+  fi  # end: if [[ -n "$ISSUE_FILE" ]] (Step 1)
 
   log "── Iteration $iter/$MAX_ITERATIONS (focus: $FOCUS, context: clean) ──"
 
@@ -427,8 +416,8 @@ for iter in $(seq 1 "$MAX_ITERATIONS"); do
   GATE_STATUS=$(echo "$GATE_JSON" | python3 -c "import sys,json; g=json.load(sys.stdin).get('gates',{}); print(' '.join(f'{k}:{v}' for k,v in g.items()))" 2>/dev/null || echo "?")
   GODOBJ_STATUS=$(echo "$GODOBJ_JSON" | python3 -c "import sys,json; [print(f\"{k.split('/')[-1]}:{v['current']}/{v['limit']}\",end=' ') for k,v in json.load(sys.stdin).get('files',{}).items() if v.get('status')=='fail']" 2>/dev/null || echo "all pass")
 
-  if [[ "$FOCUS" == "subtask" || "$FOCUS" == "auto-issue" ]]; then
-    # Subtask or auto-discovered issue — small, focused implementation
+  if [[ "$FOCUS" == "task" || "$FOCUS" == "auto-issue" ]]; then
+    # Task or auto-discovered issue — small, focused implementation
     PROMPT="以下のタスクを実装してください。
 
 ## タスク
@@ -618,33 +607,42 @@ COMMITMSG
     log "No changes (iter $iter)"
   fi
 
-  # ── Mark issue/subtask as done (if applicable) ──
-  if [[ ("$FOCUS" == "subtask" || "$FOCUS" == "auto-issue") && -n "$ISSUE_FILE" && $TOTAL_COMMITS -gt 0 ]]; then
+  # ── Mark task/issue as done (if applicable) ──
+  if [[ ("$FOCUS" == "task" || "$FOCUS" == "auto-issue") && -n "$ISSUE_FILE" && $TOTAL_COMMITS -gt 0 ]]; then
     ISSUE_NAME=$(basename "$ISSUE_FILE")
-    sed -i 's/status: in-progress/status: done/' "$PROJECT_DIR/scripts/pipeline/issues/$ISSUE_NAME" 2>/dev/null
-    mv "$PROJECT_DIR/scripts/pipeline/issues/$ISSUE_NAME" "$PROJECT_DIR/scripts/pipeline/issues/done/$ISSUE_NAME" 2>/dev/null
 
-    # If subtask: check if all sibling subtasks are done → mark parent as done
-    PARENT=$(grep -oP 'parent: \K.*' "$PROJECT_DIR/scripts/pipeline/issues/done/$ISSUE_NAME" 2>/dev/null || echo "")
-    if [[ -n "$PARENT" ]]; then
-      REMAINING=$(grep -rl "parent: $PARENT" "$PROJECT_DIR/scripts/pipeline/issues/"*.md 2>/dev/null | while read f; do
-        grep -q "status: pending\|status: in-progress" "$f" && echo "$f"
-      done | wc -l)
-      if [[ $REMAINING -eq 0 ]]; then
-        # All subtasks done → mark parent as done
-        PARENT_FILE=$(ls "$PROJECT_DIR/scripts/pipeline/issues/$PARENT.md" "$PROJECT_DIR/scripts/pipeline/issues/done/$PARENT.md" 2>/dev/null | head -1)
-        if [[ -n "$PARENT_FILE" ]]; then
-          sed -i 's/status: decomposed/status: done/' "$PARENT_FILE" 2>/dev/null
-          mv "$PARENT_FILE" "$PROJECT_DIR/scripts/pipeline/issues/done/" 2>/dev/null
-          log "Parent issue $PARENT → done (all subtasks complete)"
+    if [[ "$ISSUE_FILE" == *"/tasks/"* ]]; then
+      # Task completed → move to tasks/done/
+      sed -i 's/status: in-progress/status: done/' "$ISSUE_FILE" 2>/dev/null
+      mv "$ISSUE_FILE" "$TASK_DONE_DIR/$ISSUE_NAME" 2>/dev/null
+      log "Task $ISSUE_NAME done"
+
+      # Check if all sibling tasks for parent issue are done
+      PARENT=$(grep -oP 'parent: \K.*' "$TASK_DONE_DIR/$ISSUE_NAME" 2>/dev/null || echo "")
+      if [[ -n "$PARENT" ]]; then
+        REMAINING=$(find "$TASK_DIR" -maxdepth 1 -name '*.md' 2>/dev/null | xargs grep -l "parent: $PARENT" 2>/dev/null | while read f; do
+          grep -q "status: pending\|status: in-progress" "$f" && echo "$f"
+        done | wc -l)
+        if [[ $REMAINING -eq 0 ]]; then
+          PARENT_FILE=$(ls "$ISSUE_DIR/$PARENT.md" "$ISSUE_DIR/done/$PARENT.md" 2>/dev/null | head -1)
+          if [[ -n "$PARENT_FILE" ]]; then
+            sed -i 's/status: decomposed/status: done/' "$PARENT_FILE" 2>/dev/null
+            mv "$PARENT_FILE" "$ISSUE_DIR/done/" 2>/dev/null
+            log "Parent issue $PARENT → done (all tasks complete)"
+          fi
+        else
+          log "Task done. Parent $PARENT: $REMAINING tasks remaining"
         fi
-      else
-        log "Subtask $ISSUE_NAME done. Parent $PARENT: $REMAINING subtasks remaining"
       fi
+    else
+      # Issue completed directly (auto-discovered)
+      sed -i 's/status: in-progress/status: done/' "$ISSUE_FILE" 2>/dev/null
+      mv "$ISSUE_FILE" "$ISSUE_DIR/done/$ISSUE_NAME" 2>/dev/null
+      log "Issue $ISSUE_NAME done"
     fi
 
-    (cd "$PROJECT_DIR" && git add "scripts/pipeline/issues/" && git commit -m "chore: issue $ISSUE_NAME done" --no-verify 2>/dev/null) || true
-    log "Issue $ISSUE_NAME done"
+    (cd "$PROJECT_DIR" && git add scripts/pipeline/issues/ scripts/pipeline/tasks/ && \
+      git commit -m "chore: done $ISSUE_NAME" --no-verify 2>/dev/null) || true
     ISSUE_FILE=""
   fi
 
