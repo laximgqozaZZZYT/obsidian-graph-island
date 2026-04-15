@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-16
-status: in-progress
+status: done
 source: decomposed
 parent: 259-241-223-214-205-196-187-178-167-162-133-type-assertions-dom-as-html-element-30-subtask-diffoverlay-ts-matrix-renderer-ts-as-htm-subtask-subtask-subtask-subtask-subtask-diffoverlay-ts-matrix-renderer-ts-as-htm-subtask
 depends: none
