@@ -130,6 +130,7 @@ import { LabelManager } from "./LabelManager";
 import { Minimap, type MinimapHost } from "./Minimap";
 import { DiffOverlay } from "./DiffOverlay";
 import { captureSnapshot } from "../utils/snapshot";
+import { AUTO_SNAP_PREFIX, AUTO_SNAP_MAX } from "./SnapshotManager";
 import { GuideRenderer, type GuideRendererHost } from "./GuideRenderer";
 import { LayoutTransition } from "./LayoutTransition";
 import {
@@ -174,6 +175,7 @@ import {
 	EVENT_HIGHLIGHT_NODES,
 	EVENT_COMPARE_NODES,
 	EVENT_SYNC_PANEL,
+	TOAST_SHORT_MS,
 } from "../constants";
 import {
 	viewModeToLayout,
@@ -232,8 +234,6 @@ const ANIMATE_TO_NODE_MS = 500;
 const FADE_ALPHA_MS = 300;
 const SEARCH_PULSE_MS = 300;
 
-// ---- Toast / Notice durations (ms) ----
-const TOAST_SHORT_MS = 2000;
 const TOAST_LONG_MS = 5000;
 
 // ---- Cache TTL (ms) ----
@@ -1581,8 +1581,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 				const mins = this.plugin.settings.autoSnapshotIntervalMin ?? 5;
 				return mins * 60 * 1000;
 			};
-			const AUTO_SNAP_MAX = 10;
-			const AUTO_SNAP_PREFIX = "[auto] ";
 			this.registerEvent(
 				this.app.metadataCache.on("changed", () => {
 					const debounceMs = getDebounceMs();
@@ -6848,7 +6846,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	/** Resolve "inherit" clusterArrangement to a concrete value. */
 	private _resolveInheritArrangement(): void {
 		if (this.panel.clusterArrangement !== "inherit") return;
-		this.panel.clusterArrangement = resolveInheritArrangement(this.panel.clusterGroupArrangement) as ClusterArrangement;
+		this.panel.clusterArrangement = resolveInheritArrangement(this.panel.clusterGroupArrangement);
 		this._inheritResolved = true;
 	}
 

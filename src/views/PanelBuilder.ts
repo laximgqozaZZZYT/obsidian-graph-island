@@ -403,7 +403,7 @@ export interface PanelState {
  *  shared-reference bugs where mutations leak back into "defaults". */
 export function createDefaultPanel(): PanelState {
 	return {
-		viewMode: "graph" as ViewMode,
+		viewMode: "graph" satisfies ViewMode,
 		matrixSortMode: "degree",
 		excludeNodes: [],
 		autoFitOnFilter: false,
@@ -466,14 +466,14 @@ export function createDefaultPanel(): PanelState {
 		},
 		commonQueries: [],
 		clusterGroupRules: [],
-		clusterArrangement: "inherit" as ClusterArrangement,
-		clusterGroupArrangement: "auto" as ClusterGroupArrangement,
+		clusterArrangement: "inherit" satisfies ClusterArrangement,
+		clusterGroupArrangement: "auto" satisfies ClusterGroupArrangement,
 		clusterNodeSpacing: 3.0,
 		clusterGroupScale: 3.0,
 		clusterGroupSpacing: 2.0,
 		fadeEdgesByDegree: false,
 		edgeBundleStrength: 0.65,
-		sortRules: [{ key: "degree" as SortKey, order: "desc" as SortOrder }],
+		sortRules: [{ key: "degree" satisfies SortKey, order: "desc" satisfies SortOrder }],
 		nodeRules: [],
 		nodeShapeRules: [
 			{ match: "isTag", shape: "triangle" },

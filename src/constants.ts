@@ -167,3 +167,13 @@ export const AGGREGATE_LABEL_Y_OFFSET = 20;
 export const AGGREGATE_MAX_COUNTER_SCALE = 8;
 export const AGGREGATE_CHAR_WIDTH_EST = 8;
 export const AGGREGATE_HIT_HEIGHT_EST = 28;
+
+// ---------------------------------------------------------------------------
+// Toast durations (ms)
+// ---------------------------------------------------------------------------
+export const TOAST_SHORT_MS = 2000;
+
+// ---------------------------------------------------------------------------
+// Label metrics
+// ---------------------------------------------------------------------------
+export const LABEL_CHAR_WIDTH_FACTOR = 0.6;

@@ -16,11 +16,11 @@ import {
 import { showToast } from "../utils/toast";
 import { t } from "../i18n";
 import type { IApp } from "./canvas2d/interfaces";
+import { TOAST_SHORT_MS } from "../constants";
 
 // ---------------------------------------------------------------------------
 // Named constants (CLAUDE.md: no hardcoded magic numbers)
 // ---------------------------------------------------------------------------
-const TOAST_SHORT_MS = 2000;
 const TOAST_MEDIUM_MS = 3000;
 const MERMAID_NODE_CAP = 200;
 
