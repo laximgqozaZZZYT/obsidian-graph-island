@@ -26,7 +26,8 @@ export function createThumbnailClone(
 	sy: number,
 	size: number,
 ): HTMLImageElement {
-	const clone = img.cloneNode() as HTMLImageElement;
+	const clone = new Image();
+	clone.src = img.src;
 	clone.className = "gi-node-thumbnail";
 	clone.style.width = `${size}px`;
 	clone.style.height = `${size}px`;
