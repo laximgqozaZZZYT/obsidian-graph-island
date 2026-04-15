@@ -11,15 +11,15 @@ summary: subtask
 ## Description (subtask of 224-215-206-197-188-179-167-162-133-type-assertions-dom-as-html-element-30-subtask-panelbuilder-ts-as-htmlelement-9-subtask-subtask-subtask-subtask-subtask)
 
 `★ Insight ─────────────────────────────────────`
-PanelBuilder.tsには **13箇所** の `as HTMLElement` 型アサーションが残っています。これらは主に3つのパターンに分類されます：
-1. **`querySelectorAll` の結果** — `Element` を返すので `HTMLElement` にキャストが必要
-2. **`event.target`** — `EventTarget | null` なので `HTMLElement` にキャスト
-3. **`children`/子要素** — `Element` 型コレクション
+PanelBuilder.tsの`as HTMLElement`は3パターンに分類できます：
+1. **querySelectorAll結果** → `querySelectorAll<HTMLElement>()`ジェネリックで解決
+2. **event.target** → `instanceof HTMLElement`型ガードで解決
+3. **querySelector結果** → `querySelector<HTMLElement>()`ジェネリックで解決
 
-安全な修正方法は `instanceof HTMLElement` チェックか、型ガード関数の導入です。
+いずれもDOM APIのジェネリック型パラメータを使えば、unsafeなキャストを排除できます。
 `─────────────────────────────────────────────────`
 
-13箇所の型アサーションを機能的グループに分けて分解します。
+全13箇所が1ファイルに集中しているため、2タスクに分解します：
 
 ---
 
