@@ -10,17 +10,19 @@ summary: subtask
 
 ## Description (subtask of 270-248-225-216-207-198-189-180-169-165-156-146-133-131-stale-worktrees-autonomous-worktree-2-autonomous-worktree-subtask-subtask-subtask-subtask-subtask-subtask-subtask-subtask-subtask-subtask-subtask)
 
-このissueは**分解不要**です。
+## 分解結果
 
-issue本文に明記されている通り：
+**このissueはタスク分解の対象外です。**
 
-- 元の問題（stale worktree 3個）は**既に解決済み**（worktree 1個、prune対象ゼロ）
-- 自律パイプラインが同じissueを**10段以上再帰分解**した無限ループの産物
-- 派生タスク6個もすべて中身のないシェル
+理由:
 
-## 推奨アクション
+1. **worktreeは既にクリーン** — メインリポジトリ1個のみ、prune対象ゼロ
+2. **再帰分解ループの残骸** — 自律パイプラインが同じissueを10段以上再分解し続けた結果、中身のないシェルタスクが量産された
+3. **実作業がゼロ** — issue自身の Description にも「実質的に完了済み」「分解すべき実作業はありません」と明記されている
 
-実装タスクではなく、**クリーンアップタスク1つ**のみ：
+### 推奨アクション
+
+```
 
 ## Acceptance criteria
 - [ ] 実装が完了し、テストが通ること
