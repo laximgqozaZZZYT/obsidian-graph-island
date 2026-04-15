@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-15
-status: in-progress
+status: pending
 source: decomposed
 parent: 134-dead-exports
 depends: none
