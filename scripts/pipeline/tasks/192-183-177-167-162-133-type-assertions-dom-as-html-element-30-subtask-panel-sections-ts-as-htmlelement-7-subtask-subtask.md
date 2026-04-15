@@ -1,14 +1,14 @@
 ---
 priority: medium
 reported: 2026-04-16
-status: decomposed
+status: pending
 source: decomposed
-parent: 177-167-162-133-type-assertions-dom-as-html-element-30-subtask-panel-sections-ts-as-htmlelement-7
+parent: 183-177-167-162-133-type-assertions-dom-as-html-element-30-subtask-panel-sections-ts-as-htmlelement-7-subtask
 depends: none
 summary: subtask
 ---
 
-## Description (subtask of 177-167-162-133-type-assertions-dom-as-html-element-30-subtask-panel-sections-ts-as-htmlelement-7)
+## Description (subtask of 183-177-167-162-133-type-assertions-dom-as-html-element-30-subtask-panel-sections-ts-as-htmlelement-7-subtask)
 
 You've hit your limit · resets 2am (Asia/Tokyo)
 
