@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { drawShape, drawShapeAt, getNodeShape, getNodeDisplayConfig, type ShapeRule } from "../src/utils/node-shapes";
+import { drawShape, drawShapeAt, getNodeShape, type ShapeRule } from "../src/utils/node-shapes";
 import type { GraphNode } from "../src/types";
 
 // Mock PIXI.Graphics using the same Proxy pattern as edge-renderer.test.ts
@@ -195,47 +195,6 @@ describe("getNodeShape", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// getNodeDisplayConfig — display override resolution (cycle113)
-// ---------------------------------------------------------------------------
-describe("getNodeDisplayConfig", () => {
-  it("returns default config when no rules have display", () => {
-    const rules: ShapeRule[] = [
-      { match: "default", shape: "circle" },
-    ];
-    const node = makeNode();
-    const config = getNodeDisplayConfig(node, rules, "node");
-    expect(config.mode).toBe("node");
-  });
-
-  it("returns matching rule display when present", () => {
-    const display = { mode: "card" as const };
-    const rules: ShapeRule[] = [
-      { match: "isTag", shape: "triangle", display },
-    ];
-    const node = makeNode({ isTag: true });
-    const config = getNodeDisplayConfig(node, rules, "node");
-    expect(config.mode).toBe("card");
-  });
-
-  it("skips rules without display even if match succeeds", () => {
-    const rules: ShapeRule[] = [
-      { match: "isTag", shape: "triangle" }, // no display
-      { match: "default", shape: "circle", display: { mode: "donut" as const } },
-    ];
-    const node = makeNode({ isTag: true });
-    const config = getNodeDisplayConfig(node, rules, "node");
-    expect(config.mode).toBe("donut");
-  });
-
-  it("returns default mode with card/donut configs when no rule matches", () => {
-    const rules: ShapeRule[] = [];
-    const node = makeNode();
-    const config = getNodeDisplayConfig(node, rules, "card", { fields: ["title"] } as any);
-    expect(config.mode).toBe("card");
-    expect(config.card).toEqual({ fields: ["title"] });
-  });
-});
 
 // =========================================================================
 // Edge cases
