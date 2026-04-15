@@ -28,6 +28,20 @@ AxisConfig, GridAxisConfig, NodeRule, ClusterGravityConfig, GraphTemplate の
 
 **タスクは1つのみ**。コード変更は発生せず、検証とクローズだけです。親issueの分析時に外部参照チェックが不十分だった可能性があります。
 
+## Verification Results (2026-04-16)
+
+All 5 interfaces are actively used — NOT dead exports:
+
+| Interface | Imported by |
+|---|---|
+| AxisConfig | coordinate-engine.ts, coord-panel.test.ts |
+| GridAxisConfig | coordinate-engine.ts |
+| NodeRule | PanelBuilder.ts, node-rules.test.ts |
+| ClusterGravityConfig | PanelBuilder.ts |
+| GraphTemplate | GraphViewContainer.ts |
+
+Resolution: completed (won't fix) — exports are live and must be retained.
+
 ## Acceptance criteria
-- [ ] 実装が完了し、テストが通ること
-- [ ] CLAUDE.md のルールに違反しないこと
+- [x] 実装が完了し、テストが通ること
+- [x] CLAUDE.md のルールに違反しないこと
