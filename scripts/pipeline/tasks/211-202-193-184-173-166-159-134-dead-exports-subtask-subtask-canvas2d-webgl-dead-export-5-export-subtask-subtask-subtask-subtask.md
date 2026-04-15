@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-16
-status: in-progress
+status: decomposed
 source: decomposed
 parent: 202-193-184-173-166-159-134-dead-exports-subtask-subtask-canvas2d-webgl-dead-export-5-export-subtask-subtask-subtask
 depends: none
