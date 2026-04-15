@@ -182,9 +182,6 @@ export function findMatchingGroupPreset(
 // Constants
 // ---------------------------------------------------------------------------
 
-/** Zoom threshold below which aggregate cluster summaries replace individual nodes */
-export const AGGREGATE_ZOOM_THRESHOLD = 0.25;
-
 /** All preset definitions -- single source of truth for applyPreset, applyPresetByKey, getPresetSummary */
 export const ALL_PRESETS: Record<string, Record<string, unknown>> = {
 	// Quick presets

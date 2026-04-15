@@ -119,3 +119,51 @@ export const EVENT_SYNC_PANEL = "graph-island:sync-panel" as const;
 // Polar arrangement set (shared by RoadNetworkBuilder, GVC, etc.)
 // ---------------------------------------------------------------------------
 export const POLAR_ARRANGEMENTS: ReadonlySet<string> = new Set(["concentric", "radial", "phyllotaxis"]);
+
+// ---------------------------------------------------------------------------
+// Group label rendering
+// ---------------------------------------------------------------------------
+
+/** Zoom threshold below which aggregate cluster summaries replace individual nodes */
+export const AGGREGATE_ZOOM_THRESHOLD = 0.25;
+
+export const GROUP_LABEL_PALETTE = [0x6366f1, 0x22d3ee, 0xfb923c, 0xa78bfa, 0x34d399, 0xf472b6, 0xfbbf24, 0x60a5fa];
+export const AGGREGATE_PALETTE = [0x60a5fa, 0xf472b6, 0xa78bfa, 0x34d399, 0xfbbf24, 0xfb923c, 0x22d3ee, 0xe879f9];
+
+/** Recompute hull only when centroid drifts > this many px */
+export const HULL_DRIFT_THRESHOLD = 50;
+
+// ---- Group label styling ----
+export const GROUP_LABEL_FILL = 0xeeeeee;
+export const GROUP_LABEL_FILL_HOVERED = 0xffffff;
+export const GROUP_LABEL_STROKE_COLOR = 0x000000;
+export const GROUP_LABEL_STROKE_WIDTH = 4;
+export const GROUP_LABEL_STROKE_WIDTH_AGGREGATE = 6;
+export const GROUP_LABEL_BG_COLOR = 0x2a2a3e;
+export const GROUP_LABEL_BG_COLOR_AGGREGATE = 0x3a3a5e;
+export const GROUP_LABEL_BG_COLOR_HOVERED = 0x4a4a8e;
+export const GROUP_LABEL_BG_ALPHA = 0.85;
+export const GROUP_LABEL_BG_ALPHA_AGGREGATE = 0.92;
+export const GROUP_LABEL_BG_ALPHA_HOVERED = 0.95;
+export const GROUP_LABEL_PAD_X = 10;
+export const GROUP_LABEL_PAD_Y = 5;
+export const GROUP_LABEL_PAD_X_AGGREGATE = 16;
+export const GROUP_LABEL_PAD_Y_AGGREGATE = 8;
+export const GROUP_LABEL_MIN_FONT_SIZE = 14;
+
+// ---- Aggregate cluster styling ----
+/** Scale-down factor for aggregate-mode font sizing */
+export const AGGREGATE_FONT_SCALE_FACTOR = 0.15;
+export const AGGREGATE_FILL_ALPHA = 0.15;
+export const AGGREGATE_OUTLINE_WIDTH = 2;
+export const AGGREGATE_OUTLINE_ALPHA = 0.5;
+export const AGGREGATE_LABEL_FONT_SIZE = 14;
+export const AGGREGATE_LABEL_FILL = 0xffffff;
+export const AGGREGATE_LABEL_BG_ALPHA = 0.85;
+export const AGGREGATE_LABEL_PAD_X = 12;
+export const AGGREGATE_LABEL_PAD_Y = 6;
+export const AGGREGATE_LABEL_STROKE_WIDTH = 3;
+export const AGGREGATE_LABEL_Y_OFFSET = 20;
+export const AGGREGATE_MAX_COUNTER_SCALE = 8;
+export const AGGREGATE_CHAR_WIDTH_EST = 8;
+export const AGGREGATE_HIT_HEIGHT_EST = 28;

@@ -26,10 +26,10 @@ import {
   resolveViewportDimensions,
   buildSimulationEndAnnouncement,
   COMMUNITY_PALETTE,
-  AGGREGATE_ZOOM_THRESHOLD,
   ALL_PRESETS,
   type TooltipTextOptions,
 } from "../src/views/RenderHelpers";
+import { AGGREGATE_ZOOM_THRESHOLD } from "../src/constants";
 
 // ---------------------------------------------------------------------------
 // setFrontmatterField

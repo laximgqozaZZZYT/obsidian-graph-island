@@ -9,54 +9,44 @@
 import { CanvasContainer, CanvasGraphics, CanvasText } from "./canvas2d";
 import { addToMapSet } from "../utils/map-helpers";
 import { convexHull } from "../utils/geometry";
+import {
+	AGGREGATE_ZOOM_THRESHOLD,
+	GROUP_LABEL_PALETTE as PALETTE,
+	AGGREGATE_PALETTE,
+	HULL_DRIFT_THRESHOLD,
+	GROUP_LABEL_FILL,
+	GROUP_LABEL_FILL_HOVERED,
+	GROUP_LABEL_STROKE_COLOR,
+	GROUP_LABEL_STROKE_WIDTH,
+	GROUP_LABEL_STROKE_WIDTH_AGGREGATE,
+	GROUP_LABEL_BG_COLOR,
+	GROUP_LABEL_BG_COLOR_AGGREGATE,
+	GROUP_LABEL_BG_COLOR_HOVERED,
+	GROUP_LABEL_BG_ALPHA,
+	GROUP_LABEL_BG_ALPHA_AGGREGATE,
+	GROUP_LABEL_BG_ALPHA_HOVERED,
+	GROUP_LABEL_PAD_X,
+	GROUP_LABEL_PAD_Y,
+	GROUP_LABEL_PAD_X_AGGREGATE,
+	GROUP_LABEL_PAD_Y_AGGREGATE,
+	GROUP_LABEL_MIN_FONT_SIZE,
+	AGGREGATE_FONT_SCALE_FACTOR,
+	AGGREGATE_FILL_ALPHA,
+	AGGREGATE_OUTLINE_WIDTH,
+	AGGREGATE_OUTLINE_ALPHA,
+	AGGREGATE_LABEL_FONT_SIZE,
+	AGGREGATE_LABEL_FILL,
+	AGGREGATE_LABEL_BG_ALPHA,
+	AGGREGATE_LABEL_PAD_X,
+	AGGREGATE_LABEL_PAD_Y,
+	AGGREGATE_LABEL_STROKE_WIDTH,
+	AGGREGATE_LABEL_Y_OFFSET,
+	AGGREGATE_MAX_COUNTER_SCALE,
+	AGGREGATE_CHAR_WIDTH_EST,
+	AGGREGATE_HIT_HEIGHT_EST,
+} from "../constants";
 
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
-
-/** Zoom threshold below which aggregate cluster summaries replace individual nodes */
-export const AGGREGATE_ZOOM_THRESHOLD = 0.25;
-
-const PALETTE = [0x6366f1, 0x22d3ee, 0xfb923c, 0xa78bfa, 0x34d399, 0xf472b6, 0xfbbf24, 0x60a5fa];
-const AGGREGATE_PALETTE = [0x60a5fa, 0xf472b6, 0xa78bfa, 0x34d399, 0xfbbf24, 0xfb923c, 0x22d3ee, 0xe879f9];
-
-/** Recompute hull only when centroid drifts > this many px */
-const HULL_DRIFT_THRESHOLD = 50;
-
-// ---- Group label styling ----
-const GROUP_LABEL_FILL = 0xeeeeee;
-const GROUP_LABEL_FILL_HOVERED = 0xffffff;
-const GROUP_LABEL_STROKE_COLOR = 0x000000;
-const GROUP_LABEL_STROKE_WIDTH = 4;
-const GROUP_LABEL_STROKE_WIDTH_AGGREGATE = 6;
-const GROUP_LABEL_BG_COLOR = 0x2a2a3e;
-const GROUP_LABEL_BG_COLOR_AGGREGATE = 0x3a3a5e;
-const GROUP_LABEL_BG_COLOR_HOVERED = 0x4a4a8e;
-const GROUP_LABEL_BG_ALPHA = 0.85;
-const GROUP_LABEL_BG_ALPHA_AGGREGATE = 0.92;
-const GROUP_LABEL_BG_ALPHA_HOVERED = 0.95;
-const GROUP_LABEL_PAD_X = 10;
-const GROUP_LABEL_PAD_Y = 5;
-const GROUP_LABEL_PAD_X_AGGREGATE = 16;
-const GROUP_LABEL_PAD_Y_AGGREGATE = 8;
-const GROUP_LABEL_MIN_FONT_SIZE = 14;
-
-// ---- Aggregate cluster styling ----
-/** Scale-down factor for aggregate-mode font sizing */
-const AGGREGATE_FONT_SCALE_FACTOR = 0.15;
-const AGGREGATE_FILL_ALPHA = 0.15;
-const AGGREGATE_OUTLINE_WIDTH = 2;
-const AGGREGATE_OUTLINE_ALPHA = 0.5;
-const AGGREGATE_LABEL_FONT_SIZE = 14;
-const AGGREGATE_LABEL_FILL = 0xffffff;
-const AGGREGATE_LABEL_BG_ALPHA = 0.85;
-const AGGREGATE_LABEL_PAD_X = 12;
-const AGGREGATE_LABEL_PAD_Y = 6;
-const AGGREGATE_LABEL_STROKE_WIDTH = 3;
-const AGGREGATE_LABEL_Y_OFFSET = 20;
-const AGGREGATE_MAX_COUNTER_SCALE = 8;
-const AGGREGATE_CHAR_WIDTH_EST = 8;
-const AGGREGATE_HIT_HEIGHT_EST = 28;
+export { AGGREGATE_ZOOM_THRESHOLD };
 
 // ---------------------------------------------------------------------------
 // Types
