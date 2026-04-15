@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-16
-status: in-progress
+status: done
 source: decomposed
 parent: 164-133-type-assertions-view-as-graphviewcontainer-20
 depends: none
