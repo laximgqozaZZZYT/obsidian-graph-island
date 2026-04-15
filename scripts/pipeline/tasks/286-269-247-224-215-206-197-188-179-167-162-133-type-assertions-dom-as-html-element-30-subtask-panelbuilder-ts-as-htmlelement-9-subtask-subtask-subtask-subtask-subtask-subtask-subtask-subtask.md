@@ -10,19 +10,23 @@ summary: subtask
 
 ## Description (subtask of 269-247-224-215-206-197-188-179-167-162-133-type-assertions-dom-as-html-element-30-subtask-panelbuilder-ts-as-htmlelement-9-subtask-subtask-subtask-subtask-subtask-subtask-subtask)
 
-このissueは**すでに作業の意味がありません**。理由：
+状況を把握しました。`PanelBuilder.ts` から `as HTMLElement` は既に全て除去されています。残っている `as` は29箇所で、大半は `as const`（安全）です。実際に型安全性リスクがあるのは数箇所のみです。
 
-1. **`as HTMLElement` は `src/` 全体で0箇所** — 親issueの目的（PanelBuilder.tsのDOM型アサーション削除）はすでに完了済み
-2. **issueの説明が空虚** — "subtask" と "と2は並列実行可能です" のみで、具体的な作業内容が不明
-3. **深すぎるissue分解チェーン** — 親issueが7層以上ネストしており、元の意図が完全に希薄化
+---
 
-## 推奨アクション
+**このissueは実質完了済みです。**
 
-このissueは **done（完了済み）** としてクローズすべきです。分解するタスクがありません。
+親issue（`panelbuilder-ts-as-htmlelement`）の目標である `as HTMLElement` の除去は既に達成されています。
 
-もし型アサーション削減の残作業を続けたい場合は、親issue `133-type-assertions`（213個→80個以下を目標）に基づいて新しいissueを作成した方が建設的です。現時点でsrc/全体に約271箇所の `as` があります（ただしimport aliasや `as const` を含む）。
+残っている `as` の内訳:
+- **`as const`**: 11箇所 — TypeScript イディオム、安全、変更不要
+- **`import as alias`**: 5箇所 — モジュールリネーム、変更不要
+- **コメント内 "as"**: 3箇所 — コード外、変更不要
+- **要改善**: 4箇所のみ（下記）
 
-**作業が必要なら**、ルートissue 133 から改めて分解し直すことをお勧めします。このサブタスクは空振りです。
+改善対象が4箇所と少ないため、**1タスクで十分**です:
+
+---
 
 ## Acceptance criteria
 - [ ] 実装が完了し、テストが通ること
