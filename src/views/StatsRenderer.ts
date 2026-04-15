@@ -20,8 +20,7 @@ interface PerformanceWithMemory extends Performance {
 }
 import type { StatsHost } from "./GraphViewContainer";
 import { incCounter } from "../utils/graph-helpers";
-
-const TOAST_SHORT_MS = 2000;
+import { TOAST_SHORT_MS } from "../constants";
 
 /** Minimal panel state needed for stats rendering */
 interface StatsPanel {

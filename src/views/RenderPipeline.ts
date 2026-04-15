@@ -15,6 +15,7 @@ import type { ShapeRule } from "../utils/node-shapes";
 import { effectiveRadius } from "../layouts/cluster-force";
 import { Platform } from "obsidian";
 import { clamp } from "../utils/geometry";
+import { LABEL_CHAR_WIDTH_FACTOR } from "../constants";
 import {
 	darkenColor, lightenColor, blendColors, desaturateColor,
 	computeGlowParams, computeLabelColors, isDensityTooClose,
@@ -136,8 +137,6 @@ const KB_FOCUS_LINE_WIDTH = 2.5;
 /** Keyboard focus ring line alpha */
 const KB_FOCUS_LINE_ALPHA = 0.95;
 
-/** Character width estimation factor relative to font size */
-const LABEL_CHAR_WIDTH_FACTOR = 0.6;
 /** Line height factor for label bounding box estimation */
 const LABEL_LINE_HEIGHT_FACTOR = 1.3;
 /** Label default X/Y offset from node edge (px) */
