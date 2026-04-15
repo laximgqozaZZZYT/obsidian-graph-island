@@ -1,7 +1,7 @@
 ---
 priority: high
 reported: 2026-04-16
-status: in-progress
+status: done
 source: decomposed
 parent: 166-159-134-dead-exports-subtask-subtask
 depends: none
