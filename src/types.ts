@@ -142,9 +142,6 @@ export type ClusterGroupBy = string;
 /** How to arrange nodes within each cluster */
 const CLUSTER_ARRANGEMENTS = ["inherit", "concentric", "radial", "phyllotaxis", "grid", "triangle", "random", "timeline", "custom", "ego"] as const;
 export type ClusterArrangement = (typeof CLUSTER_ARRANGEMENTS)[number];
-function isClusterArrangement(v: string): v is ClusterArrangement {
-	return (CLUSTER_ARRANGEMENTS as readonly string[]).includes(v);
-}
 
 /** How to arrange groups relative to each other (inter-group layout).
  *  "auto" preserves legacy behavior — derived from clusterArrangement. */
@@ -311,9 +308,6 @@ const SORT_KEYS = ["degree", "in-degree", "tag", "category", "label", "importanc
 export type SortKey = (typeof SORT_KEYS)[number];
 const SORT_ORDERS = ["asc", "desc"] as const;
 export type SortOrder = (typeof SORT_ORDERS)[number];
-function isSortKey(v: string): v is SortKey {
-	return (SORT_KEYS as readonly string[]).includes(v);
-}
 export interface SortRule {
 	key: SortKey;
 	order: SortOrder;
