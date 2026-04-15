@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-16
-status: in-progress
+status: decomposed
 source: decomposed
 parent: 203-194-185-174-166-159-134-dead-exports-subtask-subtask-node-shapes-ts-dead-export-2-export-subtask-subtask-subtask
 depends: none
