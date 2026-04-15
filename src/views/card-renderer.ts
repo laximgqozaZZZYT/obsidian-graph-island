@@ -70,16 +70,13 @@ export function createCardText(
 /** Maximum counter-scale factor for card mode (prevents enormous cards at extreme zoom-out) */
 export const CARD_SCALE_CAP = 8;
 
-/** Card icon size ratio relative to header height */
-const CARD_ICON_SIZE_RATIO = 0.55;
-/** Card icon fold triangle ratio relative to icon size */
-const CARD_ICON_FOLD_RATIO = 0.28;
-/** Card icon outline stroke alpha */
-const CARD_ICON_OUTLINE_ALPHA = 0.7;
-/** Card icon body fill alpha */
-const CARD_ICON_FILL_ALPHA = 0.25;
-/** Card icon fold fill alpha */
-const CARD_ICON_FOLD_ALPHA = 0.15;
+export const CARD_ICON = {
+	SIZE_RATIO: 0.55,
+	FOLD_RATIO: 0.28,
+	OUTLINE_ALPHA: 0.7,
+	FILL_ALPHA: 0.25,
+	FOLD_ALPHA: 0.15,
+} as const;
 
 /**
  * Word-wrap text into lines by splitting on whitespace boundaries.
@@ -102,14 +99,12 @@ export function wrapTextToLines(text: string, charsPerLine: number, maxLines: nu
 	return lines;
 }
 
-/** Plain card title font minimum size (px) */
-const PLAIN_CARD_TITLE_FONT_MIN = 3;
-/** Plain card body font minimum size (px) */
-const PLAIN_CARD_BODY_FONT_MIN = 2;
-/** Plain card internal padding (px, scaled by worldScale) */
-const PLAIN_CARD_PAD = 4;
-/** Plain card body line height multiplier */
-const PLAIN_CARD_BODY_LINE_HEIGHT = 1.4;
+export const PLAIN_CARD = {
+	TITLE_FONT_MIN: 3,
+	BODY_FONT_MIN: 2,
+	PAD: 4,
+	BODY_LINE_HEIGHT: 1.4,
+} as const;
 
 /** Semantic-zoom full card font sizes (tier 4 = name + definition + preview) */
 export const FULL_CARD_FONT_BASE = 10;
@@ -185,13 +180,13 @@ function renderCardIcon(
 	worldScale: number,
 	nodeAlpha: number,
 ): void {
-	const iconS = headerH * CARD_ICON_SIZE_RATIO;
-	const foldS = iconS * CARD_ICON_FOLD_RATIO;
+	const iconS = headerH * CARD_ICON.SIZE_RATIO;
+	const foldS = iconS * CARD_ICON.FOLD_RATIO;
 	const iconX = cardX + pad;
 	const iconY = cardY + (headerH - iconS) / 2;
 	// Page body outline
-	g.lineStyle(0.5 / worldScale, 0xffffff, nodeAlpha * CARD_ICON_OUTLINE_ALPHA);
-	g.beginFill(0xffffff, nodeAlpha * CARD_ICON_FILL_ALPHA);
+	g.lineStyle(0.5 / worldScale, 0xffffff, nodeAlpha * CARD_ICON.OUTLINE_ALPHA);
+	g.beginFill(0xffffff, nodeAlpha * CARD_ICON.FILL_ALPHA);
 	g.moveTo(iconX, iconY);
 	g.lineTo(iconX + iconS - foldS, iconY);
 	g.lineTo(iconX + iconS, iconY + foldS);
@@ -201,7 +196,7 @@ function renderCardIcon(
 	g.endFill();
 	// Fold triangle
 	g.lineStyle(0);
-	g.beginFill(0xffffff, nodeAlpha * CARD_ICON_FOLD_ALPHA);
+	g.beginFill(0xffffff, nodeAlpha * CARD_ICON.FOLD_ALPHA);
 	g.moveTo(iconX + iconS - foldS, iconY);
 	g.lineTo(iconX + iconS - foldS, iconY + foldS);
 	g.lineTo(iconX + iconS, iconY + foldS);
@@ -251,7 +246,7 @@ function renderTableCardText(
 		);
 		const gfx = pn.gfx;
 
-		const iconOffset = showIcon ? headerH * CARD_ICON_SIZE_RATIO + pad : 0;
+		const iconOffset = showIcon ? headerH * CARD_ICON.SIZE_RATIO + pad : 0;
 		const availableTextW = halfW * 2 - textPadX * 2 - iconOffset;
 
 		// Header text (bold, contrasting color)
@@ -439,7 +434,7 @@ function renderPlainCardBodyLines(
 	for (let li = 0; li < lines.length; li++) {
 		const bodyLine = createCardText(lines[li], smallFont, bodyFill);
 		bodyLine.x = -halfW + pad;
-		bodyLine.y = -halfH + pad + fontSize * PLAIN_CARD_BODY_LINE_HEIGHT + li * lineH;
+		bodyLine.y = -halfH + pad + fontSize * PLAIN_CARD.BODY_LINE_HEIGHT + li * lineH;
 		bodyLine.alpha = cardSubTextAlpha;
 		if (truncateText) bodyLine.maxWidth = textW;
 		pn.gfx.addChild(bodyLine);
@@ -499,15 +494,15 @@ function renderPlainCard(
 
 		// FH/FI: Plain card with title + wrapped body preview
 		const fontSize = Math.min(
-			Math.max(PLAIN_CARD_TITLE_FONT_MIN, FULL_CARD_FONT_BASE / worldScale),
+			Math.max(PLAIN_CARD.TITLE_FONT_MIN, FULL_CARD_FONT_BASE / worldScale),
 			FULL_CARD_FONT_BASE * CARD_SCALE_CAP,
 		);
 		const bodyFontBase = rt.cardBodyFontSize;
 		const smallFont = Math.min(
-			Math.max(PLAIN_CARD_BODY_FONT_MIN, bodyFontBase / worldScale),
+			Math.max(PLAIN_CARD.BODY_FONT_MIN, bodyFontBase / worldScale),
 			bodyFontBase * CARD_SCALE_CAP,
 		);
-		const pad = Math.min(PLAIN_CARD_PAD / worldScale, PLAIN_CARD_PAD * CARD_SCALE_CAP);
+		const pad = Math.min(PLAIN_CARD.PAD / worldScale, PLAIN_CARD.PAD * CARD_SCALE_CAP);
 		const textW = halfW * 2 - pad * 2;
 		const lineH = smallFont * CARD_LINE_HEIGHT;
 		// A11y: auto-select title/body text color for WCAG contrast against card background
