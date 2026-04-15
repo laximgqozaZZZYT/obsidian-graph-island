@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-15
-status: pending
+status: in-progress
 source: decomposed
 parent: 148-134-116-scattered-constants-subtask-gvc-gvc-constants-ts-god-object
 depends: none
