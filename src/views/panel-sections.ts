@@ -797,7 +797,7 @@ function renderNodeDir(
 		if (savedOpen) arrow.style.transform = "rotate(90deg)";
 
 		header.addEventListener("click", (e) => {
-			if ((e.target as HTMLElement).tagName === "INPUT") return;
+			if (e.target && "tagName" in e.target && e.target.tagName === "INPUT") return;
 			const open = body.style.display !== "none";
 			body.style.display = open ? "none" : "";
 			arrow.style.transform = open ? "" : "rotate(90deg)";
@@ -1008,7 +1008,7 @@ export function buildNodesTab(tabEl: HTMLElement, panel: PanelState, ctx: PanelC
 	}
 	sortSelect.addEventListener("change", () => {
 		const mode = sortSelect.value;
-		const rows = [...treeContainer.querySelectorAll(".gi-node-row")] as HTMLElement[];
+		const rows = Array.from(treeContainer.querySelectorAll<HTMLElement>(".gi-node-row"));
 		rows.sort((a, b) => {
 			const aId = a.dataset.nodeId ?? "";
 			const bId = b.dataset.nodeId ?? "";
@@ -1035,17 +1035,17 @@ export function buildNodesTab(tabEl: HTMLElement, panel: PanelState, ctx: PanelC
 	// Filter logic
 	filterInput.addEventListener("input", () => {
 		const q = filterInput.value.toLowerCase().trim();
-		const rows = treeContainer.querySelectorAll(".gi-node-row");
-		for (const row of Array.from(rows)) {
-			const id = (row as HTMLElement).dataset.nodeId ?? "";
-			const text = (row as HTMLElement).textContent?.toLowerCase() ?? "";
-			(row as HTMLElement).style.display = q && !text.includes(q) && !id.toLowerCase().includes(q) ? "none" : "";
+		const filterRows = treeContainer.querySelectorAll<HTMLElement>(".gi-node-row");
+		for (const row of Array.from(filterRows)) {
+			const id = row.dataset.nodeId ?? "";
+			const text = row.textContent?.toLowerCase() ?? "";
+			row.style.display = q && !text.includes(q) && !id.toLowerCase().includes(q) ? "none" : "";
 		}
 		if (q) {
 			const dirs = treeContainer.querySelectorAll(".gi-node-dir");
 			for (const dir of Array.from(dirs)) {
-				const body = dir.querySelector(".gi-node-dir-body") as HTMLElement;
-				const arrow = dir.querySelector(".gi-node-dir-header span") as HTMLElement;
+				const body = dir.querySelector<HTMLElement>(".gi-node-dir-body");
+				const arrow = dir.querySelector<HTMLElement>(".gi-node-dir-header span");
 				if (body) body.style.display = "";
 				if (arrow) arrow.style.transform = "rotate(90deg)";
 			}

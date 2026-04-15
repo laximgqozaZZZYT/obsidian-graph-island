@@ -1,7 +1,7 @@
 // ---------------------------------------------------------------------------
 // Node shape drawing utilities
 // ---------------------------------------------------------------------------
-import type { GraphNode, DisplayConfig, NodeDisplayMode, CardDisplayConfig, DonutDisplayConfig } from "../types";
+import type { GraphNode, DisplayConfig } from "../types";
 
 export const NODE_SHAPES = ["circle", "triangle", "diamond", "hexagon", "square"] as const;
 export type NodeShape = (typeof NODE_SHAPES)[number];
@@ -124,34 +124,3 @@ export function getNodeShape(node: GraphNode, shapeRules: ShapeRule[]): NodeShap
 	return "circle";
 }
 
-/**
- * Determine the display configuration for a given node.
- * Evaluates rules top-to-bottom; the first match with a `display` field wins.
- * Falls back to the provided default mode and config.
- */
-export function getNodeDisplayConfig(
-	node: GraphNode,
-	rules: ShapeRule[],
-	defaultMode: NodeDisplayMode,
-	defaultCard?: CardDisplayConfig,
-	defaultDonut?: DonutDisplayConfig,
-): DisplayConfig {
-	for (const rule of rules) {
-		if (!rule.display) continue;
-		switch (rule.match) {
-			case "isTag":
-				if (node.isTag) return rule.display;
-				break;
-			case "category":
-				if (rule.category && node.category === rule.category) return rule.display;
-				break;
-			case "default":
-				return rule.display;
-		}
-	}
-	return {
-		mode: defaultMode,
-		card: defaultCard,
-		donut: defaultDonut,
-	};
-}
