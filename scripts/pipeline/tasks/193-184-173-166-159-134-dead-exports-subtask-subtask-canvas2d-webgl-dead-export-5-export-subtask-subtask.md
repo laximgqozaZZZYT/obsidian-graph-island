@@ -1,14 +1,14 @@
 ---
 priority: medium
 reported: 2026-04-16
-status: decomposed
+status: pending
 source: decomposed
-parent: 173-166-159-134-dead-exports-subtask-subtask-canvas2d-webgl-dead-export-5-export
+parent: 184-173-166-159-134-dead-exports-subtask-subtask-canvas2d-webgl-dead-export-5-export-subtask
 depends: none
 summary: subtask
 ---
 
-## Description (subtask of 173-166-159-134-dead-exports-subtask-subtask-canvas2d-webgl-dead-export-5-export)
+## Description (subtask of 184-173-166-159-134-dead-exports-subtask-subtask-canvas2d-webgl-dead-export-5-export-subtask)
 
 You've hit your limit · resets 2am (Asia/Tokyo)
 
