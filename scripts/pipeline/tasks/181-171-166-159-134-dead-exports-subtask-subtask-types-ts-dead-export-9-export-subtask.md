@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-16
-status: pending
+status: in-progress
 source: decomposed
 parent: 171-166-159-134-dead-exports-subtask-subtask-types-ts-dead-export-9-export
 depends: none
