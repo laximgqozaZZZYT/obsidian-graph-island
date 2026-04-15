@@ -123,7 +123,7 @@ export default class GraphViewsPlugin extends Plugin {
 				const leaf = this.app.workspace.getLeavesOfType(VIEW_TYPE_GRAPH)[0];
 				if (leaf) {
 					const v = asGraphView(leaf);
-					const searchInput = v?.panelEl?.querySelector("input[type='text']") as HTMLInputElement | null;
+					const searchInput = v?.panelEl?.querySelector<HTMLInputElement>("input[type='text']");
 					if (searchInput) searchInput.focus();
 				}
 			},
