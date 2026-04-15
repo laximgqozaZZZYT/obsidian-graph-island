@@ -1732,7 +1732,7 @@ export class RenderPipeline {
 		const canvasRect = app.view.getBoundingClientRect();
 		const panels = [".gi-graph-stats", ".gi-legend", ".gi-minimap-wrap", ".gi-node-info"];
 		for (const sel of panels) {
-			const el = app.view.parentElement?.querySelector(sel) as HTMLElement | null;
+			const el = app.view.parentElement?.querySelector<HTMLElement>(sel);
 			if (!el || el.style.display === "none" || !el.offsetParent) continue;
 			const r = el.getBoundingClientRect();
 			grid.insert({

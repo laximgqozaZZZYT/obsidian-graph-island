@@ -1171,8 +1171,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 				this._handleEscapeKey();
 				return;
 			}
-			const tag = (e.target as HTMLElement)?.tagName;
-			if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+			if (e.target instanceof HTMLElement && ["INPUT", "TEXTAREA", "SELECT"].includes(e.target.tagName)) return;
 
 			// Timeline keyboard navigation: arrow keys move between bars
 			if (this.panel.viewMode === "timeline") {
@@ -4123,9 +4122,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	/** EM: Highlight rows in the Nodes tab that match hovered node + neighbors */
 	private _syncNodesTabHover(hoveredId: string | null, highlightSet: Set<string>) {
 		if (!this.panelEl) return;
-		const rows = this.panelEl.querySelectorAll(".gi-node-row");
-		for (const row of Array.from(rows)) {
-			const el = row as HTMLElement;
+		const rows = this.panelEl.querySelectorAll<HTMLElement>(".gi-node-row");
+		for (const el of Array.from(rows)) {
 			const id = el.dataset.nodeId;
 			el.classList.remove("gi-node-hovered", "gi-node-linked");
 			if (!id || !hoveredId) continue;
@@ -4391,7 +4389,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	private _adjustTooltipForOverlap(pn: PixiNode, hl: CanvasText, counterScale: number, gfxScale: number) {
 		const world = this.worldContainer;
 		if (!world) return;
-		const canvas = this.containerEl as HTMLElement | null;
+		const canvas = this.containerEl;
 		if (!canvas) return;
 		const canvasRect = canvas.getBoundingClientRect();
 		if (!canvasRect || canvasRect.width === 0) return;
@@ -4400,7 +4398,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		const selectors = [".gi-graph-stats", ".gi-legend", ".gi-minimap-wrap", ".gi-node-info"];
 		const panelRects: PanelRect[] = [];
 		for (const sel of selectors) {
-			const el = canvas.querySelector(sel) as HTMLElement | null;
+			const el = canvas.querySelector<HTMLElement>(sel);
 			if (!el || el.style.display === "none" || !el.offsetParent) continue;
 			const r = el.getBoundingClientRect();
 			panelRects.push({ x: r.left - canvasRect.left, y: r.top - canvasRect.top, w: r.width, h: r.height });
@@ -6866,8 +6864,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		// Sync toolbar active button with restored viewMode
 		const modeGroup = this.containerEl.querySelector(".gi-view-mode-group");
 		if (modeGroup) {
-			modeGroup.querySelectorAll(".gi-view-mode-btn").forEach((b) => {
-				const isActive = (b as HTMLElement).dataset.mode === this.panel.viewMode;
+			modeGroup.querySelectorAll<HTMLElement>(".gi-view-mode-btn").forEach((b) => {
+				const isActive = b.dataset.mode === this.panel.viewMode;
 				b.toggleClass("is-active", isActive);
 				b.setAttribute("aria-pressed", String(isActive));
 			});
@@ -8468,8 +8466,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		this.currentLayout = viewModeToLayout("graph");
 		const group = this.containerEl.querySelector(".gi-view-mode-group");
 		if (group) {
-			group.querySelectorAll(".gi-view-mode-btn").forEach((b) => {
-				const isActive = (b as HTMLElement).dataset.mode === "graph";
+			group.querySelectorAll<HTMLElement>(".gi-view-mode-btn").forEach((b) => {
+				const isActive = b.dataset.mode === "graph";
 				b.toggleClass("is-active", isActive);
 				b.setAttribute("aria-pressed", String(isActive));
 			});

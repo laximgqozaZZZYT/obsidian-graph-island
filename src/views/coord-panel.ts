@@ -709,7 +709,7 @@ export function buildAxisTextInput(
 	// --- Unified expression row ---
 	const row = body.createDiv({ cls: "gi-setting-row" });
 	row.createEl("span", { cls: "gi-setting-label", text: axisLabel });
-	const input = row.createEl("textarea", { cls: "gi-setting-input gi-expr-textarea" }) as HTMLTextAreaElement;
+	const input = row.createEl("textarea", { cls: "gi-setting-input gi-expr-textarea" });
 	input.value = transformExprToString(axisCfg.source, axisCfg.transform);
 	input.placeholder = t("coord.transformExprHint");
 	input.title = t("coord.transformExprHelp");
