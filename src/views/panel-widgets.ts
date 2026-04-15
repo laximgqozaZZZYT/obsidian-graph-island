@@ -219,7 +219,8 @@ function attachAutocomplete(input: HTMLInputElement, suggestions: string[]) {
 			selected = Math.max(selected - 1, 0);
 		} else if (e.key === "Enter" && selected >= 0) {
 			e.preventDefault();
-			input.value = (items[selected] as HTMLElement).textContent ?? "";
+			const sel = items[selected];
+			input.value = (sel instanceof HTMLElement ? sel.textContent : null) ?? "";
 			input.dispatchEvent(new Event("change"));
 			popup.style.display = "none";
 			return;

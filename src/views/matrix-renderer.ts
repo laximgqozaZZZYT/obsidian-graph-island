@@ -215,33 +215,35 @@ function _buildMatrixTable(
 function _attachMatrixHoverHandlers(table: HTMLTableElement) {
 	const allRows = table.querySelectorAll("tr");
 	table.addEventListener("mouseover", (ev) => {
-		const target = (ev.target as HTMLElement).closest("td, th") as HTMLElement | null;
+		if (!(ev.target instanceof HTMLElement)) return;
+		const target = ev.target.closest<HTMLTableCellElement>("td, th");
 		if (!target) return;
 		const row = target.closest("tr");
 		if (row) row.classList.add("gi-matrix-row-hover");
-		const colAttr = target.dataset.col ?? (target as HTMLTableCellElement).cellIndex?.toString();
+		const colAttr = target.dataset.col ?? target.cellIndex?.toString();
 		if (colAttr != null) {
 			const ci = parseInt(colAttr, 10);
 			if (!isNaN(ci)) {
 				allRows.forEach((r) => {
-					const c = r.children[ci + 1] as HTMLElement | undefined;
-					if (c) c.classList.add("gi-matrix-col-hover");
+					const c = r.children[ci + 1];
+					if (c instanceof HTMLElement) c.classList.add("gi-matrix-col-hover");
 				});
 			}
 		}
 	});
 	table.addEventListener("mouseout", (ev) => {
-		const target = (ev.target as HTMLElement).closest("td, th") as HTMLElement | null;
+		if (!(ev.target instanceof HTMLElement)) return;
+		const target = ev.target.closest<HTMLTableCellElement>("td, th");
 		if (!target) return;
 		const row = target.closest("tr");
 		if (row) row.classList.remove("gi-matrix-row-hover");
-		const colAttr = target.dataset.col ?? (target as HTMLTableCellElement).cellIndex?.toString();
+		const colAttr = target.dataset.col ?? target.cellIndex?.toString();
 		if (colAttr != null) {
 			const ci = parseInt(colAttr, 10);
 			if (!isNaN(ci)) {
 				allRows.forEach((r) => {
-					const c = r.children[ci + 1] as HTMLElement | undefined;
-					if (c) c.classList.remove("gi-matrix-col-hover");
+					const c = r.children[ci + 1];
+					if (c instanceof HTMLElement) c.classList.remove("gi-matrix-col-hover");
 				});
 			}
 		}
