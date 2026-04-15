@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-15
-status: in-progress
+status: done
 source: decomposed
 parent: 133-type-assertions
 depends: subtask-1（PanelState型定義の変更後に実施）
