@@ -1,7 +1,7 @@
 ---
 priority: high
 reported: 2026-04-15
-status: in-progress
+status: done
 source: decomposed
 parent: 148-134-116-scattered-constants-subtask-gvc-gvc-constants-ts-god-object
 depends: none
