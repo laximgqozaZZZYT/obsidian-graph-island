@@ -122,48 +122,41 @@ const INDICATOR_RING_ALPHA = 0.9;
 /** Maximum proximity candidates for zone placement to limit O(n^2) cost */
 const ZONE_MAX_PROXIMITY_CANDIDATES = 20;
 
-/** Keyboard focus ring dashed segments */
-const KB_FOCUS_SEGMENTS = 12;
-/** Keyboard focus ring gap fraction (0..1) */
-const KB_FOCUS_GAP_FRACTION = 0.4;
-/** Keyboard focus ring radius multiplier */
-const KB_FOCUS_RADIUS_FACTOR = 1.6;
+/** Keyboard focus ring constants */
+const KB_FOCUS = {
+	SEGMENTS: 12,
+	GAP_FRACTION: 0.4,
+	RADIUS_FACTOR: 1.6,
+	LINE_WIDTH: 2.5,
+	LINE_ALPHA: 0.95,
+} as const;
 
 /** Super node fill alpha */
 const SUPER_NODE_FILL_ALPHA = 0.3;
 
-/** Keyboard focus ring line width */
-const KB_FOCUS_LINE_WIDTH = 2.5;
-/** Keyboard focus ring line alpha */
-const KB_FOCUS_LINE_ALPHA = 0.95;
+/** Label layout metrics */
+const LABEL_LAYOUT = {
+	LINE_HEIGHT_FACTOR: 1.3,
+	EDGE_OFFSET: 2,
+	TAG_BG_ALPHA_DAMPEN: 0.7,
+} as const;
 
-/** Line height factor for label bounding box estimation */
-const LABEL_LINE_HEIGHT_FACTOR = 1.3;
-/** Label default X/Y offset from node edge (px) */
-const LABEL_EDGE_OFFSET = 2;
+/** Label background pill padding (px) per node type */
+const LABEL_PAD = {
+	SUPER_X: 10, SUPER_Y: 4,
+	REGULAR_X: 8, REGULAR_Y: 3,
+	TAG_X: 4, TAG_Y: 1,
+} as const;
 
-/** Super node label background pill padding (px) */
-const SUPER_LABEL_PAD_X = 10;
-const SUPER_LABEL_PAD_Y = 4;
-/** Regular node label background pill padding (px) */
-const REGULAR_LABEL_PAD_X = 8;
-const REGULAR_LABEL_PAD_Y = 3;
-/** Tag label background pill padding (px) */
-const TAG_LABEL_PAD_X = 4;
-const TAG_LABEL_PAD_Y = 1;
-/** Tag label background alpha dampen relative to main label bg alpha */
-const TAG_BG_ALPHA_DAMPEN = 0.7;
-/** Sub-label font size (px) */
-const SUB_LABEL_FONT_SIZE = 9;
-/** Sub-label alpha opacity */
-const SUB_LABEL_ALPHA = 0.6;
-/** Sub-label vertical gap between each sub-label (px) */
-const SUB_LABEL_GAP = 2;
+/** Sub-label rendering constants */
+const SUB_LABEL = {
+	FONT_SIZE: 9,
+	ALPHA: 0.6,
+	GAP: 2,
+} as const;
 
 /** Spatial hash grid cell size for label overlap detection (screen px) */
 const OVERLAP_GRID_CELL_SIZE = 120;
-/** Spatial hash grid prime for cell key computation */
-// OVERLAP_GRID_HASH_PRIME removed — grid logic now in SpatialHashGrid
 
 /**
  * Compute the LOD (Level of Detail) tier based on node screen-space pixel size.
@@ -674,15 +667,15 @@ export class RenderPipeline {
 			const effR = Math.max(pn.radius, minWorldRadius);
 
 			if (isKbFocused) {
-				const focusRadius = effR * KB_FOCUS_RADIUS_FACTOR;
-				const segments = KB_FOCUS_SEGMENTS;
-				const gap = KB_FOCUS_GAP_FRACTION;
+				const focusRadius = effR * KB_FOCUS.RADIUS_FACTOR;
+				const segments = KB_FOCUS.SEGMENTS;
+				const gap = KB_FOCUS.GAP_FRACTION;
 				// A11y: ensure focus ring visible at any zoom (min 2px screen-space width)
 				// JH: high contrast mode doubles focus ring width for §0.3 compliance
 				const hcFocus = this.host.isHighContrastMode?.() ? 2 : 1;
-				const focusLineW = Math.max(KB_FOCUS_LINE_WIDTH * hcFocus, 2 / worldScale);
+				const focusLineW = Math.max(KB_FOCUS.LINE_WIDTH * hcFocus, 2 / worldScale);
 				const focusColor = this.host.isDarkTheme() ? 0x00ccff : 0x0066cc; // high-contrast cyan/blue
-				pn.circle.lineStyle(focusLineW, focusColor, KB_FOCUS_LINE_ALPHA);
+				pn.circle.lineStyle(focusLineW, focusColor, KB_FOCUS.LINE_ALPHA);
 				for (let i = 0; i < segments; i++) {
 					const startAngle = (i / segments) * Math.PI * 2;
 					const endAngle = startAngle + ((1 - gap) / segments) * Math.PI * 2;
@@ -1139,7 +1132,7 @@ export class RenderPipeline {
 		const w = pn.radius * crc.compactCardWidthRatio;
 		// Expand height if sub-labels exist (to house metadata text)
 		const subCount = pn.subLabels?.length ?? 0;
-		const h = pn.radius * crc.compactCardHeightRatio + subCount * (SUB_LABEL_FONT_SIZE + SUB_LABEL_GAP) * 0.06;
+		const h = pn.radius * crc.compactCardHeightRatio + subCount * (SUB_LABEL.FONT_SIZE + SUB_LABEL.GAP) * 0.06;
 		const x = pn.data.x - w / 2;
 		const y = pn.data.y - h / 2;
 		g.lineStyle(1, pn.color, crc.compactCardStrokeAlpha);
@@ -1480,8 +1473,8 @@ export class RenderPipeline {
 		label.bgColor = labelBg;
 		const baseBgAlpha = isSuperNode ? rt.superNodeLabelBgAlpha : rt.labelBgAlpha;
 		label.bgAlpha = this.host.isDarkTheme() ? baseBgAlpha : Math.min(1.0, baseBgAlpha + 0.1);
-		label.bgPadX = isSuperNode ? SUPER_LABEL_PAD_X : REGULAR_LABEL_PAD_X;
-		label.bgPadY = isSuperNode ? SUPER_LABEL_PAD_Y : REGULAR_LABEL_PAD_Y;
+		label.bgPadX = isSuperNode ? LABEL_PAD.SUPER_X : LABEL_PAD.REGULAR_X;
+		label.bgPadY = isSuperNode ? LABEL_PAD.SUPER_Y : LABEL_PAD.REGULAR_Y;
 		label.cornerRadius = rt.labelHaloCornerRadius;
 		label.strokeColor = rt.labelStrokeColor;
 		label.strokeWidth = rt.labelStrokeWidth;
@@ -1491,8 +1484,8 @@ export class RenderPipeline {
 			label.y = placement.y;
 			label.anchor.set(placement.anchorX, 0);
 		} else {
-			label.x = r + LABEL_EDGE_OFFSET;
-			label.y = -(r * LABEL_Y_OFFSET_FACTOR + LABEL_EDGE_OFFSET);
+			label.x = r + LABEL_LAYOUT.EDGE_OFFSET;
+			label.y = -(r * LABEL_Y_OFFSET_FACTOR + LABEL_LAYOUT.EDGE_OFFSET);
 		}
 		return label;
 	}
@@ -1505,9 +1498,9 @@ export class RenderPipeline {
 		});
 		tagLabel.alpha = rt.tagLabelAlpha;
 		tagLabel.bgColor = rt.labelBgColor;
-		tagLabel.bgAlpha = rt.labelBgAlpha * TAG_BG_ALPHA_DAMPEN;
-		tagLabel.bgPadX = TAG_LABEL_PAD_X;
-		tagLabel.bgPadY = TAG_LABEL_PAD_Y;
+		tagLabel.bgAlpha = rt.labelBgAlpha * LABEL_LAYOUT.TAG_BG_ALPHA_DAMPEN;
+		tagLabel.bgPadX = LABEL_PAD.TAG_X;
+		tagLabel.bgPadY = LABEL_PAD.TAG_Y;
 		tagLabel.cornerRadius = rt.labelHaloCornerRadius;
 		tagLabel.anchor.set(0.5, 0);
 		tagLabel.x = 0;
@@ -1526,7 +1519,7 @@ export class RenderPipeline {
 		const srt = this.getCachedRT();
 		const fields = subFieldsRaw.split(",").map((s) => s.trim()).filter(Boolean);
 		let yOffset = tagLabel
-			? r + srt.tagLabelOffset + srt.tagLabelFontSize + SUB_LABEL_GAP
+			? r + srt.tagLabelOffset + srt.tagLabelFontSize + SUB_LABEL.GAP
 			: r + srt.tagLabelOffset;
 		for (const field of fields) {
 			const val = this.host.getNodeProperty
@@ -1534,21 +1527,21 @@ export class RenderPipeline {
 				: n.meta?.[field] !== undefined && n.meta?.[field] !== null ? String(n.meta[field]) : undefined;
 			if (!val) continue;
 			const subLabel = new CanvasText(val, {
-				fontSize: SUB_LABEL_FONT_SIZE, fill: this.host.isDarkTheme() ? 0xbbbbbb : 0x555555,
+				fontSize: SUB_LABEL.FONT_SIZE, fill: this.host.isDarkTheme() ? 0xbbbbbb : 0x555555,
 				fontWeight: "400", fontFamily: CARD_FONT_FAMILY,
 			});
-			subLabel.alpha = SUB_LABEL_ALPHA;
+			subLabel.alpha = SUB_LABEL.ALPHA;
 			subLabel.bgColor = srt.labelBgColor;
-			subLabel.bgAlpha = srt.labelBgAlpha * TAG_BG_ALPHA_DAMPEN;
-			subLabel.bgPadX = TAG_LABEL_PAD_X;
-			subLabel.bgPadY = TAG_LABEL_PAD_Y;
+			subLabel.bgAlpha = srt.labelBgAlpha * LABEL_LAYOUT.TAG_BG_ALPHA_DAMPEN;
+			subLabel.bgPadX = LABEL_PAD.TAG_X;
+			subLabel.bgPadY = LABEL_PAD.TAG_Y;
 			subLabel.cornerRadius = srt.labelHaloCornerRadius;
 			subLabel.anchor.set(0.5, 0);
 			subLabel.x = 0;
 			subLabel.y = yOffset;
 			subLabel.visible = false;
 			subLabels.push(subLabel);
-			yOffset += SUB_LABEL_FONT_SIZE + SUB_LABEL_GAP;
+			yOffset += SUB_LABEL.FONT_SIZE + SUB_LABEL.GAP;
 		}
 		return subLabels;
 	}
@@ -1853,7 +1846,7 @@ export class RenderPipeline {
 		const measuredW = label.width && label.width > 0 ? label.width : 0;
 		const measuredH = label.height && label.height > 0 ? label.height : 0;
 		const baseW = measuredW > 0 ? measuredW : label.text.length * charW + padX * 2;
-		const baseH = measuredH > 0 ? measuredH : fontSize * LABEL_LINE_HEIGHT_FACTOR + padY * 2;
+		const baseH = measuredH > 0 ? measuredH : fontSize * LABEL_LAYOUT.LINE_HEIGHT_FACTOR + padY * 2;
 		return {
 			w: Math.min(baseW * scaleX * zoom, maxScreenW > 0 ? maxScreenW : Infinity),
 			h: Math.min(baseH * scaleY * zoom, maxScreenH > 0 ? maxScreenH : Infinity),
