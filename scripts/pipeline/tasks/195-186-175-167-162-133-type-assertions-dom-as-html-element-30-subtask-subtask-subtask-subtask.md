@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-16
-status: pending
+status: in-progress
 source: decomposed
 parent: 186-175-167-162-133-type-assertions-dom-as-html-element-30-subtask-subtask-subtask
 depends: none
