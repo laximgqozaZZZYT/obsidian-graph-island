@@ -5,6 +5,9 @@ import type { GraphNode, DisplayConfig, NodeDisplayMode, CardDisplayConfig, Donu
 
 export const NODE_SHAPES = ["circle", "triangle", "diamond", "hexagon", "square"] as const;
 export type NodeShape = (typeof NODE_SHAPES)[number];
+export function isNodeShape(v: string): v is NodeShape {
+	return (NODE_SHAPES as readonly string[]).includes(v);
+}
 
 /** Minimal graphics interface for shape drawing (compatible with both CanvasGraphics and PIXI.Graphics) */
 interface ShapeGraphics {
