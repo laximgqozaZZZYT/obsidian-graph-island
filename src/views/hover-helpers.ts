@@ -2,7 +2,7 @@
  * Pure helper functions for hover tooltip and off-screen link tooltip logic.
  * Extracted from GraphViewContainer to reduce complexity.
  */
-import type { GraphEdge, GraphNode } from "../types";
+import type { ClusterArrangement, GraphEdge, GraphNode } from "../types";
 import { edgeTypeSummary, collapsedGroupSummary } from "../utils/graph-helpers";
 import { computeSimilarNodes, type SimilarNode } from "../analysis/graph-analysis";
 
@@ -241,7 +241,7 @@ export function findSameFolderNodes(
 // ---------------------------------------------------------------------------
 
 /** Resolve "inherit" clusterArrangement to a concrete arrangement. */
-export function resolveInheritArrangement(clusterGroupArrangement: string | undefined): string {
+export function resolveInheritArrangement(clusterGroupArrangement: string | undefined): ClusterArrangement {
 	const gga = clusterGroupArrangement ?? "auto";
 	if (gga === "circle" || gga === "concentric") return "concentric";
 	if (gga === "grid" || gga === "horizontal" || gga === "vertical") return "grid";

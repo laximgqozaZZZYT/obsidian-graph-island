@@ -131,7 +131,8 @@ export type LayoutType = "force" | "concentric" | "tree" | "arc" | "sunburst" | 
 
 /** Top-level visualization mode — determines which layout algorithm and
  *  which panel sections are active. */
-export type ViewMode = "graph" | "sunburst" | "timeline" | "matrix";
+export const VIEW_MODES = ["graph", "sunburst", "timeline", "matrix"] as const;
+export type ViewMode = (typeof VIEW_MODES)[number];
 
 /** How to partition nodes into clusters within the force layout.
  *  Legacy values: "none" | "tag" | "backlinks" | "node_type"
@@ -139,21 +140,16 @@ export type ViewMode = "graph" | "sunburst" | "timeline" | "matrix";
 export type ClusterGroupBy = string;
 
 /** How to arrange nodes within each cluster */
-export type ClusterArrangement =
-	| "inherit"
-	| "concentric"
-	| "radial"
-	| "phyllotaxis"
-	| "grid"
-	| "triangle"
-	| "random"
-	| "timeline"
-	| "custom"
-	| "ego";
+export const CLUSTER_ARRANGEMENTS = ["inherit", "concentric", "radial", "phyllotaxis", "grid", "triangle", "random", "timeline", "custom", "ego"] as const;
+export type ClusterArrangement = (typeof CLUSTER_ARRANGEMENTS)[number];
+export function isClusterArrangement(v: string): v is ClusterArrangement {
+	return (CLUSTER_ARRANGEMENTS as readonly string[]).includes(v);
+}
 
 /** How to arrange groups relative to each other (inter-group layout).
  *  "auto" preserves legacy behavior — derived from clusterArrangement. */
-export type ClusterGroupArrangement = "auto" | "circle" | "horizontal" | "vertical" | "concentric" | "grid";
+export const CLUSTER_GROUP_ARRANGEMENTS = ["auto", "circle", "horizontal", "vertical", "concentric", "grid"] as const;
+export type ClusterGroupArrangement = (typeof CLUSTER_GROUP_ARRANGEMENTS)[number];
 
 /** Source of values for a coordinate axis.
  *
@@ -311,8 +307,13 @@ export interface GroupPreset {
 // ---------------------------------------------------------------------------
 // Sort
 // ---------------------------------------------------------------------------
-export type SortKey = "degree" | "in-degree" | "tag" | "category" | "label" | "importance";
-export type SortOrder = "asc" | "desc";
+export const SORT_KEYS = ["degree", "in-degree", "tag", "category", "label", "importance"] as const;
+export type SortKey = (typeof SORT_KEYS)[number];
+export const SORT_ORDERS = ["asc", "desc"] as const;
+export type SortOrder = (typeof SORT_ORDERS)[number];
+export function isSortKey(v: string): v is SortKey {
+	return (SORT_KEYS as readonly string[]).includes(v);
+}
 export interface SortRule {
 	key: SortKey;
 	order: SortOrder;
@@ -605,7 +606,8 @@ export const DEFAULT_SETTINGS: GraphViewsSettings = {
 // ---------------------------------------------------------------------------
 
 /** How nodes are rendered on the canvas */
-export type NodeDisplayMode = "node" | "card" | "donut" | "sunburst-segment";
+export const NODE_DISPLAY_MODES = ["node", "card", "donut", "sunburst-segment"] as const;
+export type NodeDisplayMode = (typeof NODE_DISPLAY_MODES)[number];
 
 /** Card display configuration */
 export interface CardDisplayConfig {
@@ -644,7 +646,8 @@ export interface DisplayConfig {
 // ---------------------------------------------------------------------------
 
 /** Edge cardinality marker style */
-export type EdgeCardinalityMode = "none" | "crowsfoot";
+export const EDGE_CARDINALITY_MODES = ["none", "crowsfoot"] as const;
+export type EdgeCardinalityMode = (typeof EDGE_CARDINALITY_MODES)[number];
 
 /** Cardinality specification for an edge endpoint */
 export type Cardinality = "1" | "0..1" | "N" | "0..N" | "1..N";
