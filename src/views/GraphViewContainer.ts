@@ -900,7 +900,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	}
 
 	async onOpen() {
-		const root = this.containerEl.children[1] as HTMLElement;
+		const root = this.containerEl.children[1];
+		if (!(root instanceof HTMLElement)) throw new Error("Graph Island: content container not found");
 		root.empty();
 		root.addClass("graph-container");
 		if (Platform.isMobile) {
@@ -1845,7 +1846,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		if (!this.annotationLayer) return;
 		const children = this.annotationLayer.children;
 		for (let i = 0; i < children.length && i < this.panel.annotations.length; i++) {
-			this._positionAnnotationEl(children[i] as HTMLElement, this.panel.annotations[i]);
+			const el = children[i];
+			if (el instanceof HTMLElement) this._positionAnnotationEl(el, this.panel.annotations[i]);
 		}
 	}
 
