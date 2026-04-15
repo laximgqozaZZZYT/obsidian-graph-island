@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-15
-status: pending
+status: in-progress
 source: decomposed
 parent: 130-type-assertions
 depends: none
