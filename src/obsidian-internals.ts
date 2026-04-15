@@ -55,6 +55,8 @@ export interface GraphViewInternal {
 	exportFullGraph?: () => void;
 	exportGraphAsCSV?: () => void;
 	exportGraphAsMermaid?: () => void;
+	embedGraphInNote?: () => Promise<void>;
+	applyPresetByKey?: (key: string) => void;
 }
 
 // ---------------------------------------------------------------------------

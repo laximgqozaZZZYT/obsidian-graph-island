@@ -74,7 +74,7 @@ export default class GraphViewsPlugin extends Plugin {
 					showToast(t("toast.embedNoGraph"), 5000);
 					return;
 				}
-				await (view as unknown as GraphViewContainer).embedGraphInNote();
+				await view.embedGraphInNote?.();
 			},
 		});
 
@@ -84,7 +84,7 @@ export default class GraphViewsPlugin extends Plugin {
 			name: "Graph: Explore mode",
 			callback: () => {
 				const view = this._findGraphIslandView();
-				if (view) (view as unknown as GraphViewContainer).applyPresetByKey("explore");
+				if (view) view.applyPresetByKey?.("explore");
 			},
 		});
 		this.addCommand({
@@ -92,7 +92,7 @@ export default class GraphViewsPlugin extends Plugin {
 			name: "Graph: Analyze mode",
 			callback: () => {
 				const view = this._findGraphIslandView();
-				if (view) (view as unknown as GraphViewContainer).applyPresetByKey("analyze");
+				if (view) view.applyPresetByKey?.("analyze");
 			},
 		});
 		this.addCommand({
@@ -100,7 +100,7 @@ export default class GraphViewsPlugin extends Plugin {
 			name: "Graph: Write mode",
 			callback: () => {
 				const view = this._findGraphIslandView();
-				if (view) (view as unknown as GraphViewContainer).applyPresetByKey("write");
+				if (view) view.applyPresetByKey?.("write");
 			},
 		});
 		this.addCommand({
