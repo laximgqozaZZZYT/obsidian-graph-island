@@ -1,0 +1,17 @@
+---
+priority: medium
+reported: 2026-04-16
+status: pending
+source: decomposed
+parent: 173-166-159-134-dead-exports-subtask-subtask-canvas2d-webgl-dead-export-5-export
+depends: none
+summary: subtask
+---
+
+## Description (subtask of 173-166-159-134-dead-exports-subtask-subtask-canvas2d-webgl-dead-export-5-export)
+
+You've hit your limit · resets 2am (Asia/Tokyo)
+
+## Acceptance criteria
+- [ ] 実装が完了し、テストが通ること
+- [ ] CLAUDE.md のルールに違反しないこと
