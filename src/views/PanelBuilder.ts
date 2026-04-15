@@ -1136,25 +1136,19 @@ export function buildPanel(panelEl: HTMLElement, panel: PanelState, ctx: PanelCo
 	function applySettingsFilter(query: string) {
 		const q = query.toLowerCase().trim();
 		for (const [, tabEl] of tabContainers) {
-			// Filter setting items
-			const items = tabEl.querySelectorAll(".setting-item");
+			const items = tabEl.querySelectorAll<HTMLElement>(".setting-item");
 			for (const item of Array.from(items)) {
-				const text = (item as HTMLElement).textContent?.toLowerCase() || "";
-				(item as HTMLElement).style.display = q && !text.includes(q) ? "none" : "";
+				const text = item.textContent?.toLowerCase() || "";
+				item.style.display = q && !text.includes(q) ? "none" : "";
 			}
-			// Filter sections: hide if all children hidden
-			const sections = tabEl.querySelectorAll(".graph-control-section");
+			const sections = tabEl.querySelectorAll<HTMLElement>(".graph-control-section");
 			for (const sec of Array.from(sections)) {
-				const header = sec.querySelector(".graph-control-section-header");
-				const headerText = header?.textContent?.toLowerCase() || "";
-				const children = sec.querySelectorAll(".setting-item");
-				const anyVisible = Array.from(children).some((c) => (c as HTMLElement).style.display !== "none");
+				const headerText = sec.querySelector(".graph-control-section-header")?.textContent?.toLowerCase() || "";
+				const children = sec.querySelectorAll<HTMLElement>(".setting-item");
+				const anyVisible = Array.from(children).some((c) => c.style.display !== "none");
 				const sectionMatch = q && headerText.includes(q);
-				(sec as HTMLElement).style.display = q && !anyVisible && !sectionMatch ? "none" : "";
-				// If section header matches, show all its children
-				if (sectionMatch) {
-					for (const c of Array.from(children)) (c as HTMLElement).style.display = "";
-				}
+				sec.style.display = q && !anyVisible && !sectionMatch ? "none" : "";
+				if (sectionMatch) for (const c of Array.from(children)) c.style.display = "";
 			}
 		}
 		// When filtering, show all tabs; when not, restore original tab state
