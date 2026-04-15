@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-15
-status: in-progress
+status: done
 source: decomposed
 parent: 133-131-stale-worktrees-autonomous-worktree
 depends: none
