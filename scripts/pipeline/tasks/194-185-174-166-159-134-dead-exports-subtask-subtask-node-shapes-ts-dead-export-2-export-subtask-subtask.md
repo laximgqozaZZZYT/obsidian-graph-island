@@ -1,14 +1,14 @@
 ---
 priority: medium
 reported: 2026-04-16
-status: decomposed
+status: pending
 source: decomposed
-parent: 174-166-159-134-dead-exports-subtask-subtask-node-shapes-ts-dead-export-2-export
+parent: 185-174-166-159-134-dead-exports-subtask-subtask-node-shapes-ts-dead-export-2-export-subtask
 depends: none
 summary: subtask
 ---
 
-## Description (subtask of 174-166-159-134-dead-exports-subtask-subtask-node-shapes-ts-dead-export-2-export)
+## Description (subtask of 185-174-166-159-134-dead-exports-subtask-subtask-node-shapes-ts-dead-export-2-export-subtask)
 
 You've hit your limit · resets 2am (Asia/Tokyo)
 
