@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-16
-status: in-progress
+status: decomposed
 source: decomposed
 parent: 192-183-177-167-162-133-type-assertions-dom-as-html-element-30-subtask-panel-sections-ts-as-htmlelement-7-subtask-subtask
 depends: none
