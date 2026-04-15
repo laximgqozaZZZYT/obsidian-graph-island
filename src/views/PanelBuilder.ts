@@ -1754,7 +1754,7 @@ function _buildNodesTab(tabEl: HTMLElement, panel: PanelState, _ctx: PanelContex
 			if (savedOpen) arrow.style.transform = "rotate(90deg)";
 
 			header.addEventListener("click", (e) => {
-				if ((e.target as HTMLElement).tagName === "INPUT") return;
+				if (e.target instanceof HTMLElement && e.target.tagName === "INPUT") return;
 				const open = body.style.display !== "none";
 				body.style.display = open ? "none" : "";
 				arrow.style.transform = open ? "" : "rotate(90deg)";
@@ -2051,7 +2051,7 @@ export function buildSection(
 	header.setAttribute("aria-controls", bodyId);
 	build(body);
 	header.addEventListener("click", (e) => {
-		if ((e.target as HTMLElement).closest(".gi-section-help")) return;
+		if (e.target instanceof HTMLElement && e.target.closest(".gi-section-help")) return;
 		const collapsed = section.hasClass("is-collapsed");
 		section.toggleClass("is-collapsed", !collapsed);
 		header.setAttribute("aria-expanded", String(collapsed));
