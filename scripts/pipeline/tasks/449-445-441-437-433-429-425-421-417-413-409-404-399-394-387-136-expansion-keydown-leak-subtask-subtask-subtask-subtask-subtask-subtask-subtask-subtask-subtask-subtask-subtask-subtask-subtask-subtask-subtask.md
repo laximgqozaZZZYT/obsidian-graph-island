@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-16
-status: pending
+status: in-progress
 source: decomposed
 parent: 445-441-437-433-429-425-421-417-413-409-404-399-394-387-136-expansion-keydown-leak-subtask-subtask-subtask-subtask-subtask-subtask-subtask-subtask-subtask-subtask-subtask-subtask-subtask-subtask
 depends: none
