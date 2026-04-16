@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-16
-status: in-progress
+status: decomposed
 source: decomposed
 parent: 378-287-269-247-224-215-206-197-188-179-167-162-133-type-assertions-dom-as-html-element-30-subtask-panelbuilder-ts-as-htmlelement-9-subtask-subtask-subtask-subtask-subtask-subtask-subtask-panelbuilder-ts-4-unsafe-subtask
 depends: none
