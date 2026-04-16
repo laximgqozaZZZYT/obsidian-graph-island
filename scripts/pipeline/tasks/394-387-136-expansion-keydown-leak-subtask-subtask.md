@@ -1,14 +1,14 @@
 ---
 priority: medium
 reported: 2026-04-16
-status: decomposed
+status: pending
 source: decomposed
-parent: 136-expansion-keydown-leak
+parent: 387-136-expansion-keydown-leak-subtask
 depends: none
 summary: subtask
 ---
 
-## Description (subtask of 136-expansion-keydown-leak)
+## Description (subtask of 387-136-expansion-keydown-leak-subtask)
 
 You've hit your limit · resets Apr 17, 7pm (Asia/Tokyo)
 
