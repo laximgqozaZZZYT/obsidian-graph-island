@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-16
-status: in-progress
+status: decomposed
 source: decomposed
 parent: 447-443-439-435-431-427-423-419-415-411-406-401-396-389-137-uncancellable-raf-chains-subtask-subtask-subtask-subtask-subtask-subtask-subtask-subtask-subtask-subtask-subtask-subtask-subtask-subtask
 depends: none
