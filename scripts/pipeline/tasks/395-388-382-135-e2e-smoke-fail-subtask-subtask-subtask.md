@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-16
-status: pending
+status: in-progress
 source: decomposed
 parent: 388-382-135-e2e-smoke-fail-subtask-subtask
 depends: none
