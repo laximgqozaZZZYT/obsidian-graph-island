@@ -1,14 +1,14 @@
 ---
 priority: medium
 reported: 2026-04-16
-status: decomposed
+status: pending
 source: decomposed
-parent: 135-onclose-timer-leak
+parent: 383-135-onclose-timer-leak-subtask
 depends: none
 summary: subtask
 ---
 
-## Description (subtask of 135-onclose-timer-leak)
+## Description (subtask of 383-135-onclose-timer-leak-subtask)
 
 You've hit your limit · resets Apr 17, 7pm (Asia/Tokyo)
 
