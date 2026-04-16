@@ -1,14 +1,14 @@
 ---
 priority: medium
 reported: 2026-04-16
-status: decomposed
+status: pending
 source: decomposed
-parent: 135-e2e-smoke-fail
+parent: 382-135-e2e-smoke-fail-subtask
 depends: none
 summary: subtask
 ---
 
-## Description (subtask of 135-e2e-smoke-fail)
+## Description (subtask of 382-135-e2e-smoke-fail-subtask)
 
 You've hit your limit · resets Apr 17, 7pm (Asia/Tokyo)
 
