@@ -1,14 +1,14 @@
 ---
 priority: medium
 reported: 2026-04-16
-status: decomposed
+status: pending
 source: decomposed
-parent: 137-uncancellable-raf-chains
+parent: 389-137-uncancellable-raf-chains-subtask
 depends: none
 summary: subtask
 ---
 
-## Description (subtask of 137-uncancellable-raf-chains)
+## Description (subtask of 389-137-uncancellable-raf-chains-subtask)
 
 You've hit your limit · resets Apr 17, 7pm (Asia/Tokyo)
 
