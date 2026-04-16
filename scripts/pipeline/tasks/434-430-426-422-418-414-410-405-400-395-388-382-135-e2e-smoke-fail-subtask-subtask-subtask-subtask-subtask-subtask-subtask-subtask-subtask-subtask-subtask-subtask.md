@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-16
-status: pending
+status: in-progress
 source: decomposed
 parent: 430-426-422-418-414-410-405-400-395-388-382-135-e2e-smoke-fail-subtask-subtask-subtask-subtask-subtask-subtask-subtask-subtask-subtask-subtask-subtask
 depends: none
