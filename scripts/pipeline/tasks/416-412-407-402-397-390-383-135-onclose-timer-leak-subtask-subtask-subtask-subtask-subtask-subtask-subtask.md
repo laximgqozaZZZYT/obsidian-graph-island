@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-16
-status: pending
+status: in-progress
 source: decomposed
 parent: 412-407-402-397-390-383-135-onclose-timer-leak-subtask-subtask-subtask-subtask-subtask-subtask
 depends: none
