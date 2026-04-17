@@ -1,7 +1,7 @@
 ---
 priority: high
 reported: 2026-04-17
-status: pending
+status: in-progress
 source: decomposed
 parent: 469-138-
 depends: none
