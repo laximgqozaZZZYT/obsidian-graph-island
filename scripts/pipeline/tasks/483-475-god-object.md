@@ -1,7 +1,7 @@
 ---
 priority: high
 reported: 2026-04-17
-status: in-progress
+status: decomposed
 source: decomposed
 parent: 475-473-wheel-handler-scale-computezoomstep
 depends: subtask-2
