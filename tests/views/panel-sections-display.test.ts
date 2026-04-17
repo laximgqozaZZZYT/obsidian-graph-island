@@ -16,9 +16,15 @@ const addToggleCalls: any[] = [];
 const addSelectCalls: any[] = [];
 
 vi.mock("../../src/views/panel-widgets", () => ({
-	addSlider: vi.fn((...args: any[]) => { addSliderCalls.push(args); }),
-	addToggle: vi.fn((...args: any[]) => { addToggleCalls.push(args); }),
-	addSelect: vi.fn((...args: any[]) => { addSelectCalls.push(args); }),
+	addSlider: vi.fn((...args: any[]) => {
+		addSliderCalls.push(args);
+	}),
+	addToggle: vi.fn((...args: any[]) => {
+		addToggleCalls.push(args);
+	}),
+	addSelect: vi.fn((...args: any[]) => {
+		addSelectCalls.push(args);
+	}),
 }));
 
 vi.mock("../../src/views/PanelBuilder", () => ({
@@ -156,7 +162,9 @@ describe("buildEdgeDisplaySection", () => {
 		addToggleCalls.length = 0;
 		buildEdgeDisplaySection(makeMockEl(), makePanel(), makeCtx(), makeCb());
 		// "link" has count 100, so it should appear with count
-		const linkToggle = addToggleCalls.find((c) => typeof c[1] === "string" && c[1].includes("display.links") && c[1].includes("100"));
+		const linkToggle = addToggleCalls.find(
+			(c) => typeof c[1] === "string" && c[1].includes("display.links") && c[1].includes("100"),
+		);
 		expect(linkToggle).toBeDefined();
 	});
 

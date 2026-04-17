@@ -113,11 +113,7 @@ export function bfsNeighborSet(adj: Map<string, Set<string>>, startId: string, m
 }
 
 /** BFS distance map from a starting node. Returns Map<nodeId, hopDistance> (start = 0). */
-export function bfsDistanceMap(
-	adj: Map<string, Set<string>>,
-	startId: string,
-	maxHops: number,
-): Map<string, number> {
+export function bfsDistanceMap(adj: Map<string, Set<string>>, startId: string, maxHops: number): Map<string, number> {
 	const dist = new Map<string, number>();
 	dist.set(startId, 0);
 	let frontier = [startId];

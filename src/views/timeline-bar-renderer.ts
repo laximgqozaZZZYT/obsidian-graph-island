@@ -71,7 +71,9 @@ function buildSiblingSet(
 	for (const bar of bars) {
 		const bfp = pixiNodes.get(bar.nodeId)?.data?.filePath ?? bar.nodeId;
 		const btf = app.vault.getAbstractFileByPath(bfp);
-		const bpid = btf ? app.metadataCache.getFileCache(btf as import("obsidian").TFile)?.frontmatter?.parent_id : null;
+		const bpid = btf
+			? app.metadataCache.getFileCache(btf as import("obsidian").TFile)?.frontmatter?.parent_id
+			: null;
 		if (bpid === parentId) siblings.add(bar.nodeId);
 	}
 	return siblings;
@@ -156,7 +158,13 @@ function drawBars(
 		g.lineStyle(0);
 
 		// Bar label with 2D collision avoidance
-		if (cfg.showBarLabel && labelContainer && pn && w * cfg.worldScale >= cfg.barLabelMinW && placedLabels.length < maxLabels) {
+		if (
+			cfg.showBarLabel &&
+			labelContainer &&
+			pn &&
+			w * cfg.worldScale >= cfg.barLabelMinW &&
+			placedLabels.length < maxLabels
+		) {
 			placeBarLabel(pn, x, y, w, cfg, placedLabels, labelContainer, color, isDark);
 		}
 	}

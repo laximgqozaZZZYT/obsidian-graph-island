@@ -270,8 +270,7 @@ function renderTableCardText(
 				if (!lineText) break;
 				const bodyLine = createCardText(lineText, smallFontSize, labelColor);
 				bodyLine.x = -halfW + textPadX;
-				bodyLine.y =
-					cardY + headerH + li * bodyLineH + bodyLineH / 2 + smallFontSize * crc.fontBaselineOffset;
+				bodyLine.y = cardY + headerH + li * bodyLineH + bodyLineH / 2 + smallFontSize * crc.fontBaselineOffset;
 				bodyLine.alpha = 0.85;
 				if (rt.cardTextTruncation !== false) bodyLine.maxWidth = availableTextW;
 				gfx.addChild(bodyLine);
@@ -483,13 +482,7 @@ function renderPlainCard(
 		const strokeColor = darkenColor(pn.color, crc.strokeDarken);
 		g.lineStyle(hcCard, strokeColor, nodeAlpha * crc.plainCardStrokeAlpha);
 		g.beginFill(pn.color, nodeAlpha * crc.plainCardFillAlpha);
-		g.drawRoundedRect(
-			pn.data.x - halfW,
-			pn.data.y - halfH,
-			halfW * 2,
-			totalH,
-			crc.cardCornerRadius / worldScale,
-		);
+		g.drawRoundedRect(pn.data.x - halfW, pn.data.y - halfH, halfW * 2, totalH, crc.cardCornerRadius / worldScale);
 		g.endFill();
 
 		// FH/FI: Plain card with title + wrapped body preview
@@ -509,12 +502,7 @@ function renderPlainCard(
 		const titleFill = contrastColor(pn.color);
 		const bodyFill = titleFill === 0xffffff ? 0xcccccc : 0x444444;
 		// Title (apply GD labelMaxChars truncation)
-		const title = createCardText(
-			truncateLabel(pn.data.label, rt.labelMaxChars),
-			fontSize,
-			titleFill,
-			"bold",
-		);
+		const title = createCardText(truncateLabel(pn.data.label, rt.labelMaxChars), fontSize, titleFill, "bold");
 		title.x = -halfW + pad;
 		title.y = -halfH + pad;
 		if (rt.cardTextTruncation !== false) title.maxWidth = textW;
@@ -524,8 +512,17 @@ function renderPlainCard(
 		const cardShowBody = host.getPanel?.()?.hoverShowBody ?? true;
 		if (pn.data.bodyPreview && cardShowBody) {
 			renderPlainCardBodyLines(
-				pn, halfW, halfH, pad, fontSize, smallFont, bodyFill,
-				lineH, textW, rt.cardBodyMaxLines, crc.cardSubTextAlpha,
+				pn,
+				halfW,
+				halfH,
+				pad,
+				fontSize,
+				smallFont,
+				bodyFill,
+				lineH,
+				textW,
+				rt.cardBodyMaxLines,
+				crc.cardSubTextAlpha,
 				rt.cardTextTruncation !== false,
 			);
 		}

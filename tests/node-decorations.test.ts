@@ -599,7 +599,11 @@ describe("renderHierarchyOverlay", () => {
 		const pn2 = createMockPixiNode("b");
 		const host = createMockRenderHost({
 			getHierarchyTree: () => new Map([["b", "a"]]),
-			getPixiNodes: () => new Map([["a", pn1], ["b", pn2]]),
+			getPixiNodes: () =>
+				new Map([
+					["a", pn1],
+					["b", pn2],
+				]),
 		});
 
 		renderHierarchyOverlay(host, g as any);
@@ -646,7 +650,11 @@ describe("renderOntologyBackbone", () => {
 		const pn2 = createMockPixiNode("b");
 		const host = createMockRenderHost({
 			getOntologyBackbone: () => [{ from: "a", to: "b" }],
-			getPixiNodes: () => new Map([["a", pn1], ["b", pn2]]),
+			getPixiNodes: () =>
+				new Map([
+					["a", pn1],
+					["b", pn2],
+				]),
 		});
 
 		renderOntologyBackbone(host, g as any);
@@ -693,7 +701,11 @@ describe("renderGapEdges", () => {
 		const pn2 = createMockPixiNode("b", { x: 200, y: 200 });
 		const host = createMockRenderHost({
 			getStructuralGaps: () => [{ from: "a", to: "b" }],
-			getPixiNodes: () => new Map([["a", pn1], ["b", pn2]]),
+			getPixiNodes: () =>
+				new Map([
+					["a", pn1],
+					["b", pn2],
+				]),
 		});
 
 		renderGapEdges(host, g as any);

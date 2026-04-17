@@ -296,7 +296,10 @@ export class WebGLGraphics extends CanvasGraphics {
 		cmd: { x: number; y: number; r: number },
 		addFillShape: (d: Float32Array) => void,
 		vertices: number[],
-		strokeWidth: number, strokeColor: number, strokeAlpha: number, effAlpha: number,
+		strokeWidth: number,
+		strokeColor: number,
+		strokeAlpha: number,
+		effAlpha: number,
 	): void {
 		const segs = cmd.r < 4 ? 12 : cmd.r < 20 ? 24 : 48;
 		addFillShape(tessellateCircle(cmd.x, cmd.y, cmd.r, segs));
@@ -308,7 +311,14 @@ export class WebGLGraphics extends CanvasGraphics {
 				outlinePoints.push({ x: cmd.x + cmd.r * Math.cos(a), y: cmd.y + cmd.r * Math.sin(a) });
 			}
 			const [sr, sg, sb] = hexToFloats(strokeColor);
-			appendColoredVertices(vertices, expandLineStrip(outlinePoints, strokeWidth), sr, sg, sb, strokeAlpha * effAlpha);
+			appendColoredVertices(
+				vertices,
+				expandLineStrip(outlinePoints, strokeWidth),
+				sr,
+				sg,
+				sb,
+				strokeAlpha * effAlpha,
+			);
 		}
 	}
 
@@ -317,13 +327,18 @@ export class WebGLGraphics extends CanvasGraphics {
 		cmd: { x: number; y: number; w: number; h: number },
 		addFillShape: (d: Float32Array) => void,
 		vertices: number[],
-		strokeWidth: number, strokeColor: number, strokeAlpha: number, effAlpha: number,
+		strokeWidth: number,
+		strokeColor: number,
+		strokeAlpha: number,
+		effAlpha: number,
 	): void {
 		addFillShape(tessellateRect(cmd.x, cmd.y, cmd.w, cmd.h));
 		if (strokeWidth > 0 && strokeAlpha > 0) {
 			const outline = [
-				{ x: cmd.x, y: cmd.y }, { x: cmd.x + cmd.w, y: cmd.y },
-				{ x: cmd.x + cmd.w, y: cmd.y + cmd.h }, { x: cmd.x, y: cmd.y + cmd.h },
+				{ x: cmd.x, y: cmd.y },
+				{ x: cmd.x + cmd.w, y: cmd.y },
+				{ x: cmd.x + cmd.w, y: cmd.y + cmd.h },
+				{ x: cmd.x, y: cmd.y + cmd.h },
 				{ x: cmd.x, y: cmd.y },
 			];
 			const [sr, sg, sb] = hexToFloats(strokeColor);
@@ -341,7 +356,8 @@ export class WebGLGraphics extends CanvasGraphics {
 		const sweep = cmd.end - cmd.start;
 		const arcSegs = Math.max(1, Math.ceil(Math.abs(sweep) / (Math.PI / 12)));
 		const arcStep = sweep / arcSegs;
-		let lx = 0, ly = 0;
+		let lx = 0,
+			ly = 0;
 		for (let i = 0; i <= arcSegs; i++) {
 			const a = cmd.start + i * arcStep;
 			lx = cmd.cx + cmd.r * Math.cos(a);
@@ -353,8 +369,11 @@ export class WebGLGraphics extends CanvasGraphics {
 
 	/** Upload interleaved vertex data and issue a single draw call. */
 	private _uploadAndDraw(
-		gl: WebGL2RenderingContext, program: WebGLProgram, localTransform: Float32Array,
-		effAlpha: number, vertices: number[],
+		gl: WebGL2RenderingContext,
+		program: WebGLProgram,
+		localTransform: Float32Array,
+		effAlpha: number,
+		vertices: number[],
 	): void {
 		if (vertices.length === 0) return;
 		const vertexData = new Float32Array(vertices);
@@ -423,13 +442,29 @@ export class WebGLGraphics extends CanvasGraphics {
 			this._processGLCmd(cmd, state, effAlpha, vertices);
 		}
 
-		flushStrokeVertices(state.pathPoints, state.strokeWidth, state.strokeColor, state.strokeAlpha, effAlpha, state.dashPattern, vertices);
+		flushStrokeVertices(
+			state.pathPoints,
+			state.strokeWidth,
+			state.strokeColor,
+			state.strokeAlpha,
+			effAlpha,
+			state.dashPattern,
+			vertices,
+		);
 		this._uploadAndDraw(gl, program, localTransform, effAlpha, vertices);
 	}
 
 	private _processGLCmd(cmd: GLDrawCmd, s: GLFlushState, effAlpha: number, vertices: number[]): void {
 		const flush = () => {
-			flushStrokeVertices(s.pathPoints, s.strokeWidth, s.strokeColor, s.strokeAlpha, effAlpha, s.dashPattern, vertices);
+			flushStrokeVertices(
+				s.pathPoints,
+				s.strokeWidth,
+				s.strokeColor,
+				s.strokeAlpha,
+				effAlpha,
+				s.dashPattern,
+				vertices,
+			);
 			s.pathPoints = [];
 		};
 		const addFill = (posData: Float32Array) => {

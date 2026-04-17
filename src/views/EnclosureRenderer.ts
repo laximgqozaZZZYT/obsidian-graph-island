@@ -161,12 +161,7 @@ const _allPtsBuf: (Pt & { radius: number })[] = [];
 // ---------------------------------------------------------------------------
 
 /** Build EncData for a single tag group. Returns null if group should be skipped. */
-function buildEncData(
-	tag: string,
-	memberIds: Set<string>,
-	cfg: EnclosureConfig,
-	minCount: number,
-): EncData | null {
+function buildEncData(tag: string, memberIds: Set<string>, cfg: EnclosureConfig, minCount: number): EncData | null {
 	if (memberIds.size < minCount) return null;
 
 	_allPtsBuf.length = 0;
@@ -221,11 +216,7 @@ function buildEncData(
 }
 
 /** Recompute overlap counts between enclosures (amortized every N frames). */
-function recomputeOverlapCounts(
-	overlapCache: OverlapCache,
-	enclosures: EncData[],
-	relPairs: Set<string>,
-): void {
+function recomputeOverlapCounts(overlapCache: OverlapCache, enclosures: EncData[], relPairs: Set<string>): void {
 	overlapCache.frame++;
 	if (overlapCache.frame < OVERLAP_RECOMPUTE_FRAMES) return;
 	overlapCache.frame = 0;
@@ -243,10 +234,7 @@ function recomputeOverlapCounts(
 }
 
 /** Compute stroke alpha and line width for an enclosure. */
-function computeStrokeStyle(
-	overlaps: number,
-	cfg: EnclosureConfig,
-): { baseLineAlpha: number; lineWidth: number } {
+function computeStrokeStyle(overlaps: number, cfg: EnclosureConfig): { baseLineAlpha: number; lineWidth: number } {
 	const baseLineAlpha =
 		overlaps === 0
 			? STROKE_ALPHA_NO_OVERLAP
@@ -468,10 +456,7 @@ function applyLabelTransform(
 	const labelScale = isFinite(rawLabelScale) ? clamp(rawLabelScale, 1, 300) : 4;
 
 	const far = farthestDirection(expanded, labelCenterX, labelCenterY);
-	positionLabel(
-		txt, expanded, labelCenterX, labelCenterY, far,
-		glHullOffset, cfg.enclosureLabelPosition ?? "top",
-	);
+	positionLabel(txt, expanded, labelCenterX, labelCenterY, far, glHullOffset, cfg.enclosureLabelPosition ?? "top");
 
 	txt.scale.set(labelScale);
 	const isHovered = cfg.hoveredTag === tag;
@@ -613,8 +598,15 @@ export function drawEnclosures(
 		// Label
 		usedLabels.add(tag);
 		const txt = ensureLabel(
-			tag, hex, memberCount, enclosureLabels, cfg,
-			glFontSize, glFontWeight, glLetterSpacing, glBgAlpha,
+			tag,
+			hex,
+			memberCount,
+			enclosureLabels,
+			cfg,
+			glFontSize,
+			glFontWeight,
+			glLetterSpacing,
+			glBgAlpha,
 		);
 		applyLabelTransform(txt, enc, g, cfg, glFontSize, glHullOffset, glAlpha, glBgAlpha);
 	}

@@ -20,8 +20,7 @@ export class InertiaPan {
 		isEnabled: boolean | (() => boolean),
 		private applyDelta: (dx: number, dy: number) => void,
 	) {
-		this.isEnabled =
-			typeof isEnabled === "function" ? isEnabled : () => isEnabled;
+		this.isEnabled = typeof isEnabled === "function" ? isEnabled : () => isEnabled;
 	}
 
 	trackPointer(screenX: number, screenY: number, timestamp: number): void {

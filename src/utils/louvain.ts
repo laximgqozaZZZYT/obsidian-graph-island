@@ -24,11 +24,7 @@ interface AdjacencyResult {
  * エッジ配列から無向グラフの隣接リストを構築する。
  * 自己ループは無視し、同一ペアの重みは加算される。
  */
-function buildAdjacencyList(
-	edges: LouvainEdge[],
-	idToIdx: Map<string, number>,
-	n: number,
-): AdjacencyResult {
+function buildAdjacencyList(edges: LouvainEdge[], idToIdx: Map<string, number>, n: number): AdjacencyResult {
 	const adj: Map<number, number>[] = new Array(n);
 	for (let i = 0; i < n; i++) adj[i] = new Map();
 
@@ -59,10 +55,7 @@ export function computeNodeDegrees(adj: Map<number, number>[], n: number): Float
 }
 
 /** コミュニティIDを連番に振り直し、ノードID → コミュニティID マッピングを返す。 */
-function renumberCommunities(
-	community: Int32Array,
-	nodeIds: string[],
-): Map<string, number> {
+function renumberCommunities(community: Int32Array, nodeIds: string[]): Map<string, number> {
 	const uniqueComms = new Map<number, number>();
 	let nextId = 0;
 	for (let i = 0; i < community.length; i++) {
@@ -115,11 +108,7 @@ export function louvainCommunities(nodeIds: string[], edges: LouvainEdge[]): Map
 	for (let i = 0; i < n; i++) sigmaTot[i] = degree[i];
 
 	/** Find the best neighbor community for node i; returns community id or -1 if no improvement. */
-	function findBestCommunity(
-		i: number,
-		neighborComm: Map<number, number>,
-		kiIn: number,
-	): number {
+	function findBestCommunity(i: number, neighborComm: Map<number, number>, kiIn: number): number {
 		const ci = community[i];
 		const ki = degree[i];
 		const removeCost = kiIn - ((sigmaTot[ci] - ki) * ki) / m2;

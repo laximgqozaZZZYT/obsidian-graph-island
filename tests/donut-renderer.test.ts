@@ -40,7 +40,18 @@ function mkNode(overrides: Record<string, unknown> = {}) {
 		},
 		...overrides,
 		// re-apply data if overridden
-		...(overrides.data ? { data: { id: "n1", x: 100, y: 200, collapsedMembers: undefined, meta: {}, ...(overrides.data as object) } } : {}),
+		...(overrides.data
+			? {
+					data: {
+						id: "n1",
+						x: 100,
+						y: 200,
+						collapsedMembers: undefined,
+						meta: {},
+						...(overrides.data as object),
+					},
+				}
+			: {}),
 	} as any;
 }
 
@@ -224,9 +235,7 @@ describe("renderDonutBreakdown", () => {
 
 	it("uses 'other' for members without the breakdown field", () => {
 		const g = mkGfx();
-		const pixiNodes = new Map([
-			["m1", { data: { meta: {} } }],
-		]);
+		const pixiNodes = new Map([["m1", { data: { meta: {} } }]]);
 		const host = mkHost({ getPixiNodes: vi.fn().mockReturnValue(pixiNodes) });
 		const pn = mkNode({ data: { id: "s1", x: 0, y: 0, collapsedMembers: ["m1"], meta: {} } });
 

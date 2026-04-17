@@ -37,7 +37,9 @@ describe("computePathfinderPulse", () => {
 			const p = computePathfinderPulse(f);
 			expect(p.glowAlpha).toBeGreaterThanOrEqual(PATHFINDER_GLOW_ALPHA_BASE - PATHFINDER_PULSE_AMPLITUDE - 0.001);
 			expect(p.glowAlpha).toBeLessThanOrEqual(PATHFINDER_GLOW_ALPHA_BASE + PATHFINDER_PULSE_AMPLITUDE + 0.001);
-			expect(p.solidAlpha).toBeGreaterThanOrEqual(PATHFINDER_SOLID_ALPHA_BASE - PATHFINDER_PULSE_AMPLITUDE - 0.001);
+			expect(p.solidAlpha).toBeGreaterThanOrEqual(
+				PATHFINDER_SOLID_ALPHA_BASE - PATHFINDER_PULSE_AMPLITUDE - 0.001,
+			);
 			expect(p.solidAlpha).toBeLessThanOrEqual(PATHFINDER_SOLID_ALPHA_BASE + PATHFINDER_PULSE_AMPLITUDE + 0.001);
 		}
 	});

@@ -1,8 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-	classifyEgoNeighbors,
-	computeEgoSectorPositions,
-} from "../src/layouts/ego-sector";
+import { classifyEgoNeighbors, computeEgoSectorPositions } from "../src/layouts/ego-sector";
 
 // ---------- classifyEgoNeighbors ----------
 
@@ -29,9 +26,7 @@ describe("classifyEgoNeighbors", () => {
 	});
 
 	it("classifies aggregation edges", () => {
-		const edges = [
-			{ source: CENTER, target: "agg1", type: "aggregation" as const },
-		];
+		const edges = [{ source: CENTER, target: "agg1", type: "aggregation" as const }];
 		const buckets = classifyEgoNeighbors(CENTER, edges, new Set(["agg1"]));
 		expect(buckets.get("aggregation")).toEqual(["agg1"]);
 	});
@@ -41,11 +36,7 @@ describe("classifyEgoNeighbors", () => {
 			{ source: CENTER, target: "s1", type: "similar" as const },
 			{ source: "s2", target: CENTER, type: "sibling" as const },
 		];
-		const buckets = classifyEgoNeighbors(
-			CENTER,
-			edges,
-			new Set(["s1", "s2"]),
-		);
+		const buckets = classifyEgoNeighbors(CENTER, edges, new Set(["s1", "s2"]));
 		expect(buckets.get("similar")).toEqual(["s1", "s2"]);
 	});
 
@@ -68,9 +59,7 @@ describe("classifyEgoNeighbors", () => {
 	});
 
 	it("ignores edges not incident to center", () => {
-		const edges = [
-			{ source: "a", target: "b", type: "link" as const },
-		];
+		const edges = [{ source: "a", target: "b", type: "link" as const }];
 		const buckets = classifyEgoNeighbors(CENTER, edges, new Set(["a", "b"]));
 		for (const ids of buckets.values()) {
 			expect(ids).toEqual([]);
@@ -91,23 +80,12 @@ describe("computeEgoSectorPositions", () => {
 	});
 
 	it("places single neighbor at sector center angle", () => {
-		const edges = [
-			{ source: CENTER, target: "a", type: "link" as const },
-		];
-		const result = computeEgoSectorPositions(
-			CENTER,
-			CX,
-			CY,
-			edges,
-			new Set(["a"]),
-			100,
-		);
+		const edges = [{ source: CENTER, target: "a", type: "link" as const }];
+		const result = computeEgoSectorPositions(CENTER, CX, CY, edges, new Set(["a"]), 100);
 		expect(result).toHaveLength(1);
 		expect(result[0].id).toBe("a");
 		// single node → placed at startAngle (centerAngle - spread/2)
-		const dist = Math.sqrt(
-			(result[0].x - CX) ** 2 + (result[0].y - CY) ** 2,
-		);
+		const dist = Math.sqrt((result[0].x - CX) ** 2 + (result[0].y - CY) ** 2);
 		expect(dist).toBeCloseTo(100, 5);
 	});
 
@@ -130,9 +108,7 @@ describe("computeEgoSectorPositions", () => {
 
 	it("does not place the center node itself", () => {
 		// Edge where center appears as both source and target of different edges
-		const edges = [
-			{ source: CENTER, target: "a", type: "link" as const },
-		];
+		const edges = [{ source: CENTER, target: "a", type: "link" as const }];
 		const valid = new Set([CENTER, "a"]);
 		const result = computeEgoSectorPositions(CENTER, CX, CY, edges, valid);
 		const ids = result.map((p) => p.id);
@@ -152,17 +128,8 @@ describe("computeEgoSectorPositions", () => {
 	});
 
 	it("uses custom ringRadius", () => {
-		const edges = [
-			{ source: CENTER, target: "n", type: "link" as const },
-		];
-		const result = computeEgoSectorPositions(
-			CENTER,
-			0,
-			0,
-			edges,
-			new Set(["n"]),
-			250,
-		);
+		const edges = [{ source: CENTER, target: "n", type: "link" as const }];
+		const result = computeEgoSectorPositions(CENTER, 0, 0, edges, new Set(["n"]), 250);
 		const dist = Math.sqrt(result[0].x ** 2 + result[0].y ** 2);
 		expect(dist).toBeCloseTo(250, 5);
 	});

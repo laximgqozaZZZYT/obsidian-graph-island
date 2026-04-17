@@ -236,7 +236,10 @@ function _buildDataCallbacks(host: PanelCallbackHost): Partial<PanelCallbacks> {
 		refreshOverlays: () => {
 			const gd =
 				host.originalGraphData ??
-				({ nodes: [...host.pixiNodes.values()].map((pn) => pn.data), edges: host.graphEdges } as import("../types").GraphData);
+				({
+					nodes: [...host.pixiNodes.values()].map((pn) => pn.data),
+					edges: host.graphEdges,
+				} as import("../types").GraphData);
 			host.updateGraphStats(gd);
 			host.updateRelationMatrix(gd);
 			host.updateThumbnails();

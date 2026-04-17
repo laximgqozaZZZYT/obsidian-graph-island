@@ -2,56 +2,67 @@
 // Only stubs used by metadata-parser.ts are needed.
 
 export class TFile {
-  path = "";
-  basename = "";
-  extension = "md";
+	path = "";
+	basename = "";
+	extension = "md";
 }
 
 export class Component {
-  load() {}
-  unload() {}
+	load() {}
+	unload() {}
 }
 
 export class ItemView extends Component {
-  containerEl = { empty: () => {}, createEl: () => ({}) } as any;
-  getViewType() { return ""; }
-  getDisplayText() { return ""; }
+	containerEl = { empty: () => {}, createEl: () => ({}) } as any;
+	getViewType() {
+		return "";
+	}
+	getDisplayText() {
+		return "";
+	}
 }
 
 export class WorkspaceLeaf {}
 
 export class App {
-  vault = {
-    getAbstractFileByPath: () => null,
-    cachedRead: async () => "",
-  };
-  metadataCache = {
-    getFileCache: () => null,
-    resolvedLinks: {},
-  };
-  workspace = {
-    trigger: () => {},
-    on: () => ({ id: "" }),
-    openLinkText: async () => {},
-  };
+	vault = {
+		getAbstractFileByPath: () => null,
+		cachedRead: async () => "",
+	};
+	metadataCache = {
+		getFileCache: () => null,
+		resolvedLinks: {},
+	};
+	workspace = {
+		trigger: () => {},
+		on: () => ({ id: "" }),
+		openLinkText: async () => {},
+	};
 }
 
 export function setIcon(_el: any, _icon: string) {}
 
 export const MarkdownRenderer = {
-  render: async () => {},
+	render: async () => {},
 };
 
 export class Menu {
-  addItem() { return this; }
-  addSeparator() { return this; }
-  showAtPosition() {}
+	addItem() {
+		return this;
+	}
+	addSeparator() {
+		return this;
+	}
+	showAtPosition() {}
 }
 
 export const Platform = {
-  isMobile: false,
+	isMobile: false,
 };
 
 export class Notice {
-  constructor(public message: string, public duration?: number) {}
+	constructor(
+		public message: string,
+		public duration?: number,
+	) {}
 }

@@ -1,10 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import {
-	asInternalApp,
-	asInternalWorkspace,
-	asObsidianWindow,
-	asGraphView,
-} from "../src/obsidian-internals";
+import { asInternalApp, asInternalWorkspace, asObsidianWindow, asGraphView } from "../src/obsidian-internals";
 
 describe("obsidian-internals cast helpers", () => {
 	it("asInternalApp returns the same object", () => {

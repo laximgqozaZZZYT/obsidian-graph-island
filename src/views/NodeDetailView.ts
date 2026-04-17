@@ -52,20 +52,17 @@ export class NodeDetailView extends ItemView {
 		this.renderEmpty();
 
 		this.registerEvent(
-			asInternalWorkspace(this.app.workspace).on(
-				EVENT_HOVER_NODE,
-				(...args: unknown[]) => {
-					const node = args[0] as GraphNode | null;
-					const adj = args[1] as Map<string, Set<string>>;
-					const pixiNodes = args[2] as Map<string, PixiNode>;
-					const degrees = args[3] as Map<string, number>;
-					const edges = args[4] as GraphEdge[] | undefined;
-					if (this.held && this.holdCaptured) return; // locked
-					this.pixiNodes = pixiNodes;
-					this.renderNode(node, adj, pixiNodes, degrees, edges);
-					if (this.held && node) this.holdCaptured = true;
-				},
-			),
+			asInternalWorkspace(this.app.workspace).on(EVENT_HOVER_NODE, (...args: unknown[]) => {
+				const node = args[0] as GraphNode | null;
+				const adj = args[1] as Map<string, Set<string>>;
+				const pixiNodes = args[2] as Map<string, PixiNode>;
+				const degrees = args[3] as Map<string, number>;
+				const edges = args[4] as GraphEdge[] | undefined;
+				if (this.held && this.holdCaptured) return; // locked
+				this.pixiNodes = pixiNodes;
+				this.renderNode(node, adj, pixiNodes, degrees, edges);
+				if (this.held && node) this.holdCaptured = true;
+			}),
 		);
 	}
 

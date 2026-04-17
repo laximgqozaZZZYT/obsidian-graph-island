@@ -66,11 +66,7 @@ export function drawArcPath(
 // ---------------------------------------------------------------------------
 
 /** Create a positioned and rotated label for a sunburst arc. */
-export function createSunburstArcLabel(
-	arc: SunburstArcEnriched,
-	fontSize: number,
-	textColor: number,
-): CanvasText {
+export function createSunburstArcLabel(arc: SunburstArcEnriched, fontSize: number, textColor: number): CanvasText {
 	const midAngle = (arc.startAngle + arc.endAngle) / 2;
 	const midR = (arc.rInner + arc.rOuter) / 2;
 	const displayName = arc.groupKey.replace(/::.*$/, "").split("/").pop() || arc.groupKey;

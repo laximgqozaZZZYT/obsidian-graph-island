@@ -14,18 +14,10 @@ export function computeZoomNodeBoost(worldScale: number): number {
 	return worldScale < 0.5 ? 1 + (0.5 - worldScale) * 0.5 : 1;
 }
 
-export function computeBaseStrokeWidth(
-	worldScale: number,
-	highContrast: boolean,
-	ds: DenseStrokeConfig,
-): number {
+export function computeBaseStrokeWidth(worldScale: number, highContrast: boolean, ds: DenseStrokeConfig): number {
 	const hcMul = highContrast ? 2 : 1;
 	const raw =
-		worldScale < ds.zoomLow
-			? Math.min(2 / worldScale, ds.maxWidth)
-			: worldScale < ds.zoomMid
-				? ds.midWidth
-				: 1;
+		worldScale < ds.zoomLow ? Math.min(2 / worldScale, ds.maxWidth) : worldScale < ds.zoomMid ? ds.midWidth : 1;
 	return raw * hcMul;
 }
 

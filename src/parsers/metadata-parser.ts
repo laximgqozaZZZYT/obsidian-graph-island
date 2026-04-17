@@ -245,7 +245,17 @@ function buildEdgesFromLinks(
 		const inlineRelations = collectInlineRelations(app, file, contentCache);
 
 		if (cache?.links) {
-			addRegularLinkEdges(app, file, cache.links, fmRelations, inlineRelations, settings, nodeMap, edgeSet, edges);
+			addRegularLinkEdges(
+				app,
+				file,
+				cache.links,
+				fmRelations,
+				inlineRelations,
+				settings,
+				nodeMap,
+				edgeSet,
+				edges,
+			);
 		}
 
 		addRemainingFrontmatterEdges(file, fmRelations, settings, nodeMap, edgeSet, edges);
@@ -714,9 +724,7 @@ function parseInlineFields(content: string, sourcePath: string, app: App): Map<s
  * Notation: `[[target|display]@relation]` or `[[target]@relation]`
  * Pure function — no Obsidian dependency, easy to test.
  */
-export function parseInlineRelationLinksRaw(
-	content: string,
-): Array<{ linkTarget: string; relation: string }> {
+export function parseInlineRelationLinksRaw(content: string): Array<{ linkTarget: string; relation: string }> {
 	const results: Array<{ linkTarget: string; relation: string }> = [];
 	const re = /\[\[([^\]|]+)(?:\|[^\]]*)?\]@([^\]]+)\]/g;
 	let m: RegExpExecArray | null;
@@ -727,11 +735,7 @@ export function parseInlineRelationLinksRaw(
 }
 
 /** Resolve raw inline-relation link matches to file paths. */
-function parseInlineRelationLinks(
-	content: string,
-	sourcePath: string,
-	app: App,
-): Map<string, InlineFieldResult> {
+function parseInlineRelationLinks(content: string, sourcePath: string, app: App): Map<string, InlineFieldResult> {
 	const result = new Map<string, InlineFieldResult>();
 	for (const { linkTarget, relation } of parseInlineRelationLinksRaw(content)) {
 		const targetFile = app.metadataCache.getFirstLinkpathDest(linkTarget, sourcePath);
@@ -764,10 +768,7 @@ export function buildRelationColorMap(edges: GraphEdge[]): Map<string, string> {
  * Install a lazy getter on `node.meta` that defers snapshotMeta until first access.
  * On first read the getter replaces itself with the computed static value.
  */
-export function defineLazyMeta(
-	node: GraphNode,
-	frontmatter: Record<string, unknown> | undefined,
-): void {
+export function defineLazyMeta(node: GraphNode, frontmatter: Record<string, unknown> | undefined): void {
 	if (!frontmatter) return;
 	Object.defineProperty(node, "meta", {
 		get() {
@@ -789,9 +790,7 @@ export function defineLazyMeta(
  * Snapshot frontmatter into a plain object, stripping the `position` key.
  * rawData is invalidated on file changes, so a static snapshot is sufficient.
  */
-export function snapshotMeta(
-	frontmatter: Record<string, unknown> | undefined,
-): Record<string, unknown> | undefined {
+export function snapshotMeta(frontmatter: Record<string, unknown> | undefined): Record<string, unknown> | undefined {
 	if (!frontmatter) return undefined;
 	const entries = Object.entries(frontmatter).filter(([k]) => k !== "position");
 	return entries.length > 0 ? Object.fromEntries(entries) : undefined;

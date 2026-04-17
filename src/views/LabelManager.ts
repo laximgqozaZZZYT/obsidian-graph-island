@@ -309,11 +309,7 @@ export class LabelManager {
 	}
 
 	/** Check if a node should be filtered out by AutoLOD level 2. */
-	private _isFilteredByAutoLOD(
-		pn: PixiNode,
-		isSuper: boolean,
-		isHovered: boolean,
-	): boolean {
+	private _isFilteredByAutoLOD(pn: PixiNode, isSuper: boolean, isHovered: boolean): boolean {
 		if (isSuper || isHovered) return false;
 		const rp = this.host.getRenderPipeline();
 		if (!rp?.isAutoLODActive() || rp.getLastLodLevel() !== 2) return false;
@@ -387,7 +383,13 @@ export class LabelManager {
 			// Apply counter-scaling with R6 adaptive label sizing
 			const nodeDeg = degrees.get(pn.data.id) ?? 0;
 			const finalScale = this._computeAdaptiveScale(
-				nodeDeg, maxDegForAdaptive, adaptiveMin, adaptiveMax, counterScale, zoom, rt,
+				nodeDeg,
+				maxDegForAdaptive,
+				adaptiveMin,
+				adaptiveMax,
+				counterScale,
+				zoom,
+				rt,
 			);
 			pn.label.scale.set(finalScale);
 

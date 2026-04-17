@@ -14,11 +14,7 @@ import { addSlider, addToggle, addSelect, addTextInput } from "./panel-widgets";
 // ---------------------------------------------------------------------------
 // Node Advanced Controls — extracted to reduce complexity of the outer arrow fn
 // ---------------------------------------------------------------------------
-function _buildNodeAdvancedControls(
-	adv: HTMLElement,
-	panel: PanelState,
-	cb: PanelCallbacks,
-): void {
+function _buildNodeAdvancedControls(adv: HTMLElement, panel: PanelState, cb: PanelCallbacks): void {
 	const rtNode = mergeRenderThresholds(panel.renderThresholds);
 	addToggle(
 		adv,
@@ -94,21 +90,13 @@ function _buildNodeAdvancedControls(
 	_buildNodeHoverAndShapeControls(adv, panel, cb);
 }
 
-function _buildNodeHoverAndShapeControls(
-	adv: HTMLElement,
-	panel: PanelState,
-	cb: PanelCallbacks,
-): void {
+function _buildNodeHoverAndShapeControls(adv: HTMLElement, panel: PanelState, cb: PanelCallbacks): void {
 	_buildHoverEdgeTypeControls(adv, panel, cb);
 	_buildFocusModeControls(adv, panel, cb);
 	_buildNodeShapeControls(adv, panel, cb);
 }
 
-function _buildHoverEdgeTypeControls(
-	adv: HTMLElement,
-	panel: PanelState,
-	cb: PanelCallbacks,
-): void {
+function _buildHoverEdgeTypeControls(adv: HTMLElement, panel: PanelState, cb: PanelCallbacks): void {
 	addSlider(
 		adv,
 		t("display.hoverHops"),
@@ -172,11 +160,7 @@ function _buildHoverEdgeTypeControls(
 	);
 }
 
-function _buildFocusModeControls(
-	adv: HTMLElement,
-	panel: PanelState,
-	cb: PanelCallbacks,
-): void {
+function _buildFocusModeControls(adv: HTMLElement, panel: PanelState, cb: PanelCallbacks): void {
 	addToggle(
 		adv,
 		t("display.focusMode"),
@@ -206,11 +190,7 @@ function _buildFocusModeControls(
 	}
 }
 
-function _buildNodeShapeControls(
-	adv: HTMLElement,
-	panel: PanelState,
-	cb: PanelCallbacks,
-): void {
+function _buildNodeShapeControls(adv: HTMLElement, panel: PanelState, cb: PanelCallbacks): void {
 	const shapeIcons: Record<string, string> = {
 		circle: "O",
 		triangle: "^",

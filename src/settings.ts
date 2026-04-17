@@ -321,14 +321,78 @@ export class GraphViewsSettingTab extends PluginSettingTab {
 		containerEl.createEl("h3", { text: t("settings.ontologyHeading") });
 		const onto = this.plugin.settings.ontology;
 
-		this._buildOntologyFieldSetting(containerEl, t("settings.inheritanceFields"), "parent, extends, up", () => onto.inheritanceFields, (v) => { onto.inheritanceFields = v; });
-		this._buildOntologyFieldSetting(containerEl, t("settings.aggregationFields"), "contains, parts, has", () => onto.aggregationFields, (v) => { onto.aggregationFields = v; });
-		this._buildOntologyFieldSetting(containerEl, t("settings.reverseInheritanceFields"), "child, down", () => onto.reverseInheritanceFields ?? [], (v) => { onto.reverseInheritanceFields = v; });
-		this._buildOntologyFieldSetting(containerEl, t("settings.reverseAggregationFields"), "part-of, belongs-to", () => onto.reverseAggregationFields ?? [], (v) => { onto.reverseAggregationFields = v; });
-		this._buildOntologyFieldSetting(containerEl, t("settings.similarFields"), "similar, related", () => onto.similarFields, (v) => { onto.similarFields = v; });
-		this._buildOntologyFieldSetting(containerEl, t("settings.siblingFields"), "sibling, same", () => onto.siblingFields ?? [], (v) => { onto.siblingFields = v; });
-		this._buildOntologyFieldSetting(containerEl, t("settings.sequenceFields"), "next", () => onto.sequenceFields ?? [], (v) => { onto.sequenceFields = v; });
-		this._buildOntologyFieldSetting(containerEl, t("settings.reverseSequenceFields"), "prev, previous", () => onto.reverseSequenceFields ?? [], (v) => { onto.reverseSequenceFields = v; });
+		this._buildOntologyFieldSetting(
+			containerEl,
+			t("settings.inheritanceFields"),
+			"parent, extends, up",
+			() => onto.inheritanceFields,
+			(v) => {
+				onto.inheritanceFields = v;
+			},
+		);
+		this._buildOntologyFieldSetting(
+			containerEl,
+			t("settings.aggregationFields"),
+			"contains, parts, has",
+			() => onto.aggregationFields,
+			(v) => {
+				onto.aggregationFields = v;
+			},
+		);
+		this._buildOntologyFieldSetting(
+			containerEl,
+			t("settings.reverseInheritanceFields"),
+			"child, down",
+			() => onto.reverseInheritanceFields ?? [],
+			(v) => {
+				onto.reverseInheritanceFields = v;
+			},
+		);
+		this._buildOntologyFieldSetting(
+			containerEl,
+			t("settings.reverseAggregationFields"),
+			"part-of, belongs-to",
+			() => onto.reverseAggregationFields ?? [],
+			(v) => {
+				onto.reverseAggregationFields = v;
+			},
+		);
+		this._buildOntologyFieldSetting(
+			containerEl,
+			t("settings.similarFields"),
+			"similar, related",
+			() => onto.similarFields,
+			(v) => {
+				onto.similarFields = v;
+			},
+		);
+		this._buildOntologyFieldSetting(
+			containerEl,
+			t("settings.siblingFields"),
+			"sibling, same",
+			() => onto.siblingFields ?? [],
+			(v) => {
+				onto.siblingFields = v;
+			},
+		);
+		this._buildOntologyFieldSetting(
+			containerEl,
+			t("settings.sequenceFields"),
+			"next",
+			() => onto.sequenceFields ?? [],
+			(v) => {
+				onto.sequenceFields = v;
+			},
+		);
+		this._buildOntologyFieldSetting(
+			containerEl,
+			t("settings.reverseSequenceFields"),
+			"prev, previous",
+			() => onto.reverseSequenceFields ?? [],
+			(v) => {
+				onto.reverseSequenceFields = v;
+			},
+		);
 
 		new Setting(containerEl).setName(t("settings.tagHierarchy")).addToggle((toggle) =>
 			toggle.setValue(onto.useTagHierarchy).onChange(async (v) => {

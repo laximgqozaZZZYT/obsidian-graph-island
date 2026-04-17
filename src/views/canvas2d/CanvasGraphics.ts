@@ -49,13 +49,22 @@ export function hexToRgba(hex: number, alpha: number): string {
 // ---------------------------------------------------------------------------
 
 interface _FlushState {
-	fillColor: number; fillAlpha: number;
-	strokeWidth: number; strokeColor: number; strokeAlpha: number; strokeNative: boolean;
-	inPath: boolean; hasFill: boolean; radialGradient: CanvasGradient | null;
+	fillColor: number;
+	fillAlpha: number;
+	strokeWidth: number;
+	strokeColor: number;
+	strokeAlpha: number;
+	strokeNative: boolean;
+	inPath: boolean;
+	hasFill: boolean;
+	radialGradient: CanvasGradient | null;
 }
 
 function _beginNewPath(ctx: CanvasRenderingContext2D, st: _FlushState) {
-	if (!st.inPath) { ctx.beginPath(); st.inPath = true; }
+	if (!st.inPath) {
+		ctx.beginPath();
+		st.inPath = true;
+	}
 }
 
 function _flushShape(ctx: CanvasRenderingContext2D, st: _FlushState, effAlpha: number) {
@@ -82,13 +91,17 @@ function _processDrawCmd(ctx: CanvasRenderingContext2D, cmd: DrawCmd, st: _Flush
 	switch (cmd.t) {
 		case "lineStyle":
 			_flushShape(ctx, st, effAlpha);
-			st.strokeWidth = cmd.width; st.strokeColor = cmd.color;
-			st.strokeAlpha = cmd.alpha; st.strokeNative = cmd.native ?? false;
+			st.strokeWidth = cmd.width;
+			st.strokeColor = cmd.color;
+			st.strokeAlpha = cmd.alpha;
+			st.strokeNative = cmd.native ?? false;
 			break;
 		case "beginFill":
 			_flushShape(ctx, st, effAlpha);
-			st.fillColor = cmd.color; st.fillAlpha = cmd.alpha;
-			st.hasFill = true; st.radialGradient = null;
+			st.fillColor = cmd.color;
+			st.fillAlpha = cmd.alpha;
+			st.hasFill = true;
+			st.radialGradient = null;
 			_beginNewPath(ctx, st);
 			break;
 		case "beginRadialFill": {
@@ -97,32 +110,60 @@ function _processDrawCmd(ctx: CanvasRenderingContext2D, cmd: DrawCmd, st: _Flush
 			const grad = ctx.createRadialGradient(cmd.cx, cmd.cy, 0, cmd.cx, cmd.cy, safeR);
 			grad.addColorStop(0, hexToRgba(cmd.innerColor, cmd.innerAlpha * effAlpha));
 			grad.addColorStop(1, hexToRgba(cmd.outerColor, cmd.outerAlpha * effAlpha));
-			st.radialGradient = grad; st.hasFill = true;
+			st.radialGradient = grad;
+			st.hasFill = true;
 			_beginNewPath(ctx, st);
 			break;
 		}
 		case "endFill":
 			_flushShape(ctx, st, effAlpha);
-			st.hasFill = false; st.radialGradient = null;
+			st.hasFill = false;
+			st.radialGradient = null;
 			break;
 		case "setLineDash":
 			_flushShape(ctx, st, effAlpha);
 			ctx.setLineDash(cmd.segments);
 			break;
-		case "moveTo": _beginNewPath(ctx, st); ctx.moveTo(cmd.x, cmd.y); break;
-		case "lineTo": _beginNewPath(ctx, st); ctx.lineTo(cmd.x, cmd.y); break;
+		case "moveTo":
+			_beginNewPath(ctx, st);
+			ctx.moveTo(cmd.x, cmd.y);
+			break;
+		case "lineTo":
+			_beginNewPath(ctx, st);
+			ctx.lineTo(cmd.x, cmd.y);
+			break;
 		case "drawCircle":
 			_beginNewPath(ctx, st);
 			ctx.moveTo(cmd.x + cmd.r, cmd.y);
 			ctx.arc(cmd.x, cmd.y, cmd.r, 0, Math.PI * 2);
 			break;
-		case "drawRect": _beginNewPath(ctx, st); ctx.rect(cmd.x, cmd.y, cmd.w, cmd.h); break;
-		case "quadraticCurveTo": _beginNewPath(ctx, st); ctx.quadraticCurveTo(cmd.cx, cmd.cy, cmd.x, cmd.y); break;
-		case "closePath": ctx.closePath(); break;
-		case "arc": _beginNewPath(ctx, st); ctx.arc(cmd.cx, cmd.cy, cmd.r, cmd.start, cmd.end, cmd.ccw); break;
-		case "bezierCurveTo": _beginNewPath(ctx, st); ctx.bezierCurveTo(cmd.cp1x, cmd.cp1y, cmd.cp2x, cmd.cp2y, cmd.x, cmd.y); break;
-		case "setLineCap": _flushShape(ctx, st, effAlpha); ctx.lineCap = cmd.cap; break;
-		case "setLineJoin": _flushShape(ctx, st, effAlpha); ctx.lineJoin = cmd.join; break;
+		case "drawRect":
+			_beginNewPath(ctx, st);
+			ctx.rect(cmd.x, cmd.y, cmd.w, cmd.h);
+			break;
+		case "quadraticCurveTo":
+			_beginNewPath(ctx, st);
+			ctx.quadraticCurveTo(cmd.cx, cmd.cy, cmd.x, cmd.y);
+			break;
+		case "closePath":
+			ctx.closePath();
+			break;
+		case "arc":
+			_beginNewPath(ctx, st);
+			ctx.arc(cmd.cx, cmd.cy, cmd.r, cmd.start, cmd.end, cmd.ccw);
+			break;
+		case "bezierCurveTo":
+			_beginNewPath(ctx, st);
+			ctx.bezierCurveTo(cmd.cp1x, cmd.cp1y, cmd.cp2x, cmd.cp2y, cmd.x, cmd.y);
+			break;
+		case "setLineCap":
+			_flushShape(ctx, st, effAlpha);
+			ctx.lineCap = cmd.cap;
+			break;
+		case "setLineJoin":
+			_flushShape(ctx, st, effAlpha);
+			ctx.lineJoin = cmd.join;
+			break;
 		case "roundedRect": {
 			_beginNewPath(ctx, st);
 			const rr = Math.max(0, Math.min(cmd.r, cmd.w / 2, cmd.h / 2));
@@ -265,9 +306,15 @@ export class CanvasGraphics implements IGraphics {
 		if (this.x !== 0 || this.y !== 0) ctx.translate(this.x, this.y);
 
 		const st: _FlushState = {
-			fillColor: 0x000000, fillAlpha: 1,
-			strokeWidth: 0, strokeColor: 0x000000, strokeAlpha: 1, strokeNative: false,
-			inPath: false, hasFill: false, radialGradient: null,
+			fillColor: 0x000000,
+			fillAlpha: 1,
+			strokeWidth: 0,
+			strokeColor: 0x000000,
+			strokeAlpha: 1,
+			strokeNative: false,
+			inPath: false,
+			hasFill: false,
+			radialGradient: null,
 		};
 
 		for (const cmd of this.commands) {

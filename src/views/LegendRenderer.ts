@@ -196,7 +196,12 @@ function renderCommunitySection(body: HTMLElement, legendColorMode: string, host
 			const row = commSection.createDiv({ cls: "gi-legend-item" });
 			const dot = row.createDiv({ cls: "gi-legend-color-dot" });
 			dot.style.background = PALETTE[cid % PALETTE.length];
-			row.createEl("span", { cls: "gi-legend-label", text: t("legend.communityLabel").replace("{id}", String(cid + 1)).replace("{count}", String(count)) });
+			row.createEl("span", {
+				cls: "gi-legend-label",
+				text: t("legend.communityLabel")
+					.replace("{id}", String(cid + 1))
+					.replace("{count}", String(count)),
+			});
 		}
 	}
 }

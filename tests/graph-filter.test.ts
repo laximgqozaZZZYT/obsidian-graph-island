@@ -1,556 +1,573 @@
 import { describe, it, expect } from "vitest";
 import {
-  filterOrphans, filterAttachments, filterTagNodes, filterSimilarEdges, filterNamedRelationEdges,
-  filterByDegree, filterEdgesByNodeSet, filterExcludedNodes,
-  applyVisibilityFilters, filterBySubgraph, filterByLocalGraph, type VisibilityOptions,
+	filterOrphans,
+	filterAttachments,
+	filterTagNodes,
+	filterSimilarEdges,
+	filterNamedRelationEdges,
+	filterByDegree,
+	filterEdgesByNodeSet,
+	filterExcludedNodes,
+	applyVisibilityFilters,
+	filterBySubgraph,
+	filterByLocalGraph,
+	type VisibilityOptions,
 } from "../src/utils/graph-filter";
 import type { GraphNode, GraphEdge } from "../src/types";
 
 function node(id: string, extra?: Partial<GraphNode>): GraphNode {
-  return { id, label: id, ...extra };
+	return { id, label: id, ...extra };
 }
 function edge(source: string, target: string, type = "link"): GraphEdge {
-  return { source, target, type };
+	return { source, target, type };
 }
 
 describe("filterOrphans", () => {
-  it("removes nodes with no edges", () => {
-    const nodes = [node("a"), node("b"), node("orphan")];
-    const edges = [edge("a", "b")];
-    expect(filterOrphans(nodes, edges).map(n => n.id)).toEqual(["a", "b"]);
-  });
+	it("removes nodes with no edges", () => {
+		const nodes = [node("a"), node("b"), node("orphan")];
+		const edges = [edge("a", "b")];
+		expect(filterOrphans(nodes, edges).map((n) => n.id)).toEqual(["a", "b"]);
+	});
 
-  it("returns empty when no edges exist", () => {
-    expect(filterOrphans([node("a")], [])).toHaveLength(0);
-  });
+	it("returns empty when no edges exist", () => {
+		expect(filterOrphans([node("a")], [])).toHaveLength(0);
+	});
 
-  it("keeps all when all connected", () => {
-    const n = [node("a"), node("b")];
-    expect(filterOrphans(n, [edge("a", "b")])).toHaveLength(2);
-  });
+	it("keeps all when all connected", () => {
+		const n = [node("a"), node("b")];
+		expect(filterOrphans(n, [edge("a", "b")])).toHaveLength(2);
+	});
 });
 
 describe("filterAttachments", () => {
-  it("removes image files", () => {
-    const nodes = [node("a.md"), node("img.png", { filePath: "img.png" })];
-    expect(filterAttachments(nodes).map(n => n.id)).toEqual(["a.md"]);
-  });
+	it("removes image files", () => {
+		const nodes = [node("a.md"), node("img.png", { filePath: "img.png" })];
+		expect(filterAttachments(nodes).map((n) => n.id)).toEqual(["a.md"]);
+	});
 
-  it("removes PDF files", () => {
-    const nodes = [node("doc.pdf", { filePath: "doc.pdf" }), node("note.md")];
-    expect(filterAttachments(nodes).map(n => n.id)).toEqual(["note.md"]);
-  });
+	it("removes PDF files", () => {
+		const nodes = [node("doc.pdf", { filePath: "doc.pdf" }), node("note.md")];
+		expect(filterAttachments(nodes).map((n) => n.id)).toEqual(["note.md"]);
+	});
 
-  it("keeps markdown and extensionless files", () => {
-    const nodes = [node("note.md"), node("noext")];
-    expect(filterAttachments(nodes)).toHaveLength(2);
-  });
+	it("keeps markdown and extensionless files", () => {
+		const nodes = [node("note.md"), node("noext")];
+		expect(filterAttachments(nodes)).toHaveLength(2);
+	});
 
-  it("is case-insensitive for extensions", () => {
-    const nodes = [node("photo.JPG", { filePath: "photo.JPG" })];
-    expect(filterAttachments(nodes)).toHaveLength(0);
-  });
+	it("is case-insensitive for extensions", () => {
+		const nodes = [node("photo.JPG", { filePath: "photo.JPG" })];
+		expect(filterAttachments(nodes)).toHaveLength(0);
+	});
 
-  // --- Boundary values (cycle116) ---
+	// --- Boundary values (cycle116) ---
 
-  it("handles mixed md/png/pdf/excalidraw/csv files", () => {
-    const nodes = [
-      node("note.md"),
-      node("pic.png", { filePath: "pic.png" }),
-      node("doc.pdf", { filePath: "doc.pdf" }),
-      node("draw.excalidraw"),  // no extension match → kept
-      node("data.csv", { filePath: "data.csv" }),
-      node("audio.mp3", { filePath: "audio.mp3" }),
-    ];
-    const kept = filterAttachments(nodes).map(n => n.id);
-    expect(kept).toContain("note.md");
-    expect(kept).toContain("draw.excalidraw"); // .excalidraw not in ATTACHMENT_EXTS
-    expect(kept).not.toContain("pic.png");
-    expect(kept).not.toContain("doc.pdf");
-    expect(kept).not.toContain("data.csv");
-    expect(kept).not.toContain("audio.mp3");
-  });
+	it("handles mixed md/png/pdf/excalidraw/csv files", () => {
+		const nodes = [
+			node("note.md"),
+			node("pic.png", { filePath: "pic.png" }),
+			node("doc.pdf", { filePath: "doc.pdf" }),
+			node("draw.excalidraw"), // no extension match → kept
+			node("data.csv", { filePath: "data.csv" }),
+			node("audio.mp3", { filePath: "audio.mp3" }),
+		];
+		const kept = filterAttachments(nodes).map((n) => n.id);
+		expect(kept).toContain("note.md");
+		expect(kept).toContain("draw.excalidraw"); // .excalidraw not in ATTACHMENT_EXTS
+		expect(kept).not.toContain("pic.png");
+		expect(kept).not.toContain("doc.pdf");
+		expect(kept).not.toContain("data.csv");
+		expect(kept).not.toContain("audio.mp3");
+	});
 
-  it("keeps nodes with no filePath and no extension in id", () => {
-    const nodes = [node("tag-node")]; // no extension
-    expect(filterAttachments(nodes)).toHaveLength(1);
-  });
+	it("keeps nodes with no filePath and no extension in id", () => {
+		const nodes = [node("tag-node")]; // no extension
+		expect(filterAttachments(nodes)).toHaveLength(1);
+	});
 
-  it("handles empty node array", () => {
-    expect(filterAttachments([])).toEqual([]);
-  });
+	it("handles empty node array", () => {
+		expect(filterAttachments([])).toEqual([]);
+	});
 
-  it("handles all video/audio extensions", () => {
-    const exts = [".mp4", ".webm", ".wav", ".ogg"];
-    for (const ext of exts) {
-      const nodes = [node(`file${ext}`, { filePath: `file${ext}` })];
-      expect(filterAttachments(nodes), `${ext} should be filtered`).toHaveLength(0);
-    }
-  });
+	it("handles all video/audio extensions", () => {
+		const exts = [".mp4", ".webm", ".wav", ".ogg"];
+		for (const ext of exts) {
+			const nodes = [node(`file${ext}`, { filePath: `file${ext}` })];
+			expect(filterAttachments(nodes), `${ext} should be filtered`).toHaveLength(0);
+		}
+	});
 
-  it("keeps .md files with dots in name", () => {
-    const nodes = [node("my.project.notes.md")];
-    expect(filterAttachments(nodes)).toHaveLength(1);
-  });
+	it("keeps .md files with dots in name", () => {
+		const nodes = [node("my.project.notes.md")];
+		expect(filterAttachments(nodes)).toHaveLength(1);
+	});
 });
 
 describe("filterTagNodes", () => {
-  it("removes tag nodes and has-tag edges", () => {
-    const nodes = [node("a.md"), node("#tag1", { isTag: true })];
-    const edges = [edge("a.md", "#tag1", "has-tag"), edge("a.md", "b.md")];
-    const result = filterTagNodes(nodes, edges);
-    expect(result.nodes.map(n => n.id)).toEqual(["a.md"]);
-    expect(result.edges).toHaveLength(1);
-    expect(result.edges[0].type).toBe("link");
-  });
+	it("removes tag nodes and has-tag edges", () => {
+		const nodes = [node("a.md"), node("#tag1", { isTag: true })];
+		const edges = [edge("a.md", "#tag1", "has-tag"), edge("a.md", "b.md")];
+		const result = filterTagNodes(nodes, edges);
+		expect(result.nodes.map((n) => n.id)).toEqual(["a.md"]);
+		expect(result.edges).toHaveLength(1);
+		expect(result.edges[0].type).toBe("link");
+	});
 });
 
 describe("filterSimilarEdges", () => {
-  it("removes similar-type edges only", () => {
-    const edges = [edge("a", "b", "link"), edge("a", "c", "similar"), edge("b", "c", "tag")];
-    const result = filterSimilarEdges(edges);
-    expect(result).toHaveLength(2);
-    expect(result.every(e => e.type !== "similar")).toBe(true);
-  });
+	it("removes similar-type edges only", () => {
+		const edges = [edge("a", "b", "link"), edge("a", "c", "similar"), edge("b", "c", "tag")];
+		const result = filterSimilarEdges(edges);
+		expect(result).toHaveLength(2);
+		expect(result.every((e) => e.type !== "similar")).toBe(true);
+	});
 });
 
 describe("filterNamedRelationEdges", () => {
-  it("removes named-relation edges only", () => {
-    const edges = [edge("a", "b", "link"), edge("a", "c", "named-relation"), edge("b", "c", "tag")];
-    const result = filterNamedRelationEdges(edges);
-    expect(result).toHaveLength(2);
-    expect(result.every(e => e.type !== "named-relation")).toBe(true);
-  });
+	it("removes named-relation edges only", () => {
+		const edges = [edge("a", "b", "link"), edge("a", "c", "named-relation"), edge("b", "c", "tag")];
+		const result = filterNamedRelationEdges(edges);
+		expect(result).toHaveLength(2);
+		expect(result.every((e) => e.type !== "named-relation")).toBe(true);
+	});
 });
 
 describe("filterByDegree", () => {
-  const nodes = [node("hub"), node("a"), node("b"), node("leaf")];
-  const edges = [edge("hub", "a"), edge("hub", "b"), edge("hub", "leaf"), edge("a", "b")];
+	const nodes = [node("hub"), node("a"), node("b"), node("leaf")];
+	const edges = [edge("hub", "a"), edge("hub", "b"), edge("hub", "leaf"), edge("a", "b")];
 
-  it("filters below min degree", () => {
-    expect(filterByDegree(nodes, edges, 2, 0).map(n => n.id)).toEqual(["hub", "a", "b"]);
-  });
+	it("filters below min degree", () => {
+		expect(filterByDegree(nodes, edges, 2, 0).map((n) => n.id)).toEqual(["hub", "a", "b"]);
+	});
 
-  it("filters above max degree", () => {
-    expect(filterByDegree(nodes, edges, 0, 2).map(n => n.id)).toEqual(["a", "b", "leaf"]);
-  });
+	it("filters above max degree", () => {
+		expect(filterByDegree(nodes, edges, 0, 2).map((n) => n.id)).toEqual(["a", "b", "leaf"]);
+	});
 
-  it("no-op when both 0", () => {
-    expect(filterByDegree(nodes, edges, 0, 0)).toHaveLength(4);
-  });
+	it("no-op when both 0", () => {
+		expect(filterByDegree(nodes, edges, 0, 0)).toHaveLength(4);
+	});
 });
 
 describe("filterEdgesByNodeSet", () => {
-  it("removes edges to missing nodes", () => {
-    const edges = [edge("a", "b"), edge("a", "gone"), edge("b", "gone")];
-    expect(filterEdgesByNodeSet(edges, new Set(["a", "b"]))).toHaveLength(1);
-  });
+	it("removes edges to missing nodes", () => {
+		const edges = [edge("a", "b"), edge("a", "gone"), edge("b", "gone")];
+		expect(filterEdgesByNodeSet(edges, new Set(["a", "b"]))).toHaveLength(1);
+	});
 });
 
 describe("filterExcludedNodes", () => {
-  it("removes excluded nodes and their edges", () => {
-    const nodes = [node("a"), node("b"), node("c")];
-    const edges = [edge("a", "b"), edge("b", "c")];
-    const result = filterExcludedNodes(nodes, edges, ["b"]);
-    expect(result.nodes.map(n => n.id)).toEqual(["a", "c"]);
-    expect(result.edges).toHaveLength(0); // both edges touched b
-  });
+	it("removes excluded nodes and their edges", () => {
+		const nodes = [node("a"), node("b"), node("c")];
+		const edges = [edge("a", "b"), edge("b", "c")];
+		const result = filterExcludedNodes(nodes, edges, ["b"]);
+		expect(result.nodes.map((n) => n.id)).toEqual(["a", "c"]);
+		expect(result.edges).toHaveLength(0); // both edges touched b
+	});
 
-  it("no-op for empty exclude list", () => {
-    const nodes = [node("a")];
-    const result = filterExcludedNodes(nodes, [], []);
-    expect(result.nodes).toHaveLength(1);
-  });
+	it("no-op for empty exclude list", () => {
+		const nodes = [node("a")];
+		const result = filterExcludedNodes(nodes, [], []);
+		expect(result.nodes).toHaveLength(1);
+	});
 
-  it("excludes all nodes leaves empty result", () => {
-    const nodes = [node("a"), node("b")];
-    const edges = [edge("a", "b")];
-    const result = filterExcludedNodes(nodes, edges, ["a", "b"]);
-    expect(result.nodes).toHaveLength(0);
-    expect(result.edges).toHaveLength(0);
-  });
+	it("excludes all nodes leaves empty result", () => {
+		const nodes = [node("a"), node("b")];
+		const edges = [edge("a", "b")];
+		const result = filterExcludedNodes(nodes, edges, ["a", "b"]);
+		expect(result.nodes).toHaveLength(0);
+		expect(result.edges).toHaveLength(0);
+	});
 
-  it("preserves edges not touching excluded node", () => {
-    const nodes = [node("a"), node("b"), node("c")];
-    const edges = [edge("a", "b"), edge("a", "c")];
-    const result = filterExcludedNodes(nodes, edges, ["b"]);
-    expect(result.nodes.map(n => n.id)).toEqual(["a", "c"]);
-    expect(result.edges).toHaveLength(1);
-    expect(result.edges[0].source).toBe("a");
-    expect(result.edges[0].target).toBe("c");
-  });
+	it("preserves edges not touching excluded node", () => {
+		const nodes = [node("a"), node("b"), node("c")];
+		const edges = [edge("a", "b"), edge("a", "c")];
+		const result = filterExcludedNodes(nodes, edges, ["b"]);
+		expect(result.nodes.map((n) => n.id)).toEqual(["a", "c"]);
+		expect(result.edges).toHaveLength(1);
+		expect(result.edges[0].source).toBe("a");
+		expect(result.edges[0].target).toBe("c");
+	});
 
-  it("handles nonexistent exclude IDs gracefully", () => {
-    const nodes = [node("a"), node("b")];
-    const edges = [edge("a", "b")];
-    const result = filterExcludedNodes(nodes, edges, ["z"]);
-    expect(result.nodes).toHaveLength(2);
-    expect(result.edges).toHaveLength(1);
-  });
+	it("handles nonexistent exclude IDs gracefully", () => {
+		const nodes = [node("a"), node("b")];
+		const edges = [edge("a", "b")];
+		const result = filterExcludedNodes(nodes, edges, ["z"]);
+		expect(result.nodes).toHaveLength(2);
+		expect(result.edges).toHaveLength(1);
+	});
 });
 
 describe("applyVisibilityFilters", () => {
-  const defaultOpts: VisibilityOptions = {
-    showOrphans: true,
-    showAttachments: true,
-    includeTagsInData: true,
-    showTagNodes: true,
-    tagDisplay: "node",
-    showSimilar: true,
-    showNamedRelation: true,
-  };
+	const defaultOpts: VisibilityOptions = {
+		showOrphans: true,
+		showAttachments: true,
+		includeTagsInData: true,
+		showTagNodes: true,
+		tagDisplay: "node",
+		showSimilar: true,
+		showNamedRelation: true,
+	};
 
-  it("passes through when all options enabled", () => {
-    const nodes = [node("a"), node("b"), node("#t", { isTag: true })];
-    const edges = [edge("a", "b"), edge("a", "#t", "has-tag"), edge("a", "b", "similar")];
-    const result = applyVisibilityFilters(nodes, edges, defaultOpts);
-    expect(result.nodes).toHaveLength(3);
-    expect(result.edges).toHaveLength(3);
-  });
+	it("passes through when all options enabled", () => {
+		const nodes = [node("a"), node("b"), node("#t", { isTag: true })];
+		const edges = [edge("a", "b"), edge("a", "#t", "has-tag"), edge("a", "b", "similar")];
+		const result = applyVisibilityFilters(nodes, edges, defaultOpts);
+		expect(result.nodes).toHaveLength(3);
+		expect(result.edges).toHaveLength(3);
+	});
 
-  it("removes orphans when showOrphans=false", () => {
-    const nodes = [node("a"), node("b"), node("orphan")];
-    const edges = [edge("a", "b")];
-    const result = applyVisibilityFilters(nodes, edges, { ...defaultOpts, showOrphans: false });
-    expect(result.nodes.map(n => n.id)).toEqual(["a", "b"]);
-  });
+	it("removes orphans when showOrphans=false", () => {
+		const nodes = [node("a"), node("b"), node("orphan")];
+		const edges = [edge("a", "b")];
+		const result = applyVisibilityFilters(nodes, edges, { ...defaultOpts, showOrphans: false });
+		expect(result.nodes.map((n) => n.id)).toEqual(["a", "b"]);
+	});
 
-  it("removes tags when includeTagsInData=false", () => {
-    const nodes = [node("a"), node("#t", { isTag: true })];
-    const edges = [edge("a", "#t", "has-tag")];
-    const result = applyVisibilityFilters(nodes, edges, { ...defaultOpts, includeTagsInData: false });
-    expect(result.nodes).toHaveLength(1);
-    expect(result.edges).toHaveLength(0);
-  });
+	it("removes tags when includeTagsInData=false", () => {
+		const nodes = [node("a"), node("#t", { isTag: true })];
+		const edges = [edge("a", "#t", "has-tag")];
+		const result = applyVisibilityFilters(nodes, edges, { ...defaultOpts, includeTagsInData: false });
+		expect(result.nodes).toHaveLength(1);
+		expect(result.edges).toHaveLength(0);
+	});
 
-  it("removes similar edges when showSimilar=false", () => {
-    const edges = [edge("a", "b", "link"), edge("a", "b", "similar")];
-    const result = applyVisibilityFilters([node("a"), node("b")], edges, { ...defaultOpts, showSimilar: false });
-    expect(result.edges).toHaveLength(1);
-  });
+	it("removes similar edges when showSimilar=false", () => {
+		const edges = [edge("a", "b", "link"), edge("a", "b", "similar")];
+		const result = applyVisibilityFilters([node("a"), node("b")], edges, { ...defaultOpts, showSimilar: false });
+		expect(result.edges).toHaveLength(1);
+	});
 
-  it("removes named-relation edges when showNamedRelation=false", () => {
-    const edges = [edge("a", "b", "link"), edge("a", "b", "named-relation")];
-    const result = applyVisibilityFilters([node("a"), node("b")], edges, { ...defaultOpts, showNamedRelation: false });
-    expect(result.edges).toHaveLength(1);
-    expect(result.edges[0].type).toBe("link");
-  });
+	it("removes named-relation edges when showNamedRelation=false", () => {
+		const edges = [edge("a", "b", "link"), edge("a", "b", "named-relation")];
+		const result = applyVisibilityFilters([node("a"), node("b")], edges, {
+			...defaultOpts,
+			showNamedRelation: false,
+		});
+		expect(result.edges).toHaveLength(1);
+		expect(result.edges[0].type).toBe("link");
+	});
 
-  it("keeps named-relation edges when showNamedRelation=true", () => {
-    const edges = [edge("a", "b", "link"), edge("a", "b", "named-relation")];
-    const result = applyVisibilityFilters([node("a"), node("b")], edges, { ...defaultOpts, showNamedRelation: true });
-    expect(result.edges).toHaveLength(2);
-  });
+	it("keeps named-relation edges when showNamedRelation=true", () => {
+		const edges = [edge("a", "b", "link"), edge("a", "b", "named-relation")];
+		const result = applyVisibilityFilters([node("a"), node("b")], edges, {
+			...defaultOpts,
+			showNamedRelation: true,
+		});
+		expect(result.edges).toHaveLength(2);
+	});
 
-  it("combines multiple filters", () => {
-    const nodes = [node("a"), node("orphan"), node("#t", { isTag: true })];
-    const edges = [edge("a", "#t", "has-tag")];
-    const result = applyVisibilityFilters(nodes, edges, {
-      ...defaultOpts, showOrphans: false, includeTagsInData: false,
-    });
-    expect(result.nodes.length).toBeLessThanOrEqual(1);
-  });
+	it("combines multiple filters", () => {
+		const nodes = [node("a"), node("orphan"), node("#t", { isTag: true })];
+		const edges = [edge("a", "#t", "has-tag")];
+		const result = applyVisibilityFilters(nodes, edges, {
+			...defaultOpts,
+			showOrphans: false,
+			includeTagsInData: false,
+		});
+		expect(result.nodes.length).toBeLessThanOrEqual(1);
+	});
 
-  // --- showAttachments filter (cycle122) ---
+	// --- showAttachments filter (cycle122) ---
 
-  it("removes attachment files when showAttachments=false", () => {
-    const nodes = [
-      node("note.md"),
-      node("image.png", { filePath: "image.png" }),
-      node("doc.pdf", { filePath: "doc.pdf" }),
-    ];
-    const result = applyVisibilityFilters(nodes, [], { ...defaultOpts, showAttachments: false });
-    expect(result.nodes.map(n => n.id)).toEqual(["note.md"]);
-  });
+	it("removes attachment files when showAttachments=false", () => {
+		const nodes = [
+			node("note.md"),
+			node("image.png", { filePath: "image.png" }),
+			node("doc.pdf", { filePath: "doc.pdf" }),
+		];
+		const result = applyVisibilityFilters(nodes, [], { ...defaultOpts, showAttachments: false });
+		expect(result.nodes.map((n) => n.id)).toEqual(["note.md"]);
+	});
 
-  it("keeps attachments when showAttachments=true", () => {
-    const nodes = [node("note.md"), node("image.png", { filePath: "image.png" })];
-    const result = applyVisibilityFilters(nodes, [], { ...defaultOpts, showAttachments: true });
-    expect(result.nodes).toHaveLength(2);
-  });
+	it("keeps attachments when showAttachments=true", () => {
+		const nodes = [node("note.md"), node("image.png", { filePath: "image.png" })];
+		const result = applyVisibilityFilters(nodes, [], { ...defaultOpts, showAttachments: true });
+		expect(result.nodes).toHaveLength(2);
+	});
 
-  it("tagDisplay=enclosure removes tag nodes", () => {
-    const nodes = [node("a.md"), node("#tag", { isTag: true })];
-    const edges = [edge("a.md", "#tag", "has-tag")];
-    const result = applyVisibilityFilters(nodes, edges, { ...defaultOpts, tagDisplay: "enclosure" });
-    expect(result.nodes.every(n => !n.isTag)).toBe(true);
-    expect(result.edges.every(e => e.type !== "has-tag")).toBe(true);
-  });
+	it("tagDisplay=enclosure removes tag nodes", () => {
+		const nodes = [node("a.md"), node("#tag", { isTag: true })];
+		const edges = [edge("a.md", "#tag", "has-tag")];
+		const result = applyVisibilityFilters(nodes, edges, { ...defaultOpts, tagDisplay: "enclosure" });
+		expect(result.nodes.every((n) => !n.isTag)).toBe(true);
+		expect(result.edges.every((e) => e.type !== "has-tag")).toBe(true);
+	});
 
-  it("showTagNodes=false removes tag nodes", () => {
-    const nodes = [node("a.md"), node("#tag", { isTag: true })];
-    const edges = [edge("a.md", "#tag", "has-tag")];
-    const result = applyVisibilityFilters(nodes, edges, { ...defaultOpts, showTagNodes: false });
-    expect(result.nodes.every(n => !n.isTag)).toBe(true);
-  });
+	it("showTagNodes=false removes tag nodes", () => {
+		const nodes = [node("a.md"), node("#tag", { isTag: true })];
+		const edges = [edge("a.md", "#tag", "has-tag")];
+		const result = applyVisibilityFilters(nodes, edges, { ...defaultOpts, showTagNodes: false });
+		expect(result.nodes.every((n) => !n.isTag)).toBe(true);
+	});
 
-  it("empty graph: no crash", () => {
-    const result = applyVisibilityFilters([], [], defaultOpts);
-    expect(result.nodes).toEqual([]);
-    expect(result.edges).toEqual([]);
-  });
+	it("empty graph: no crash", () => {
+		const result = applyVisibilityFilters([], [], defaultOpts);
+		expect(result.nodes).toEqual([]);
+		expect(result.edges).toEqual([]);
+	});
 });
 
 // ---------------------------------------------------------------------------
 // filterOrphans — additional boundary values
 // ---------------------------------------------------------------------------
 describe("filterOrphans boundary values", () => {
-  it("has-tag edges count as connections (nodes not orphaned)", () => {
-    const nodes = [node("a"), node("tag-x", { isTag: true })];
-    const edges = [edge("a", "tag-x", "has-tag")];
-    // filterOrphans uses ALL edges including has-tag
-    expect(filterOrphans(nodes, edges)).toHaveLength(2);
-  });
+	it("has-tag edges count as connections (nodes not orphaned)", () => {
+		const nodes = [node("a"), node("tag-x", { isTag: true })];
+		const edges = [edge("a", "tag-x", "has-tag")];
+		// filterOrphans uses ALL edges including has-tag
+		expect(filterOrphans(nodes, edges)).toHaveLength(2);
+	});
 
-  it("similar edges count as connections", () => {
-    const nodes = [node("a"), node("b"), node("c")];
-    const edges = [edge("a", "b", "similar")];
-    const result = filterOrphans(nodes, edges);
-    expect(result.map(n => n.id)).toEqual(["a", "b"]);
-  });
+	it("similar edges count as connections", () => {
+		const nodes = [node("a"), node("b"), node("c")];
+		const edges = [edge("a", "b", "similar")];
+		const result = filterOrphans(nodes, edges);
+		expect(result.map((n) => n.id)).toEqual(["a", "b"]);
+	});
 
-  it("self-referencing edge keeps node connected", () => {
-    const nodes = [node("a"), node("b")];
-    const edges = [edge("a", "a")]; // self-loop
-    expect(filterOrphans(nodes, edges).map(n => n.id)).toEqual(["a"]);
-  });
+	it("self-referencing edge keeps node connected", () => {
+		const nodes = [node("a"), node("b")];
+		const edges = [edge("a", "a")]; // self-loop
+		expect(filterOrphans(nodes, edges).map((n) => n.id)).toEqual(["a"]);
+	});
 
-  it("empty nodes returns empty", () => {
-    expect(filterOrphans([], [edge("a", "b")])).toHaveLength(0);
-  });
+	it("empty nodes returns empty", () => {
+		expect(filterOrphans([], [edge("a", "b")])).toHaveLength(0);
+	});
 
-  it("duplicate edges don't cause double-counting issues", () => {
-    const nodes = [node("a"), node("b")];
-    const edges = [edge("a", "b"), edge("a", "b")]; // duplicate
-    expect(filterOrphans(nodes, edges)).toHaveLength(2);
-  });
+	it("duplicate edges don't cause double-counting issues", () => {
+		const nodes = [node("a"), node("b")];
+		const edges = [edge("a", "b"), edge("a", "b")]; // duplicate
+		expect(filterOrphans(nodes, edges)).toHaveLength(2);
+	});
 });
 
 // ---------------------------------------------------------------------------
 // filterByDegree — additional boundary values
 // ---------------------------------------------------------------------------
 describe("filterByDegree boundary values", () => {
-  it("minDeg=1 removes isolated nodes", () => {
-    const nodes = [node("hub"), node("leaf"), node("iso")];
-    const edges = [edge("hub", "leaf")];
-    expect(filterByDegree(nodes, edges, 1, 0).map(n => n.id)).toEqual(["hub", "leaf"]);
-  });
+	it("minDeg=1 removes isolated nodes", () => {
+		const nodes = [node("hub"), node("leaf"), node("iso")];
+		const edges = [edge("hub", "leaf")];
+		expect(filterByDegree(nodes, edges, 1, 0).map((n) => n.id)).toEqual(["hub", "leaf"]);
+	});
 
-  it("maxDeg=1 removes hubs", () => {
-    const nodes = [node("hub"), node("a"), node("b")];
-    const edges = [edge("hub", "a"), edge("hub", "b")];
-    expect(filterByDegree(nodes, edges, 0, 1).map(n => n.id)).toEqual(["a", "b"]);
-  });
+	it("maxDeg=1 removes hubs", () => {
+		const nodes = [node("hub"), node("a"), node("b")];
+		const edges = [edge("hub", "a"), edge("hub", "b")];
+		expect(filterByDegree(nodes, edges, 0, 1).map((n) => n.id)).toEqual(["a", "b"]);
+	});
 
-  it("minDeg=maxDeg selects exact degree", () => {
-    const nodes = [node("a"), node("b"), node("c")];
-    const edges = [edge("a", "b"), edge("b", "c")]; // a:1, b:2, c:1
-    expect(filterByDegree(nodes, edges, 2, 2).map(n => n.id)).toEqual(["b"]);
-  });
+	it("minDeg=maxDeg selects exact degree", () => {
+		const nodes = [node("a"), node("b"), node("c")];
+		const edges = [edge("a", "b"), edge("b", "c")]; // a:1, b:2, c:1
+		expect(filterByDegree(nodes, edges, 2, 2).map((n) => n.id)).toEqual(["b"]);
+	});
 
-  it("self-loop counts as 2 degrees", () => {
-    const nodes = [node("a")];
-    const edges = [edge("a", "a")]; // self-loop: source+target both "a"
-    expect(filterByDegree(nodes, edges, 2, 0)).toHaveLength(1);
-  });
+	it("self-loop counts as 2 degrees", () => {
+		const nodes = [node("a")];
+		const edges = [edge("a", "a")]; // self-loop: source+target both "a"
+		expect(filterByDegree(nodes, edges, 2, 0)).toHaveLength(1);
+	});
 });
 
 // ---------------------------------------------------------------------------
 // filterEdgesByNodeSet — additional boundary values
 // ---------------------------------------------------------------------------
 describe("filterEdgesByNodeSet boundary values", () => {
-  it("empty nodeSet removes all edges", () => {
-    expect(filterEdgesByNodeSet([edge("a", "b")], new Set())).toHaveLength(0);
-  });
+	it("empty nodeSet removes all edges", () => {
+		expect(filterEdgesByNodeSet([edge("a", "b")], new Set())).toHaveLength(0);
+	});
 
-  it("empty edges returns empty", () => {
-    expect(filterEdgesByNodeSet([], new Set(["a"]))).toHaveLength(0);
-  });
+	it("empty edges returns empty", () => {
+		expect(filterEdgesByNodeSet([], new Set(["a"]))).toHaveLength(0);
+	});
 
-  it("keeps only edges where both endpoints are in set", () => {
-    const edges = [edge("a", "b"), edge("b", "c"), edge("c", "d")];
-    const result = filterEdgesByNodeSet(edges, new Set(["a", "b", "c"]));
-    expect(result).toHaveLength(2); // a-b, b-c
-  });
+	it("keeps only edges where both endpoints are in set", () => {
+		const edges = [edge("a", "b"), edge("b", "c"), edge("c", "d")];
+		const result = filterEdgesByNodeSet(edges, new Set(["a", "b", "c"]));
+		expect(result).toHaveLength(2); // a-b, b-c
+	});
 
-  it("self-loop kept when node is in set", () => {
-    expect(filterEdgesByNodeSet([edge("a", "a")], new Set(["a"]))).toHaveLength(1);
-  });
+	it("self-loop kept when node is in set", () => {
+		expect(filterEdgesByNodeSet([edge("a", "a")], new Set(["a"]))).toHaveLength(1);
+	});
 });
 
 // ---------------------------------------------------------------------------
 // filterByDegree — additional edge cases
 // ---------------------------------------------------------------------------
 describe("filterByDegree edge cases", () => {
-  it("both min and max active narrows to band", () => {
-    // hub: degree 3, a: degree 2, b: degree 2, leaf: degree 1
-    const nodes = [node("hub"), node("a"), node("b"), node("leaf")];
-    const edges = [edge("hub", "a"), edge("hub", "b"), edge("hub", "leaf"), edge("a", "b")];
-    // only nodes with degree 2 survive (min=2, max=2)
-    const result = filterByDegree(nodes, edges, 2, 2);
-    expect(result.map(n => n.id).sort()).toEqual(["a", "b"]);
-  });
+	it("both min and max active narrows to band", () => {
+		// hub: degree 3, a: degree 2, b: degree 2, leaf: degree 1
+		const nodes = [node("hub"), node("a"), node("b"), node("leaf")];
+		const edges = [edge("hub", "a"), edge("hub", "b"), edge("hub", "leaf"), edge("a", "b")];
+		// only nodes with degree 2 survive (min=2, max=2)
+		const result = filterByDegree(nodes, edges, 2, 2);
+		expect(result.map((n) => n.id).sort()).toEqual(["a", "b"]);
+	});
 
-  it("empty nodes and edges returns empty", () => {
-    expect(filterByDegree([], [], 1, 5)).toEqual([]);
-  });
+	it("empty nodes and edges returns empty", () => {
+		expect(filterByDegree([], [], 1, 5)).toEqual([]);
+	});
 
-  it("nodes with no edges all have degree 0, filtered by min=1", () => {
-    const nodes = [node("a"), node("b"), node("c")];
-    expect(filterByDegree(nodes, [], 1, 0)).toEqual([]);
-  });
+	it("nodes with no edges all have degree 0, filtered by min=1", () => {
+		const nodes = [node("a"), node("b"), node("c")];
+		expect(filterByDegree(nodes, [], 1, 0)).toEqual([]);
+	});
 });
 
 // ---------------------------------------------------------------------------
 // filterEdgesByNodeSet — additional edge cases
 // ---------------------------------------------------------------------------
 describe("filterEdgesByNodeSet edge cases", () => {
-  it("empty node set returns no edges", () => {
-    expect(filterEdgesByNodeSet([edge("a", "b")], new Set())).toEqual([]);
-  });
+	it("empty node set returns no edges", () => {
+		expect(filterEdgesByNodeSet([edge("a", "b")], new Set())).toEqual([]);
+	});
 });
 
 // ---------------------------------------------------------------------------
 // filterOrphans — self-loop edge case
 // ---------------------------------------------------------------------------
 describe("filterOrphans self-loop", () => {
-  it("node with self-loop is not orphan", () => {
-    const nodes = [node("a"), node("lonely")];
-    const edges = [edge("a", "a")]; // self-loop
-    const result = filterOrphans(nodes, edges);
-    expect(result.map(n => n.id)).toEqual(["a"]);
-  });
+	it("node with self-loop is not orphan", () => {
+		const nodes = [node("a"), node("lonely")];
+		const edges = [edge("a", "a")]; // self-loop
+		const result = filterOrphans(nodes, edges);
+		expect(result.map((n) => n.id)).toEqual(["a"]);
+	});
 });
 
 // =========================================================================
 // filterBySubgraph
 // =========================================================================
 describe("filterBySubgraph", () => {
-  it("empty subgraphIds returns all nodes and edges", () => {
-    const nodes = [node("a"), node("b")];
-    const edges = [edge("a", "b")];
-    const r = filterBySubgraph(nodes, edges, []);
-    expect(r.nodes).toHaveLength(2);
-    expect(r.edges).toHaveLength(1);
-  });
+	it("empty subgraphIds returns all nodes and edges", () => {
+		const nodes = [node("a"), node("b")];
+		const edges = [edge("a", "b")];
+		const r = filterBySubgraph(nodes, edges, []);
+		expect(r.nodes).toHaveLength(2);
+		expect(r.edges).toHaveLength(1);
+	});
 
-  it("filters to specified node IDs", () => {
-    const nodes = [node("a"), node("b"), node("c")];
-    const edges = [edge("a", "b"), edge("b", "c")];
-    const r = filterBySubgraph(nodes, edges, ["a", "b"]);
-    expect(r.nodes.map(n => n.id)).toEqual(["a", "b"]);
-    // Only edge a→b survives (b→c has c outside subgraph)
-    expect(r.edges).toHaveLength(1);
-    expect(r.edges[0].source).toBe("a");
-  });
+	it("filters to specified node IDs", () => {
+		const nodes = [node("a"), node("b"), node("c")];
+		const edges = [edge("a", "b"), edge("b", "c")];
+		const r = filterBySubgraph(nodes, edges, ["a", "b"]);
+		expect(r.nodes.map((n) => n.id)).toEqual(["a", "b"]);
+		// Only edge a→b survives (b→c has c outside subgraph)
+		expect(r.edges).toHaveLength(1);
+		expect(r.edges[0].source).toBe("a");
+	});
 
-  it("single node subgraph returns only that node", () => {
-    const nodes = [node("a"), node("b"), node("c")];
-    const edges = [edge("a", "b"), edge("b", "c")];
-    const r = filterBySubgraph(nodes, edges, ["b"]);
-    expect(r.nodes).toHaveLength(1);
-    expect(r.edges).toHaveLength(0); // no edge has both endpoints in {b}
-  });
+	it("single node subgraph returns only that node", () => {
+		const nodes = [node("a"), node("b"), node("c")];
+		const edges = [edge("a", "b"), edge("b", "c")];
+		const r = filterBySubgraph(nodes, edges, ["b"]);
+		expect(r.nodes).toHaveLength(1);
+		expect(r.edges).toHaveLength(0); // no edge has both endpoints in {b}
+	});
 
-  it("handles unknown IDs gracefully", () => {
-    const nodes = [node("a"), node("b")];
-    const r = filterBySubgraph(nodes, [], ["x", "y"]);
-    expect(r.nodes).toHaveLength(0);
-  });
+	it("handles unknown IDs gracefully", () => {
+		const nodes = [node("a"), node("b")];
+		const r = filterBySubgraph(nodes, [], ["x", "y"]);
+		expect(r.nodes).toHaveLength(0);
+	});
 
-  it("self-loop edge survives if node is in subgraph", () => {
-    const nodes = [node("a"), node("b")];
-    const edges = [edge("a", "a")];
-    const r = filterBySubgraph(nodes, edges, ["a"]);
-    expect(r.edges).toHaveLength(1);
-  });
+	it("self-loop edge survives if node is in subgraph", () => {
+		const nodes = [node("a"), node("b")];
+		const edges = [edge("a", "a")];
+		const r = filterBySubgraph(nodes, edges, ["a"]);
+		expect(r.edges).toHaveLength(1);
+	});
 
-  it("preserves edge when both endpoints in subgraph", () => {
-    const nodes = [node("a"), node("b"), node("c"), node("d")];
-    const edges = [edge("a", "b"), edge("c", "d"), edge("a", "c")];
-    const r = filterBySubgraph(nodes, edges, ["a", "c"]);
-    expect(r.nodes).toHaveLength(2);
-    expect(r.edges).toHaveLength(1); // only a→c
-    expect(r.edges[0].source).toBe("a");
-    expect(r.edges[0].target).toBe("c");
-  });
+	it("preserves edge when both endpoints in subgraph", () => {
+		const nodes = [node("a"), node("b"), node("c"), node("d")];
+		const edges = [edge("a", "b"), edge("c", "d"), edge("a", "c")];
+		const r = filterBySubgraph(nodes, edges, ["a", "c"]);
+		expect(r.nodes).toHaveLength(2);
+		expect(r.edges).toHaveLength(1); // only a→c
+		expect(r.edges[0].source).toBe("a");
+		expect(r.edges[0].target).toBe("c");
+	});
 });
 
 // ---------------------------------------------------------------------------
 // filterByLocalGraph — BFS hop filter (cycle198)
 // ---------------------------------------------------------------------------
 describe("filterByLocalGraph", () => {
-  const n = (id: string, fp?: string) => ({ id, label: id, filePath: fp });
-  const e = (s: string, t: string) => ({ source: s, target: t, type: "link" as const });
+	const n = (id: string, fp?: string) => ({ id, label: id, filePath: fp });
+	const e = (s: string, t: string) => ({ source: s, target: t, type: "link" as const });
 
-  it("returns all nodes when centerId not found", () => {
-    const nodes = [n("a"), n("b"), n("c")];
-    const edges = [e("a", "b"), e("b", "c")];
-    const r = filterByLocalGraph(nodes, edges, "nonexistent", 2);
-    expect(r.nodes).toHaveLength(3);
-    expect(r.edges).toHaveLength(2);
-  });
+	it("returns all nodes when centerId not found", () => {
+		const nodes = [n("a"), n("b"), n("c")];
+		const edges = [e("a", "b"), e("b", "c")];
+		const r = filterByLocalGraph(nodes, edges, "nonexistent", 2);
+		expect(r.nodes).toHaveLength(3);
+		expect(r.edges).toHaveLength(2);
+	});
 
-  it("hop=0 returns only the center node", () => {
-    const nodes = [n("a"), n("b"), n("c")];
-    const edges = [e("a", "b"), e("b", "c")];
-    const r = filterByLocalGraph(nodes, edges, "a", 0);
-    expect(r.nodes).toHaveLength(1);
-    expect(r.nodes[0].id).toBe("a");
-    expect(r.edges).toHaveLength(0);
-  });
+	it("hop=0 returns only the center node", () => {
+		const nodes = [n("a"), n("b"), n("c")];
+		const edges = [e("a", "b"), e("b", "c")];
+		const r = filterByLocalGraph(nodes, edges, "a", 0);
+		expect(r.nodes).toHaveLength(1);
+		expect(r.nodes[0].id).toBe("a");
+		expect(r.edges).toHaveLength(0);
+	});
 
-  it("hop=1 returns center + direct neighbors", () => {
-    const nodes = [n("a"), n("b"), n("c"), n("d")];
-    const edges = [e("a", "b"), e("b", "c"), e("c", "d")];
-    const r = filterByLocalGraph(nodes, edges, "b", 1);
-    expect(r.nodes.map(x => x.id).sort()).toEqual(["a", "b", "c"]);
-    // edge b→c and a→b kept, c→d dropped (d not reachable)
-    expect(r.edges).toHaveLength(2);
-  });
+	it("hop=1 returns center + direct neighbors", () => {
+		const nodes = [n("a"), n("b"), n("c"), n("d")];
+		const edges = [e("a", "b"), e("b", "c"), e("c", "d")];
+		const r = filterByLocalGraph(nodes, edges, "b", 1);
+		expect(r.nodes.map((x) => x.id).sort()).toEqual(["a", "b", "c"]);
+		// edge b→c and a→b kept, c→d dropped (d not reachable)
+		expect(r.edges).toHaveLength(2);
+	});
 
-  it("hop=2 extends to 2nd-degree neighbors", () => {
-    const nodes = [n("a"), n("b"), n("c"), n("d"), n("e")];
-    const edges = [e("a", "b"), e("b", "c"), e("c", "d"), e("d", "e")];
-    const r = filterByLocalGraph(nodes, edges, "b", 2);
-    expect(r.nodes.map(x => x.id).sort()).toEqual(["a", "b", "c", "d"]);
-  });
+	it("hop=2 extends to 2nd-degree neighbors", () => {
+		const nodes = [n("a"), n("b"), n("c"), n("d"), n("e")];
+		const edges = [e("a", "b"), e("b", "c"), e("c", "d"), e("d", "e")];
+		const r = filterByLocalGraph(nodes, edges, "b", 2);
+		expect(r.nodes.map((x) => x.id).sort()).toEqual(["a", "b", "c", "d"]);
+	});
 
-  it("large hops returns all connected nodes", () => {
-    const nodes = [n("a"), n("b"), n("c")];
-    const edges = [e("a", "b"), e("b", "c")];
-    const r = filterByLocalGraph(nodes, edges, "a", 100);
-    expect(r.nodes).toHaveLength(3);
-    expect(r.edges).toHaveLength(2);
-  });
+	it("large hops returns all connected nodes", () => {
+		const nodes = [n("a"), n("b"), n("c")];
+		const edges = [e("a", "b"), e("b", "c")];
+		const r = filterByLocalGraph(nodes, edges, "a", 100);
+		expect(r.nodes).toHaveLength(3);
+		expect(r.edges).toHaveLength(2);
+	});
 
-  it("isolated center node returns only itself", () => {
-    const nodes = [n("a"), n("b"), n("c")];
-    const edges = [e("b", "c")]; // a is isolated
-    const r = filterByLocalGraph(nodes, edges, "a", 3);
-    expect(r.nodes).toHaveLength(1);
-    expect(r.nodes[0].id).toBe("a");
-    expect(r.edges).toHaveLength(0);
-  });
+	it("isolated center node returns only itself", () => {
+		const nodes = [n("a"), n("b"), n("c")];
+		const edges = [e("b", "c")]; // a is isolated
+		const r = filterByLocalGraph(nodes, edges, "a", 3);
+		expect(r.nodes).toHaveLength(1);
+		expect(r.nodes[0].id).toBe("a");
+		expect(r.edges).toHaveLength(0);
+	});
 
-  it("resolves center by filePath", () => {
-    const nodes = [n("id-a", "folder/a.md"), n("id-b"), n("id-c")];
-    const edges = [e("id-a", "id-b")];
-    const r = filterByLocalGraph(nodes, edges, "folder/a.md", 1);
-    expect(r.nodes.map(x => x.id).sort()).toEqual(["id-a", "id-b"]);
-  });
+	it("resolves center by filePath", () => {
+		const nodes = [n("id-a", "folder/a.md"), n("id-b"), n("id-c")];
+		const edges = [e("id-a", "id-b")];
+		const r = filterByLocalGraph(nodes, edges, "folder/a.md", 1);
+		expect(r.nodes.map((x) => x.id).sort()).toEqual(["id-a", "id-b"]);
+	});
 
-  it("handles cycle in graph without infinite loop", () => {
-    const nodes = [n("a"), n("b"), n("c")];
-    const edges = [e("a", "b"), e("b", "c"), e("c", "a")]; // cycle
-    const r = filterByLocalGraph(nodes, edges, "a", 1);
-    // hop=1: a + direct neighbors b, c (since c→a exists)
-    expect(r.nodes).toHaveLength(3);
-  });
+	it("handles cycle in graph without infinite loop", () => {
+		const nodes = [n("a"), n("b"), n("c")];
+		const edges = [e("a", "b"), e("b", "c"), e("c", "a")]; // cycle
+		const r = filterByLocalGraph(nodes, edges, "a", 1);
+		// hop=1: a + direct neighbors b, c (since c→a exists)
+		expect(r.nodes).toHaveLength(3);
+	});
 
-  it("empty graph returns empty", () => {
-    const r = filterByLocalGraph([], [], "a", 2);
-    expect(r.nodes).toHaveLength(0);
-    expect(r.edges).toHaveLength(0);
-  });
+	it("empty graph returns empty", () => {
+		const r = filterByLocalGraph([], [], "a", 2);
+		expect(r.nodes).toHaveLength(0);
+		expect(r.edges).toHaveLength(0);
+	});
 });

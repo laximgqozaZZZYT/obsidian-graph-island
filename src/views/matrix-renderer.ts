@@ -55,11 +55,7 @@ interface MatrixData {
 }
 
 /** Build adjacency matrix data from graph edges + sorting config. */
-export function buildMatrixData(
-	gd: GraphData,
-	sortMode: MatrixSortMode,
-	maxNodes: number,
-): MatrixData {
+export function buildMatrixData(gd: GraphData, sortMode: MatrixSortMode, maxNodes: number): MatrixData {
 	// Compute degree per node
 	const degrees = new Map<string, number>();
 	for (const e of gd.edges) {

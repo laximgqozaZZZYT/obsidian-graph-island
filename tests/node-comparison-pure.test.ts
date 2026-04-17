@@ -1,9 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-	classifyNeighbors,
-	classifyTags,
-	computeComparison,
-} from "../src/views/NodeComparisonView";
+import { classifyNeighbors, classifyTags, computeComparison } from "../src/views/NodeComparisonView";
 import type { GraphNode } from "../src/types";
 
 // ---------------------------------------------------------------------------

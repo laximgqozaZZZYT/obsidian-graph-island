@@ -802,12 +802,13 @@ function findHierarchyRoots(
 	return bestId ? [bestId] : [];
 }
 
-function toChildrenIdMap(
-	children: Map<string, { id: string; storyOrder: number }[]>,
-): Map<string, string[]> {
+function toChildrenIdMap(children: Map<string, { id: string; storyOrder: number }[]>): Map<string, string[]> {
 	const out = new Map<string, string[]>();
 	for (const [pid, ch] of children) {
-		out.set(pid, ch.map((c) => c.id));
+		out.set(
+			pid,
+			ch.map((c) => c.id),
+		);
 	}
 	return out;
 }

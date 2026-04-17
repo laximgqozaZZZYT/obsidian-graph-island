@@ -314,7 +314,14 @@ function resolveGroupOverlaps(
 	if (keys.length < 2) return;
 
 	const actualRadii = computeActualRadii(
-		keys, groups, targets, clusterCentroids, clusterRadii, nodeSize, degrees, groupLabelPad,
+		keys,
+		groups,
+		targets,
+		clusterCentroids,
+		clusterRadii,
+		nodeSize,
+		degrees,
+		groupLabelPad,
 	);
 
 	const maxIter = Math.max(5, Math.min(keys.length, 15));
@@ -555,10 +562,7 @@ function realignGuideCenters(
 }
 
 /** Apply manual cluster overrides — move nodes between groups, prune empties */
-function applyManualClusterOverrides(
-	groups: Map<string, GraphNode[]>,
-	overrides: Record<string, string>,
-): void {
+function applyManualClusterOverrides(groups: Map<string, GraphNode[]>, overrides: Record<string, string>): void {
 	for (const [nodeId, targetGroup] of Object.entries(overrides)) {
 		for (const [, members] of groups) {
 			const idx = members.findIndex((n) => n.id === nodeId);
@@ -3280,9 +3284,11 @@ function _detectAutoFitOverlaps(
 }
 
 /** Grid-based spatial node overlap detection — O(n) via cell bucketing */
-function _detectGridNodeOverlaps(
-	nodeInfos: AutoFitNodeInfo[],
-): { maxOverlapRatio: number; hasNodeOverlap: boolean; hasCrossGroupOverlap: boolean } {
+function _detectGridNodeOverlaps(nodeInfos: AutoFitNodeInfo[]): {
+	maxOverlapRatio: number;
+	hasNodeOverlap: boolean;
+	hasCrossGroupOverlap: boolean;
+} {
 	const LABEL_H = 12;
 	let maxOverlapRatio = 0;
 	let hasNodeOverlap = false;
@@ -3357,10 +3363,7 @@ interface OverlapResult {
 }
 
 /** Pairwise BBox overlap ratio for groups */
-function _detectBBoxOverlaps(
-	groupKeys: string[],
-	groupBBoxes: Map<string, BBox>,
-): OverlapResult {
+function _detectBBoxOverlaps(groupKeys: string[], groupBBoxes: Map<string, BBox>): OverlapResult {
 	let maxOverlapRatio = 0;
 	let hasOverlap = false;
 	for (let i = 0; i < groupKeys.length; i++) {
@@ -3429,7 +3432,10 @@ function _detectGroupOverlaps(
 	const pad = baseSize * 2;
 	for (const k of groupKeys) {
 		const members = groupNodes.get(k)!;
-		let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+		let minX = Infinity,
+			minY = Infinity,
+			maxX = -Infinity,
+			maxY = -Infinity;
 		for (const m of members) {
 			if (m.x - m.r < minX) minX = m.x - m.r;
 			if (m.y - m.r < minY) minY = m.y - m.r;

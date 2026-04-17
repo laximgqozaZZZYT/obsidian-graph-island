@@ -2,289 +2,310 @@ import { describe, it, expect, vi } from "vitest";
 
 // Mock PIXI before importing
 vi.mock("pixi.js", () => ({
-  Text: class MockText {
-    x = 0; y = 0; alpha = 1; visible = true; resolution = 1;
-    eventMode = "auto";
-    cursor = "";
-    anchor = { set: vi.fn() };
-    scale = { set: vi.fn() };
-    on = vi.fn();
-    constructor(public text: string, public style: any) {}
-  },
+	Text: class MockText {
+		x = 0;
+		y = 0;
+		alpha = 1;
+		visible = true;
+		resolution = 1;
+		eventMode = "auto";
+		cursor = "";
+		anchor = { set: vi.fn() };
+		scale = { set: vi.fn() };
+		on = vi.fn();
+		constructor(
+			public text: string,
+			public style: any,
+		) {}
+	},
 }));
 
 function createMockGraphics() {
-  const calls: { method: string; args: any[] }[] = [];
-  const handler: ProxyHandler<any> = {
-    get(target, prop) {
-      if (prop === "parent") return { addChild: vi.fn() };
-      return (...args: any[]) => {
-        calls.push({ method: String(prop), args });
-        return proxy;
-      };
-    },
-  };
-  const proxy = new Proxy({}, handler);
-  return { g: proxy, calls };
+	const calls: { method: string; args: any[] }[] = [];
+	const handler: ProxyHandler<any> = {
+		get(target, prop) {
+			if (prop === "parent") return { addChild: vi.fn() };
+			return (...args: any[]) => {
+				calls.push({ method: String(prop), args });
+				return proxy;
+			};
+		},
+	};
+	const proxy = new Proxy({}, handler);
+	return { g: proxy, calls };
 }
 
 import { drawEnclosures, type OverlapCache, type EnclosureConfig } from "../src/views/EnclosureRenderer";
 import * as PIXI from "pixi.js";
 
 function baseCfg(overrides?: Partial<EnclosureConfig>): EnclosureConfig {
-  return {
-    tagDisplay: "enclosure",
-    tagMembership: new Map(),
-    nodeColorMap: new Map(),
-    tagRelPairsCache: new Set(),
-    resolvePos: () => undefined,
-    worldScale: 1,
-    totalNodeCount: 100,
-    enclosureMinRatio: 0,
-    ...overrides,
-  };
+	return {
+		tagDisplay: "enclosure",
+		tagMembership: new Map(),
+		nodeColorMap: new Map(),
+		tagRelPairsCache: new Set(),
+		resolvePos: () => undefined,
+		worldScale: 1,
+		totalNodeCount: 100,
+		enclosureMinRatio: 0,
+		...overrides,
+	};
 }
 
 function makeOverlapCache(): OverlapCache {
-  return { frame: 0, counts: new Map() };
+	return { frame: 0, counts: new Map() };
 }
 
 describe("drawEnclosures", () => {
-  it("clears graphics and hides labels when tagDisplay is not enclosure", () => {
-    const { g, calls } = createMockGraphics();
-    const labels = new Map<string, PIXI.Text>();
-    const mockText = new PIXI.Text("test", {});
-    labels.set("mytag", mockText as any);
+	it("clears graphics and hides labels when tagDisplay is not enclosure", () => {
+		const { g, calls } = createMockGraphics();
+		const labels = new Map<string, PIXI.Text>();
+		const mockText = new PIXI.Text("test", {});
+		labels.set("mytag", mockText as any);
 
-    drawEnclosures(g, labels as any, makeOverlapCache(), baseCfg({ tagDisplay: "node" }));
+		drawEnclosures(g, labels as any, makeOverlapCache(), baseCfg({ tagDisplay: "node" }));
 
-    expect(calls[0]).toEqual({ method: "clear", args: [] });
-    expect((mockText as any).visible).toBe(false);
-  });
+		expect(calls[0]).toEqual({ method: "clear", args: [] });
+		expect((mockText as any).visible).toBe(false);
+	});
 
-  it("draws nothing when tagMembership is empty", () => {
-    const { g, calls } = createMockGraphics();
-    drawEnclosures(g, new Map() as any, makeOverlapCache(), baseCfg());
-    // Only clear should be called
-    expect(calls.length).toBe(1);
-    expect(calls[0].method).toBe("clear");
-  });
+	it("draws nothing when tagMembership is empty", () => {
+		const { g, calls } = createMockGraphics();
+		drawEnclosures(g, new Map() as any, makeOverlapCache(), baseCfg());
+		// Only clear should be called
+		expect(calls.length).toBe(1);
+		expect(calls[0].method).toBe("clear");
+	});
 
-  it("draws a circle for single-point tag", () => {
-    const { g, calls } = createMockGraphics();
-    const membership = new Map([["solo", new Set(["n1"])]]);
-    const cfg = baseCfg({
-      tagMembership: membership,
-      resolvePos: (id) => id === "n1" ? { x: 50, y: 50 } : undefined,
-    });
+	it("draws a circle for single-point tag", () => {
+		const { g, calls } = createMockGraphics();
+		const membership = new Map([["solo", new Set(["n1"])]]);
+		const cfg = baseCfg({
+			tagMembership: membership,
+			resolvePos: (id) => (id === "n1" ? { x: 50, y: 50 } : undefined),
+		});
 
-    drawEnclosures(g, new Map() as any, makeOverlapCache(), cfg);
+		drawEnclosures(g, new Map() as any, makeOverlapCache(), cfg);
 
-    const drawCircle = calls.find((c) => c.method === "drawCircle");
-    expect(drawCircle).toBeDefined();
-    expect(drawCircle!.args[0]).toBe(50); // x
-    expect(drawCircle!.args[1]).toBe(50); // y
-    // outlinePad(12, 1) = max(10, 12×0.8) × 0.6 = 9.6 × 0.6 = 5.76; radius = 12 + 5.76 ≈ 18
-    expect(drawCircle!.args[2]).toBeCloseTo(18);
-  });
+		const drawCircle = calls.find((c) => c.method === "drawCircle");
+		expect(drawCircle).toBeDefined();
+		expect(drawCircle!.args[0]).toBe(50); // x
+		expect(drawCircle!.args[1]).toBe(50); // y
+		// outlinePad(12, 1) = max(10, 12×0.8) × 0.6 = 9.6 × 0.6 = 5.76; radius = 12 + 5.76 ≈ 18
+		expect(drawCircle!.args[2]).toBeCloseTo(18);
+	});
 
-  it("draws a capsule for two-point tag", () => {
-    const { g, calls } = createMockGraphics();
-    const membership = new Map([["pair", new Set(["n1", "n2"])]]);
-    const cfg = baseCfg({
-      tagMembership: membership,
-      resolvePos: (id) => {
-        if (id === "n1") return { x: 0, y: 0 };
-        if (id === "n2") return { x: 100, y: 0 };
-        return undefined;
-      },
-    });
+	it("draws a capsule for two-point tag", () => {
+		const { g, calls } = createMockGraphics();
+		const membership = new Map([["pair", new Set(["n1", "n2"])]]);
+		const cfg = baseCfg({
+			tagMembership: membership,
+			resolvePos: (id) => {
+				if (id === "n1") return { x: 0, y: 0 };
+				if (id === "n2") return { x: 100, y: 0 };
+				return undefined;
+			},
+		});
 
-    drawEnclosures(g, new Map() as any, makeOverlapCache(), cfg);
+		drawEnclosures(g, new Map() as any, makeOverlapCache(), cfg);
 
-    // Capsule uses moveTo + lineTo + closePath (no curves)
-    const moveCalls = calls.filter((c) => c.method === "moveTo");
-    const lineCalls = calls.filter((c) => c.method === "lineTo");
-    expect(moveCalls.length).toBeGreaterThan(0);
-    expect(lineCalls.length).toBeGreaterThan(0);
-  });
+		// Capsule uses moveTo + lineTo + closePath (no curves)
+		const moveCalls = calls.filter((c) => c.method === "moveTo");
+		const lineCalls = calls.filter((c) => c.method === "lineTo");
+		expect(moveCalls.length).toBeGreaterThan(0);
+		expect(lineCalls.length).toBeGreaterThan(0);
+	});
 
-  it("draws a smooth hull for 3+ point tag", () => {
-    const { g, calls } = createMockGraphics();
-    const membership = new Map([["tri", new Set(["n1", "n2", "n3"])]]);
-    const positions: Record<string, { x: number; y: number }> = {
-      n1: { x: 0, y: 0 },
-      n2: { x: 100, y: 0 },
-      n3: { x: 50, y: 80 },
-    };
-    const cfg = baseCfg({
-      tagMembership: membership,
-      resolvePos: (id) => positions[id],
-    });
+	it("draws a smooth hull for 3+ point tag", () => {
+		const { g, calls } = createMockGraphics();
+		const membership = new Map([["tri", new Set(["n1", "n2", "n3"])]]);
+		const positions: Record<string, { x: number; y: number }> = {
+			n1: { x: 0, y: 0 },
+			n2: { x: 100, y: 0 },
+			n3: { x: 50, y: 80 },
+		};
+		const cfg = baseCfg({
+			tagMembership: membership,
+			resolvePos: (id) => positions[id],
+		});
 
-    drawEnclosures(g, new Map() as any, makeOverlapCache(), cfg);
+		drawEnclosures(g, new Map() as any, makeOverlapCache(), cfg);
 
-    // Smooth hull uses lineTo + closePath (no curves — map-style borders)
-    const lineCalls = calls.filter((c) => c.method === "lineTo");
-    expect(lineCalls.length).toBeGreaterThan(0);
-  });
+		// Smooth hull uses lineTo + closePath (no curves — map-style borders)
+		const lineCalls = calls.filter((c) => c.method === "lineTo");
+		expect(lineCalls.length).toBeGreaterThan(0);
+	});
 
-  it("sorts enclosures large-first (z-order)", () => {
-    const { g, calls } = createMockGraphics();
-    const membership = new Map([
-      ["small", new Set(["s1", "s2", "s3"])],
-      ["big", new Set(["b1", "b2", "b3"])],
-    ]);
-    const positions: Record<string, { x: number; y: number }> = {
-      s1: { x: 0, y: 0 }, s2: { x: 10, y: 0 }, s3: { x: 5, y: 5 },
-      b1: { x: 0, y: 0 }, b2: { x: 200, y: 0 }, b3: { x: 100, y: 200 },
-    };
-    const cfg = baseCfg({
-      tagMembership: membership,
-      resolvePos: (id) => positions[id],
-    });
+	it("sorts enclosures large-first (z-order)", () => {
+		const { g, calls } = createMockGraphics();
+		const membership = new Map([
+			["small", new Set(["s1", "s2", "s3"])],
+			["big", new Set(["b1", "b2", "b3"])],
+		]);
+		const positions: Record<string, { x: number; y: number }> = {
+			s1: { x: 0, y: 0 },
+			s2: { x: 10, y: 0 },
+			s3: { x: 5, y: 5 },
+			b1: { x: 0, y: 0 },
+			b2: { x: 200, y: 0 },
+			b3: { x: 100, y: 200 },
+		};
+		const cfg = baseCfg({
+			tagMembership: membership,
+			resolvePos: (id) => positions[id],
+		});
 
-    drawEnclosures(g, new Map() as any, makeOverlapCache(), cfg);
+		drawEnclosures(g, new Map() as any, makeOverlapCache(), cfg);
 
-    // Both should be drawn (4 lineStyle calls: outer+inner border × 2 enclosures)
-    const lineCalls = calls.filter((c) => c.method === "lineStyle");
-    expect(lineCalls.length).toBe(4);
-  });
+		// Both should be drawn (4 lineStyle calls: outer+inner border × 2 enclosures)
+		const lineCalls = calls.filter((c) => c.method === "lineStyle");
+		expect(lineCalls.length).toBe(4);
+	});
 
-  it("skips tags with no resolvable positions", () => {
-    const { g, calls } = createMockGraphics();
-    const membership = new Map([["ghost", new Set(["missing1", "missing2"])]]);
-    const cfg = baseCfg({
-      tagMembership: membership,
-      resolvePos: () => undefined,
-    });
+	it("skips tags with no resolvable positions", () => {
+		const { g, calls } = createMockGraphics();
+		const membership = new Map([["ghost", new Set(["missing1", "missing2"])]]);
+		const cfg = baseCfg({
+			tagMembership: membership,
+			resolvePos: () => undefined,
+		});
 
-    drawEnclosures(g, new Map() as any, makeOverlapCache(), cfg);
+		drawEnclosures(g, new Map() as any, makeOverlapCache(), cfg);
 
-    // No lineStyle calls beyond the initial clear
-    const lineCalls = calls.filter((c) => c.method === "lineStyle");
-    expect(lineCalls.length).toBe(0);
-  });
+		// No lineStyle calls beyond the initial clear
+		const lineCalls = calls.filter((c) => c.method === "lineStyle");
+		expect(lineCalls.length).toBe(0);
+	});
 
-  it("hides enclosures below enclosureMinRatio threshold", () => {
-    const { g, calls } = createMockGraphics();
-    // 3 nodes in a group, 100 total nodes, threshold 0.05 → need 5 nodes minimum
-    const membership = new Map([["small", new Set(["n1", "n2", "n3"])]]);
-    const positions: Record<string, { x: number; y: number }> = {
-      n1: { x: 0, y: 0 }, n2: { x: 50, y: 0 }, n3: { x: 25, y: 40 },
-    };
-    const cfg = baseCfg({
-      tagMembership: membership,
-      resolvePos: (id) => positions[id],
-      totalNodeCount: 100,
-      enclosureMinRatio: 0.05,
-    });
+	it("hides enclosures below enclosureMinRatio threshold", () => {
+		const { g, calls } = createMockGraphics();
+		// 3 nodes in a group, 100 total nodes, threshold 0.05 → need 5 nodes minimum
+		const membership = new Map([["small", new Set(["n1", "n2", "n3"])]]);
+		const positions: Record<string, { x: number; y: number }> = {
+			n1: { x: 0, y: 0 },
+			n2: { x: 50, y: 0 },
+			n3: { x: 25, y: 40 },
+		};
+		const cfg = baseCfg({
+			tagMembership: membership,
+			resolvePos: (id) => positions[id],
+			totalNodeCount: 100,
+			enclosureMinRatio: 0.05,
+		});
 
-    drawEnclosures(g, new Map() as any, makeOverlapCache(), cfg);
+		drawEnclosures(g, new Map() as any, makeOverlapCache(), cfg);
 
-    // Group has 3 nodes but needs 5 → no drawing
-    const lineCalls = calls.filter((c) => c.method === "lineStyle");
-    expect(lineCalls.length).toBe(0);
-  });
+		// Group has 3 nodes but needs 5 → no drawing
+		const lineCalls = calls.filter((c) => c.method === "lineStyle");
+		expect(lineCalls.length).toBe(0);
+	});
 
-  it("shows enclosures meeting enclosureMinRatio threshold", () => {
-    const { g, calls } = createMockGraphics();
-    // 6 nodes in a group, 100 total, threshold 0.05 → need 5 → shown
-    const ids = ["n1", "n2", "n3", "n4", "n5", "n6"];
-    const membership = new Map([["big", new Set(ids)]]);
-    const positions: Record<string, { x: number; y: number }> = {
-      n1: { x: 0, y: 0 }, n2: { x: 50, y: 0 }, n3: { x: 100, y: 0 },
-      n4: { x: 0, y: 50 }, n5: { x: 50, y: 50 }, n6: { x: 100, y: 50 },
-    };
-    const cfg = baseCfg({
-      tagMembership: membership,
-      resolvePos: (id) => positions[id],
-      totalNodeCount: 100,
-      enclosureMinRatio: 0.05,
-    });
+	it("shows enclosures meeting enclosureMinRatio threshold", () => {
+		const { g, calls } = createMockGraphics();
+		// 6 nodes in a group, 100 total, threshold 0.05 → need 5 → shown
+		const ids = ["n1", "n2", "n3", "n4", "n5", "n6"];
+		const membership = new Map([["big", new Set(ids)]]);
+		const positions: Record<string, { x: number; y: number }> = {
+			n1: { x: 0, y: 0 },
+			n2: { x: 50, y: 0 },
+			n3: { x: 100, y: 0 },
+			n4: { x: 0, y: 50 },
+			n5: { x: 50, y: 50 },
+			n6: { x: 100, y: 50 },
+		};
+		const cfg = baseCfg({
+			tagMembership: membership,
+			resolvePos: (id) => positions[id],
+			totalNodeCount: 100,
+			enclosureMinRatio: 0.05,
+		});
 
-    drawEnclosures(g, new Map() as any, makeOverlapCache(), cfg);
+		drawEnclosures(g, new Map() as any, makeOverlapCache(), cfg);
 
-    const lineCalls = calls.filter((c) => c.method === "lineStyle");
-    expect(lineCalls.length).toBeGreaterThan(0);
-  });
+		const lineCalls = calls.filter((c) => c.method === "lineStyle");
+		expect(lineCalls.length).toBeGreaterThan(0);
+	});
 
-  it("reuses cached overlap counts within 30 frames", () => {
-    const cache = makeOverlapCache();
-    cache.counts.set("tag1", 3);
-    cache.frame = 10; // not yet 30
+	it("reuses cached overlap counts within 30 frames", () => {
+		const cache = makeOverlapCache();
+		cache.counts.set("tag1", 3);
+		cache.frame = 10; // not yet 30
 
-    const { g } = createMockGraphics();
-    const membership = new Map([["tag1", new Set(["n1"])]]);
-    const cfg = baseCfg({
-      tagMembership: membership,
-      resolvePos: (id) => id === "n1" ? { x: 0, y: 0 } : undefined,
-    });
+		const { g } = createMockGraphics();
+		const membership = new Map([["tag1", new Set(["n1"])]]);
+		const cfg = baseCfg({
+			tagMembership: membership,
+			resolvePos: (id) => (id === "n1" ? { x: 0, y: 0 } : undefined),
+		});
 
-    drawEnclosures(g, new Map() as any, cache, cfg);
+		drawEnclosures(g, new Map() as any, cache, cfg);
 
-    // Cache should not have been cleared (frame = 11 now)
-    expect(cache.frame).toBe(11);
-    expect(cache.counts.get("tag1")).toBe(3);
-  });
+		// Cache should not have been cleared (frame = 11 now)
+		expect(cache.frame).toBe(11);
+		expect(cache.counts.get("tag1")).toBe(3);
+	});
 
-  it("uses fill + bold labels when zoomed out", () => {
-    const { g, calls } = createMockGraphics();
-    const membership = new Map([["group", new Set(["n1", "n2", "n3"])]]);
-    const positions: Record<string, { x: number; y: number }> = {
-      n1: { x: 0, y: 0 }, n2: { x: 100, y: 0 }, n3: { x: 50, y: 80 },
-    };
-    const cfg = baseCfg({
-      tagMembership: membership,
-      resolvePos: (id) => positions[id],
-      worldScale: 0.35, // zoomed out but not extreme (blend ~0.33, fill visible)
-    });
+	it("uses fill + bold labels when zoomed out", () => {
+		const { g, calls } = createMockGraphics();
+		const membership = new Map([["group", new Set(["n1", "n2", "n3"])]]);
+		const positions: Record<string, { x: number; y: number }> = {
+			n1: { x: 0, y: 0 },
+			n2: { x: 100, y: 0 },
+			n3: { x: 50, y: 80 },
+		};
+		const cfg = baseCfg({
+			tagMembership: membership,
+			resolvePos: (id) => positions[id],
+			worldScale: 0.35, // zoomed out but not extreme (blend ~0.33, fill visible)
+		});
 
-    drawEnclosures(g, new Map() as any, makeOverlapCache(), cfg);
+		drawEnclosures(g, new Map() as any, makeOverlapCache(), cfg);
 
-    // Should have beginFill for solid territory fill (no radial gradient)
-    const fillCalls = calls.filter((c) => c.method === "beginFill");
-    expect(fillCalls.length).toBe(1);
-    // Should also have lineStyle for the stroke
-    const lineCalls = calls.filter((c) => c.method === "lineStyle");
-    expect(lineCalls.length).toBeGreaterThanOrEqual(1);
-  });
+		// Should have beginFill for solid territory fill (no radial gradient)
+		const fillCalls = calls.filter((c) => c.method === "beginFill");
+		expect(fillCalls.length).toBe(1);
+		// Should also have lineStyle for the stroke
+		const lineCalls = calls.filter((c) => c.method === "lineStyle");
+		expect(lineCalls.length).toBeGreaterThanOrEqual(1);
+	});
 
-  it("uses stroke only (no fill) when zoomed in", () => {
-    const { g, calls } = createMockGraphics();
-    const membership = new Map([["group", new Set(["n1", "n2", "n3"])]]);
-    const positions: Record<string, { x: number; y: number }> = {
-      n1: { x: 0, y: 0 }, n2: { x: 100, y: 0 }, n3: { x: 50, y: 80 },
-    };
-    const cfg = baseCfg({
-      tagMembership: membership,
-      resolvePos: (id) => positions[id],
-      worldScale: 1, // zoomed in
-    });
+	it("uses stroke only (no fill) when zoomed in", () => {
+		const { g, calls } = createMockGraphics();
+		const membership = new Map([["group", new Set(["n1", "n2", "n3"])]]);
+		const positions: Record<string, { x: number; y: number }> = {
+			n1: { x: 0, y: 0 },
+			n2: { x: 100, y: 0 },
+			n3: { x: 50, y: 80 },
+		};
+		const cfg = baseCfg({
+			tagMembership: membership,
+			resolvePos: (id) => positions[id],
+			worldScale: 1, // zoomed in
+		});
 
-    drawEnclosures(g, new Map() as any, makeOverlapCache(), cfg);
+		drawEnclosures(g, new Map() as any, makeOverlapCache(), cfg);
 
-    const fillCalls = calls.filter((c) => c.method === "beginFill");
-    expect(fillCalls.length).toBe(0);
-  });
+		const fillCalls = calls.filter((c) => c.method === "beginFill");
+		expect(fillCalls.length).toBe(0);
+	});
 
-  it("recomputes overlap counts at frame 30", () => {
-    const cache: OverlapCache = { frame: 29, counts: new Map([["stale", 99]]) };
+	it("recomputes overlap counts at frame 30", () => {
+		const cache: OverlapCache = { frame: 29, counts: new Map([["stale", 99]]) };
 
-    const { g } = createMockGraphics();
-    const membership = new Map([["fresh", new Set(["n1"])]]);
-    const cfg = baseCfg({
-      tagMembership: membership,
-      resolvePos: (id) => id === "n1" ? { x: 0, y: 0 } : undefined,
-    });
+		const { g } = createMockGraphics();
+		const membership = new Map([["fresh", new Set(["n1"])]]);
+		const cfg = baseCfg({
+			tagMembership: membership,
+			resolvePos: (id) => (id === "n1" ? { x: 0, y: 0 } : undefined),
+		});
 
-    drawEnclosures(g, new Map() as any, cache, cfg);
+		drawEnclosures(g, new Map() as any, cache, cfg);
 
-    // Frame counter should reset
-    expect(cache.frame).toBe(0);
-    // Stale entry should be cleared
-    expect(cache.counts.has("stale")).toBe(false);
-  });
+		// Frame counter should reset
+		expect(cache.frame).toBe(0);
+		// Stale entry should be cleared
+		expect(cache.counts.has("stale")).toBe(false);
+	});
 });
 
 // ---------------------------------------------------------------------------
@@ -293,172 +314,174 @@ describe("drawEnclosures", () => {
 import { filterOutliers } from "../src/views/EnclosureRenderer";
 
 describe("filterOutliers", () => {
-  const pt = (x: number, y: number) => ({ x, y });
+	const pt = (x: number, y: number) => ({ x, y });
 
-  it("returns all points when ≤ 3 points", () => {
-    const pts = [pt(0, 0), pt(1, 1), pt(2, 2)];
-    expect(filterOutliers(pts)).toEqual(pts);
-  });
+	it("returns all points when ≤ 3 points", () => {
+		const pts = [pt(0, 0), pt(1, 1), pt(2, 2)];
+		expect(filterOutliers(pts)).toEqual(pts);
+	});
 
-  it("returns all points when ≤ 3 (edge: exactly 3)", () => {
-    expect(filterOutliers([pt(0, 0), pt(100, 0), pt(0, 100)])).toHaveLength(3);
-  });
+	it("returns all points when ≤ 3 (edge: exactly 3)", () => {
+		expect(filterOutliers([pt(0, 0), pt(100, 0), pt(0, 100)])).toHaveLength(3);
+	});
 
-  it("returns empty input unchanged", () => {
-    expect(filterOutliers([])).toEqual([]);
-  });
+	it("returns empty input unchanged", () => {
+		expect(filterOutliers([])).toEqual([]);
+	});
 
-  it("removes spatial outlier from tight cluster", () => {
-    // 9 points clustered near origin + 1 far outlier
-    const cluster = Array.from({ length: 9 }, (_, i) => pt(i * 0.1, i * 0.1));
-    const outlier = pt(1000, 1000);
-    const pts = [...cluster, outlier];
-    const result = filterOutliers(pts);
-    expect(result.length).toBeLessThan(pts.length);
-    expect(result).not.toContainEqual(outlier);
-  });
+	it("removes spatial outlier from tight cluster", () => {
+		// 9 points clustered near origin + 1 far outlier
+		const cluster = Array.from({ length: 9 }, (_, i) => pt(i * 0.1, i * 0.1));
+		const outlier = pt(1000, 1000);
+		const pts = [...cluster, outlier];
+		const result = filterOutliers(pts);
+		expect(result.length).toBeLessThan(pts.length);
+		expect(result).not.toContainEqual(outlier);
+	});
 
-  it("keeps all points when evenly distributed", () => {
-    // 4 corners of a square — no outliers
-    const pts = [pt(0, 0), pt(10, 0), pt(0, 10), pt(10, 10)];
-    const result = filterOutliers(pts);
-    expect(result).toHaveLength(4);
-  });
+	it("keeps all points when evenly distributed", () => {
+		// 4 corners of a square — no outliers
+		const pts = [pt(0, 0), pt(10, 0), pt(0, 10), pt(10, 10)];
+		const result = filterOutliers(pts);
+		expect(result).toHaveLength(4);
+	});
 
-  it("higher iqrFactor keeps more outliers", () => {
-    const cluster = Array.from({ length: 8 }, (_, i) => pt(i, i));
-    const mid = pt(50, 50);
-    const pts = [...cluster, mid];
-    const strict = filterOutliers(pts, 0.5);
-    const loose = filterOutliers(pts, 10.0);
-    expect(loose.length).toBeGreaterThanOrEqual(strict.length);
-  });
+	it("higher iqrFactor keeps more outliers", () => {
+		const cluster = Array.from({ length: 8 }, (_, i) => pt(i, i));
+		const mid = pt(50, 50);
+		const pts = [...cluster, mid];
+		const strict = filterOutliers(pts, 0.5);
+		const loose = filterOutliers(pts, 10.0);
+		expect(loose.length).toBeGreaterThanOrEqual(strict.length);
+	});
 
-  it("returns at least 1 point (never empty)", () => {
-    // All points are outliers relative to each other
-    const pts = [pt(0, 0), pt(100, 0), pt(0, 100), pt(100, 100), pt(50, 5000)];
-    const result = filterOutliers(pts, 0.01);
-    expect(result.length).toBeGreaterThanOrEqual(1);
-  });
+	it("returns at least 1 point (never empty)", () => {
+		// All points are outliers relative to each other
+		const pts = [pt(0, 0), pt(100, 0), pt(0, 100), pt(100, 100), pt(50, 5000)];
+		const result = filterOutliers(pts, 0.01);
+		expect(result.length).toBeGreaterThanOrEqual(1);
+	});
 
-  it("all same points returns all", () => {
-    const pts = [pt(5, 5), pt(5, 5), pt(5, 5), pt(5, 5)];
-    expect(filterOutliers(pts)).toHaveLength(4);
-  });
+	it("all same points returns all", () => {
+		const pts = [pt(5, 5), pt(5, 5), pt(5, 5), pt(5, 5)];
+		expect(filterOutliers(pts)).toHaveLength(4);
+	});
 
-  it("preserves original point references", () => {
-    const a = pt(0, 0);
-    const b = pt(1, 0);
-    const c = pt(0, 1);
-    const d = pt(1, 1);
-    const result = filterOutliers([a, b, c, d]);
-    for (const r of result) {
-      expect([a, b, c, d]).toContain(r);
-    }
-  });
+	it("preserves original point references", () => {
+		const a = pt(0, 0);
+		const b = pt(1, 0);
+		const c = pt(0, 1);
+		const d = pt(1, 1);
+		const result = filterOutliers([a, b, c, d]);
+		for (const r of result) {
+			expect([a, b, c, d]).toContain(r);
+		}
+	});
 });
 
 // ---------------------------------------------------------------------------
 // drawEnclosures — edge cases (cycle197)
 // ---------------------------------------------------------------------------
 describe("drawEnclosures — edge cases", () => {
-  it("skips 0-member group (empty Set)", () => {
-    const { g, calls } = createMockGraphics();
-    const membership = new Map([["empty", new Set<string>()]]);
-    const cfg = baseCfg({ tagMembership: membership });
+	it("skips 0-member group (empty Set)", () => {
+		const { g, calls } = createMockGraphics();
+		const membership = new Map([["empty", new Set<string>()]]);
+		const cfg = baseCfg({ tagMembership: membership });
 
-    drawEnclosures(g, new Map() as any, makeOverlapCache(), cfg);
+		drawEnclosures(g, new Map() as any, makeOverlapCache(), cfg);
 
-    const lineCalls = calls.filter((c) => c.method === "lineStyle");
-    expect(lineCalls.length).toBe(0);
-  });
+		const lineCalls = calls.filter((c) => c.method === "lineStyle");
+		expect(lineCalls.length).toBe(0);
+	});
 
-  it("skips 1-member group when all positions unresolvable", () => {
-    const { g, calls } = createMockGraphics();
-    const membership = new Map([["lonely", new Set(["ghost"])]]);
-    const cfg = baseCfg({
-      tagMembership: membership,
-      resolvePos: () => undefined,
-    });
+	it("skips 1-member group when all positions unresolvable", () => {
+		const { g, calls } = createMockGraphics();
+		const membership = new Map([["lonely", new Set(["ghost"])]]);
+		const cfg = baseCfg({
+			tagMembership: membership,
+			resolvePos: () => undefined,
+		});
 
-    drawEnclosures(g, new Map() as any, makeOverlapCache(), cfg);
+		drawEnclosures(g, new Map() as any, makeOverlapCache(), cfg);
 
-    const drawCircle = calls.find((c) => c.method === "drawCircle");
-    expect(drawCircle).toBeUndefined();
-  });
+		const drawCircle = calls.find((c) => c.method === "drawCircle");
+		expect(drawCircle).toBeUndefined();
+	});
 
-  it("handles duplicate member IDs gracefully (Set deduplicates)", () => {
-    const { g, calls } = createMockGraphics();
-    // Set automatically deduplicates, so "n1" appears only once
-    const membership = new Map([["dup", new Set(["n1", "n1", "n1"])]]);
-    const cfg = baseCfg({
-      tagMembership: membership,
-      resolvePos: (id) => id === "n1" ? { x: 30, y: 40 } : undefined,
-    });
+	it("handles duplicate member IDs gracefully (Set deduplicates)", () => {
+		const { g, calls } = createMockGraphics();
+		// Set automatically deduplicates, so "n1" appears only once
+		const membership = new Map([["dup", new Set(["n1", "n1", "n1"])]]);
+		const cfg = baseCfg({
+			tagMembership: membership,
+			resolvePos: (id) => (id === "n1" ? { x: 30, y: 40 } : undefined),
+		});
 
-    drawEnclosures(g, new Map() as any, makeOverlapCache(), cfg);
+		drawEnclosures(g, new Map() as any, makeOverlapCache(), cfg);
 
-    // Single node → drawCircle (not hull)
-    const drawCircle = calls.find((c) => c.method === "drawCircle");
-    expect(drawCircle).toBeDefined();
-    expect(drawCircle!.args[0]).toBe(30);
-    expect(drawCircle!.args[1]).toBe(40);
-  });
+		// Single node → drawCircle (not hull)
+		const drawCircle = calls.find((c) => c.method === "drawCircle");
+		expect(drawCircle).toBeDefined();
+		expect(drawCircle!.args[0]).toBe(30);
+		expect(drawCircle!.args[1]).toBe(40);
+	});
 
-  it("handles multiple groups where some are empty and some are valid", () => {
-    const { g, calls } = createMockGraphics();
-    const membership = new Map([
-      ["empty", new Set<string>()],
-      ["valid", new Set(["n1", "n2", "n3"])],
-      ["ghost", new Set(["missing"])],
-    ]);
-    const positions: Record<string, { x: number; y: number }> = {
-      n1: { x: 0, y: 0 }, n2: { x: 50, y: 0 }, n3: { x: 25, y: 40 },
-    };
-    const cfg = baseCfg({
-      tagMembership: membership,
-      resolvePos: (id) => positions[id],
-    });
+	it("handles multiple groups where some are empty and some are valid", () => {
+		const { g, calls } = createMockGraphics();
+		const membership = new Map([
+			["empty", new Set<string>()],
+			["valid", new Set(["n1", "n2", "n3"])],
+			["ghost", new Set(["missing"])],
+		]);
+		const positions: Record<string, { x: number; y: number }> = {
+			n1: { x: 0, y: 0 },
+			n2: { x: 50, y: 0 },
+			n3: { x: 25, y: 40 },
+		};
+		const cfg = baseCfg({
+			tagMembership: membership,
+			resolvePos: (id) => positions[id],
+		});
 
-    drawEnclosures(g, new Map() as any, makeOverlapCache(), cfg);
+		drawEnclosures(g, new Map() as any, makeOverlapCache(), cfg);
 
-    // Only "valid" group should produce lineStyle calls (outer + inner = 2)
-    const lineCalls = calls.filter((c) => c.method === "lineStyle");
-    expect(lineCalls.length).toBe(2);
-  });
+		// Only "valid" group should produce lineStyle calls (outer + inner = 2)
+		const lineCalls = calls.filter((c) => c.method === "lineStyle");
+		expect(lineCalls.length).toBe(2);
+	});
 
-  it("handles group where some members resolve and some don't", () => {
-    const { g, calls } = createMockGraphics();
-    const membership = new Map([["partial", new Set(["n1", "missing1", "n2", "missing2", "n3"])]]);
-    const cfg = baseCfg({
-      tagMembership: membership,
-      resolvePos: (id) => {
-        if (id === "n1") return { x: 0, y: 0 };
-        if (id === "n2") return { x: 100, y: 0 };
-        if (id === "n3") return { x: 50, y: 80 };
-        return undefined;
-      },
-    });
+	it("handles group where some members resolve and some don't", () => {
+		const { g, calls } = createMockGraphics();
+		const membership = new Map([["partial", new Set(["n1", "missing1", "n2", "missing2", "n3"])]]);
+		const cfg = baseCfg({
+			tagMembership: membership,
+			resolvePos: (id) => {
+				if (id === "n1") return { x: 0, y: 0 };
+				if (id === "n2") return { x: 100, y: 0 };
+				if (id === "n3") return { x: 50, y: 80 };
+				return undefined;
+			},
+		});
 
-    drawEnclosures(g, new Map() as any, makeOverlapCache(), cfg);
+		drawEnclosures(g, new Map() as any, makeOverlapCache(), cfg);
 
-    // 3 resolvable nodes → hull drawn
-    const lineCalls = calls.filter((c) => c.method === "lineTo");
-    expect(lineCalls.length).toBeGreaterThan(0);
-  });
+		// 3 resolvable nodes → hull drawn
+		const lineCalls = calls.filter((c) => c.method === "lineTo");
+		expect(lineCalls.length).toBeGreaterThan(0);
+	});
 
-  it("all members at same position draws circle (degenerate hull)", () => {
-    const { g, calls } = createMockGraphics();
-    const membership = new Map([["stacked", new Set(["n1", "n2", "n3", "n4"])]]);
-    const cfg = baseCfg({
-      tagMembership: membership,
-      resolvePos: () => ({ x: 50, y: 50 }),
-    });
+	it("all members at same position draws circle (degenerate hull)", () => {
+		const { g, calls } = createMockGraphics();
+		const membership = new Map([["stacked", new Set(["n1", "n2", "n3", "n4"])]]);
+		const cfg = baseCfg({
+			tagMembership: membership,
+			resolvePos: () => ({ x: 50, y: 50 }),
+		});
 
-    drawEnclosures(g, new Map() as any, makeOverlapCache(), cfg);
+		drawEnclosures(g, new Map() as any, makeOverlapCache(), cfg);
 
-    // Should not crash — degenerate convex hull
-    const clearCall = calls.find((c) => c.method === "clear");
-    expect(clearCall).toBeDefined();
-  });
+		// Should not crash — degenerate convex hull
+		const clearCall = calls.find((c) => c.method === "clear");
+		expect(clearCall).toBeDefined();
+	});
 });

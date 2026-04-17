@@ -44,7 +44,17 @@ export function applyTreeLayout(graph: GraphData, options?: TreeLayoutOptions): 
 
 	let offsetY = startY;
 	for (const tr of treeResults) {
-		_positionTreeLevels(tr, startX, offsetY, levelHeight, nodeWidth, groupByCategory, categoryGap, nodesMap, options);
+		_positionTreeLevels(
+			tr,
+			startX,
+			offsetY,
+			levelHeight,
+			nodeWidth,
+			groupByCategory,
+			categoryGap,
+			nodesMap,
+			options,
+		);
 		offsetY += (tr.maxLevel + 1) * levelHeight + treeGap;
 	}
 
@@ -83,10 +93,7 @@ function _buildTreeAdjacency(graph: GraphData) {
 }
 
 /** Find connected components via BFS */
-function _findConnectedComponents(
-	nodes: GraphData["nodes"],
-	undirected: Map<string, Set<string>>,
-): string[][] {
+function _findConnectedComponents(nodes: GraphData["nodes"], undirected: Map<string, Set<string>>): string[][] {
 	const componentOf = new Map<string, number>();
 	const components: string[][] = [];
 	let compIdx = 0;
@@ -132,9 +139,7 @@ function _pickTreeRoot(
 			for (const c of children) isChild.add(c);
 		}
 	}
-	const structuralRoots = nodeIds.filter(
-		(id) => (structuralChildren.get(id)?.length ?? 0) > 0 && !isChild.has(id),
-	);
+	const structuralRoots = nodeIds.filter((id) => (structuralChildren.get(id)?.length ?? 0) > 0 && !isChild.has(id));
 	if (structuralRoots.length > 0) {
 		structuralRoots.sort(
 			(a, b) => (structuralChildren.get(b)?.length || 0) - (structuralChildren.get(a)?.length || 0),
@@ -148,9 +153,7 @@ function _pickTreeRoot(
 		return candidates[0];
 	}
 
-	const sorted = [...nodeIds].sort(
-		(a, b) => (directed.get(b)?.length || 0) - (directed.get(a)?.length || 0),
-	);
+	const sorted = [...nodeIds].sort((a, b) => (directed.get(b)?.length || 0) - (directed.get(a)?.length || 0));
 	return sorted[0];
 }
 
@@ -274,9 +277,27 @@ function _positionTreeLevels(
 		}
 
 		if (groupByCategory) {
-			_positionLevelByCategory(levelNodes, treeCenterX, offsetY, lvl, levelHeight, nodeWidth, categoryGap, nodesMap);
+			_positionLevelByCategory(
+				levelNodes,
+				treeCenterX,
+				offsetY,
+				lvl,
+				levelHeight,
+				nodeWidth,
+				categoryGap,
+				nodesMap,
+			);
 		} else {
-			_positionLevelUniform(levelNodes, treeCenterX, offsetY, lvl, levelHeight, nodeWidth, nodesMap, options?.nodeSpacingMap);
+			_positionLevelUniform(
+				levelNodes,
+				treeCenterX,
+				offsetY,
+				lvl,
+				levelHeight,
+				nodeWidth,
+				nodesMap,
+				options?.nodeSpacingMap,
+			);
 		}
 	}
 }

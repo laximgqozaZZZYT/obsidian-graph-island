@@ -6,15 +6,10 @@ import {
 	resolveBarOverlaps,
 	computeWorkGroupRanges,
 	type StaticLayoutConfig,
-	type StaticLayoutResult
+	type StaticLayoutResult,
 } from "../src/views/layout-compute";
 import type { TimelineBarInfo } from "../src/layouts/cluster-force";
-import {
-	LAYOUT_CONCENTRIC,
-	LAYOUT_ARC,
-	LAYOUT_SUNBURST,
-	LAYOUT_TIMELINE,
-} from "../src/constants";
+import { LAYOUT_CONCENTRIC, LAYOUT_ARC, LAYOUT_SUNBURST, LAYOUT_TIMELINE } from "../src/constants";
 import type { GraphData, GraphNode, GraphEdge } from "../src/types";
 import type { App } from "obsidian";
 
@@ -41,7 +36,7 @@ function mkEdge(source: string, target: string): GraphEdge {
 
 function mkGraph(nodeIds: string[], edges: [string, string][] = []): GraphData {
 	return {
-		nodes: nodeIds.map(id => mkNode(id)),
+		nodes: nodeIds.map((id) => mkNode(id)),
 		edges: edges.map(([s, t]) => mkEdge(s, t)),
 	};
 }
@@ -96,7 +91,13 @@ describe("computeStaticLayout", () => {
 		});
 
 		it("multiple nodes assigned to shells", () => {
-			const graph = mkGraph(["a", "b", "c"], [["a", "b"], ["b", "c"]]);
+			const graph = mkGraph(
+				["a", "b", "c"],
+				[
+					["a", "b"],
+					["b", "c"],
+				],
+			);
 			const result = computeStaticLayout(graph, mkConfig(LAYOUT_CONCENTRIC));
 			expect(result).not.toBeNull();
 			expect(result!.shells.length).toBeGreaterThan(0);
@@ -106,25 +107,34 @@ describe("computeStaticLayout", () => {
 		});
 
 		it("respects minRadius option", () => {
-			const result = computeStaticLayout(mkGraph(["a", "b"]), mkConfig(LAYOUT_CONCENTRIC, {
-				concentricMinRadius: 200,
-			}));
+			const result = computeStaticLayout(
+				mkGraph(["a", "b"]),
+				mkConfig(LAYOUT_CONCENTRIC, {
+					concentricMinRadius: 200,
+				}),
+			);
 			expect(result).not.toBeNull();
 			expect(result!.data.nodes.length).toBe(2);
 		});
 
 		it("respects radiusStep option", () => {
-			const result = computeStaticLayout(mkGraph(["a", "b", "c"]), mkConfig(LAYOUT_CONCENTRIC, {
-				concentricRadiusStep: 100,
-			}));
+			const result = computeStaticLayout(
+				mkGraph(["a", "b", "c"]),
+				mkConfig(LAYOUT_CONCENTRIC, {
+					concentricRadiusStep: 100,
+				}),
+			);
 			expect(result).not.toBeNull();
 			expect(result!.data.nodes.length).toBe(3);
 		});
 
 		it("applies custom sort comparator", () => {
-			const result = computeStaticLayout(mkGraph(["c", "b", "a"]), mkConfig(LAYOUT_CONCENTRIC, {
-				sortComparator: (a, b) => a.label.localeCompare(b.label),
-			}));
+			const result = computeStaticLayout(
+				mkGraph(["c", "b", "a"]),
+				mkConfig(LAYOUT_CONCENTRIC, {
+					sortComparator: (a, b) => a.label.localeCompare(b.label),
+				}),
+			);
 			expect(result).not.toBeNull();
 			expect(result!.data.nodes.length).toBe(3);
 		});
@@ -228,17 +238,23 @@ describe("computeStaticLayout", () => {
 		});
 
 		it("resolves timeline key from frontmatter", () => {
-			const result = computeStaticLayout(mkGraph(["a"]), mkConfig(LAYOUT_TIMELINE, {
-				timelineKey: "custom-date",
-			}));
+			const result = computeStaticLayout(
+				mkGraph(["a"]),
+				mkConfig(LAYOUT_TIMELINE, {
+					timelineKey: "custom-date",
+				}),
+			);
 			expect(result).not.toBeNull();
 			expect(result!.timelineSteps).toBeDefined();
 		});
 
 		it("auto-detects time key when not provided", () => {
-			const result = computeStaticLayout(mkGraph(["a"]), mkConfig(LAYOUT_TIMELINE, {
-				timelineKey: undefined,
-			}));
+			const result = computeStaticLayout(
+				mkGraph(["a"]),
+				mkConfig(LAYOUT_TIMELINE, {
+					timelineKey: undefined,
+				}),
+			);
 			expect(result).not.toBeNull();
 		});
 	});
@@ -268,7 +284,13 @@ describe("computeStaticLayout", () => {
 		});
 
 		it("preserves all edges from input", () => {
-			const input = mkGraph(["a", "b", "c"], [["a", "b"], ["b", "c"]]);
+			const input = mkGraph(
+				["a", "b", "c"],
+				[
+					["a", "b"],
+					["b", "c"],
+				],
+			);
 			const result = computeStaticLayout(input, mkConfig(LAYOUT_ARC));
 			expect(result).not.toBeNull();
 			expect(result!.data.edges.length).toBe(2);
@@ -279,8 +301,12 @@ describe("computeStaticLayout", () => {
 		it("catches layout function errors gracefully", () => {
 			// Mock a broken app that throws during timeline computation
 			const brokenApp = {
-				vault: { getAbstractFileByPath: () => { throw new Error("broken"); } },
-				metadataCache: { getFileCache: () => ({}), },
+				vault: {
+					getAbstractFileByPath: () => {
+						throw new Error("broken");
+					},
+				},
+				metadataCache: { getFileCache: () => ({}) },
 			} as any;
 
 			const result = computeStaticLayout(mkGraph(["a"]), mkConfig(LAYOUT_TIMELINE, { app: brokenApp }));
@@ -369,7 +395,7 @@ describe("buildTimelineBars", () => {
 			10, // barH
 			"end-date",
 			new Map(),
-			() => undefined // No end-date values
+			() => undefined, // No end-date values
 		);
 		expect(bars).toHaveLength(1);
 		expect(bars[0].xStart).toBe(0); // Default node.x
@@ -380,7 +406,10 @@ describe("buildTimelineBars", () => {
 		const nodes = [mkNode("a")];
 		nodes[0].x = 100; // Position the node
 		const placements = [{ nodeId: "a", timeValue: "2024-01", timeIndex: 0 }];
-		const timeIdxMap = new Map([["2024-01", 0], ["2024-12", 11]]);
+		const timeIdxMap = new Map([
+			["2024-01", 0],
+			["2024-12", 11],
+		]);
 		const getNodeProp = (_id: string, key: string): string | undefined => {
 			if (key === "end-date") return "2024-12";
 			return undefined;
@@ -392,7 +421,7 @@ describe("buildTimelineBars", () => {
 			10, // barH
 			"end-date",
 			timeIdxMap,
-			getNodeProp
+			getNodeProp,
 		);
 		expect(bars).toHaveLength(1);
 		expect(bars[0].xEnd).toBeGreaterThan(bars[0].xStart);
@@ -408,7 +437,10 @@ describe("buildTimelineBars", () => {
 	it("respects maxBarWidth clamping", () => {
 		const nodes = [mkNode("a")];
 		const placements = [{ nodeId: "a", timeValue: "2024-01", timeIndex: 0 }];
-		const timeIdxMap = new Map([["2024-01", 0], ["2030-12", 100]]); // Far future
+		const timeIdxMap = new Map([
+			["2024-01", 0],
+			["2030-12", 100],
+		]); // Far future
 		const getNodeProp = (_id: string, key: string): string | undefined => {
 			if (key === "end-date") return "2030-12";
 			return undefined;
@@ -420,7 +452,7 @@ describe("buildTimelineBars", () => {
 			10, // barH
 			"end-date",
 			timeIdxMap,
-			getNodeProp
+			getNodeProp,
 		);
 		expect(bars).toHaveLength(1);
 		// xEnd should be clamped to maxBarWidth
@@ -436,15 +468,7 @@ describe("buildTimelineBars", () => {
 			if (key === "end-date") return "2024"; // Same as start
 			return undefined;
 		};
-		const bars = buildTimelineBars(
-			placements,
-			nodes,
-			50,
-			10,
-			"end-date",
-			new Map([["2024", 0]]),
-			getNodeProp
-		);
+		const bars = buildTimelineBars(placements, nodes, 50, 10, "end-date", new Map([["2024", 0]]), getNodeProp);
 		expect(bars).toHaveLength(1);
 		// Should use default bar width
 		expect(bars[0].xEnd - bars[0].xStart).toBeGreaterThanOrEqual(10);
@@ -475,11 +499,8 @@ describe("resolveBarOverlaps", () => {
 		const nodes = [mkNode("a"), mkNode("b")];
 		nodes[0].y = 100;
 		nodes[1].y = 200;
-		const bars = [
-			mkBar("a", 0, 50, 100, 10),
-			mkBar("b", 60, 110, 200, 10),
-		];
-		const originalY = [...nodes.map(n => n.y)];
+		const bars = [mkBar("a", 0, 50, 100, 10), mkBar("b", 60, 110, 200, 10)];
+		const originalY = [...nodes.map((n) => n.y)];
 		resolveBarOverlaps(bars, nodes);
 		// No overlaps, should not change
 		expect(nodes[0].y).toBe(originalY[0]);
@@ -505,11 +526,7 @@ describe("resolveBarOverlaps", () => {
 		nodes[0].y = 100;
 		nodes[1].y = 105;
 		nodes[2].y = 110;
-		const bars = [
-			mkBar("a", 0, 50, 100, 10),
-			mkBar("b", 0, 50, 105, 10),
-			mkBar("c", 0, 50, 110, 10),
-		];
+		const bars = [mkBar("a", 0, 50, 100, 10), mkBar("b", 0, 50, 105, 10), mkBar("c", 0, 50, 110, 10)];
 		resolveBarOverlaps(bars, nodes);
 		// All should be separated
 		expect(bars[0].yCenter).toBeLessThan(bars[1].yCenter);
@@ -533,10 +550,7 @@ describe("resolveBarOverlaps", () => {
 		const nodes = [mkNode("a"), mkNode("b")];
 		nodes[0].y = 200;
 		nodes[1].y = 100;
-		const bars = [
-			mkBar("a", 0, 50, 200, 10),
-			mkBar("b", 0, 50, 100, 10),
-		];
+		const bars = [mkBar("a", 0, 50, 200, 10), mkBar("b", 0, 50, 100, 10)];
 		resolveBarOverlaps(bars, nodes);
 		// After sorting by yCenter, b should be first, then a
 		// Since they overlap and b is first, a gets shifted up if needed
@@ -560,10 +574,7 @@ describe("resolveBarOverlaps", () => {
 		const nodes = [mkNode("a"), mkNode("b")];
 		nodes[0].y = 100;
 		nodes[1].y = 105;
-		const bars = [
-			mkBar("a", 0, 50, 100, 10),
-			mkBar("b", 0, 50, 105, 10),
-		];
+		const bars = [mkBar("a", 0, 50, 100, 10), mkBar("b", 0, 50, 105, 10)];
 		resolveBarOverlaps(bars, nodes);
 		// Nodes should match their bar yCenter
 		expect(nodes[1].y).toBe(bars[1].yCenter);
@@ -580,10 +591,7 @@ describe("computeWorkGroupRanges", () => {
 	}
 
 	it("groups bars by work segment from file paths", () => {
-		const nodes = [
-			mkNode("a", "classic-stories/file1.md"),
-			mkNode("b", "classic-stories/file2.md"),
-		];
+		const nodes = [mkNode("a", "classic-stories/file1.md"), mkNode("b", "classic-stories/file2.md")];
 		const bars = [mkBar("a", 100, 10), mkBar("b", 110, 10)];
 		const ranges = computeWorkGroupRanges(bars, nodes);
 		expect(ranges).toHaveLength(1);
@@ -591,14 +599,11 @@ describe("computeWorkGroupRanges", () => {
 	});
 
 	it("separates different work segments", () => {
-		const nodes = [
-			mkNode("a", "classic-stories/file1.md"),
-			mkNode("b", "mythology-tales/file2.md"),
-		];
+		const nodes = [mkNode("a", "classic-stories/file1.md"), mkNode("b", "mythology-tales/file2.md")];
 		const bars = [mkBar("a", 100, 10), mkBar("b", 200, 10)];
 		const ranges = computeWorkGroupRanges(bars, nodes);
 		expect(ranges).toHaveLength(2);
-		const names = ranges.map(r => r.name).sort();
+		const names = ranges.map((r) => r.name).sort();
 		expect(names).toContain("classic-stories");
 		expect(names).toContain("mythology-tales");
 	});
@@ -620,10 +625,7 @@ describe("computeWorkGroupRanges", () => {
 	});
 
 	it("merges ranges when same work has multiple bars", () => {
-		const nodes = [
-			mkNode("a", "work-a/file1.md"),
-			mkNode("b", "work-a/file2.md"),
-		];
+		const nodes = [mkNode("a", "work-a/file1.md"), mkNode("b", "work-a/file2.md")];
 		const bars = [mkBar("a", 100, 10), mkBar("b", 130, 10)];
 		const ranges = computeWorkGroupRanges(bars, nodes);
 		expect(ranges).toHaveLength(1);
@@ -632,11 +634,7 @@ describe("computeWorkGroupRanges", () => {
 	});
 
 	it("sorts ranges by minY", () => {
-		const nodes = [
-			mkNode("a", "zebra/file.md"),
-			mkNode("b", "alpha/file.md"),
-			mkNode("c", "beta/file.md"),
-		];
+		const nodes = [mkNode("a", "zebra/file.md"), mkNode("b", "alpha/file.md"), mkNode("c", "beta/file.md")];
 		const bars = [mkBar("a", 200, 10), mkBar("b", 100, 10), mkBar("c", 150, 10)];
 		const ranges = computeWorkGroupRanges(bars, nodes);
 		for (let i = 1; i < ranges.length; i++) {
@@ -660,9 +658,7 @@ describe("computeWorkGroupRanges", () => {
 	});
 
 	it("recognizes multiple dash-delimited patterns (classic-, mythology-, bible-)", () => {
-		const nodes = [
-			mkNode("a", "bible-stories/file.md"),
-		];
+		const nodes = [mkNode("a", "bible-stories/file.md")];
 		const bars = [mkBar("a", 100, 10)];
 		const ranges = computeWorkGroupRanges(bars, nodes);
 		expect(ranges[0].name).toBe("bible-stories");
