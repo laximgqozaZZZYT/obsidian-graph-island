@@ -127,7 +127,7 @@ describe("pan-inertia / zoom-step integration (subtask-1..3 behavioural contract
 			// Simulate the pointerup handler: drive InertiaPan via rAF until settled.
 			let settled = false;
 			const loop = () => {
-				const running = pan.tick(1);
+				const running = pan.tick();
 				if (!running) {
 					settled = true;
 					return;
@@ -140,7 +140,8 @@ describe("pan-inertia / zoom-step integration (subtask-1..3 behavioural contract
 			expect(settled).toBe(true);
 			expect(frames).toBeGreaterThan(1);
 			expect(deltas.length).toBeGreaterThan(0);
-			// First delta should be roughly the released velocity, subsequent decay by FRICTION
+			// tick() decays velocity by FRICTION each frame before applyDelta,
+			// so consecutive deltas differ by exactly FRICTION.
 			expect(deltas[1].dx).toBeCloseTo(deltas[0].dx * FRICTION, 5);
 		});
 
@@ -152,7 +153,7 @@ describe("pan-inertia / zoom-step integration (subtask-1..3 behavioural contract
 			let ticks = 0;
 			const loop = () => {
 				ticks++;
-				if (pan.tick(1)) requestAnimationFrame(loop);
+				if (pan.tick()) requestAnimationFrame(loop);
 			};
 			requestAnimationFrame(loop);
 			flushRaf();
@@ -162,32 +163,34 @@ describe("pan-inertia / zoom-step integration (subtask-1..3 behavioural contract
 		});
 
 		it("pointerdown during inertia cancels active rAF loop (no double-application)", () => {
-			const pan = new InertiaPan(true, () => {});
+			const deltas: Array<{ dx: number; dy: number }> = [];
+			const pan = new InertiaPan(true, (dx, dy) => deltas.push({ dx, dy }));
 			pan.trackPointer(0, 0, 0);
 			pan.trackPointer(200, 0, 50);
 			pan.release();
 
 			let rafId: number | null = null;
 			const loop = () => {
-				if (!pan.tick(1)) return;
+				if (!pan.tick()) return;
 				rafId = requestAnimationFrame(loop);
 			};
 			rafId = requestAnimationFrame(loop);
 
-			// Advance one frame, then simulate pointerdown cancelling inertia.
+			// Advance one frame so at least one applyDelta has fired.
 			const batch = rafQueue;
 			rafQueue = [];
 			for (const cb of batch) cb();
+			expect(deltas.length).toBeGreaterThan(0);
+
+			// Simulate pointerdown cancelling inertia.
+			const deltaCountAtCancel = deltas.length;
 			pan.cancel();
 			if (rafId !== null) cancelAnimationFrame(rafId);
 
-			// No further frames should run because cancel() flipped active=false
-			// and cancelAnimationFrame was called on the outstanding id.
-			const before = rafQueue.length;
+			// After cancel(), pending rAF callbacks must not fire applyDelta again.
 			flushRaf();
 			expect(pan.isActive()).toBe(false);
-			// Any pending callbacks scheduled before cancel should be no-ops after tick()->false
-			expect(before).toBeLessThanOrEqual(1);
+			expect(deltas.length).toBe(deltaCountAtCancel);
 		});
 	});
 });

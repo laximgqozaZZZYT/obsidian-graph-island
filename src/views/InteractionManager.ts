@@ -225,6 +225,23 @@ export function clampScale(scale: number): number {
 	return Math.max(ZOOM_SCALE_MIN, Math.min(ZOOM_SCALE_MAX, scale));
 }
 
+/**
+ * Compute the next zoom scale in a single step from a wheel event.
+ * Pure function — composes {@link computeZoomFactor} and {@link clampScale}.
+ *
+ * @param currentScale Current zoom scale
+ * @param deltaY       Wheel deltaY (negative = zoom in, positive = zoom out)
+ * @param sensitivity  User zoom sensitivity (0.5–2.0, default 1.0)
+ * @returns Next clamped zoom scale
+ */
+export function computeZoomStep(
+	currentScale: number,
+	deltaY: number,
+	sensitivity = 1.0,
+): number {
+	return clampScale(currentScale * computeZoomFactor(deltaY, sensitivity));
+}
+
 /** d3 simulation alphaTarget when dragging a node */
 const DRAG_ALPHA_TARGET = 0.3;
 
@@ -382,12 +399,11 @@ export class InteractionManager {
 		if (!app) return;
 
 		const sens = this.host.getZoomSensitivity?.() ?? 1.0;
-		const scaleFactor = computeZoomFactor(e.deltaY, sens);
 		const rect = this.canvas.getBoundingClientRect();
 		this._smoothZoomCursorX = e.clientX - rect.left;
 		this._smoothZoomCursorY = e.clientY - rect.top;
 
-		this._targetScale = clampScale(this._targetScale * scaleFactor);
+		this._targetScale = computeZoomStep(this._targetScale, e.deltaY, sens);
 
 		if (!this._smoothZoomId) {
 			this._smoothZoomId = requestAnimationFrame(() => this.smoothZoomTick());
