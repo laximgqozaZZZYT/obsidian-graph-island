@@ -1,14 +1,14 @@
 ---
 priority: medium
 reported: 2026-04-18
-status: decomposed
+status: pending
 source: decomposed
-parent: 518-501-graphviewcontainer-ts-verify
+parent: 523-518-subtask
 depends: none
 summary: subtask
 ---
 
-## Description (subtask of 518-501-graphviewcontainer-ts-verify)
+## Description (subtask of 523-518-subtask)
 
 You've hit your limit · resets 1am (Asia/Tokyo)
 
