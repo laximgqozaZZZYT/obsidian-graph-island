@@ -4,7 +4,7 @@
 set -euo pipefail
 
 BUDGET=${1:-819200}  # Default 800KB
-WARN_RATIO=${WARN_RATIO:-95}  # Warn when reaching this percent
+WARN_RATIO=${WARN_RATIO:-95}  # Warn at this percent; effective range 1..99 (>=100 is handled as OVER BUDGET)
 
 if [[ ! -f main.js ]]; then
   echo "ERROR: main.js not found. Run 'pnpm build' first."
@@ -13,7 +13,7 @@ fi
 
 SIZE=$(stat -c%s main.js)
 PERCENT=$(python3 -c "print(f'{$SIZE/$BUDGET*100:.1f}')")
-PCT_INT=$(( SIZE * 100 / BUDGET ))
+PCT_INT=${PERCENT%.*}
 
 print_top_contributors() {
   if [[ ! -f main.js.meta.json ]]; then
@@ -23,7 +23,7 @@ print_top_contributors() {
   echo "  Top reduction candidates (from main.js.meta.json):"
   node -e '
     const m = JSON.parse(require("fs").readFileSync("main.js.meta.json", "utf8"));
-    const out = Object.values(m.outputs)[0];
+    const out = m.outputs["main.js"] ?? Object.values(m.outputs)[0];
     if (!out || !out.inputs) {
       console.log("  (no input breakdown)");
     } else {
@@ -45,5 +45,5 @@ fi
 echo "OK: ${SIZE} bytes (${PERCENT}% of ${BUDGET} budget)"
 if [[ $PCT_INT -ge $WARN_RATIO ]]; then
   echo "WARNING: approaching budget (>=${WARN_RATIO}%)"
-  print_top_contributors
+  print_top_contributors || true
 fi
