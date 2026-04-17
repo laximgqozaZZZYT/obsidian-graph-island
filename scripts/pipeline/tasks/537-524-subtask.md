@@ -1,14 +1,14 @@
 ---
 priority: medium
 reported: 2026-04-18
-status: decomposed
+status: pending
 source: decomposed
-parent: 519-511-pnpm-build-exit-code
+parent: 524-519-subtask
 depends: none
 summary: subtask
 ---
 
-## Description (subtask of 519-511-pnpm-build-exit-code)
+## Description (subtask of 524-519-subtask)
 
 You've hit your limit · resets 1am (Asia/Tokyo)
 
