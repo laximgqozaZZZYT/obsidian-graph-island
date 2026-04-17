@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-17
-status: in-progress
+status: done
 source: decomposed
 parent: 491-483-god-object-graphviewcontainer-ts-8612
 depends: none
