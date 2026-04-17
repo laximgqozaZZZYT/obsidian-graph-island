@@ -123,7 +123,10 @@ for i, block in enumerate(blocks[:5]):
                 description = desc_text
 
     slug = re.sub(r'[^a-z0-9]+', '-', summary.lower())[:40].strip('-')
-    filename = f'{num}-{parent}-{slug}.md'
+    # Use only parent's number prefix, not full slug (prevents name explosion)
+    parent_num = re.match(r'(\d+)', parent)
+    parent_ref = parent_num.group(1) if parent_num else parent[:10]
+    filename = f'{num}-{parent_ref}-{slug}.md'
 
     with open(f'{issue_dir}/{filename}', 'w') as f:
         f.write(f'''---

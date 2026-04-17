@@ -125,10 +125,18 @@ for dir in "$ISSUE_DIR" "$TASK_DIR"; do
 
     FNAME=$(basename "$f")
     if [[ "$dir" == "$TASK_DIR" ]]; then
-      # Task timed out → subdivide into smaller tasks
-      log "SUBDIVIDE: $FNAME timed out (${FILE_AGE}s)"
-      bash "$PROJECT_DIR/scripts/pipeline/decompose-issue.sh" "$f" 2>&1 | while IFS= read -r line; do log "  $line"; done
-      (cd "$PROJECT_DIR" && git add scripts/pipeline/ && git commit -m "chore: subdivide timed-out task $FNAME" --no-verify 2>/dev/null) || true
+      # Task timed out → subdivide, but only up to depth 2
+      # Count depth by number of "-subtask" segments in filename
+      DEPTH=$(echo "$FNAME" | grep -o "subtask" | wc -l)
+      if [[ $DEPTH -lt 2 ]]; then
+        log "SUBDIVIDE: $FNAME timed out (${FILE_AGE}s, depth=$DEPTH)"
+        bash "$PROJECT_DIR/scripts/pipeline/decompose-issue.sh" "$f" 2>&1 | while IFS= read -r line; do log "  $line"; done
+      else
+        # Max depth reached → mark as blocked, don't subdivide further
+        log "BLOCKED: $FNAME at max subdivision depth ($DEPTH) — needs manual attention"
+        sed -i 's/status: in-progress/status: blocked/' "$f"
+      fi
+      (cd "$PROJECT_DIR" && git add scripts/pipeline/ && git commit -m "chore: handle timed-out task $FNAME" --no-verify 2>/dev/null) || true
     else
       # Issue timed out → carry over with attempt history
       ORPHANED=false
