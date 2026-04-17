@@ -1,14 +1,14 @@
 ---
 priority: medium
 reported: 2026-04-18
-status: decomposed
+status: pending
 source: decomposed
-parent: 522-517-graphviewcontainer-ts-claude-md-8597
+parent: 530-522-subtask
 depends: none
 summary: subtask
 ---
 
-## Description (subtask of 522-517-graphviewcontainer-ts-claude-md-8597)
+## Description (subtask of 530-522-subtask)
 
 You've hit your limit · resets 1am (Asia/Tokyo)
 
