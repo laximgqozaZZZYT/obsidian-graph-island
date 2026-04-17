@@ -1,7 +1,7 @@
 ---
 priority: high
 reported: 2026-04-17
-status: in-progress
+status: decomposed
 source: decomposed
 parent: 473-469-graphviewcontainer-wheel-pointer-handler
 depends: none
