@@ -1,7 +1,7 @@
 ---
 priority: high
 reported: 2026-04-17
-status: in-progress
+status: done
 source: decomposed
 parent: 486-477-pan-inertia-raf
 depends: none
