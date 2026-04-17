@@ -1,7 +1,7 @@
 ---
 priority: high
 reported: 2026-04-17
-status: in-progress
+status: done
 source: decomposed
 parent: 477-473-pointerup-handler-applypaninertia-raf
 depends: none
