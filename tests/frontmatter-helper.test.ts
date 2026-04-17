@@ -1,8 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-	addFrontmatterTag,
-	setFrontmatterField,
-} from "../src/utils/frontmatter-helper";
+import { addFrontmatterTag, setFrontmatterField } from "../src/utils/frontmatter-helper";
 
 describe("addFrontmatterTag", () => {
 	it("appends tag to existing inline tags array", () => {

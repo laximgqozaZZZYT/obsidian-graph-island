@@ -506,10 +506,7 @@ export class LayoutController {
 	}
 
 	/** Configure charge and collide forces for cluster layout */
-	private _applyClusterChargeAndCollide(
-		sim: Simulation<GraphNode, GraphEdge>,
-		panel: PanelState,
-	) {
+	private _applyClusterChargeAndCollide(sim: Simulation<GraphNode, GraphEdge>, panel: PanelState) {
 		const chargeForce = panel.renderThresholds?.clusterChargeForce ?? DEFAULT_RENDER_THRESHOLDS.clusterChargeForce;
 		const clusterNodeCount = sim.nodes().length;
 		const clusterSmallScale = clusterNodeCount < 20 ? Math.max(0.1, clusterNodeCount / 20) : 1;
@@ -658,7 +655,12 @@ export class LayoutController {
 		grav: { interGroupAttraction?: number; intraGroupDensity?: number },
 	) {
 		if (panel.autoFit) {
-			const optimal = computeAutoFitSpacing(sim.nodes(), graphEdges, this.host.getDegrees(), baseCfg as Parameters<typeof computeAutoFitSpacing>[3]);
+			const optimal = computeAutoFitSpacing(
+				sim.nodes(),
+				graphEdges,
+				this.host.getDegrees(),
+				baseCfg as Parameters<typeof computeAutoFitSpacing>[3],
+			);
 			panel.clusterNodeSpacing = optimal.nodeSpacing;
 			panel.clusterGroupScale = optimal.groupScale;
 			panel.clusterGroupSpacing = optimal.groupSpacing;

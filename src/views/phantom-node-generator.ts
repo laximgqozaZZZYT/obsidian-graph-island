@@ -13,12 +13,7 @@ import { POLAR_ARRANGEMENTS } from "../constants";
  * Polar layouts: spoke × ring intersections
  * Cartesian layouts: grid intersections
  */
-export function generatePhantomNodes(
-	realNodes: GraphNode[],
-	cx: number,
-	cy: number,
-	arrangement: string,
-): GraphNode[] {
+export function generatePhantomNodes(realNodes: GraphNode[], cx: number, cy: number, arrangement: string): GraphNode[] {
 	if (POLAR_ARRANGEMENTS.has(arrangement)) {
 		return generatePolarPhantoms(realNodes, cx, cy);
 	}

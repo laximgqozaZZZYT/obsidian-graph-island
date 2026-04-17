@@ -98,11 +98,7 @@ describe("collectVisibleNodes", () => {
 		const nodes = [makePixiNode("a", 0, 0), makePixiNode("b", 10, 10)];
 		const map = makeMap(nodes);
 		const out: any[] = [];
-		collectVisibleNodes(
-			map,
-			out,
-			baseFilter({ hasHighlight: true, activeSet: new Set(["a"]) }),
-		);
+		collectVisibleNodes(map, out, baseFilter({ hasHighlight: true, activeSet: new Set(["a"]) }));
 		expect(out).toHaveLength(1);
 		expect(out[0].data.id).toBe("b");
 	});
@@ -124,11 +120,7 @@ describe("collectVisibleNodes", () => {
 		const nodes = [makePixiNode("a", 0, 0)];
 		const map = makeMap(nodes);
 		const out: any[] = [];
-		collectVisibleNodes(
-			map,
-			out,
-			baseFilter({ aggregateMode: true, screenshotMode: true }),
-		);
+		collectVisibleNodes(map, out, baseFilter({ aggregateMode: true, screenshotMode: true }));
 		expect(out).toHaveLength(1);
 	});
 

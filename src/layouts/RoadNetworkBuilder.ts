@@ -134,7 +134,11 @@ export class RoadNetworkBuilder {
 
 				const coordGuide = g.type === GUIDE_TYPE_COORDINATE ? (g as CoordinateGuide) : null;
 				if (coordGuide?.gridInfo) {
-					coordGuides.push({ guide: coordGuide as CoordinateGuide & { gridInfo: ResolvedGridInfo }, centerX: gg.centerX, centerY: gg.centerY });
+					coordGuides.push({
+						guide: coordGuide as CoordinateGuide & { gridInfo: ResolvedGridInfo },
+						centerX: gg.centerX,
+						centerY: gg.centerY,
+					});
 				}
 				if (this._buildFromConcentric(g, gg, allNodes)) return;
 				if (this._buildFromGrid(g, gg, allNodes)) return;
@@ -177,7 +181,11 @@ export class RoadNetworkBuilder {
 	}
 
 	/** ConcentricGuide: rings become circle roads, uniform spokes become radial roads */
-	private _buildFromConcentric(g: ArrangementGuide, gg: { centerX: number; centerY: number }, allNodes: GraphNode[]): boolean {
+	private _buildFromConcentric(
+		g: ArrangementGuide,
+		gg: { centerX: number; centerY: number },
+		allNodes: GraphNode[],
+	): boolean {
 		if (g.type !== "concentric") return false;
 		const cg = g as { type: "concentric"; rings: number[] };
 		if (cg.rings.length === 0) return false;
@@ -203,7 +211,11 @@ export class RoadNetworkBuilder {
 	}
 
 	/** GridGuide: verticals/horizontals become line roads */
-	private _buildFromGrid(g: ArrangementGuide, gg: { centerX: number; centerY: number }, allNodes: GraphNode[]): boolean {
+	private _buildFromGrid(
+		g: ArrangementGuide,
+		gg: { centerX: number; centerY: number },
+		allNodes: GraphNode[],
+	): boolean {
 		if (g.type !== "grid") return false;
 		const gg2 = g as {
 			type: "grid";
@@ -229,7 +241,11 @@ export class RoadNetworkBuilder {
 	}
 
 	/** TriangleGuide: horizontal roads at each row, vertical roads spanning columns */
-	private _buildFromTriangle(g: ArrangementGuide, gg: { centerX: number; centerY: number }, allNodes: GraphNode[]): boolean {
+	private _buildFromTriangle(
+		g: ArrangementGuide,
+		gg: { centerX: number; centerY: number },
+		allNodes: GraphNode[],
+	): boolean {
 		if (g.type !== ARRANGEMENT_TRIANGLE) return false;
 		const tg = g as {
 			type: "triangle";

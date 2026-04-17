@@ -4,12 +4,7 @@
  */
 
 /** Determine the single-char label mode indicator. */
-export function labelModeChar(
-	scale: number,
-	override: string,
-	initialsZoom: number,
-	truncateZoom: number,
-): string {
+export function labelModeChar(scale: number, override: string, initialsZoom: number, truncateZoom: number): string {
 	if (override !== "auto") {
 		return override === "initials" ? "I" : override === "truncated" ? "T" : "F";
 	}

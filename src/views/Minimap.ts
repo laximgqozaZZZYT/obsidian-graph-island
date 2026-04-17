@@ -73,8 +73,14 @@ function clampViewportRect(
 	let rh = vpWorldH * scale;
 
 	// Clamp to minimap canvas
-	if (rx < 0) { rw += rx; rx = 0; }
-	if (ry < 0) { rh += ry; ry = 0; }
+	if (rx < 0) {
+		rw += rx;
+		rx = 0;
+	}
+	if (ry < 0) {
+		rh += ry;
+		ry = 0;
+	}
 	if (rx + rw > MINIMAP_WIDTH) rw = MINIMAP_WIDTH - rx;
 	if (ry + rh > MINIMAP_HEIGHT) rh = MINIMAP_HEIGHT - ry;
 

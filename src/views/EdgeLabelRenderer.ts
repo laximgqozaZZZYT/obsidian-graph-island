@@ -82,10 +82,7 @@ export function getEdgeLabel(e: GraphEdge): string | null {
 // ---------------------------------------------------------------------------
 
 /** Collect labelable edges, filtering hidden types and those without a label. */
-export function collectLabelableEdges(
-	edges: GraphEdge[],
-	cfg: EdgeDrawConfig,
-): { edge: GraphEdge; label: string }[] {
+export function collectLabelableEdges(edges: GraphEdge[], cfg: EdgeDrawConfig): { edge: GraphEdge; label: string }[] {
 	const labelable: { edge: GraphEdge; label: string }[] = [];
 	for (const e of edges) {
 		if (shouldSkipEdge(e, cfg)) continue;
@@ -164,7 +161,10 @@ export function computeLabelPosition(
 		for (let attempt = 0; attempt < SMART_MAX_SHIFTS; attempt++) {
 			let collides = false;
 			for (const rect of placedRects) {
-				if (Math.abs(labelX - rect.x) < SMART_LABEL_HW + rect.hw && Math.abs(labelY - rect.y) < SMART_LABEL_HH + rect.hh) {
+				if (
+					Math.abs(labelX - rect.x) < SMART_LABEL_HW + rect.hw &&
+					Math.abs(labelY - rect.y) < SMART_LABEL_HH + rect.hh
+				) {
 					collides = true;
 					break;
 				}

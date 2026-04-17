@@ -14,12 +14,7 @@ import { applyArcLayout } from "../layouts/arc";
 import { applySunburstLayout } from "../layouts/sunburst";
 import { buildSunburstData } from "../parsers/metadata-parser";
 import { applyTimelineLayout } from "../layouts/timeline";
-import {
-	LAYOUT_CONCENTRIC,
-	LAYOUT_ARC,
-	LAYOUT_SUNBURST,
-	LAYOUT_TIMELINE,
-} from "../constants";
+import { LAYOUT_CONCENTRIC, LAYOUT_ARC, LAYOUT_SUNBURST, LAYOUT_TIMELINE } from "../constants";
 // i18n not needed here — error messages are handled by callers
 
 // ---------------------------------------------------------------------------
@@ -91,10 +86,7 @@ interface StaticLayoutConfig {
  *
  * Returns null on error.
  */
-export function computeStaticLayout(
-	gd: GraphData,
-	config: StaticLayoutConfig,
-): StaticLayoutResult | null {
+export function computeStaticLayout(gd: GraphData, config: StaticLayoutConfig): StaticLayoutResult | null {
 	const { layout, cx, cy, W, H, sortComparator: sortCmp, nodeSpacingMap: nsMap, app } = config;
 	const shells: ShellInfo[] = [];
 	const nodeShellIndex = new Map<string, number>();
@@ -182,7 +174,10 @@ export function detectTimeKey(
 		for (const n of gd.nodes) {
 			if (getNodeProp(n.id, candidate)) count++;
 		}
-		if (count > bestCount) { bestCount = count; bestKey = candidate; }
+		if (count > bestCount) {
+			bestCount = count;
+			bestKey = candidate;
+		}
 		if (bestCount > gd.nodes.length * 0.3) break;
 	}
 	return bestKey;
@@ -224,7 +219,8 @@ export function resolveBarOverlaps(bars: TimelineBarInfo[], nodes: GraphNode[]):
 	bars.sort((a, b) => a.yCenter - b.yCenter || a.xStart - b.xStart);
 	for (let i = 1; i < bars.length; i++) {
 		for (let j = 0; j < i; j++) {
-			const prev = bars[j], cur = bars[i];
+			const prev = bars[j],
+				cur = bars[i];
 			if (cur.xStart >= prev.xEnd || prev.xStart >= cur.xEnd) continue;
 			const prevBot = prev.yCenter + prev.barHeight / 2;
 			const curTop = cur.yCenter - cur.barHeight / 2;
@@ -248,7 +244,12 @@ export function computeWorkGroupRanges(
 		const segs = fp.split("/").filter((s: string) => s.length > 0);
 		let work = "other";
 		for (const seg of segs) {
-			if (seg.startsWith("classic-") || seg.startsWith("mythology-") || seg.startsWith("bible-") || seg.includes("-")) {
+			if (
+				seg.startsWith("classic-") ||
+				seg.startsWith("mythology-") ||
+				seg.startsWith("bible-") ||
+				seg.includes("-")
+			) {
 				work = seg;
 				break;
 			}
@@ -269,11 +270,7 @@ export function computeWorkGroupRanges(
 	return ranges;
 }
 
-function computeTimelineLayout(
-	gd: GraphData,
-	config: StaticLayoutConfig,
-	app: App,
-): StaticLayoutResult {
+function computeTimelineLayout(gd: GraphData, config: StaticLayoutConfig, app: App): StaticLayoutResult {
 	const { W, H } = config;
 
 	const getNodeProp = (nodeId: string, key: string): string | undefined => {

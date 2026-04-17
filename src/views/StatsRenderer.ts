@@ -157,7 +157,10 @@ function renderDegreeChart(el: HTMLElement, degrees: Map<string, number>, panel:
 		const bar = chartEl.createDiv();
 		const h = Math.max(1, (count / maxBucket) * 28);
 		bar.style.cssText = `width:6px;height:${h}px;background:var(--interactive-accent);opacity:0.7;border-radius:1px 1px 0 0;cursor:pointer;`;
-		bar.title = t("stats.degreeTip").replace("{degree}", String(d)).replace("{plus}", d === 20 ? "+" : "").replace("{count}", String(count));
+		bar.title = t("stats.degreeTip")
+			.replace("{degree}", String(d))
+			.replace("{plus}", d === 20 ? "+" : "")
+			.replace("{count}", String(count));
 		const deg = d;
 		bar.setAttribute("role", "button");
 		bar.setAttribute("tabindex", "0");

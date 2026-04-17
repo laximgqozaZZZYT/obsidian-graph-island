@@ -358,13 +358,7 @@ export class WebGLApp implements IApp {
 		}
 	}
 
-	private _setDotGridUniforms(
-		prog: WebGLProgram,
-		wx: number,
-		wy: number,
-		ws: number,
-		spacing: number,
-	): void {
+	private _setDotGridUniforms(prog: WebGLProgram, wx: number, wy: number, ws: number, spacing: number): void {
 		const gl = this._gl;
 		const cw = gl.canvas.width;
 		const ch = gl.canvas.height;

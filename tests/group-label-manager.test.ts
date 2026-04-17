@@ -11,12 +11,7 @@ import {
 // collectGroupCentroids
 // ---------------------------------------------------------------------------
 describe("collectGroupCentroids", () => {
-	const makeNode = (
-		id: string,
-		x: number,
-		y: number,
-		overrides?: Partial<GroupNodeInfo>,
-	): GroupNodeInfo => ({
+	const makeNode = (id: string, x: number, y: number, overrides?: Partial<GroupNodeInfo>): GroupNodeInfo => ({
 		id,
 		filePath: `folder/${id}.md`,
 		x,
@@ -45,9 +40,7 @@ describe("collectGroupCentroids", () => {
 	});
 
 	it("handles super-nodes (collapsed groups)", () => {
-		const nodes = [
-			makeNode("__super__team-a", 50, 50, { collapsedMembers: ["x", "y", "z"] }),
-		];
+		const nodes = [makeNode("__super__team-a", 50, 50, { collapsedMembers: ["x", "y", "z"] })];
 		const { groups, members } = collectGroupCentroids(nodes, {
 			hasGroupBy: true,
 			groupByFields: ["team"],
@@ -60,9 +53,7 @@ describe("collectGroupCentroids", () => {
 	});
 
 	it("builds composite keys for multiple fields", () => {
-		const nodes = [
-			makeNode("a", 0, 0, { meta: { type: "char", era: "modern" } }),
-		];
+		const nodes = [makeNode("a", 0, 0, { meta: { type: "char", era: "modern" } })];
 		const { groups } = collectGroupCentroids(nodes, {
 			hasGroupBy: true,
 			groupByFields: ["type", "era"],
@@ -142,10 +133,7 @@ describe("collectGroupCentroids", () => {
 	});
 
 	it("uses tag as groupBy field", () => {
-		const nodes = [
-			makeNode("a", 0, 0, { tags: ["fantasy"] }),
-			makeNode("b", 10, 10, { tags: ["scifi"] }),
-		];
+		const nodes = [makeNode("a", 0, 0, { tags: ["fantasy"] }), makeNode("b", 10, 10, { tags: ["scifi"] })];
 		const { groups } = collectGroupCentroids(nodes, {
 			hasGroupBy: true,
 			groupByFields: ["tag"],

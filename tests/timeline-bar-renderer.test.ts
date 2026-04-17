@@ -1,8 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import {
-	renderTimelineBars,
-	type TimelineBarHost,
-} from "../src/views/timeline-bar-renderer";
+import { renderTimelineBars, type TimelineBarHost } from "../src/views/timeline-bar-renderer";
 import type { TimelineBarInfo } from "../src/layouts/cluster-force";
 import type { PixiNode } from "../src/views/InteractionManager";
 import type { RenderThresholds } from "../src/types";
@@ -303,9 +300,7 @@ describe("renderTimelineBars", () => {
 	});
 
 	it("handles missing pixiNode for a bar", () => {
-		const bars = [
-			createTimelineBarInfo({ nodeId: "unknown-node" }),
-		];
+		const bars = [createTimelineBarInfo({ nodeId: "unknown-node" })];
 		const host = createMockTimelineBarHost({
 			pixiNodes: new Map(),
 			clusterMeta: { timelineBars: bars },

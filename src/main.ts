@@ -283,7 +283,6 @@ export default class GraphViewsPlugin extends Plugin {
 		}
 		this.settings.ontology.tagRelations = detected;
 		await this.saveSettings();
-
 	}
 
 	/**

@@ -29,12 +29,7 @@ function flushRaf(maxFrames = 500): number {
 	return frames;
 }
 
-import {
-	computeZoomFactor,
-	clampScale,
-	ZOOM_SCALE_MIN,
-	ZOOM_SCALE_MAX,
-} from "../src/views/InteractionManager";
+import { computeZoomFactor, clampScale, ZOOM_SCALE_MIN, ZOOM_SCALE_MAX } from "../src/views/InteractionManager";
 import { InertiaPan, FRICTION } from "../src/views/inertia-pan";
 
 describe("pan-inertia / zoom-step integration (subtask-1..3 behavioural contract)", () => {
@@ -59,9 +54,7 @@ describe("pan-inertia / zoom-step integration (subtask-1..3 behavioural contract
 			expect(expected).toBeLessThan(currentScale);
 			expect(expected).toBeGreaterThan(0);
 			// Sanity: same pure inputs → deterministic output
-			expect(
-				clampScale(currentScale * computeZoomFactor(deltaY)),
-			).toBe(expected);
+			expect(clampScale(currentScale * computeZoomFactor(deltaY))).toBe(expected);
 		});
 
 		it("deltaY=-100 zooms in (scale grows)", () => {

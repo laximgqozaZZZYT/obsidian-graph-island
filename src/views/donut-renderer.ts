@@ -57,16 +57,7 @@ export function renderDonutMode(
 
 		const isSuperNode = !!(pn.data.collapsedMembers && pn.data.collapsedMembers.length > 0);
 		if (isSuperNode && donutConfig.breakdownField) {
-			renderDonutBreakdown(
-				host,
-				g,
-				pn,
-				effR,
-				nodeAlpha,
-				innerR,
-				bgColor,
-				donutConfig.breakdownField,
-			);
+			renderDonutBreakdown(host, g, pn, effR, nodeAlpha, innerR, bgColor, donutConfig.breakdownField);
 		} else {
 			// Single-color ring for individual nodes
 			const strokeColor = darkenColor(pn.color, RING_STROKE_DARKEN);

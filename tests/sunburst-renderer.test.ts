@@ -15,9 +15,7 @@ import { CanvasText } from "../src/views/canvas2d";
 // Helpers
 // ---------------------------------------------------------------------------
 
-function mkArc(
-	overrides: Partial<SunburstArc> = {},
-): SunburstArc {
+function mkArc(overrides: Partial<SunburstArc> = {}): SunburstArc {
 	return {
 		name: "Test",
 		depth: 1,
@@ -54,7 +52,7 @@ describe("buildSunburstTooltipContent", () => {
 			mkArc({ name: "Child2", depth: 2, x0: Math.PI / 2, x1: Math.PI, filePath: "b.md" }),
 		];
 		const result = buildSunburstTooltipContent(arcs, "Parent");
-		expect(result.lines.some(l => l.includes("2 files"))).toBe(true);
+		expect(result.lines.some((l) => l.includes("2 files"))).toBe(true);
 	});
 
 	it("counts aggregated files from parent value", () => {
@@ -63,7 +61,7 @@ describe("buildSunburstTooltipContent", () => {
 			mkArc({ name: "Child", depth: 2, x0: 0, x1: Math.PI / 2, value: 5, filePath: undefined }),
 		];
 		const result = buildSunburstTooltipContent(arcs, "Parent");
-		expect(result.lines.some(l => l.includes("5 files"))).toBe(true);
+		expect(result.lines.some((l) => l.includes("5 files"))).toBe(true);
 	});
 
 	it("skips parent self-entry", () => {
@@ -85,7 +83,7 @@ describe("buildSunburstTooltipContent", () => {
 					depth: 2,
 					x0: (i * 2 * Math.PI) / 8,
 					x1: ((i + 1) * 2 * Math.PI) / 8,
-				})
+				}),
 			),
 		];
 		const result = buildSunburstTooltipContent(arcs, "Parent");
@@ -112,13 +110,11 @@ describe("buildSunburstTooltipContent", () => {
 		];
 		const result = buildSunburstTooltipContent(arcs, "Parent1");
 		// Parent1 should only count Child1
-		expect(result.lines.some(l => l.includes("1 files"))).toBe(true);
+		expect(result.lines.some((l) => l.includes("1 files"))).toBe(true);
 	});
 
 	it("cleans arc names", () => {
-		const arcs = [
-			mkArc({ name: "test-group", depth: 1 }),
-		];
+		const arcs = [mkArc({ name: "test-group", depth: 1 })];
 		const result = buildSunburstTooltipContent(arcs, "test-group");
 		// cleanArcName converts dashes to spaces
 		expect(result.lines[0]).toBe("test-group");
@@ -158,10 +154,7 @@ describe("drawSunburstLayoutArcs", () => {
 	});
 
 	it("skips depth-0 arcs", () => {
-		const arcs = [
-			mkArc({ depth: 0 }),
-			mkArc({ depth: 1, name: "Group1" }),
-		];
+		const arcs = [mkArc({ depth: 0 }), mkArc({ depth: 1, name: "Group1" })];
 		const params: SunburstArcDrawParams = {
 			gfx: mockGfx,
 			arcs,
@@ -216,10 +209,7 @@ describe("drawSunburstLayoutArcs", () => {
 	});
 
 	it("applies hover highlight to matching group", () => {
-		const arcs = [
-			mkArc({ depth: 1, name: "Target" }),
-			mkArc({ depth: 1, name: "Other" }),
-		];
+		const arcs = [mkArc({ depth: 1, name: "Target" }), mkArc({ depth: 1, name: "Other" })];
 		const params: SunburstArcDrawParams = {
 			gfx: mockGfx,
 			arcs,
@@ -351,10 +341,7 @@ describe("drawSunburstLabels", () => {
 	});
 
 	it("adds depth-1 labels to container", () => {
-		const arcs = [
-			mkArc({ depth: 1, name: "G1" }),
-			mkArc({ depth: 1, name: "G2" }),
-		];
+		const arcs = [mkArc({ depth: 1, name: "G1" }), mkArc({ depth: 1, name: "G2" })];
 		const params: SunburstLabelDrawParams = {
 			arcs,
 			cx: 500,

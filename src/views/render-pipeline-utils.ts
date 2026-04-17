@@ -104,8 +104,12 @@ export function computeLabelColors(
 	const themeLabelBg = isDarkTheme ? rt.labelBgColor : rt.labelBgColorLight;
 	const syncBg = rt.labelBgColorSync && color != null;
 	const labelBg = isSuperNode
-		? (color != null ? darkenColor(color, 0.6) : themeLabelBg)
-		: syncBg ? blendColors(themeLabelBg, color, 0.15) : themeLabelBg;
+		? color != null
+			? darkenColor(color, 0.6)
+			: themeLabelBg
+		: syncBg
+			? blendColors(themeLabelBg, color, 0.15)
+			: themeLabelBg;
 	let labelFill = isSuperNode ? 0xffffff : isDarkTheme ? 0xe0e0e0 : 0x222222;
 	if (!isSuperNode && rt.labelTextColorSync && color != null) {
 		labelFill = isDarkTheme ? lightenColor(color, 0.55) : darkenColor(color, 0.35);
@@ -167,7 +171,10 @@ export function computeTimelineFilteredSet(
 // ---------------------------------------------------------------------------
 
 export function isDensityTooClose(
-	cx: number, cy: number, bucketSize: number, minDist2: number,
+	cx: number,
+	cy: number,
+	bucketSize: number,
+	minDist2: number,
 	grid: Map<string, { cx: number; cy: number }[]>,
 ): boolean {
 	const bx = Math.floor(cx / bucketSize);
@@ -244,11 +251,12 @@ export function computeZonePlacementFromAngles(
 	// Place label at the midpoint of the largest gap.
 	// When gap is narrow (dense layout), pull label closer to its own node
 	// to reduce AP-6 ambiguity (label closer to another node).
-	const gapScale = maxGap < gapParams.narrowThreshold
-		? gapParams.narrowFactor
-		: maxGap < gapParams.mediumThreshold
-			? gapParams.mediumFactor
-			: 1.0;
+	const gapScale =
+		maxGap < gapParams.narrowThreshold
+			? gapParams.narrowFactor
+			: maxGap < gapParams.mediumThreshold
+				? gapParams.mediumFactor
+				: 1.0;
 	const dist = (nodeRadius + offset) * gapScale;
 	const lx = Math.cos(gapMidAngle) * dist;
 	const ly = Math.sin(gapMidAngle) * dist;

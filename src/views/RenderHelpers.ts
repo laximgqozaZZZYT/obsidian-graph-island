@@ -532,12 +532,15 @@ export function generatePhantomNodes(
 ): { id: string; label: string; x: number; y: number; vx: number; vy: number; isPhantom: true }[] {
 	// Map boolean to an arrangement string understood by the canonical implementation.
 	const arrangement = isPolar ? "concentric" : "grid";
-	return _generatePhantomNodes(
-		realNodes as Parameters<typeof _generatePhantomNodes>[0],
-		cx,
-		cy,
-		arrangement,
-	) as { id: string; label: string; x: number; y: number; vx: number; vy: number; isPhantom: true }[];
+	return _generatePhantomNodes(realNodes as Parameters<typeof _generatePhantomNodes>[0], cx, cy, arrangement) as {
+		id: string;
+		label: string;
+		x: number;
+		y: number;
+		vx: number;
+		vy: number;
+		isPhantom: true;
+	}[];
 }
 
 // ---------------------------------------------------------------------------

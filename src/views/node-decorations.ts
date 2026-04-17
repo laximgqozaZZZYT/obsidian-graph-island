@@ -98,11 +98,7 @@ export function renderPathfinderMarkers(
 // Pass 5: Compare selection rings (dashed style)
 // ---------------------------------------------------------------------------
 
-export function renderCompareRings(
-	host: RenderHost,
-	g: CanvasGraphics,
-	ctx: Pick<DecorationCtx, "visible">,
-): void {
+export function renderCompareRings(host: RenderHost, g: CanvasGraphics, ctx: Pick<DecorationCtx, "visible">): void {
 	const compareIds = host.getCompareNodeIds?.() ?? [];
 	if (compareIds.length === 0) return;
 	const compareSet = new Set(compareIds);
@@ -127,11 +123,7 @@ export function renderCompareRings(
 // Pass 6: Bookmark star overlay
 // ---------------------------------------------------------------------------
 
-export function renderBookmarkStars(
-	host: RenderHost,
-	g: CanvasGraphics,
-	ctx: Pick<DecorationCtx, "visible">,
-): void {
+export function renderBookmarkStars(host: RenderHost, g: CanvasGraphics, ctx: Pick<DecorationCtx, "visible">): void {
 	const bookmarked = host.getBookmarkedNodeIds?.() ?? null;
 	if (!bookmarked || bookmarked.size === 0) return;
 
@@ -301,11 +293,7 @@ export function renderImportanceRings(
 // Pass 10: Recency marker — green dot for recent, fade for old
 // ---------------------------------------------------------------------------
 
-export function renderRecencyMarkers(
-	host: RenderHost,
-	g: CanvasGraphics,
-	ctx: Pick<DecorationCtx, "visible">,
-): void {
+export function renderRecencyMarkers(host: RenderHost, g: CanvasGraphics, ctx: Pick<DecorationCtx, "visible">): void {
 	const config = host.getRecencyConfig?.();
 	if (!config) return;
 
@@ -455,10 +443,7 @@ export function renderMultiSelectRings(
 // Pass 15: S1 Hierarchy tree overlay — purple lines from focused node
 // ---------------------------------------------------------------------------
 
-export function renderHierarchyOverlay(
-	host: RenderHost,
-	g: CanvasGraphics,
-): void {
+export function renderHierarchyOverlay(host: RenderHost, g: CanvasGraphics): void {
 	const tree = host.getHierarchyTree?.();
 	if (!tree || tree.size === 0) return;
 
@@ -481,10 +466,7 @@ export function renderHierarchyOverlay(
 // Pass 16: S6 Ontology backbone — translucent indigo skeleton
 // ---------------------------------------------------------------------------
 
-export function renderOntologyBackbone(
-	host: RenderHost,
-	g: CanvasGraphics,
-): void {
+export function renderOntologyBackbone(host: RenderHost, g: CanvasGraphics): void {
 	const backbone = host.getOntologyBackbone?.();
 	if (!backbone || backbone.length === 0) return;
 
@@ -504,10 +486,7 @@ export function renderOntologyBackbone(
 // Pass 17: S4 Gap detection dotted edges
 // ---------------------------------------------------------------------------
 
-export function renderGapEdges(
-	host: RenderHost,
-	g: CanvasGraphics,
-): void {
+export function renderGapEdges(host: RenderHost, g: CanvasGraphics): void {
 	const gaps = host.getStructuralGaps?.();
 	if (!gaps || gaps.length === 0) return;
 

@@ -1,22 +1,14 @@
 import { describe, it, expect } from "vitest";
-import {
-	computeAutoFitTransform,
-	computeVisibleFraction,
-} from "../src/utils/graph-helpers";
+import { computeAutoFitTransform, computeVisibleFraction } from "../src/utils/graph-helpers";
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-const mkNodes = (coords: [number, number][], r = 10) =>
-	coords.map(([x, y]) => ({ x, y, r }));
+const mkNodes = (coords: [number, number][], r = 10) => coords.map(([x, y]) => ({ x, y, r }));
 
 /** Generate nodes biased along one axis: x ∈ [0, xMax], y ∈ [0, yMax] */
-function mkBiasedNodes(
-	count: number,
-	xMax: number,
-	yMax: number,
-): { x: number; y: number; r: number }[] {
+function mkBiasedNodes(count: number, xMax: number, yMax: number): { x: number; y: number; r: number }[] {
 	const nodes: { x: number; y: number; r: number }[] = [];
 	for (let i = 0; i < count; i++) {
 		const t = count > 1 ? i / (count - 1) : 0;
@@ -280,16 +272,7 @@ describe("ensureViewportUtilization — spread degenerate axis logic", () => {
 		const minUtil = 0.3;
 		const vpArea = 800 * 600;
 
-		spreadDegenerateAxis(
-			nodes,
-			cx,
-			cy,
-			bboxW,
-			bboxH,
-			degenerateThreshold,
-			minUtil,
-			vpArea,
-		);
+		spreadDegenerateAxis(nodes, cx, cy, bboxW, bboxH, degenerateThreshold, minUtil, vpArea);
 
 		// After spreading, Y values should span a significant range
 		const ys = nodes.map((n) => n.y);
@@ -316,16 +299,7 @@ describe("ensureViewportUtilization — spread degenerate axis logic", () => {
 		const minUtil = 0.3;
 		const vpArea = 800 * 600;
 
-		spreadDegenerateAxis(
-			nodes,
-			cx,
-			cy,
-			bboxW,
-			bboxH,
-			degenerateThreshold,
-			minUtil,
-			vpArea,
-		);
+		spreadDegenerateAxis(nodes, cx, cy, bboxW, bboxH, degenerateThreshold, minUtil, vpArea);
 
 		const xs = nodes.map((n) => n.x);
 		const minX = Math.min(...xs);
@@ -391,47 +365,19 @@ describe("ensureViewportUtilization — scaleFactor calculation", () => {
 	});
 
 	it("produces larger scale factor for smaller bbox", () => {
-		const sfSmall = computeViewportScaleFactor(
-			100,
-			100,
-			0.3,
-			800 * 600,
-			0.01,
-			10,
-		);
-		const sfLarge = computeViewportScaleFactor(
-			500,
-			500,
-			0.3,
-			800 * 600,
-			0.15,
-			10,
-		);
+		const sfSmall = computeViewportScaleFactor(100, 100, 0.3, 800 * 600, 0.01, 10);
+		const sfLarge = computeViewportScaleFactor(500, 500, 0.3, 800 * 600, 0.15, 10);
 		expect(sfSmall).toBeGreaterThan(sfLarge);
 	});
 
 	it("handles extreme aspect ratio (very wide bbox)", () => {
-		const sf = computeViewportScaleFactor(
-			5000,
-			10,
-			0.3,
-			800 * 600,
-			0.001,
-			10,
-		);
+		const sf = computeViewportScaleFactor(5000, 10, 0.3, 800 * 600, 0.001, 10);
 		expect(sf).toBeGreaterThan(0);
 		expect(isFinite(sf)).toBe(true);
 	});
 
 	it("handles extreme aspect ratio (very tall bbox)", () => {
-		const sf = computeViewportScaleFactor(
-			10,
-			5000,
-			0.3,
-			800 * 600,
-			0.001,
-			10,
-		);
+		const sf = computeViewportScaleFactor(10, 5000, 0.3, 800 * 600, 0.001, 10);
 		expect(sf).toBeGreaterThan(0);
 		expect(isFinite(sf)).toBe(true);
 	});
@@ -492,11 +438,7 @@ describe("simulation end — autoFit pipeline consolidation", () => {
 		};
 	}
 
-	function simulateSimEndPipeline(
-		state: PipelineState,
-		canvasW: number,
-		canvasH: number,
-	): void {
+	function simulateSimEndPipeline(state: PipelineState, canvasW: number, canvasH: number): void {
 		// Step 1: ensureViewportUtilization (data stage)
 		if (canvasW > 0 && canvasH > 0) state.viewportUtilCalled = true;
 
@@ -549,14 +491,22 @@ describe("autoFit coverage validation — retry logic", () => {
 		// padding=0 retry should achieve reasonable coverage (>= 80%)
 		const nodes = mkBiasedNodes(100, 5000, 5000);
 		const firstFit = computeAutoFitTransform({
-			nodes, canvasW: 400, canvasH: 300, padding: 200,
+			nodes,
+			canvasW: 400,
+			canvasH: 300,
+			padding: 200,
 		});
 		expect(firstFit).not.toBeNull();
 
 		// Note: padded fit may already reach 100% at a smaller scale, so retry
 		// (padding=0, maxScale capped) can clip edges — check absolute threshold only
 		const retryFit = computeAutoFitTransform({
-			nodes, canvasW: 400, canvasH: 300, padding: 0, minScale: 0, maxScale: firstFit!.scale * 1.5,
+			nodes,
+			canvasW: 400,
+			canvasH: 300,
+			padding: 0,
+			minScale: 0,
+			maxScale: firstFit!.scale * 1.5,
 		});
 		expect(retryFit).not.toBeNull();
 		const retryFrac = computeVisibleFraction(nodes, retryFit!.cx, retryFit!.cy, retryFit!.scale, 400, 300);
@@ -565,9 +515,19 @@ describe("autoFit coverage validation — retry logic", () => {
 
 	it("does not retry when coverage >= 80%", () => {
 		// Tight cluster: all nodes easily fit
-		const nodes = mkNodes([[0, 0], [50, 50], [100, 100]], 5);
+		const nodes = mkNodes(
+			[
+				[0, 0],
+				[50, 50],
+				[100, 100],
+			],
+			5,
+		);
 		const fit = computeAutoFitTransform({
-			nodes, canvasW: 800, canvasH: 600, padding: 80,
+			nodes,
+			canvasW: 800,
+			canvasH: 600,
+			padding: 80,
 		});
 		expect(fit).not.toBeNull();
 		const frac = computeVisibleFraction(nodes, fit!.cx, fit!.cy, fit!.scale, 800, 600);
@@ -577,7 +537,12 @@ describe("autoFit coverage validation — retry logic", () => {
 	it("retry produces valid transform", () => {
 		const nodes = mkBiasedNodes(50, 3000, 3000);
 		const retry = computeAutoFitTransform({
-			nodes, canvasW: 200, canvasH: 150, padding: 0, minScale: 0, maxScale: 1.5,
+			nodes,
+			canvasW: 200,
+			canvasH: 150,
+			padding: 0,
+			minScale: 0,
+			maxScale: 1.5,
 		});
 		expect(retry).not.toBeNull();
 		expect(retry!.scale).toBeGreaterThan(0);
@@ -630,10 +595,7 @@ describe("autoFocusActiveFile → autoFitView recursion prevention", () => {
 		if (!activeFilePath) return;
 
 		// Large graph: switch to local graph and re-render
-		if (
-			state.localGraphCenter === null &&
-			state.nodeCount > LARGE_GRAPH_THRESHOLD
-		) {
+		if (state.localGraphCenter === null && state.nodeCount > LARGE_GRAPH_THRESHOLD) {
 			state.localGraphCenter = activeFilePath;
 			state.suppressAutoFit = true;
 			simulateDoRender(state);

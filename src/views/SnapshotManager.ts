@@ -194,7 +194,10 @@ export function showSnapshotTimeline(host: SnapshotHost): void {
 
 	// Header
 	const header = panel.createDiv({ cls: "gi-snapshot-timeline-header" });
-	header.createEl("span", { text: t("snapshot.timelineTitle").replace("{count}", String(entries.length)), cls: "gi-snapshot-timeline-title" });
+	header.createEl("span", {
+		text: t("snapshot.timelineTitle").replace("{count}", String(entries.length)),
+		cls: "gi-snapshot-timeline-title",
+	});
 	const closeBtn = header.createEl("button", {
 		text: "\u00d7",
 		cls: "gi-snapshot-timeline-close",
@@ -212,7 +215,10 @@ export function showSnapshotTimeline(host: SnapshotHost): void {
 		bars.push(bar);
 		const h = Math.max(2, (entry.nodeCount / maxNodes) * 36);
 		bar.style.height = `${h}px`;
-		bar.title = t("snapshot.compareTip").replace("{name}", entry.name).replace("{nodeCount}", String(entry.nodeCount)).replace("{edgeCount}", String(entry.edgeCount));
+		bar.title = t("snapshot.compareTip")
+			.replace("{name}", entry.name)
+			.replace("{nodeCount}", String(entry.nodeCount))
+			.replace("{edgeCount}", String(entry.edgeCount));
 		bar.addEventListener("click", (ev: MouseEvent) => {
 			const snap = snapshots.find((s) => s.name === entry.name);
 			if (!snap) return;

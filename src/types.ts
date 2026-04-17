@@ -139,7 +139,17 @@ export type ViewMode = "graph" | "sunburst" | "timeline" | "matrix";
 export type ClusterGroupBy = string;
 
 /** How to arrange nodes within each cluster */
-export type ClusterArrangement = "inherit" | "concentric" | "radial" | "phyllotaxis" | "grid" | "triangle" | "random" | "timeline" | "custom" | "ego";
+export type ClusterArrangement =
+	| "inherit"
+	| "concentric"
+	| "radial"
+	| "phyllotaxis"
+	| "grid"
+	| "triangle"
+	| "random"
+	| "timeline"
+	| "custom"
+	| "ego";
 
 /** How to arrange groups relative to each other (inter-group layout).
  *  "auto" preserves legacy behavior — derived from clusterArrangement. */
@@ -234,10 +244,7 @@ type GridPositionSource =
 export type GridShape = { kind: "line" } | { kind: "circle" } | { kind: "radial" } | { kind: "curve"; expr: string };
 
 /** Source of tick labels */
-type GridLabelSource =
-	| { kind: "auto" }
-	| { kind: "field"; field: string }
-	| { kind: "custom"; values: string[] };
+type GridLabelSource = { kind: "auto" } | { kind: "field"; field: string } | { kind: "custom"; values: string[] };
 
 /** Tick/label configuration for a grid axis */
 interface GridTickConfig {

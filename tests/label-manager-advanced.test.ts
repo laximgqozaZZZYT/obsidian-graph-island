@@ -21,10 +21,10 @@ describe("computePriorityScores advanced", () => {
 	const defaultRT = {
 		labelZoomTier1: 0.15,
 		labelZoomTier2: 0.35,
-		labelZoomTier3: 0.70,
-		labelDegreePctTier1: 0.10,
-		labelDegreePctTier2: 0.30,
-		labelDegreePctTier3: 0.50,
+		labelZoomTier3: 0.7,
+		labelDegreePctTier1: 0.1,
+		labelDegreePctTier2: 0.3,
+		labelDegreePctTier3: 0.5,
 		nodeLabelZoomMin: 0.9,
 	};
 
@@ -35,19 +35,15 @@ describe("computePriorityScores advanced", () => {
 			hasLabel: true,
 		}));
 		const degrees = new Map(
-			nodes.map((n, i) => [n.id, Math.max(1, 100 - i * 2)]) // decreasing
+			nodes.map((n, i) => [n.id, Math.max(1, 100 - i * 2)]), // decreasing
 		);
 		const result = computePriorityScores(nodes, degrees, defaultRT);
 
 		// Verify super nodes get higher scores
-		const superNodes = result.filter((r) =>
-			nodes.find((n) => n.id === r.id && n.isSuper)
-		);
-		const regularNodes = result.filter((r) =>
-			nodes.find((n) => n.id === r.id && !n.isSuper)
-		);
+		const superNodes = result.filter((r) => nodes.find((n) => n.id === r.id && n.isSuper));
+		const regularNodes = result.filter((r) => nodes.find((n) => n.id === r.id && !n.isSuper));
 		expect(Math.max(...superNodes.map((r) => r.priorityScore))).toBeGreaterThan(
-			Math.max(...regularNodes.map((r) => r.priorityScore))
+			Math.max(...regularNodes.map((r) => r.priorityScore)),
 		);
 	});
 
@@ -101,11 +97,11 @@ describe("computePriorityScores advanced", () => {
 
 		const customRT = {
 			labelZoomTier1: 0.05,
-			labelZoomTier2: 0.10,
-			labelZoomTier3: 0.50,
+			labelZoomTier2: 0.1,
+			labelZoomTier3: 0.5,
 			labelDegreePctTier1: 0.05,
-			labelDegreePctTier2: 0.20,
-			labelDegreePctTier3: 0.40,
+			labelDegreePctTier2: 0.2,
+			labelDegreePctTier3: 0.4,
 			nodeLabelZoomMin: 1.0,
 		};
 		const result = computePriorityScores(nodes, degrees, customRT);
@@ -380,10 +376,7 @@ describe("smartTruncateLabel advanced", () => {
 	});
 
 	it("very long parent name: truncates intelligently", () => {
-		const result = smartTruncateLabel(
-			"this-is-a-very-long-parent/short",
-			12
-		);
+		const result = smartTruncateLabel("this-is-a-very-long-parent/short", 12);
 		expect(result.length).toBeLessThanOrEqual(15);
 		expect(result).toContain("/");
 	});
@@ -421,9 +414,9 @@ describe("smartTruncateLabel advanced", () => {
 // selectLabelMode — FSM state transitions
 // ===========================================================================
 describe("selectLabelMode advanced", () => {
-	const IZ = 0.2;  // initialsZoom
-	const TZ = 0.5;  // truncateZoom
-	const H = 0.05;  // hysteresis
+	const IZ = 0.2; // initialsZoom
+	const TZ = 0.5; // truncateZoom
+	const H = 0.05; // hysteresis
 
 	it("initialsZoom boundary: exactly at threshold", () => {
 		const result = selectLabelMode(IZ, "full", IZ, TZ, H);
@@ -463,16 +456,12 @@ describe("selectLabelMode advanced", () => {
 
 	it("very large hysteresis: sticks to mode longer", () => {
 		const largeH = 0.3;
-		expect(selectLabelMode(IZ + 0.1, "initials", IZ, TZ, largeH)).toBe(
-			"initials"
-		);
+		expect(selectLabelMode(IZ + 0.1, "initials", IZ, TZ, largeH)).toBe("initials");
 		// Would normally be truncated, but hysteresis keeps it
 	});
 
 	it("zero hysteresis: no stickiness", () => {
-		expect(selectLabelMode(IZ + 0.01, "initials", IZ, TZ, 0)).toBe(
-			"truncated"
-		);
+		expect(selectLabelMode(IZ + 0.01, "initials", IZ, TZ, 0)).toBe("truncated");
 		expect(selectLabelMode(TZ - 0.01, "full", IZ, TZ, 0)).toBe("truncated");
 	});
 
@@ -515,11 +504,7 @@ describe("Label functions integration", () => {
 	});
 
 	it("initials extracted from truncated label are valid", () => {
-		const labels = [
-			"classic-hamlet/characters",
-			"mythology-greek/gods",
-			"fantasy-world/places",
-		];
+		const labels = ["classic-hamlet/characters", "mythology-greek/gods", "fantasy-world/places"];
 		for (const label of labels) {
 			const truncated = smartTruncateLabel(label, 12);
 			const initials = extractInitials(truncated);
@@ -544,10 +529,10 @@ describe("Label functions integration", () => {
 		const defaultRT = {
 			labelZoomTier1: 0.15,
 			labelZoomTier2: 0.35,
-			labelZoomTier3: 0.70,
-			labelDegreePctTier1: 0.10,
-			labelDegreePctTier2: 0.30,
-			labelDegreePctTier3: 0.50,
+			labelZoomTier3: 0.7,
+			labelDegreePctTier1: 0.1,
+			labelDegreePctTier2: 0.3,
+			labelDegreePctTier3: 0.5,
 			nodeLabelZoomMin: 0.9,
 		};
 

@@ -37,10 +37,7 @@ import {
 	buildConstantsUI as coordBuildConstantsUI,
 	getAxisSourceSuggestions as coordGetAxisSourceSuggestions,
 } from "./coord-panel";
-import {
-	TAG_DISPLAY_ENCLOSURE,
-	TAG_DISPLAY_NODE,
-} from "../constants";
+import { TAG_DISPLAY_ENCLOSURE, TAG_DISPLAY_NODE } from "../constants";
 import { asInternalApp, asObsidianWindow } from "../obsidian-internals";
 import { isSectionVisible } from "../utils/view-mode-sections";
 import type { PanelSectionId } from "../utils/view-mode-sections";
@@ -77,10 +74,7 @@ import {
 	buildSortRules,
 	type ClusterSectionCtx,
 } from "./panel-sections-layout";
-import {
-	buildEdgeDisplaySection,
-	buildNodeDisplaySection,
-} from "./panel-sections-display";
+import { buildEdgeDisplaySection, buildNodeDisplaySection } from "./panel-sections-display";
 
 // ---------------------------------------------------------------------------
 // Panel state (shared with GraphViewContainer)
@@ -1464,7 +1458,14 @@ function buildLayoutTab(layoutTab: HTMLElement, panel: PanelState, ctx: PanelCon
 				// --- 3. Coordinate controls ---
 				if (v("coordinateControls")) {
 					const sctx: ClusterSectionCtx = { body, panel, cb, ctx, spacingSliders: [] };
-					buildCoordinateControls(sctx, coordBuildAxisTextInput, coordBuildCoordPreview, coordBuildExprLibrary, coordBuildConstantsUI, coordGetAxisSourceSuggestions);
+					buildCoordinateControls(
+						sctx,
+						coordBuildAxisTextInput,
+						coordBuildCoordPreview,
+						coordBuildExprLibrary,
+						coordBuildConstantsUI,
+						coordGetAxisSourceSuggestions,
+					);
 				}
 			},
 			tHelp("help.displayGrouping"),
@@ -1549,7 +1550,7 @@ function _buildSettingsActionButtons(
 					const lines: string[] = [];
 					if (info.migratedFields.length > 0) lines.push(`Migrated: ${info.migratedFields.join(", ")}`);
 					if (info.removedFields.length > 0) lines.push(`Removed: ${info.removedFields.join(", ")}`);
-					new (asObsidianWindow()).Notice(lines.join("\n"), 5000);
+					new (asObsidianWindow().Notice)(lines.join("\n"), 5000);
 				}
 				modal.remove();
 				cb.invalidateData();
@@ -1849,7 +1850,10 @@ function _buildNodesTab(tabEl: HTMLElement, panel: PanelState, _ctx: PanelContex
 						.setIcon("file-text")
 						.onClick(() => {
 							const file = asObsidianWindow().app?.vault?.getAbstractFileByPath(entry.id);
-							if (file) asObsidianWindow().app?.workspace?.getLeaf(false)?.openFile(file as import("obsidian").TFile);
+							if (file)
+								asObsidianWindow()
+									.app?.workspace?.getLeaf(false)
+									?.openFile(file as import("obsidian").TFile);
 						}),
 				);
 				menu.showAtPosition({ x: e.clientX, y: e.clientY });

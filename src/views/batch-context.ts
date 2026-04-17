@@ -76,11 +76,7 @@ export function collectVisibleNodes(
 			continue;
 		}
 
-		if (
-			aggregateMode &&
-			!screenshotMode &&
-			!(pn.data.collapsedMembers && pn.data.collapsedMembers.length > 0)
-		) {
+		if (aggregateMode && !screenshotMode && !(pn.data.collapsedMembers && pn.data.collapsedMembers.length > 0)) {
 			pn.gfx.visible = false;
 			continue;
 		}

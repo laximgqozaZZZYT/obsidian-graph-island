@@ -234,11 +234,7 @@ export function clampScale(scale: number): number {
  * @param sensitivity  User zoom sensitivity (0.5–2.0, default 1.0)
  * @returns Next clamped zoom scale
  */
-export function computeZoomStep(
-	currentScale: number,
-	deltaY: number,
-	sensitivity = 1.0,
-): number {
+export function computeZoomStep(currentScale: number, deltaY: number, sensitivity = 1.0): number {
 	return clampScale(currentScale * computeZoomFactor(deltaY, sensitivity));
 }
 

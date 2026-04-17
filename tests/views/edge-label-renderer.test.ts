@@ -163,10 +163,7 @@ describe("collectLabelableEdges", () => {
 	});
 
 	it("includes typed edges with labels", () => {
-		const edges = [
-			makeEdge({ id: "e1", type: "inheritance" }),
-			makeEdge({ id: "e2", type: "sibling" }),
-		];
+		const edges = [makeEdge({ id: "e1", type: "inheritance" }), makeEdge({ id: "e2", type: "sibling" })];
 		const result = collectLabelableEdges(edges, baseCfg());
 		expect(result).toHaveLength(2);
 		expect(result[0].label).toBe("is-a");
@@ -208,11 +205,7 @@ describe("trimLabelsByDegree", () => {
 	});
 
 	it("truncates to effectiveMax", () => {
-		const items = [
-			mkEntry("e1", "a", "b"),
-			mkEntry("e2", "c", "d"),
-			mkEntry("e3", "e", "f"),
-		];
+		const items = [mkEntry("e1", "a", "b"), mkEntry("e2", "c", "d"), mkEntry("e3", "e", "f")];
 		trimLabelsByDegree(items, 2, new Map());
 		expect(items).toHaveLength(2);
 	});
@@ -294,7 +287,10 @@ describe("seedNodeRects", () => {
 	});
 
 	it("uses nodeRadii when provided", () => {
-		const radii = new Map([["a", 30], ["b", 20]]);
+		const radii = new Map([
+			["a", 30],
+			["b", 20],
+		]);
 		const labelable = [{ edge: makeEdge({ source: "a", target: "b" }) }];
 		const rects = seedNodeRects(labelable, resolvePos, radii);
 		expect(rects[0].hw).toBe(30);

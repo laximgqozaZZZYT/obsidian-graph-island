@@ -13,12 +13,7 @@ import { DEFAULT_RENDER_THRESHOLDS } from "../src/types";
 // Mock setup
 // ---------------------------------------------------------------------------
 
-function createMockCanvasText(
-	text: string,
-	visible: boolean = true,
-	x: number = 0,
-	y: number = 0,
-): CanvasText {
+function createMockCanvasText(text: string, visible: boolean = true, x: number = 0, y: number = 0): CanvasText {
 	return {
 		text,
 		visible,
@@ -206,12 +201,8 @@ describe("updateLabelsForZoom", () => {
 	});
 
 	it("culls rotated labels from both sunburst and cluster sunburst", () => {
-		const sunburstLabels = new Map([
-			["s1", createMockCanvasText("sunburst")],
-		]);
-		const clusterLabels = new Map([
-			["c1", createMockCanvasText("cluster")],
-		]);
+		const sunburstLabels = new Map([["s1", createMockCanvasText("sunburst")]]);
+		const clusterLabels = new Map([["c1", createMockCanvasText("cluster")]]);
 
 		const mockPipeline = {
 			cullOverlappingLabels: vi.fn(),
@@ -401,9 +392,7 @@ describe("LabelManager integration", () => {
 	});
 
 	it("high-degree nodes maintain visibility at zoom-out", () => {
-		const nodes = new Map([
-			["hub", createMockPixiNode("hub")],
-		]);
+		const nodes = new Map([["hub", createMockPixiNode("hub")]]);
 
 		const host = createMockHost({
 			getPixiNodes: vi.fn(() => nodes),

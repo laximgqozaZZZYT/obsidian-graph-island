@@ -403,7 +403,10 @@ export function applyGroupLabelPlacements(
 	hoveredGroupLabel: string | null,
 ): void {
 	const targetScreenPx = GROUP_LABEL_MIN_FONT_SIZE;
-	const baseFontSize = Math.max(GROUP_LABEL_MIN_FONT_SIZE, Math.round(GROUP_LABEL_MIN_FONT_SIZE / Math.max(ws, 0.01)));
+	const baseFontSize = Math.max(
+		GROUP_LABEL_MIN_FONT_SIZE,
+		Math.round(GROUP_LABEL_MIN_FONT_SIZE / Math.max(ws, 0.01)),
+	);
 	const rawScale = targetScreenPx / (baseFontSize * ws);
 	const labelScale = isFinite(rawScale) ? Math.max(1, rawScale) : 4;
 
@@ -457,8 +460,16 @@ export function applyGroupLabelPlacements(
 		txt.alpha = alpha;
 		// Visual feedback for hovered label
 		const isHovered = p.key === hoveredGroupLabel;
-		txt.bgColor = isHovered ? GROUP_LABEL_BG_COLOR_HOVERED : p.isAggregateMode ? GROUP_LABEL_BG_COLOR_AGGREGATE : GROUP_LABEL_BG_COLOR;
-		txt.bgAlpha = isHovered ? GROUP_LABEL_BG_ALPHA_HOVERED : p.isAggregateMode ? GROUP_LABEL_BG_ALPHA_AGGREGATE : GROUP_LABEL_BG_ALPHA;
+		txt.bgColor = isHovered
+			? GROUP_LABEL_BG_COLOR_HOVERED
+			: p.isAggregateMode
+				? GROUP_LABEL_BG_COLOR_AGGREGATE
+				: GROUP_LABEL_BG_COLOR;
+		txt.bgAlpha = isHovered
+			? GROUP_LABEL_BG_ALPHA_HOVERED
+			: p.isAggregateMode
+				? GROUP_LABEL_BG_ALPHA_AGGREGATE
+				: GROUP_LABEL_BG_ALPHA;
 		txt.style.fill = isHovered ? GROUP_LABEL_FILL_HOVERED : GROUP_LABEL_FILL;
 
 		txt.x = p.worldX;

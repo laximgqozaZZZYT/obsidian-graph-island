@@ -29,7 +29,9 @@ export function queryDataviewPages(app: App, query: string): Set<string> {
 
 	try {
 		// dv.pages(source) returns a DataArray of page objects with a .file.path property
-		const pages = (api as { pages: (q: string) => Iterable<unknown> & { forEach?: (fn: (p: unknown) => void) => void } }).pages(query);
+		const pages = (
+			api as { pages: (q: string) => Iterable<unknown> & { forEach?: (fn: (p: unknown) => void) => void } }
+		).pages(query);
 		const paths = new Set<string>();
 		if (pages && typeof pages.forEach === "function") {
 			pages.forEach((page: unknown) => {

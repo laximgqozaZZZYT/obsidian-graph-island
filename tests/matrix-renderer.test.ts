@@ -30,7 +30,7 @@ function mkEdge(source: string, target: string, type = "link"): GraphEdge {
 
 function mkGraph(nodeIds: string[], edges: [string, string][] = []): GraphData {
 	return {
-		nodes: nodeIds.map(id => mkNode(id)),
+		nodes: nodeIds.map((id) => mkNode(id)),
 		edges: edges.map(([s, t]) => mkEdge(s, t)),
 	};
 }
@@ -39,14 +39,28 @@ function createMockContainer(): HTMLElement {
 	return {
 		querySelector: vi.fn().mockReturnValue(null),
 		querySelectorAll: vi.fn().mockReturnValue([]),
-		createDiv: vi.fn(function() { return this; }),
-		createEl: vi.fn(function() { return this; }),
+		createDiv: vi.fn(function () {
+			return this;
+		}),
+		createEl: vi.fn(function () {
+			return this;
+		}),
 		empty: vi.fn(),
-		createSpan: vi.fn(function() { return this; }),
-		createTable: vi.fn(function() { return this; }),
-		createTr: vi.fn(function() { return this; }),
-		createTh: vi.fn(function() { return this; }),
-		createTd: vi.fn(function() { return this; }),
+		createSpan: vi.fn(function () {
+			return this;
+		}),
+		createTable: vi.fn(function () {
+			return this;
+		}),
+		createTr: vi.fn(function () {
+			return this;
+		}),
+		createTh: vi.fn(function () {
+			return this;
+		}),
+		createTd: vi.fn(function () {
+			return this;
+		}),
 		style: {},
 		classList: { add: vi.fn(), remove: vi.fn() },
 		addEventListener: vi.fn(),
@@ -151,7 +165,11 @@ describe("renderMatrixViewMode", () => {
 			H: 600,
 			gd: mkGraph(
 				["a", "b", "c"],
-				[["a", "b"], ["a", "c"], ["b", "c"]], // a has degree 2, b has degree 2, c has degree 2
+				[
+					["a", "b"],
+					["a", "c"],
+					["b", "c"],
+				], // a has degree 2, b has degree 2, c has degree 2
 			),
 			sortMode: "degree",
 			isDark: true,
@@ -185,11 +203,7 @@ describe("renderMatrixViewMode", () => {
 			W: 800,
 			H: 600,
 			gd: {
-				nodes: [
-					mkNode("a", "A", "cat1"),
-					mkNode("b", "B", "cat2"),
-					mkNode("c", "C", "cat1"),
-				],
+				nodes: [mkNode("a", "A", "cat1"), mkNode("b", "B", "cat2"), mkNode("c", "C", "cat1")],
 				edges: [],
 			},
 			sortMode: "category",
@@ -293,7 +307,11 @@ describe("renderMatrixViewMode", () => {
 			H: 600,
 			gd: mkGraph(
 				["a", "b", "c"],
-				[["a", "b"], ["b", "c"], ["a", "c"]],
+				[
+					["a", "b"],
+					["b", "c"],
+					["a", "c"],
+				],
 			),
 			sortMode: "degree",
 			isDark: true,
@@ -344,7 +362,10 @@ describe("renderMatrixViewMode", () => {
 			H: 600,
 			gd: mkGraph(
 				["a", "b"],
-				[["a", "b"], ["a", "b"]], // duplicate edges
+				[
+					["a", "b"],
+					["a", "b"],
+				], // duplicate edges
 			),
 			sortMode: "degree",
 			isDark: true,
@@ -425,7 +446,10 @@ describe("renderMatrixViewMode", () => {
 			H: 600,
 			gd: mkGraph(
 				["a", "b"],
-				[["a", "b"], ["b", "a"]], // bidirectional
+				[
+					["a", "b"],
+					["b", "a"],
+				], // bidirectional
 			),
 			sortMode: "degree",
 			isDark: true,
@@ -442,7 +466,13 @@ describe("renderMatrixViewMode", () => {
 			containerEl: container,
 			W: 800,
 			H: 600,
-			gd: mkGraph(["a", "b"], [["a", "a"], ["b", "b"]]), // self-loops
+			gd: mkGraph(
+				["a", "b"],
+				[
+					["a", "a"],
+					["b", "b"],
+				],
+			), // self-loops
 			sortMode: "degree",
 			isDark: true,
 			onSortChange,
@@ -479,7 +509,13 @@ describe("renderMatrixViewMode", () => {
 
 describe("buildMatrixData", () => {
 	it("computes degrees from edges", () => {
-		const gd = mkGraph(["a", "b", "c"], [["a", "b"], ["a", "c"]]);
+		const gd = mkGraph(
+			["a", "b", "c"],
+			[
+				["a", "b"],
+				["a", "c"],
+			],
+		);
 		const data = buildMatrixData(gd, "degree", 50);
 		expect(data.degrees.get("a")).toBe(2);
 		expect(data.degrees.get("b")).toBe(1);
@@ -487,14 +523,27 @@ describe("buildMatrixData", () => {
 	});
 
 	it("sorts by degree descending", () => {
-		const gd = mkGraph(["a", "b", "c"], [["a", "b"], ["a", "c"], ["b", "c"]]);
+		const gd = mkGraph(
+			["a", "b", "c"],
+			[
+				["a", "b"],
+				["a", "c"],
+				["b", "c"],
+			],
+		);
 		const data = buildMatrixData(gd, "degree", 50);
 		// All have degree 2, so order is stable but all present
 		expect(data.nodeIds).toHaveLength(3);
 	});
 
 	it("sorts alphabetically", () => {
-		const gd = mkGraph(["zebra", "apple", "mango"], [["zebra", "apple"], ["apple", "mango"]]);
+		const gd = mkGraph(
+			["zebra", "apple", "mango"],
+			[
+				["zebra", "apple"],
+				["apple", "mango"],
+			],
+		);
 		const data = buildMatrixData(gd, "alpha", 50);
 		expect(data.nodeIds[0]).toBe("apple");
 		expect(data.nodeIds[data.nodeIds.length - 1]).toBe("zebra");
@@ -502,11 +551,7 @@ describe("buildMatrixData", () => {
 
 	it("sorts by category then degree", () => {
 		const gd: GraphData = {
-			nodes: [
-				mkNode("a", "A", "cat2"),
-				mkNode("b", "B", "cat1"),
-				mkNode("c", "C", "cat1"),
-			],
+			nodes: [mkNode("a", "A", "cat2"), mkNode("b", "B", "cat1"), mkNode("c", "C", "cat1")],
 			edges: [mkEdge("a", "b"), mkEdge("b", "c"), mkEdge("a", "c")],
 		};
 		const data = buildMatrixData(gd, "category", 50);
@@ -517,14 +562,20 @@ describe("buildMatrixData", () => {
 
 	it("limits to maxNodes", () => {
 		const ids = Array.from({ length: 100 }, (_, i) => `n${i}`);
-		const edges: [string, string][] = ids.slice(1).map(id => ["n0", id]);
+		const edges: [string, string][] = ids.slice(1).map((id) => ["n0", id]);
 		const gd = mkGraph(ids, edges);
 		const data = buildMatrixData(gd, "degree", 10);
 		expect(data.nodeIds).toHaveLength(10);
 	});
 
 	it("builds adjacency matrix counts", () => {
-		const gd = mkGraph(["a", "b"], [["a", "b"], ["a", "b"]]);
+		const gd = mkGraph(
+			["a", "b"],
+			[
+				["a", "b"],
+				["a", "b"],
+			],
+		);
 		const data = buildMatrixData(gd, "degree", 50);
 		expect(data.matrix.get("a")?.get("b")).toBe(2);
 	});
@@ -541,7 +592,15 @@ describe("buildMatrixData", () => {
 	});
 
 	it("computes maxCount for color scaling", () => {
-		const gd = mkGraph(["a", "b", "c"], [["a", "b"], ["a", "b"], ["a", "b"], ["b", "c"]]);
+		const gd = mkGraph(
+			["a", "b", "c"],
+			[
+				["a", "b"],
+				["a", "b"],
+				["a", "b"],
+				["b", "c"],
+			],
+		);
 		const data = buildMatrixData(gd, "degree", 50);
 		expect(data.maxCount).toBe(3); // a→b has 3 edges
 	});
@@ -555,7 +614,12 @@ describe("buildMatrixData", () => {
 
 	it("excludes edges to nodes outside the top-N set", () => {
 		const ids = ["hub", "a", "b", "c"];
-		const gd = mkGraph(ids, [["hub", "a"], ["hub", "b"], ["hub", "c"], ["a", "b"]]);
+		const gd = mkGraph(ids, [
+			["hub", "a"],
+			["hub", "b"],
+			["hub", "c"],
+			["a", "b"],
+		]);
 		const data = buildMatrixData(gd, "degree", 2); // only top-2 by degree
 		// hub (3) + one of a/b (2 each) — edges to excluded nodes shouldn't appear
 		for (const [rowId, row] of data.matrix) {

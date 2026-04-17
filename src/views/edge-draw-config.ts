@@ -214,8 +214,7 @@ export function populateEdgeDrawConfig(
 	cfg.edgeLabelPlacement = input.edgeLabelPlacement;
 	cfg.edgeLayerMode = input.edgeLayerMode;
 	cfg.showArrows = input.showArrows;
-	cfg.nodeRadii =
-		input.showArrows || input.edgeCardinalityMode !== "none" ? getCachedNodeRadii() : null;
+	cfg.nodeRadii = input.showArrows || input.edgeCardinalityMode !== "none" ? getCachedNodeRadii() : null;
 	cfg.worldScale = viewport.scale;
 	cfg.viewportX = viewport.x;
 	cfg.viewportY = viewport.y;
@@ -235,7 +234,10 @@ export function populateEdgeDrawConfig(
 	cfg.edgeStrengthGlowMax = edgeRt.edgeStrengthGlowMax;
 	cfg.edgeDirectionFilter = input.edgeDirectionFilter ?? "all";
 	cfg.showOntologyBackbone = input.showOntologyBackbone ?? false;
-	cfg.roadNetwork = (edgeRt as Record<string, unknown>).roadRouteEdges !== false ? (getRoadNetwork() as EdgeDrawConfig["roadNetwork"]) : null;
+	cfg.roadNetwork =
+		(edgeRt as Record<string, unknown>).roadRouteEdges !== false
+			? (getRoadNetwork() as EdgeDrawConfig["roadNetwork"])
+			: null;
 	cfg.clusterArrangement = input.clusterArrangement;
 	cfg.coordinateSystem =
 		input.coordinateLayout?.system === "polar"

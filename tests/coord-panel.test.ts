@@ -12,12 +12,7 @@ import {
 	axisSourceToString,
 	getAxisSourceSuggestions,
 } from "../src/views/coord-panel";
-import type {
-	AxisSource,
-	AxisConfig,
-	AxisTransform,
-	CoordinateLayout,
-} from "../src/types";
+import type { AxisSource, AxisConfig, AxisTransform, CoordinateLayout } from "../src/types";
 import type { PanelState, PanelCallbacks, PanelContext } from "../src/views/PanelBuilder";
 
 // ---------------------------------------------------------------------------
@@ -228,24 +223,13 @@ describe("evalTransform", () => {
 	});
 
 	it("expression transform with constants", () => {
-		const v = evalTransform(
-			{ kind: "expression", expr: "t * c", scale: 1 },
-			0.5,
-			0,
-			10,
-			{ c: 3 },
-		);
+		const v = evalTransform({ kind: "expression", expr: "t * c", scale: 1 }, 0.5, 0, 10, { c: 3 });
 		// Result is (0.5 * 10) * 3 = 15 because t is passed as t*n
 		expect(v).toBeCloseTo(15, 1);
 	});
 
 	it("expression with invalid formula returns input", () => {
-		const v = evalTransform(
-			{ kind: "expression", expr: "invalid syntax !!!!", scale: 1 },
-			0.5,
-			0,
-			10,
-		);
+		const v = evalTransform({ kind: "expression", expr: "invalid syntax !!!!", scale: 1 }, 0.5, 0, 10);
 		expect(v).toBeCloseTo(0.5, 5);
 	});
 
@@ -255,33 +239,18 @@ describe("evalTransform", () => {
 	});
 
 	it("curve with unknown curve name returns t", () => {
-		const v = evalTransform(
-			{ kind: "curve", curve: "nonexistent-curve", params: {} },
-			0.5,
-			0,
-			10,
-		);
+		const v = evalTransform({ kind: "curve", curve: "nonexistent-curve", params: {} }, 0.5, 0, 10);
 		expect(v).toBeCloseTo(0.5, 5);
 	});
 
 	it("expression with empty expr defaults to 't'", () => {
-		const v = evalTransform(
-			{ kind: "expression", expr: "", scale: 1 },
-			0.3,
-			2,
-			10,
-		);
+		const v = evalTransform({ kind: "expression", expr: "", scale: 1 }, 0.3, 2, 10);
 		// expr fallback to "t", t passed as t*n = 0.3*10 = 3
 		expect(v).toBeCloseTo(3, 1);
 	});
 
 	it("expression with scale undefined defaults to 1", () => {
-		const v = evalTransform(
-			{ kind: "expression", expr: "t" } as AxisTransform,
-			0.5,
-			0,
-			10,
-		);
+		const v = evalTransform({ kind: "expression", expr: "t" } as AxisTransform, 0.5, 0, 10);
 		// t = 0.5 * 10 = 5, scale = 1
 		expect(v).toBeCloseTo(5, 1);
 	});
@@ -302,13 +271,7 @@ describe("evalTransform", () => {
 	});
 
 	it("curve transform with constants overrides params", () => {
-		const v = evalTransform(
-			{ kind: "curve", curve: "rose", params: { k: 3 } },
-			0.5,
-			0,
-			10,
-			{ k: 7 },
-		);
+		const v = evalTransform({ kind: "curve", curve: "rose", params: { k: 3 } }, 0.5, 0, 10, { k: 7 });
 		expect(typeof v).toBe("number");
 		expect(isFinite(v)).toBe(true);
 	});

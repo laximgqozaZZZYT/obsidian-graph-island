@@ -346,11 +346,7 @@ function countDirectedDegree(
 }
 
 /** Assign sibling rank: group nodes by BFS depth, then index within each level */
-function assignSiblingRank(
-	members: GraphNode[],
-	ctx: CoordinateContext,
-	result: Map<string, number>,
-): void {
+function assignSiblingRank(members: GraphNode[], ctx: CoordinateContext, result: Map<string, number>): void {
 	const depth = bfsFromHighestDegree(members, ctx);
 	const byDepth = new Map<number, string[]>();
 	for (const m of members) {
@@ -1155,9 +1151,10 @@ function resolveGridLinePositions(
 			return { linePositions: positions.values };
 		case "field":
 		case "property": {
-			const source: AxisSource = positions.kind === "field"
-				? { kind: SOURCE_FIELD, field: positions.field }
-				: { kind: SOURCE_PROPERTY, key: positions.key };
+			const source: AxisSource =
+				positions.kind === "field"
+					? { kind: SOURCE_FIELD, field: positions.field }
+					: { kind: SOURCE_PROPERTY, key: positions.key };
 			const catPositions = collectCategoryPositions(members, source, ctx, transformedValues);
 			const resolved = resolveCategoryGridPositions(catPositions, gridStyle, spacing);
 			return { linePositions: resolved.linePositions, autoLabels: resolved.autoLabels };
@@ -1228,7 +1225,17 @@ function resolveGridLines(
 
 	// Resolve positions
 	const { linePositions, autoLabels } = resolveGridLinePositions(
-		positions, axisSource, members, ctx, transformedValues, spacing, gridStyle, tMin, tMax, tRange, constants,
+		positions,
+		axisSource,
+		members,
+		ctx,
+		transformedValues,
+		spacing,
+		gridStyle,
+		tMin,
+		tMax,
+		tRange,
+		constants,
 	);
 
 	// Resolve labels from ticks config (default: auto labels with show=true)

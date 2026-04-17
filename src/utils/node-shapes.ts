@@ -120,4 +120,3 @@ export function getNodeShape(node: GraphNode, shapeRules: ShapeRule[]): NodeShap
 	}
 	return "circle";
 }
-

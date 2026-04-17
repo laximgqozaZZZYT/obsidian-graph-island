@@ -13,8 +13,8 @@ import type { GraphNode } from "../types";
 
 /** D3-category-20 palette for community coloring. */
 export const COMMUNITY_PALETTE: readonly number[] = [
-	0x1f77b4, 0xff7f0e, 0x2ca02c, 0xd62728, 0x9467bd, 0x8c564b, 0xe377c2, 0x7f7f7f, 0xbcbd22, 0x17becf,
-	0xaec7e8, 0xffbb78, 0x98df8a, 0xff9896, 0xc5b0d5, 0xc49c94, 0xf7b6d2, 0xc7c7c7, 0xdbdb8d, 0x9edae5,
+	0x1f77b4, 0xff7f0e, 0x2ca02c, 0xd62728, 0x9467bd, 0x8c564b, 0xe377c2, 0x7f7f7f, 0xbcbd22, 0x17becf, 0xaec7e8,
+	0xffbb78, 0x98df8a, 0xff9896, 0xc5b0d5, 0xc49c94, 0xf7b6d2, 0xc7c7c7, 0xdbdb8d, 0x9edae5,
 ];
 
 export interface NodeColorContext {
@@ -78,11 +78,7 @@ function resolveCommunityColor(nodeId: string, communityMap: Map<string, number>
  * Resolve the display color for a single node.
  * Returns a numeric hex color (e.g. 0xff0000).
  */
-export function computeNodeDisplayColor(
-	node: GraphNode,
-	ctx: NodeColorContext,
-	defaultColor: number,
-): number {
+export function computeNodeDisplayColor(node: GraphNode, ctx: NodeColorContext, defaultColor: number): number {
 	if (ctx.nodeRulesWithColor) {
 		for (const rule of ctx.nodeRulesWithColor) {
 			if (matchesFilter(node, rule.query)) return cssColorToHex(rule.color);
@@ -93,7 +89,7 @@ export function computeNodeDisplayColor(
 	if (groupHit != null) return groupHit;
 
 	if (ctx.colorMode === "heatmap") {
-		return heatmapColor((ctx.degrees?.get(node.id) ?? 0), ctx.maxDegree ?? 1);
+		return heatmapColor(ctx.degrees?.get(node.id) ?? 0, ctx.maxDegree ?? 1);
 	}
 	if (ctx.colorMode === "category") return resolveCategoryColor(node, ctx.colorMap) ?? defaultColor;
 	if (ctx.colorMode === "field") return resolveFieldColor(node, ctx) ?? defaultColor;

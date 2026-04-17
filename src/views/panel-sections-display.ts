@@ -16,7 +16,12 @@ import { ensureRT, buildSection, addAdvancedGroup } from "./PanelBuilder";
 // ---------------------------------------------------------------------------
 // Edge Display section builder
 // ---------------------------------------------------------------------------
-export function buildEdgeDisplaySection(tabEl: HTMLElement, panel: PanelState, _ctx: PanelContext, cb: PanelCallbacks): void {
+export function buildEdgeDisplaySection(
+	tabEl: HTMLElement,
+	panel: PanelState,
+	_ctx: PanelContext,
+	cb: PanelCallbacks,
+): void {
 	buildSection(
 		tabEl,
 		t("section.displayEdges"),
@@ -327,7 +332,12 @@ export function buildEdgeDisplaySection(tabEl: HTMLElement, panel: PanelState, _
 // ---------------------------------------------------------------------------
 // Node Display section builder
 // ---------------------------------------------------------------------------
-export function buildNodeDisplaySection(tabEl: HTMLElement, panel: PanelState, _ctx: PanelContext, cb: PanelCallbacks): void {
+export function buildNodeDisplaySection(
+	tabEl: HTMLElement,
+	panel: PanelState,
+	_ctx: PanelContext,
+	cb: PanelCallbacks,
+): void {
 	buildSection(
 		tabEl,
 		t("section.displayNodes"),
@@ -597,8 +607,15 @@ export function buildNodeDisplaySection(tabEl: HTMLElement, panel: PanelState, _
 /** Hover edge type filter toggles — extracted to reduce arrow function complexity. */
 function _addHoverEdgeTypeToggles(adv: HTMLElement, panel: PanelState, cb: PanelCallbacks): void {
 	const het = panel.hoverEdgeTypes ?? {
-		link: true, semantic: false, tag: false, hasTag: false, similar: false,
-		sibling: false, sequence: false, inheritance: true, aggregation: true,
+		link: true,
+		semantic: false,
+		tag: false,
+		hasTag: false,
+		similar: false,
+		sibling: false,
+		sequence: false,
+		inheritance: true,
+		aggregation: true,
 	};
 	type HetKey = keyof typeof het;
 	const hoverTypeEntries: [HetKey, string][] = [
@@ -627,8 +644,14 @@ function _addHoverEdgeTypeToggles(adv: HTMLElement, panel: PanelState, cb: Panel
 function _addNodeShapeSelects(adv: HTMLElement, panel: PanelState, cb: PanelCallbacks): void {
 	// GH: Shape preview swatches
 	const shapeIcons: Record<string, string> = {
-		circle: "O", triangle: "^", square: "#", diamond: "<>",
-		pentagon: "5", hexagon: "6", star: "*", cross: "+",
+		circle: "O",
+		triangle: "^",
+		square: "#",
+		diamond: "<>",
+		pentagon: "5",
+		hexagon: "6",
+		star: "*",
+		cross: "+",
 	};
 	const shapeOptions = ALL_SHAPES.map((s) => ({
 		value: s,
@@ -638,7 +661,10 @@ function _addNodeShapeSelects(adv: HTMLElement, panel: PanelState, cb: PanelCall
 	if (panel.showTagNodes) {
 		const tagRule = panel.nodeShapeRules.find((r) => r.match === "isTag");
 		addSelect(
-			adv, t("display.tagNodeShape"), shapeOptions, tagRule?.shape ?? "triangle",
+			adv,
+			t("display.tagNodeShape"),
+			shapeOptions,
+			tagRule?.shape ?? "triangle",
 			(v) => {
 				const rule = panel.nodeShapeRules.find((r) => r.match === "isTag");
 				if (rule) rule.shape = v as NodeShape;
@@ -649,7 +675,10 @@ function _addNodeShapeSelects(adv: HTMLElement, panel: PanelState, cb: PanelCall
 		);
 	}
 	addSelect(
-		adv, t("display.defaultNodeShape"), shapeOptions, defaultRule?.shape ?? "circle",
+		adv,
+		t("display.defaultNodeShape"),
+		shapeOptions,
+		defaultRule?.shape ?? "circle",
 		(v) => {
 			const rule = panel.nodeShapeRules.find((r) => r.match === "default");
 			if (rule) rule.shape = v as NodeShape;

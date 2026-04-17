@@ -4,13 +4,7 @@
  * Extracted default value groups from createDefaultPanel() to reduce
  * function size in PanelBuilder.ts (god object ratchet-down).
  */
-import type {
-	ClusterArrangement,
-	ClusterGroupArrangement,
-	ClusterGroupRule,
-	SortKey,
-	SortOrder,
-} from "../types";
+import type { ClusterArrangement, ClusterGroupArrangement, ClusterGroupRule, SortKey, SortOrder } from "../types";
 
 /** Default hover behavior and cluster layout settings. */
 function defaultHoverAndClusterConfig() {

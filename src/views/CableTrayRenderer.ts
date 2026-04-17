@@ -593,9 +593,10 @@ export function routeViaPolarGrid(
 		}
 	};
 
-	const gapR = ringGaps.length > 0
-		? findBestRingGap(ringGaps, Math.min(fromR, toR), Math.max(fromR, toR), (fromR + toR) / 2)
-		: null;
+	const gapR =
+		ringGaps.length > 0
+			? findBestRingGap(ringGaps, Math.min(fromR, toR), Math.max(fromR, toR), (fromR + toR) / 2)
+			: null;
 
 	const srcAngleGap = findNearestAngleGap(angleGaps, fromA);
 	const tgtAngleGap = findNearestAngleGap(angleGaps, toA);
@@ -665,9 +666,7 @@ export function estimateNodeSpacingMargin(
 	const limit = Math.min(positions.length, 50);
 	for (let i = 0; i < limit; i++) {
 		for (let j = i + 1; j < limit; j++) {
-			const d = Math.sqrt(
-				(positions[i].x - positions[j].x) ** 2 + (positions[i].y - positions[j].y) ** 2,
-			);
+			const d = Math.sqrt((positions[i].x - positions[j].x) ** 2 + (positions[i].y - positions[j].y) ** 2);
 			if (d > 1 && d < minDist) minDist = d;
 		}
 	}
@@ -746,10 +745,7 @@ function collectPairData(
 	relationColors: Map<string, string>,
 	isDark: boolean,
 ): Map<string, { srcGroup: string; tgtGroup: string; byColor: Map<number, GraphEdge[]> }> {
-	const pairData = new Map<
-		string,
-		{ srcGroup: string; tgtGroup: string; byColor: Map<number, GraphEdge[]> }
-	>();
+	const pairData = new Map<string, { srcGroup: string; tgtGroup: string; byColor: Map<number, GraphEdge[]> }>();
 	for (const e of edges) {
 		const sid = edgeSourceId(e);
 		const tid = edgeTargetId(e);
@@ -784,9 +780,7 @@ function computeJunction(
 	const dx = port.x - (centroid?.x ?? port.x);
 	const dy = port.y - (centroid?.y ?? port.y);
 	const len = Math.sqrt(dx * dx + dy * dy);
-	return len > 1
-		? { x: port.x + (dx / len) * jDist, y: port.y + (dy / len) * jDist }
-		: { x: port.x, y: port.y };
+	return len > 1 ? { x: port.x + (dx / len) * jDist, y: port.y + (dy / len) * jDist } : { x: port.x, y: port.y };
 }
 
 /** Select the appropriate middle-segment routing strategy for a trunk path. */
@@ -837,8 +831,14 @@ function resolveGroupPorts(
 	const groupKeys = new Set(connections.keys());
 	const polarCenter = computePolarCenter(cfg);
 	return computeGroupPorts(
-		groupKeys, centroids, radii, connections,
-		cfg.coordinateSystem, polarCenter, resolvePos, cfg.nodeClusterMap ?? undefined,
+		groupKeys,
+		centroids,
+		radii,
+		connections,
+		cfg.coordinateSystem,
+		polarCenter,
+		resolvePos,
+		cfg.nodeClusterMap ?? undefined,
 	);
 }
 
@@ -862,8 +862,16 @@ function assembleTrunk(
 	const portB = ports.get(pair.tgtGroup);
 	if (!portA || !portB) return null;
 
-	const jctA = computeJunction(portA, centroids.get(pair.srcGroup), radii.get(pair.srcGroup) ?? DEFAULT_CLUSTER_RADIUS);
-	const jctB = computeJunction(portB, centroids.get(pair.tgtGroup), radii.get(pair.tgtGroup) ?? DEFAULT_CLUSTER_RADIUS);
+	const jctA = computeJunction(
+		portA,
+		centroids.get(pair.srcGroup),
+		radii.get(pair.srcGroup) ?? DEFAULT_CLUSTER_RADIUS,
+	);
+	const jctB = computeJunction(
+		portB,
+		centroids.get(pair.tgtGroup),
+		radii.get(pair.tgtGroup) ?? DEFAULT_CLUSTER_RADIUS,
+	);
 
 	const middle = buildTrunkMiddlePath(jctA, jctB, cfg);
 
@@ -1185,7 +1193,15 @@ function buildGroupPerimeterMap(
 ): Map<string, GroupPerimInfo> {
 	const map = new Map<string, GroupPerimInfo>();
 	for (const groupKey of allGroupKeys) {
-		const info = computeGroupPerimInfo(groupKey, graphCenter, isPolar, clusterCentroids, nodeClusterMap, resolvePos, cache);
+		const info = computeGroupPerimInfo(
+			groupKey,
+			graphCenter,
+			isPolar,
+			clusterCentroids,
+			nodeClusterMap,
+			resolvePos,
+			cache,
+		);
 		if (info) map.set(groupKey, info);
 	}
 	return map;
@@ -1214,8 +1230,14 @@ function routeExternalOnlyCables(
 		for (const [nodeId, externalEdges] of extNodeMap) {
 			if (sourceMap?.has(nodeId)) continue;
 			const cable = routeExternalOnlyNode(
-				nodeId, externalEdges, groupKey, centroid,
-				portForKey, perimInfo ?? null, isPolar, resolvePos,
+				nodeId,
+				externalEdges,
+				groupKey,
+				centroid,
+				portForKey,
+				perimInfo ?? null,
+				isPolar,
+				resolvePos,
 			);
 			if (cable) cables.push(cable);
 		}
@@ -1253,7 +1275,15 @@ export function buildIntraGroupCables(
 	const isPolar = cfg.coordinateSystem === "polar";
 	const graphCenter = cache?.graphCenter ?? computeGraphCenter(clusterCentroids);
 	const allGroupKeys = collectAllGroupKeys(groupSourceMap, groupExternalMap);
-	const groupPerimeters = buildGroupPerimeterMap(allGroupKeys, graphCenter, isPolar, clusterCentroids, nodeClusterMap, resolvePos, cache);
+	const groupPerimeters = buildGroupPerimeterMap(
+		allGroupKeys,
+		graphCenter,
+		isPolar,
+		clusterCentroids,
+		nodeClusterMap,
+		resolvePos,
+		cache,
+	);
 
 	// Step 3: Build cables with perimeter routing
 	for (const [groupKey, sourceMap] of groupSourceMap) {
@@ -1264,16 +1294,33 @@ export function buildIntraGroupCables(
 
 		for (const [sourceNodeId, edgeList] of sourceMap) {
 			const cable = routeSingleIntraCable(
-				sourceNodeId, edgeList, groupKey, centroid,
-				portForKey ?? null, perimInfo ?? null, isPolar,
-				resolvePos, nodeClusterMap, groupExternalMap, handledEdgeIds,
+				sourceNodeId,
+				edgeList,
+				groupKey,
+				centroid,
+				portForKey ?? null,
+				perimInfo ?? null,
+				isPolar,
+				resolvePos,
+				nodeClusterMap,
+				groupExternalMap,
+				handledEdgeIds,
 			);
 			if (cable) cables.push(cable);
 		}
 	}
 
 	// Step 4: Handle nodes that are only targets of cross-group edges
-	routeExternalOnlyCables(groupExternalMap, groupSourceMap, clusterCentroids, groupPorts, groupPerimeters, isPolar, resolvePos, cables);
+	routeExternalOnlyCables(
+		groupExternalMap,
+		groupSourceMap,
+		clusterCentroids,
+		groupPorts,
+		groupPerimeters,
+		isPolar,
+		resolvePos,
+		cables,
+	);
 
 	return { cables, handledEdgeIds };
 }

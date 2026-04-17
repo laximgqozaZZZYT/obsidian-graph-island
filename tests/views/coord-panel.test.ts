@@ -1,10 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-	evalSource,
-	evalTransform,
-	parseAxisSourceString,
-	axisSourceToString,
-} from "../../src/views/coord-panel";
+import { evalSource, evalTransform, parseAxisSourceString, axisSourceToString } from "../../src/views/coord-panel";
 import type { AxisSource, AxisTransform } from "../../src/types";
 
 // ---------------------------------------------------------------------------

@@ -167,7 +167,14 @@ export class DiffOverlay {
 		this._renderGhostNodes(ctx, ghostPositions, this.diff.removedNodes);
 
 		// --- 削除エッジ（赤い破線） ---
-		this._renderRemovedEdges(ctx, pixiNodes, ghostPositions, this.diff.removedNodes, this.diff.removedEdges, toScreen);
+		this._renderRemovedEdges(
+			ctx,
+			pixiNodes,
+			ghostPositions,
+			this.diff.removedNodes,
+			this.diff.removedEdges,
+			toScreen,
+		);
 
 		// --- ステータスバー（左下に表示） ---
 		this._renderStatusBar(ctx, viewport);
@@ -337,7 +344,10 @@ export class DiffOverlay {
 		const header = panel.createDiv();
 		header.style.cssText =
 			"display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;padding-bottom:4px;border-bottom:1px solid var(--background-modifier-border);";
-		header.createEl("span", { text: t("diff.title").replace("{name}", this.snapshotName), attr: { style: "font-weight:600;" } });
+		header.createEl("span", {
+			text: t("diff.title").replace("{name}", this.snapshotName),
+			attr: { style: "font-weight:600;" },
+		});
 		const closeBtn = header.createEl("button", {
 			text: "\u00d7",
 			attr: {

@@ -122,9 +122,7 @@ describe("buildSimEndA11yMessage", () => {
 	};
 
 	it("builds basic message without guide", () => {
-		expect(buildSimEndA11yMessage(10, 20, false, labels)).toBe(
-			"Graph loaded: 10 nodes, 20 edges.",
-		);
+		expect(buildSimEndA11yMessage(10, 20, false, labels)).toBe("Graph loaded: 10 nodes, 20 edges.");
 	});
 
 	it("appends screen reader guide on first launch", () => {
@@ -134,9 +132,7 @@ describe("buildSimEndA11yMessage", () => {
 	});
 
 	it("handles zero counts", () => {
-		expect(buildSimEndA11yMessage(0, 0, false, labels)).toBe(
-			"Graph loaded: 0 nodes, 0 edges.",
-		);
+		expect(buildSimEndA11yMessage(0, 0, false, labels)).toBe("Graph loaded: 0 nodes, 0 edges.");
 	});
 });
 
@@ -216,11 +212,7 @@ describe("buildPositionMap", () => {
 	});
 
 	it("skips nodes without coordinates", () => {
-		const nodes = [
-			{ id: "a", x: 10, y: 20 },
-			{ id: "b" },
-			{ id: "c", x: undefined, y: undefined },
-		];
+		const nodes = [{ id: "a", x: 10, y: 20 }, { id: "b" }, { id: "c", x: undefined, y: undefined }];
 		const map = buildPositionMap(nodes);
 		expect(map.size).toBe(1);
 		expect(map.has("b")).toBe(false);

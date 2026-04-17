@@ -77,7 +77,10 @@ function _collectTagSets(
 		const tags: string[] = Array.isArray(rawTags)
 			? rawTags.filter((t: unknown): t is string => typeof t === "string")
 			: typeof rawTags === "string"
-				? rawTags.split(",").map((t: string) => t.trim()).filter(Boolean)
+				? rawTags
+						.split(",")
+						.map((t: string) => t.trim())
+						.filter(Boolean)
 				: [];
 
 		if (tags.length === 0) continue;

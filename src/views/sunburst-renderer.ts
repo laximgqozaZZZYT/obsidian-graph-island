@@ -24,10 +24,7 @@ interface SunburstTooltipLines {
  * Compute tooltip content for a hovered sunburst group.
  * Pure function — no DOM side-effects.
  */
-export function buildSunburstTooltipContent(
-	arcs: LayoutSunburstArc[],
-	groupName: string,
-): SunburstTooltipLines {
+export function buildSunburstTooltipContent(arcs: LayoutSunburstArc[], groupName: string): SunburstTooltipLines {
 	let leafCount = 0;
 	const depth2Names: string[] = [];
 	for (const arc of arcs) {
@@ -70,7 +67,15 @@ interface SunburstArcDrawParams {
 	isSunburstView: boolean;
 	hoveredGroup: string | null;
 	/** Optional override for arc path drawing (used for testing). */
-	drawArcPath?: (gfx: CanvasGraphics, cx: number, cy: number, rInner: number, rOuter: number, startAngle: number, endAngle: number) => void;
+	drawArcPath?: (
+		gfx: CanvasGraphics,
+		cx: number,
+		cy: number,
+		rInner: number,
+		rOuter: number,
+		startAngle: number,
+		endAngle: number,
+	) => void;
 }
 
 /** Resolved fill + line style for a single sunburst arc. */

@@ -72,7 +72,10 @@ function buildPolarGrid(
 	intersections: RoadIntersection[],
 	segments: RoadSegment[],
 ): number[][] | null {
-	const rValues = cfg.axis1Lines.map((l) => l.position).filter((r) => r > 0).sort((a, b) => a - b);
+	const rValues = cfg.axis1Lines
+		.map((l) => l.position)
+		.filter((r) => r > 0)
+		.sort((a, b) => a - b);
 	const thetaValues = cfg.axis2Lines.map((l) => l.position).sort((a, b) => a - b);
 
 	if (rValues.length === 0 || thetaValues.length === 0) return null;
@@ -105,7 +108,8 @@ function buildPolarGrid(
 			const theta1 = thetaValues[ti];
 			const theta2 = ti + 1 < n ? thetaValues[nextTi] : thetaValues[0] + Math.PI * 2;
 			segments.push({
-				from: grid[ri][ti], to: grid[ri][nextTi],
+				from: grid[ri][ti],
+				to: grid[ri][nextTi],
 				waypoints: generateArcWaypoints(cfg.cx, cfg.cy, r, theta1, theta2, 8),
 				length: arcLength(r, theta1, theta2),
 			});
@@ -117,8 +121,10 @@ function buildPolarGrid(
 		segments.push({ from: centerId, to: grid[0][ti], waypoints: [], length: rValues[0] });
 		for (let ri = 0; ri < rValues.length - 1; ri++) {
 			segments.push({
-				from: grid[ri][ti], to: grid[ri + 1][ti],
-				waypoints: [], length: rValues[ri + 1] - rValues[ri],
+				from: grid[ri][ti],
+				to: grid[ri + 1][ti],
+				waypoints: [],
+				length: rValues[ri + 1] - rValues[ri],
 			});
 		}
 	}
@@ -153,8 +159,10 @@ function buildCartesianGrid(
 	for (let yi = 0; yi < yValues.length; yi++) {
 		for (let xi = 0; xi < xValues.length - 1; xi++) {
 			segments.push({
-				from: grid[xi][yi], to: grid[xi + 1][yi],
-				waypoints: [], length: xValues[xi + 1] - xValues[xi],
+				from: grid[xi][yi],
+				to: grid[xi + 1][yi],
+				waypoints: [],
+				length: xValues[xi + 1] - xValues[xi],
 			});
 		}
 	}
@@ -163,8 +171,10 @@ function buildCartesianGrid(
 	for (let xi = 0; xi < xValues.length; xi++) {
 		for (let yi = 0; yi < yValues.length - 1; yi++) {
 			segments.push({
-				from: grid[xi][yi], to: grid[xi][yi + 1],
-				waypoints: [], length: yValues[yi + 1] - yValues[yi],
+				from: grid[xi][yi],
+				to: grid[xi][yi + 1],
+				waypoints: [],
+				length: yValues[yi + 1] - yValues[yi],
 			});
 		}
 	}
@@ -173,9 +183,7 @@ function buildCartesianGrid(
 }
 
 /** Build bidirectional adjacency list from segments. */
-function buildAdjacency(
-	segments: RoadSegment[],
-): Map<number, { to: number; weight: number; segIdx: number }[]> {
+function buildAdjacency(segments: RoadSegment[]): Map<number, { to: number; weight: number; segIdx: number }[]> {
 	const adjacency = new Map<number, { to: number; weight: number; segIdx: number }[]>();
 	for (let si = 0; si < segments.length; si++) {
 		const seg = segments[si];
@@ -224,7 +232,8 @@ function findClosestSegmentPoint(
 
 /** Split a segment at parameter t and update adjacency for the new intersection. */
 function splitSegmentAtPoint(
-	bestSegIdx: number, bestT: number,
+	bestSegIdx: number,
+	bestT: number,
 	intersections: RoadIntersection[],
 	segments: RoadSegment[],
 	adjacency: Map<number, { to: number; weight: number; segIdx: number }[]>,
@@ -270,9 +279,10 @@ export function buildRoadNetwork(cfg: RoadNetworkConfig): RoadNetwork {
 	const intersections: RoadIntersection[] = [];
 	const segments: RoadSegment[] = [];
 
-	const grid = cfg.system === "polar"
-		? buildPolarGrid(cfg, intersections, segments)
-		: buildCartesianGrid(cfg, intersections, segments);
+	const grid =
+		cfg.system === "polar"
+			? buildPolarGrid(cfg, intersections, segments)
+			: buildCartesianGrid(cfg, intersections, segments);
 
 	if (!grid) return emptyNetwork(cfg);
 
@@ -283,13 +293,19 @@ export function buildRoadNetwork(cfg: RoadNetworkConfig): RoadNetwork {
 	for (const node of cfg.nodes) {
 		const nearestIdx = findNearestIndex(intersections, node.x, node.y);
 		const bestId = nearestIdx >= 0 ? intersections[nearestIdx].id : -1;
-		const bestDist = nearestIdx >= 0 ? squaredDistance(node.x, node.y, intersections[nearestIdx].x, intersections[nearestIdx].y) : Infinity;
+		const bestDist =
+			nearestIdx >= 0
+				? squaredDistance(node.x, node.y, intersections[nearestIdx].x, intersections[nearestIdx].y)
+				: Infinity;
 		let bestSegIdx = -1;
 		let bestT = 0;
 
 		if (cfg.system === "cartesian") {
 			const snap = findClosestSegmentPoint(node, segments, intersections, bestDist);
-			if (snap) { bestSegIdx = snap.segIdx; bestT = snap.t; }
+			if (snap) {
+				bestSegIdx = snap.segIdx;
+				bestT = snap.t;
+			}
 		}
 
 		if (bestSegIdx >= 0) {
@@ -444,7 +460,10 @@ export function addTrunkRoads(network: RoadNetwork, groupCentroids: { x: number;
 	for (const c of groupCentroids) {
 		const nearIdx = findNearestIndex(network.intersections, c.x, c.y);
 		const bestId = nearIdx >= 0 ? network.intersections[nearIdx].id : -1;
-		const bestDist = nearIdx >= 0 ? squaredDistance(c.x, c.y, network.intersections[nearIdx].x, network.intersections[nearIdx].y) : Infinity;
+		const bestDist =
+			nearIdx >= 0
+				? squaredDistance(c.x, c.y, network.intersections[nearIdx].x, network.intersections[nearIdx].y)
+				: Infinity;
 		if (bestId >= 0 && bestDist < 1e8) {
 			centroidIsects.push(bestId);
 		} else {
@@ -634,7 +653,10 @@ export function buildRoadNetworkFromPhantoms(
 		const dists: { idx: number; dist: number }[] = [];
 		for (let j = 0; j < phantomNodes.length; j++) {
 			if (i === j) continue;
-			dists.push({ idx: j, dist: distance(phantomNodes[i].x, phantomNodes[i].y, phantomNodes[j].x, phantomNodes[j].y) });
+			dists.push({
+				idx: j,
+				dist: distance(phantomNodes[i].x, phantomNodes[i].y, phantomNodes[j].x, phantomNodes[j].y),
+			});
 		}
 		dists.sort((a, b) => a.dist - b.dist);
 

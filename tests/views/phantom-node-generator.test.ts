@@ -13,9 +13,7 @@ describe("generatePhantomNodes", () => {
 	// -------------------------------------------------------------------
 	describe("polar arrangement (concentric)", () => {
 		it("generates spoke × ring phantom nodes", () => {
-			const real = Array.from({ length: 50 }, (_, i) =>
-				node(`n${i}`, Math.cos(i) * 200, Math.sin(i) * 200),
-			);
+			const real = Array.from({ length: 50 }, (_, i) => node(`n${i}`, Math.cos(i) * 200, Math.sin(i) * 200));
 			const phantoms = generatePhantomNodes(real, 0, 0, "concentric");
 			expect(phantoms.length).toBeGreaterThan(0);
 			expect(phantoms.every((p) => p.isPhantom)).toBe(true);
@@ -46,10 +44,7 @@ describe("generatePhantomNodes", () => {
 		});
 
 		it("skips existing phantom nodes when computing maxR", () => {
-			const real: GraphNode[] = [
-				node("a", 100, 0),
-				{ ...node("far", 9999, 9999), isPhantom: true },
-			];
+			const real: GraphNode[] = [node("a", 100, 0), { ...node("far", 9999, 9999), isPhantom: true }];
 			const phantoms = generatePhantomNodes(real, 0, 0, "concentric");
 			const maxDist = Math.max(...phantoms.map((p) => Math.sqrt(p.x ** 2 + p.y ** 2)));
 			// Should be based on node "a" at distance 100, not "far" at 9999
@@ -57,7 +52,8 @@ describe("generatePhantomNodes", () => {
 		});
 
 		it("respects center offset", () => {
-			const cx = 500, cy = 300;
+			const cx = 500,
+				cy = 300;
 			const real = [node("a", cx + 100, cy), node("b", cx - 100, cy)];
 			const phantoms = generatePhantomNodes(real, cx, cy, "concentric");
 			// Phantoms should be distributed around (cx, cy)

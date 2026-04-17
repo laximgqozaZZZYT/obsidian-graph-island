@@ -3,25 +3,14 @@
  * constants UI, and axis source parsing extracted from PanelBuilder.
  */
 
-import type {
-	CoordinateLayout,
-	AxisSource,
-	AxisConfig,
-	AxisTransform,
-} from "../types";
+import type { CoordinateLayout, AxisSource, AxisConfig, AxisTransform } from "../types";
 import { setIcon } from "obsidian";
 import { t, tHelp, getLocale } from "../i18n";
 import { CURVE_REGISTRY } from "../layouts/coordinate-presets";
 import { validateExpr, parseExpr, evalExpr, setUserVars } from "../utils/expr-eval";
-import {
-	parseTransformExpr,
-	transformExprToString,
-} from "../utils/transform-expr";
+import { parseTransformExpr, transformExprToString } from "../utils/transform-expr";
 import { addSlider, getUnifiedFieldSuggestions } from "./panel-widgets";
-import {
-	syncArrangementFromLayout,
-	getOrCreateCoordLayout,
-} from "./panel-sections-layout";
+import { syncArrangementFromLayout, getOrCreateCoordLayout } from "./panel-sections-layout";
 import type { PanelState, PanelContext, PanelCallbacks } from "./PanelBuilder";
 import { mergeRenderThresholds } from "../types";
 
@@ -169,7 +158,11 @@ export function plotCurve(
 	for (let i = 0; i < n; i++) {
 		const sx = x0 + (i / (n - 1)) * w;
 		const sy = y0 + h - ((samples[i] - lo) / range) * h;
-		if (i === 0) { ctx.moveTo(sx, sy); } else { ctx.lineTo(sx, sy); }
+		if (i === 0) {
+			ctx.moveTo(sx, sy);
+		} else {
+			ctx.lineTo(sx, sy);
+		}
 	}
 	ctx.stroke();
 

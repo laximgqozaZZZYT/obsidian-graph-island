@@ -1,16 +1,12 @@
-import {
-	ItemView,
-	WorkspaceLeaf,
-	Platform,
-	TFile,
-	FileView,
-	setIcon,
-	Notice,
-	type ViewStateResult,
-} from "obsidian";
+import { ItemView, WorkspaceLeaf, Platform, TFile, FileView, setIcon, Notice, type ViewStateResult } from "obsidian";
 import { CanvasContainer, CanvasGraphics, CanvasText } from "./canvas2d";
 import { drawArcLine, drawArcPath, createSunburstArcLabel } from "./arc-drawing";
-import { extractFrontmatterImage, isNodeOnScreen, createThumbnailClone, resolveThumbnailUrl } from "./thumbnail-helpers";
+import {
+	extractFrontmatterImage,
+	isNodeOnScreen,
+	createThumbnailClone,
+	resolveThumbnailUrl,
+} from "./thumbnail-helpers";
 import type { IApp } from "./canvas2d/interfaces";
 import { createApp } from "./renderer-factory";
 import type { Simulation } from "d3-force";
@@ -150,12 +146,7 @@ import { asInternalWorkspace } from "../obsidian-internals";
 import { generatePhantomNodes } from "./phantom-node-generator";
 import { adjustTooltipPosition, type PanelRect } from "../utils/tooltip-position";
 import { handleShortcutKey, type KeyboardHost } from "./KeyboardHandler";
-import {
-	groupNodesByField,
-	collapseGroup,
-	type GroupSpec,
-	type GroupOptions,
-} from "../utils/node-grouping";
+import { groupNodesByField, collapseGroup, type GroupSpec, type GroupOptions } from "../utils/node-grouping";
 import { louvainCommunities } from "../utils/louvain";
 import { queryDataviewPages, filterNodesByDataview } from "../utils/dataview-source";
 import { addFrontmatterTag, setFrontmatterField } from "../utils/frontmatter-helper";
@@ -1629,21 +1620,18 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
 		// ビュー同期: 他の Graph Island ビューからのパネル状態変更を受信
 		this.registerEvent(
-			asInternalWorkspace(this.app.workspace).on(
-				EVENT_SYNC_PANEL,
-				(...args: unknown[]) => {
-					const data = args[0] as { senderId: string; panel: Record<string, unknown> } | null;
-					if (!data || !this.panel.syncViewId) return;
-					// 自分自身が送信元の場合は無視
-					if (data.senderId === (this.leaf as unknown as { id: string }).id) return;
-					this._syncReceiving = true;
-					try {
-						this._applySyncedPanel(data.panel);
-					} finally {
-						this._syncReceiving = false;
-					}
-				},
-			),
+			asInternalWorkspace(this.app.workspace).on(EVENT_SYNC_PANEL, (...args: unknown[]) => {
+				const data = args[0] as { senderId: string; panel: Record<string, unknown> } | null;
+				if (!data || !this.panel.syncViewId) return;
+				// 自分自身が送信元の場合は無視
+				if (data.senderId === (this.leaf as unknown as { id: string }).id) return;
+				this._syncReceiving = true;
+				try {
+					this._applySyncedPanel(data.panel);
+				} finally {
+					this._syncReceiving = false;
+				}
+			}),
 		);
 	}
 
@@ -3113,7 +3101,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 				.cachedRead(tf)
 				.then((content) => {
 					const stripped = content.replace(/^---[\s\S]*?---\n?/, "").trim();
-					bodyEl.textContent = stripped.slice(0, BODY_PREVIEW_MAX_CHARS) + (stripped.length > BODY_PREVIEW_MAX_CHARS ? "..." : "");
+					bodyEl.textContent =
+						stripped.slice(0, BODY_PREVIEW_MAX_CHARS) +
+						(stripped.length > BODY_PREVIEW_MAX_CHARS ? "..." : "");
 				})
 				.catch(() => {
 					bodyEl.textContent = t("hover.couldNotRead");
@@ -3369,7 +3359,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	exportGraphAsMermaid(): void {
 		ExportManager.exportGraphAsMermaid(this as unknown as ExportManager.ExportHost);
 	}
-
 
 	// =========================================================================
 	// C3+F2: Ontology type picker & relation type picker
@@ -3651,7 +3640,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	}
 
 	/** Count edges between two cluster sets and collect bridge node IDs. */
-	private _countInterClusterEdges(setA: Set<string>, setB: Set<string>): { interEdges: number; bridgeNodes: Set<string> } {
+	private _countInterClusterEdges(
+		setA: Set<string>,
+		setB: Set<string>,
+	): { interEdges: number; bridgeNodes: Set<string> } {
 		let interEdges = 0;
 		const bridgeNodes = new Set<string>();
 		for (const e of this.graphEdges) {
@@ -4026,9 +4018,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		const effectiveHId = hId || (focusActive ? this.panel.focusNodeId : null);
 
 		// R2: Build distance map for focus cone + DS: edge alpha gradient
-		const distMap = this.panel.focusConeEnabled && effectiveHId
-			? bfsDistanceMap(this.adj, effectiveHId, this.panel.hoverHops)
-			: new Map<string, number>();
+		const distMap =
+			this.panel.focusConeEnabled && effectiveHId
+				? bfsDistanceMap(this.adj, effectiveHId, this.panel.hoverHops)
+				: new Map<string, number>();
 		this._hoverDistMap = distMap;
 
 		for (const pn of nodesToUpdate) {
@@ -4083,9 +4076,16 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			[...neighbors],
 			(id) => {
 				const nb = this.pixiNodes.get(id);
-				return nb ? { id, gfxX: nb.gfx.x, gfxY: nb.gfx.y, filePath: nb.data.filePath, label: nb.data.label } : null;
+				return nb
+					? { id, gfxX: nb.gfx.x, gfxY: nb.gfx.y, filePath: nb.data.filePath, label: nb.data.label }
+					: null;
 			},
-			ws, worldX, worldY, canvasW, canvasH, margin,
+			ws,
+			worldX,
+			worldY,
+			canvasW,
+			canvasH,
+			margin,
 			(id, folder) => clusterMetaRef?.nodeClusterMap?.get(id) ?? folder,
 		);
 		if (dirGroups.size === 0) return;
@@ -4096,11 +4096,23 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	/** Create DOM elements for off-screen link tooltips at canvas edges. */
 	private _createOffScreenTooltipElements(
 		dirGroups: Map<string, { names: string[]; avgSx: number; avgSy: number }>,
-		hovSx: number, hovSy: number, canvasW: number, canvasH: number, margin: number,
+		hovSx: number,
+		hovSy: number,
+		canvasW: number,
+		canvasH: number,
+		margin: number,
 	): void {
 		const canvasArea = this.canvasWrap!;
 		for (const [clusterKey, grp] of dirGroups) {
-			const { tipX, tipY } = computeTooltipEdgePosition(hovSx, hovSy, grp.avgSx, grp.avgSy, canvasW, canvasH, margin);
+			const { tipX, tipY } = computeTooltipEdgePosition(
+				hovSx,
+				hovSy,
+				grp.avgSx,
+				grp.avgSy,
+				canvasW,
+				canvasH,
+				margin,
+			);
 			const clusterName = clusterKey.replace(/^folder:/, "").replace(/^[^:]+:/, "");
 			const displayNames = grp.names.slice(0, 5);
 			const extra = grp.names.length > 5 ? `\n+${grp.names.length - 5} more` : "";
@@ -4152,8 +4164,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
 	/** Apply highlight styling to a node within the hover set. */
 	private _hoverHighlightNode(
-		pn: PixiNode, effectiveHId: string, isCardMode: boolean,
-		crc: import("../types").CardRenderConfig, hoverRt: Required<import("../types").RenderThresholds>,
+		pn: PixiNode,
+		effectiveHId: string,
+		isCardMode: boolean,
+		crc: import("../types").CardRenderConfig,
+		hoverRt: Required<import("../types").RenderThresholds>,
 	): void {
 		pn.gfx.visible = true;
 		pn.gfx.alpha = 1;
@@ -4182,7 +4197,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
 	/** Dim a node outside the hover highlight set, respecting focus cone & search. */
 	private _hoverDimNode(
-		pn: PixiNode, isCardMode: boolean, distMap: Map<string, number>,
+		pn: PixiNode,
+		isCardMode: boolean,
+		distMap: Map<string, number>,
 		hoverRt: Required<import("../types").RenderThresholds>,
 	): void {
 		const searchActive = this._searchHighlightSet !== null;
@@ -4208,8 +4225,12 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	}
 
 	/** Draw search halo ring/rect on a highlighted node. */
-	 
-	private _drawSearchHalo(pn: PixiNode, isCardMode: boolean, hoverRt: Required<import("../types").RenderThresholds>): void {
+
+	private _drawSearchHalo(
+		pn: PixiNode,
+		isCardMode: boolean,
+		hoverRt: Required<import("../types").RenderThresholds>,
+	): void {
 		const searchHitColor = this.getAccentColor();
 		pn.circle.lineStyle(SEARCH_HALO_STROKE_WIDTH, searchHitColor, SEARCH_HALO_STROKE_ALPHA);
 		if (isCardMode) {
@@ -4243,16 +4264,21 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			this._addLinkNeighbors(result, hId, hht);
 		}
 
-		// Shared tags: nodes that share at least one tag with hovered node
-		if (hht.sharedTags && hoveredNode?.data.tags?.length) {
-			const nodes = [...this.pixiNodes.values()].map((pn) => ({ id: pn.data.id, tags: pn.data.tags, filePath: pn.data.filePath }));
-			for (const id of findSharedTagNodes(hoveredNode.data.tags, hId, nodes)) result.add(id);
-		}
-
-		// Same folder: nodes in the same top-level folder
-		if (hht.sameFolder && hoveredNode?.data.filePath) {
-			const nodes = [...this.pixiNodes.values()].map((pn) => ({ id: pn.data.id, tags: pn.data.tags, filePath: pn.data.filePath }));
-			for (const id of findSameFolderNodes(hoveredNode.data.filePath, hId, nodes)) result.add(id);
+		// Shared tags / same folder: both consume the same node projection - build once
+		const wantSharedTags = hht.sharedTags && hoveredNode?.data.tags?.length;
+		const wantSameFolder = hht.sameFolder && hoveredNode?.data.filePath;
+		if (wantSharedTags || wantSameFolder) {
+			const nodes = [...this.pixiNodes.values()].map((pn) => ({
+				id: pn.data.id,
+				tags: pn.data.tags,
+				filePath: pn.data.filePath,
+			}));
+			if (hht.sharedTags && hoveredNode?.data.tags?.length) {
+				for (const id of findSharedTagNodes(hoveredNode.data.tags, hId, nodes)) result.add(id);
+			}
+			if (hht.sameFolder && hoveredNode?.data.filePath) {
+				for (const id of findSameFolderNodes(hoveredNode.data.filePath, hId, nodes)) result.add(id);
+			}
 		}
 
 		return this._capHoverLabels(result, hId);
@@ -4684,10 +4710,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		}
 		const cfg = this._edgeDrawCfg;
 
-		const cluster = resolveCableClusters(
-			this.clusterMeta,
-			() => this.getCachedCentroids(),
-		);
+		const cluster = resolveCableClusters(this.clusterMeta, () => this.getCachedCentroids());
 
 		populateEdgeDrawConfig(
 			cfg,
@@ -4899,13 +4922,23 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	}
 
 	/** Collect group centroids and member IDs from pixiNodes. */
-	private _collectGroupData(hasGroupBy: boolean, groupBy: string | undefined, hasTagEnclosures: boolean, autoFolderGroups: boolean): ReturnType<typeof collectGroupCentroids> {
+	private _collectGroupData(
+		hasGroupBy: boolean,
+		groupBy: string | undefined,
+		hasTagEnclosures: boolean,
+		autoFolderGroups: boolean,
+	): ReturnType<typeof collectGroupCentroids> {
 		const nodeInfos: GroupNodeInfo[] = [];
 		for (const pn of this.pixiNodes.values()) {
 			nodeInfos.push({
-				id: pn.data.id, filePath: pn.data.filePath, tags: pn.data.tags,
+				id: pn.data.id,
+				filePath: pn.data.filePath,
+				tags: pn.data.tags,
 				meta: pn.data.meta,
-				x: pn.data.x, y: pn.data.y, gfxX: pn.gfx.x, gfxY: pn.gfx.y,
+				x: pn.data.x,
+				y: pn.data.y,
+				gfxX: pn.gfx.x,
+				gfxY: pn.gfx.y,
 				collapsedMembers: pn.data.collapsedMembers,
 			});
 		}
@@ -4921,19 +4954,26 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	private _drawGroupBoundaries(members: Map<string, Set<string>>, autoFolderGroups: boolean): void {
 		const gfx = this.clusterBoundaryGraphics;
 		if (!gfx) return;
-		if (autoFolderGroups) { gfx.clear(); return; }
+		if (autoFolderGroups) {
+			gfx.clear();
+			return;
+		}
 		const nodePositions = new Map<string, { x: number; y: number }>();
 		for (const pn of this.pixiNodes.values()) {
 			nodePositions.set(pn.data.id, { x: pn.gfx.x, y: pn.gfx.y });
 		}
-		drawClusterBoundaries(gfx, members, nodePositions, this.pixiNodes.size, this._hoveredGroupLabel, this._cachedHulls);
+		drawClusterBoundaries(
+			gfx,
+			members,
+			nodePositions,
+			this.pixiNodes.size,
+			this._hoveredGroupLabel,
+			this._cachedHulls,
+		);
 	}
 
 	/** Compute and apply group label placements. */
-	private _placeGroupLabels(
-		groups: Map<string, GroupCentroid>,
-		ws: number, fadeThreshold: number,
-	): void {
+	private _placeGroupLabels(groups: Map<string, GroupCentroid>, ws: number, fadeThreshold: number): void {
 		const labelContainer = this.groupByLabelContainer;
 		if (!labelContainer) return;
 		const world = this.worldContainer;
@@ -4947,9 +4987,23 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		const alpha = computeGroupLabelAlpha(ws, fadeThreshold);
 
 		const { placements, visibleKeys } = computeGroupLabelPlacements(
-			groups, this.pixiNodes.size, ws, world?.x ?? 0, world?.y ?? 0, canvasW, canvasH,
+			groups,
+			this.pixiNodes.size,
+			ws,
+			world?.x ?? 0,
+			world?.y ?? 0,
+			canvasW,
+			canvasH,
 		);
-		applyGroupLabelPlacements(placements, visibleKeys, this.groupByLabels, labelContainer, ws, alpha, this._hoveredGroupLabel);
+		applyGroupLabelPlacements(
+			placements,
+			visibleKeys,
+			this.groupByLabels,
+			labelContainer,
+			ws,
+			alpha,
+			this._hoveredGroupLabel,
+		);
 	}
 
 	/**
@@ -4999,7 +5053,12 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		// Check aggregate hit regions (zoom-out folder summaries)
 		const hitRegion = hitTestAggregateRegions(wx, wy, this._aggregateHitRegions);
 		if (hitRegion) {
-			this._zoomToWorldRect(hitRegion.cx - hitRegion.r, hitRegion.cy - hitRegion.r, hitRegion.r * 2, hitRegion.r * 2);
+			this._zoomToWorldRect(
+				hitRegion.cx - hitRegion.r,
+				hitRegion.cy - hitRegion.r,
+				hitRegion.r * 2,
+				hitRegion.r * 2,
+			);
 			return true;
 		}
 		// Check groupBy labels
@@ -5011,7 +5070,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			const lx = txt.x - tw / 2;
 			const ly = txt.y - th / 2;
 			if (wx >= lx && wx <= lx + tw && wy >= ly && wy <= ly + th) {
-				 
 				const memberKey = (txt as CanvasText & { _groupKey?: string })._groupKey;
 				if (memberKey) {
 					const bounds = computeGroupMemberBounds(this.pixiNodes.values(), memberKey, 50);
@@ -5021,7 +5079,12 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 					}
 				}
 				// Fallback: zoom to label position
-				this._zoomToWorldRect(txt.x - ZOOM_TO_LABEL_RECT / 2, txt.y - ZOOM_TO_LABEL_RECT / 2, ZOOM_TO_LABEL_RECT, ZOOM_TO_LABEL_RECT);
+				this._zoomToWorldRect(
+					txt.x - ZOOM_TO_LABEL_RECT / 2,
+					txt.y - ZOOM_TO_LABEL_RECT / 2,
+					ZOOM_TO_LABEL_RECT,
+					ZOOM_TO_LABEL_RECT,
+				);
 				return true;
 			}
 		}
@@ -5101,7 +5164,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 				const css = DEFAULT_COLORS[ci % DEFAULT_COLORS.length];
 				const baseColor = cssColorToHex(css);
 				const color = this.lightenHexColor(baseColor, depth * depthLighten);
-				const fillAlpha = Math.max(RING_FILL_ALPHA_FLOOR, RING_FILL_ALPHA_BASE - depth * RING_FILL_ALPHA_DEPTH_DECAY);
+				const fillAlpha = Math.max(
+					RING_FILL_ALPHA_FLOOR,
+					RING_FILL_ALPHA_BASE - depth * RING_FILL_ALPHA_DEPTH_DECAY,
+				);
 
 				gfx.lineStyle(bdrW, 0xffffff, borderAlpha);
 				gfx.beginFill(color, fillAlpha);
@@ -5118,8 +5184,14 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 				const css = DEFAULT_COLORS[ci % DEFAULT_COLORS.length];
 				const baseColor = cssColorToHex(css);
 				const color = this.lightenHexColor(baseColor, depth * depthLighten);
-				const fillAlpha = Math.max(SUNBURST_FILL_ALPHA_FLOOR, SUNBURST_FILL_ALPHA_BASE - depth * SUNBURST_FILL_ALPHA_DEPTH_DECAY);
-				const strokeAlpha = Math.max(SUNBURST_STROKE_ALPHA_FLOOR, SUNBURST_STROKE_ALPHA_BASE - depth * SUNBURST_STROKE_ALPHA_DEPTH_DECAY);
+				const fillAlpha = Math.max(
+					SUNBURST_FILL_ALPHA_FLOOR,
+					SUNBURST_FILL_ALPHA_BASE - depth * SUNBURST_FILL_ALPHA_DEPTH_DECAY,
+				);
+				const strokeAlpha = Math.max(
+					SUNBURST_STROKE_ALPHA_FLOOR,
+					SUNBURST_STROKE_ALPHA_BASE - depth * SUNBURST_STROKE_ALPHA_DEPTH_DECAY,
+				);
 
 				// Light fill
 				gfx.beginFill(color, fillAlpha);
@@ -5672,13 +5744,17 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
 	/** Card-mode two-pass auto-fit: estimate scale, compute card bbox, then fit. */
 	private _autoFitCardMode(
-		W: number, H: number,
+		W: number,
+		H: number,
 		rt: ReturnType<typeof mergeRenderThresholds>,
 		crc: Record<string, number>,
 		padding: number,
 	): void {
 		// Pass 1: estimate scale from node positions
-		let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+		let minX = Infinity,
+			minY = Infinity,
+			maxX = -Infinity,
+			maxY = -Infinity;
 		for (const pn of this.pixiNodes.values()) {
 			const r = pn.radius;
 			if (pn.data.x - r < minX) minX = pn.data.x - r;
@@ -5699,13 +5775,25 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		const cardAR = crc.cardAspectRatio > 0 ? crc.cardAspectRatio : GOLDEN_RATIO_FALLBACK;
 		const numFields = (this.panel.cardDisplayConfig?.fields ?? []).length;
 		const nodes = [...this.pixiNodes.values()].map((pn) => ({ x: pn.data.x, y: pn.data.y, radius: pn.radius }));
-		computeCardBBox(nodes, sc0, cardAR, crc as { tableHeaderHeight: number; fieldLineHeight: number; cardPadding: number }, numFields);
+		computeCardBBox(
+			nodes,
+			sc0,
+			cardAR,
+			crc as { tableHeaderHeight: number; fieldLineHeight: number; cardPadding: number },
+			numFields,
+		);
 
 		this._autoFitApply(W, H, rt, padding, true);
 	}
 
 	/** Core auto-fit logic: compute transform and apply to world container. */
-	private _autoFitApply(W: number, H: number, rt: ReturnType<typeof mergeRenderThresholds>, padding: number, isCardMode: boolean): void {
+	private _autoFitApply(
+		W: number,
+		H: number,
+		rt: ReturnType<typeof mergeRenderThresholds>,
+		padding: number,
+		isCardMode: boolean,
+	): void {
 		const world = this.worldContainer!;
 
 		// Use fresh canvas dimensions if W/H look stale
@@ -5757,7 +5845,14 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		if (visFrac < 0.8) {
 			// eslint-disable-next-line no-console -- dev-only: esbuild strips in prod
 			console.warn(`[graph-island] autoFit coverage ${(visFrac * 100).toFixed(0)}% < 80%, retrying`);
-			const retry = computeAutoFitTransform({ nodes: fitNodes, canvasW: W, canvasH: H, padding: 0, minScale: 0, maxScale: fit.scale * 1.5 });
+			const retry = computeAutoFitTransform({
+				nodes: fitNodes,
+				canvasW: W,
+				canvasH: H,
+				padding: 0,
+				minScale: 0,
+				maxScale: fit.scale * 1.5,
+			});
 			if (retry && retry.scale > 0) {
 				world.scale.set(retry.scale);
 				world.x = W / 2 - retry.cx * retry.scale;
@@ -5967,7 +6062,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	/** Build the callbacks object wiring panel UI actions to graph view methods.
 	 *  Delegates to panel-callbacks.ts for the actual construction. */
 	private _buildPanelCallbacks(): PanelCallbacks {
-		 
 		const host = this as unknown as PanelCallbackHost;
 		host.allPresets = ALL_PRESETS;
 		return buildPanelCallbacks(host);
@@ -6537,11 +6631,17 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	}
 
 	/** Accumulate Gaussian density contributions from visible nodes into a grid. */
-	private _accumulateDensityGrid(cols: number, rows: number, cell: number, wx: number, wy: number, ws: number): Float32Array {
+	private _accumulateDensityGrid(
+		cols: number,
+		rows: number,
+		cell: number,
+		wx: number,
+		wy: number,
+		ws: number,
+	): Float32Array {
 		const grid = new Float32Array(cols * rows);
 		const RADIUS = 3;
 		for (const [, pn] of this.pixiNodes) {
-			 
 			const gfx = (pn as unknown as { graphics?: CanvasContainer }).graphics ?? pn.gfx;
 			if (!gfx || !gfx.visible) continue;
 			const sx = gfx.x * ws + wx;
@@ -6788,7 +6888,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
 		const pixiResult = this.initPixi(W, H);
 		if (!pixiResult) return;
-		if (signal.aborted) { this.destroyPixi(); return; }
+		if (signal.aborted) {
+			this.destroyPixi();
+			return;
+		}
 
 		this._buildGraphMetadata(gd);
 		this._buildTagMembership(gd);
@@ -7159,12 +7262,16 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			const SR_GUIDE_KEY = "gi-sr-guide-shown";
 			const isFirstLaunch = !localStorage.getItem(SR_GUIDE_KEY);
 			if (isFirstLaunch) localStorage.setItem(SR_GUIDE_KEY, "1");
-			this._announceA11y(buildSimEndA11yMessage(gd.nodes.length, gd.edges.length, isFirstLaunch, {
-				graphLoaded: t("a11y.graphLoaded") ?? "Graph loaded",
-				nodes: t("a11y.nodes") ?? "nodes",
-				edges: t("a11y.edges") ?? "edges",
-				srGuide: t("a11y.srGuide") ?? "Tab to cycle nodes, Enter to open, Shift+Enter to select, ? for keyboard shortcuts.",
-			}));
+			this._announceA11y(
+				buildSimEndA11yMessage(gd.nodes.length, gd.edges.length, isFirstLaunch, {
+					graphLoaded: t("a11y.graphLoaded") ?? "Graph loaded",
+					nodes: t("a11y.nodes") ?? "nodes",
+					edges: t("a11y.edges") ?? "edges",
+					srGuide:
+						t("a11y.srGuide") ??
+						"Tab to cycle nodes, Enter to open, Shift+Enter to select, ? for keyboard shortcuts.",
+				}),
+			);
 			this.updateEntropyScores();
 			this.updateGraphStats(gd);
 			this.updateRelationMatrix(gd);
@@ -7175,8 +7282,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			{
 				const renderer = this.pixiApp?.renderer;
 				const [evW, evH] = resolveViewportSize(
-					wrap?.clientWidth ?? 0, wrap?.clientHeight ?? 0,
-					renderer?.width ?? 0, renderer?.height ?? 0,
+					wrap?.clientWidth ?? 0,
+					wrap?.clientHeight ?? 0,
+					renderer?.width ?? 0,
+					renderer?.height ?? 0,
 				);
 				if (evW > 0 && evH > 0) this.ensureViewportUtilization(evW, evH);
 			}
@@ -7233,7 +7342,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		const nsMap = this.computeNodeSpacingMap(gd.nodes);
 		const result: StaticLayoutResult | null = computeStaticLayout(gd, {
 			layout: this.currentLayout,
-			cx, cy, W, H,
+			cx,
+			cy,
+			W,
+			H,
 			sortComparator: sortCmp,
 			nodeSpacingMap: nsMap,
 			app: this.app,
@@ -7253,7 +7365,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		if (result.sunburstArcs) this.sunburstLayoutArcs = result.sunburstArcs;
 		if (result.sunburstCenter) this.sunburstCenter = result.sunburstCenter;
 		if (result.timelineBars) {
-			if (!this.clusterMeta) this.clusterMeta = { nodeClusterMap: new Map(), clusterCentroids: new Map(), clusterRadii: new Map() };
+			if (!this.clusterMeta)
+				this.clusterMeta = { nodeClusterMap: new Map(), clusterCentroids: new Map(), clusterRadii: new Map() };
 			this.clusterMeta.timelineBars = result.timelineBars;
 			this.clusterMeta.timelineSteps = result.timelineSteps;
 			this.clusterMeta.timelineStepWidth = result.timelineStepWidth;
@@ -7673,7 +7786,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
 		// R16: Default to local graph centered on active file for better first impression
 		// Only apply if large graph (>500) and no localGraphCenter set
-		if (this.panel.localGraphCenter === null && this.pixiNodes.size > LARGE_GRAPH_LOCAL_THRESHOLD && this.panel.syncWithEditor) {
+		if (
+			this.panel.localGraphCenter === null &&
+			this.pixiNodes.size > LARGE_GRAPH_LOCAL_THRESHOLD &&
+			this.panel.syncWithEditor
+		) {
 			this.panel.localGraphCenter = activeFile.path;
 			this.panel.localGraphHops = 1;
 			this.rawData = null;
@@ -7997,7 +8114,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			if (hopMatch && textMatch) {
 				this._searchHighlightMatchedNode(pn, hlSet);
 			} else {
-				 
 				pn._searchPulsed = false;
 				this._fadeNodeAlpha(pn, DIMMED_NODE_ALPHA);
 				this.drawNodeCircle(pn, false);
@@ -8066,18 +8182,15 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	/** EJ: Pulse animation — brief scale bounce on first search highlight. */
 	private _searchPulse(pn: PixiNode, hlSet: Set<string> | null): void {
 		const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
-		 
+
 		if (hlSet && !pn._searchPulsed && !reducedMotion) {
-			 
 			pn._searchPulsed = true;
 			const sx = pn.gfx.scale.x;
 			pn.gfx.scale.set(sx * SEARCH_PULSE_SCALE);
 			this._scheduleTimer(() => {
 				if (pn.gfx) pn.gfx.scale.set(sx);
 			}, SEARCH_PULSE_MS);
-		 
 		} else if (hlSet && !pn._searchPulsed) {
-			 
 			pn._searchPulsed = true;
 		}
 	}
@@ -8330,7 +8443,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		this.panel.searchQuery = `path:${displayName}`;
 		// Switch to graph mode
 		this.panel.viewMode = "graph";
-		 
+
 		this.currentLayout = LAYOUT_FORCE;
 		this.doRender();
 		this._announceA11y(`Filtered: ${displayName}`);

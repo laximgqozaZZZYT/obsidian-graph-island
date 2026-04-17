@@ -117,7 +117,10 @@ class MockElement {
 		return newEl;
 	}
 
-	createEl(tag: string, opts?: { cls?: string; text?: string; type?: string; attr?: Record<string, string> }): MockElement {
+	createEl(
+		tag: string,
+		opts?: { cls?: string; text?: string; type?: string; attr?: Record<string, string> },
+	): MockElement {
 		const el = new MockElement();
 		el.parentNode = this;
 		el.tag = tag;
@@ -134,7 +137,7 @@ class MockElement {
 	}
 
 	addClass(cls: string) {
-		const classes = this.className.split(" ").filter(c => c);
+		const classes = this.className.split(" ").filter((c) => c);
 		if (!classes.includes(cls)) classes.push(cls);
 		this.className = classes.join(" ");
 	}
@@ -144,7 +147,10 @@ class MockElement {
 			for (const c of cls) this.addClass(c);
 		},
 		remove: (cls: string) => {
-			this.className = this.className.split(" ").filter(c => c !== cls).join(" ");
+			this.className = this.className
+				.split(" ")
+				.filter((c) => c !== cls)
+				.join(" ");
 		},
 		toggle: (cls: string, force?: boolean) => {
 			if (force === true) this.addClass(cls);

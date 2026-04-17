@@ -135,7 +135,13 @@ export class WebGLContainer extends CanvasContainer {
 			const child = children[i];
 			if (!child.visible) continue;
 
-			type FlushGLFn = (gl: WebGLRenderingContext, p: WebGLProgram | null, m: Float32Array, a: number, ctx?: CanvasRenderingContext2D | null) => void;
+			type FlushGLFn = (
+				gl: WebGLRenderingContext,
+				p: WebGLProgram | null,
+				m: Float32Array,
+				a: number,
+				ctx?: CanvasRenderingContext2D | null,
+			) => void;
 			if ("_flushGL" in child && typeof (child as unknown as { _flushGL: FlushGLFn })._flushGL === "function") {
 				(child as unknown as { _flushGL: FlushGLFn })._flushGL(gl, program, local, effAlpha, overlayCtx);
 			} else if (hasOverlay) {

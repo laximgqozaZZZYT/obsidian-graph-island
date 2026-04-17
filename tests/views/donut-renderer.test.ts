@@ -71,9 +71,7 @@ describe("renderSunburstSegmentMode", () => {
 			...mockGraphics(),
 			arc: (...args: number[]) => arcCalls.push(args),
 		};
-		const visible = [
-			{ data: { id: "a", x: 0, y: 0 }, radius: 1, color: 0xffffff },
-		] as any;
+		const visible = [{ data: { id: "a", x: 0, y: 0 }, radius: 1, color: 0xffffff }] as any;
 
 		renderSunburstSegmentMode(
 			g as any,
@@ -90,9 +88,7 @@ describe("renderSunburstSegmentMode", () => {
 			...mockGraphics(),
 			beginFill: (color: number, alpha: number) => fills.push([color, alpha]),
 		};
-		const visible = [
-			{ data: { id: "filtered", x: 0, y: 0 }, radius: 5, color: 0xaabbcc },
-		] as any;
+		const visible = [{ data: { id: "filtered", x: 0, y: 0 }, radius: 5, color: 0xaabbcc }] as any;
 
 		renderSunburstSegmentMode(
 			g as any,

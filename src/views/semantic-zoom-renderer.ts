@@ -63,7 +63,8 @@ export function renderSemanticZoomMode(
 	for (const pn of visible) {
 		const effR = Math.max(pn.radius, minWorldRadius);
 		const screenPx = effR * 2 * worldScale;
-		const nodeAlpha = tlFilteredOut && tlFilteredOut.has(pn.data.id) ? alpha * (crc.filteredNodeAlpha as number) : alpha;
+		const nodeAlpha =
+			tlFilteredOut && tlFilteredOut.has(pn.data.id) ? alpha * (crc.filteredNodeAlpha as number) : alpha;
 
 		if (screenPx < dotPx) {
 			// Tier 1: colored dot
@@ -133,11 +134,7 @@ function _renderCompactCard(
 	nameText.maxWidth = cardW - 4 / worldScale;
 	gfx.addChild(nameText);
 	if (defField && pn.data.meta?.[defField]) {
-		const defText = createCardText(
-			String(pn.data.meta[defField]),
-			fontSize * CARD_SUB_FONT_RATIO,
-			labelColor,
-		);
+		const defText = createCardText(String(pn.data.meta[defField]), fontSize * CARD_SUB_FONT_RATIO, labelColor);
 		defText.x = -halfW + 2 / worldScale;
 		defText.y = -halfH + fontSize * CARD_LINE_HEIGHT + 2 / worldScale;
 		defText.maxWidth = cardW - 4 / worldScale;

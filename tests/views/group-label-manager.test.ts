@@ -43,9 +43,7 @@ describe("collectGroupCentroids", () => {
 	});
 
 	it("super nodes get their own group entries", () => {
-		const nodes = [
-			mkNode("__super__GroupA", 100, 200, { collapsedMembers: ["n1", "n2", "n3"] }),
-		];
+		const nodes = [mkNode("__super__GroupA", 100, 200, { collapsedMembers: ["n1", "n2", "n3"] })];
 		const { groups, members } = collectGroupCentroids(nodes, {
 			hasGroupBy: true,
 			groupByFields: ["tag"],
@@ -311,17 +309,13 @@ describe("computeGroupLabelPlacements", () => {
 	});
 
 	it("strips field prefix from single-field keys", () => {
-		const groups = new Map([
-			["tag:character", { x: 0, y: 0, memberCount: 100 }],
-		]);
+		const groups = new Map([["tag:character", { x: 0, y: 0, memberCount: 100 }]]);
 		const { placements } = computeGroupLabelPlacements(groups, 200, 1.0, 0, 0, 800, 600);
 		expect(placements[0].displayName).toBe("character");
 	});
 
 	it("preserves composite keys (with ' · ')", () => {
-		const groups = new Map([
-			["tag:char · genre:fantasy", { x: 0, y: 0, memberCount: 100 }],
-		]);
+		const groups = new Map([["tag:char · genre:fantasy", { x: 0, y: 0, memberCount: 100 }]]);
 		const { placements } = computeGroupLabelPlacements(groups, 200, 1.0, 0, 0, 800, 600);
 		expect(placements[0].displayName).toBe("tag:char · genre:fantasy");
 	});
@@ -329,7 +323,13 @@ describe("computeGroupLabelPlacements", () => {
 	it("sets isAggregateMode when ws < AGGREGATE_ZOOM_THRESHOLD", () => {
 		const groups = new Map([["g", { x: 0, y: 0, memberCount: 100 }]]);
 		const { placements } = computeGroupLabelPlacements(
-			groups, 200, AGGREGATE_ZOOM_THRESHOLD - 0.01, 0, 0, 800, 600,
+			groups,
+			200,
+			AGGREGATE_ZOOM_THRESHOLD - 0.01,
+			0,
+			0,
+			800,
+			600,
 		);
 		expect(placements[0].isAggregateMode).toBe(true);
 	});
@@ -341,9 +341,7 @@ describe("computeGroupLabelPlacements", () => {
 	});
 
 	it("empty groups returns empty placements", () => {
-		const { placements, visibleKeys } = computeGroupLabelPlacements(
-			new Map(), 200, 1.0, 0, 0, 800, 600,
-		);
+		const { placements, visibleKeys } = computeGroupLabelPlacements(new Map(), 200, 1.0, 0, 0, 800, 600);
 		expect(placements).toHaveLength(0);
 		expect(visibleKeys.size).toBe(0);
 	});
