@@ -1,7 +1,7 @@
 ---
 priority: high
 reported: 2026-04-17
-status: pending
+status: in-progress
 source: decomposed
 parent: 479-475-wheel-handler-scale
 depends: none
