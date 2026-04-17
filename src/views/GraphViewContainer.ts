@@ -4264,24 +4264,21 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			this._addLinkNeighbors(result, hId, hht);
 		}
 
-		// Shared tags: nodes that share at least one tag with hovered node
-		if (hht.sharedTags && hoveredNode?.data.tags?.length) {
+		// Shared tags / same folder: both consume the same node projection - build once
+		const wantSharedTags = hht.sharedTags && hoveredNode?.data.tags?.length;
+		const wantSameFolder = hht.sameFolder && hoveredNode?.data.filePath;
+		if (wantSharedTags || wantSameFolder) {
 			const nodes = [...this.pixiNodes.values()].map((pn) => ({
 				id: pn.data.id,
 				tags: pn.data.tags,
 				filePath: pn.data.filePath,
 			}));
-			for (const id of findSharedTagNodes(hoveredNode.data.tags, hId, nodes)) result.add(id);
-		}
-
-		// Same folder: nodes in the same top-level folder
-		if (hht.sameFolder && hoveredNode?.data.filePath) {
-			const nodes = [...this.pixiNodes.values()].map((pn) => ({
-				id: pn.data.id,
-				tags: pn.data.tags,
-				filePath: pn.data.filePath,
-			}));
-			for (const id of findSameFolderNodes(hoveredNode.data.filePath, hId, nodes)) result.add(id);
+			if (hht.sharedTags && hoveredNode?.data.tags?.length) {
+				for (const id of findSharedTagNodes(hoveredNode.data.tags, hId, nodes)) result.add(id);
+			}
+			if (hht.sameFolder && hoveredNode?.data.filePath) {
+				for (const id of findSameFolderNodes(hoveredNode.data.filePath, hId, nodes)) result.add(id);
+			}
 		}
 
 		return this._capHoverLabels(result, hId);
