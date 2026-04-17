@@ -1,7 +1,7 @@
 ---
 priority: high
 reported: 2026-04-17
-status: in-progress
+status: decomposed
 source: decomposed
 parent: 511-506-pnpm-build-main-js
 depends: subtask-1
