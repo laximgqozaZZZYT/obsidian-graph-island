@@ -1,7 +1,7 @@
 ---
 priority: critical
 reported: 2026-04-17
-status: in-progress
+status: done
 source: decomposed
 parent: 138-perf-usability-overhaul
 depends: subtask-1
