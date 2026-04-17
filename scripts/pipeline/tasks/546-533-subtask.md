@@ -11,12 +11,21 @@ summary: subtask
 ## Description (subtask of 533-517-subtask)
 
 `★ Insight ─────────────────────────────────────`
-- この issue の Description は「You've hit your limit · resets 1am (Asia/Tokyo)」というレートリミットのエラーメッセージであり、実際のタスク内容ではない
-- 親タスク `517-501-subtask` 自体が誤って生成された可能性が高く、分解すべき具体的な実装要件が存在しない
-- 自律パイプラインがレートリミット到達時のログを誤って issue として取り込んだと推測される
+- issue description が "You've hit your limit · resets 1am (Asia/Tokyo)" — これは Claude のレートリミットエラー文字列であり、実装対象の仕様ではない
+- 親 `517-501-subtask` の分解時に API エラーメッセージがそのまま description として捕捉された自動生成アーティファクト
+- 空 description から実装タスクを捏造するとパイプラインが無意味なコミットを量産するため、分解せず却下するのが正しい
 `─────────────────────────────────────────────────`
 
-この issue には分解可能な実装内容が含まれていません。Description は Claude のレートリミット通知文 (`You've hit your limit · resets 1am (Asia/Tokyo)`) であり、機能要件・バグ報告・改善要望のいずれでもありません。
+## 分解不能: このissueは実装対象ではありません
+
+description が Claude API のレートリミットエラー文字列 (`You've hit your limit · resets 1am (Asia/Tokyo)`) のみで、実装すべき仕様・バグ・変更要求が一切含まれていません。親タスク `517-501-subtask` の分解実行中にレートリミットに到達し、エラーメッセージがそのまま子issueの description として記録されたアーティファクトと判断します。
+
+**推奨アクション** (ユーザー確認が必要なため、タスク生成はしません):
+1. このissueを `status: rejected` にマークして queue から除外
+2. 親 `517-501-subtask` を再分解 (レートリミット解除後)
+3. パイプラインに「description が空/エラー文字列の場合は skip」ガードを追加
+
+空の仕様から実装タスクを捏造すると god object 肥大化や無意味コミットを誘発するため、分解を行いません。
 
 ## Acceptance criteria
 - [ ] 実装が完了し、テストが通ること
