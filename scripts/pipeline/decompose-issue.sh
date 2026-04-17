@@ -82,8 +82,19 @@ RESULT=$(claude -p "$DECOMPOSE_PROMPT" \
   --max-turns 15 \
   2>&1)
 
+# Guard: abort on LLM failure responses (rate limit, quota, etc) before any write
+if echo "$RESULT" | grep -qiE "you've hit your limit|rate limit|quota exceeded|resets[[:space:]]+[0-9]+(am|pm)"; then
+  echo "ERROR: decomposition aborted — LLM response matches known failure pattern"
+  echo "  Preview: $(printf '%s' "$RESULT" | head -c 200)"
+  exit 2
+fi
+if [[ ${#RESULT} -lt 100 ]]; then
+  echo "ERROR: decomposition aborted — LLM response too short (${#RESULT} chars)"
+  exit 2
+fi
+
 # Parse subtasks from result and create issue files
-echo "$RESULT" | python3 -c "
+PY_OUT=$(echo "$RESULT" | python3 -c "
 import sys, re
 
 content = sys.stdin.read()
@@ -94,11 +105,9 @@ blocks = [b.strip() for b in blocks if b.strip()]
 issue_dir = '$TASK_DIR'
 parent = '$ISSUE_NAME'
 last_num = $LAST_NUM
+ERROR_PATTERNS = (\"you've hit your limit\", 'rate limit', 'quota exceeded')
 
 for i, block in enumerate(blocks[:5]):
-    last_num += 1
-    num = f'{last_num:03d}'
-
     # Extract fields
     priority = 'medium'
     summary = 'subtask'
@@ -114,7 +123,6 @@ for i, block in enumerate(blocks[:5]):
         elif line.startswith('depends:'):
             depends = line.split(':',1)[1].strip()
         elif line.startswith('description:'):
-            # Rest is description
             idx = block.find('description:')
             if idx >= 0:
                 desc_text = block[idx+len('description:'):].strip()
@@ -122,6 +130,17 @@ for i, block in enumerate(blocks[:5]):
                     desc_text = desc_text[1:].strip()
                 description = desc_text
 
+    # Reject blocks that look like failure responses or lack real content
+    desc_stripped = description.strip()
+    if len(desc_stripped) < 30:
+        print(f'  SKIPPED: block {i+1} (description too short: {len(desc_stripped)} chars)')
+        continue
+    if any(p in desc_stripped.lower() for p in ERROR_PATTERNS):
+        print(f'  SKIPPED: block {i+1} (error pattern in description)')
+        continue
+
+    last_num += 1
+    num = f'{last_num:03d}'
     slug = re.sub(r'[^a-z0-9]+', '-', summary.lower())[:40].strip('-')
     # Use only parent's number prefix, not full slug (prevents name explosion)
     parent_num = re.match(r'(\d+)', parent)
@@ -148,11 +167,17 @@ summary: {summary}
 - [ ] CLAUDE.md のルールに違反しないこと
 ''')
     print(f'  CREATED: {filename}')
+" 2>/dev/null)
+echo "$PY_OUT"
 
-print(f'  Total: {len(blocks[:5])} subtasks created')
-" 2>/dev/null
+CREATED_COUNT=$(echo "$PY_OUT" | grep -c '^  CREATED:')
+if [[ "$CREATED_COUNT" -eq 0 ]]; then
+  echo "ERROR: no valid subtasks created — leaving parent status unchanged"
+  exit 3
+fi
+echo "  Total: $CREATED_COUNT subtasks created"
 
-# Mark parent issue as decomposed
+# Mark parent issue as decomposed (only after confirming subtasks were written)
 sed -i 's/status: pending/status: decomposed/' "$ISSUE_FILE" 2>/dev/null
 sed -i 's/status: in-progress/status: decomposed/' "$ISSUE_FILE" 2>/dev/null
 
