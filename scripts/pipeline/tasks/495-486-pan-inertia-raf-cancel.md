@@ -4,13 +4,13 @@ reported: 2026-04-17
 status: pending
 source: decomposed
 parent: 486-477-pan-inertia-raf
-depends: subtask-1
+depends: 494-486-pan-inertia
 summary: pan-inertia rAFループ内挙動と重複防止/cancel検証ケース追加
 ---
 
 ## Description (subtask of 486-477-pan-inertia-raf)
 
-subtask-1 で作成したファイルに以下ケースを追加:
+494-486-pan-inertia で作成したファイルに以下ケースを追加:
   
   4. rAFループ内で applyPanInertia が各フレーム呼ばれ panX/panY が更新される
      - applyPanInertia は実関数 (純粋関数) を利用、flushRaf() で複数フレーム進めて panX/panY の差分を検証
