@@ -1,16 +1,16 @@
 ---
 priority: medium
-reported: 2026-04-17
-status: decomposed
+reported: 2026-04-18
+status: pending
 source: decomposed
-parent: 506-492-pnpm-build
+parent: 514-506-subtask
 depends: none
 summary: subtask
 ---
 
-## Description (subtask of 506-492-pnpm-build)
+## Description (subtask of 514-506-subtask)
 
-で検証済み）。
+You've hit your limit · resets 1am (Asia/Tokyo)
 
 ## Acceptance criteria
 - [ ] 実装が完了し、テストが通ること
