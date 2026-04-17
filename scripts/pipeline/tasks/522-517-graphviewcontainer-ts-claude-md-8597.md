@@ -1,7 +1,7 @@
 ---
 priority: high
 reported: 2026-04-18
-status: pending
+status: in-progress
 source: decomposed
 parent: 517-501-graphviewcontainer-ts-claude-md
 depends: none
