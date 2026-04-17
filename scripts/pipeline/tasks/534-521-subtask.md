@@ -1,14 +1,14 @@
 ---
 priority: medium
 reported: 2026-04-18
-status: decomposed
+status: pending
 source: decomposed
-parent: 502-491-subtask
+parent: 521-502-subtask
 depends: none
 summary: subtask
 ---
 
-## Description (subtask of 502-491-subtask)
+## Description (subtask of 521-502-subtask)
 
 You've hit your limit · resets 1am (Asia/Tokyo)
 
