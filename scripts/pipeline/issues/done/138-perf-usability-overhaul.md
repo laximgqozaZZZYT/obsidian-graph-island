@@ -1,7 +1,7 @@
 ---
 priority: critical
 reported: 2026-04-17
-status: decomposed
+status: done
 summary: パフォーマンス改善+操作性向上 — E2Eテストで問題点を洗い出し修正せよ
 ---
 
