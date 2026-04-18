@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-18
-status: pending
+status: decomposed
 source: decomposed
 parent: 626-609-graphviewcontainer-pass-fail
 depends: none
@@ -21,7 +21,7 @@ summary: subtask
     <tail output>
     ```
   ```
-  本issue (subtask) の `status: in-progress` を `status: done` に更新。
+  本issue (subtask) の `status: decomposed` を `status: done` に更新。
   実装コードの変更は一切しない。GOD OBJECT ポリシーへの影響なし。
 
 ## Acceptance criteria
