@@ -11,7 +11,7 @@ summary: status フィールドを done に Edit で置換
 ## Description (subtask of 730-717-status-done-edit)
 
 1. subtask-1 で記録した対象ファイルパスと frontmatter 値を入力として受け取る。
-  2. Edit ツールで `status: decomposed` または `status: in-progress` を `status: done` に置換。
+  2. Edit ツールで `status: decomposed` または `status: decomposed` を `status: done` に置換。
   3. `old_string` には一意性確保のため周囲 2-3 行の frontmatter を含める
      (例: `priority: medium\nreported: 2026-04-18\nstatus: decomposed\nsource: decomposed`)。
   4. Edit 成功を確認して終了。Read/git status は後続タスクに委譲。
