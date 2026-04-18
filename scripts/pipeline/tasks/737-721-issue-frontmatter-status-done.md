@@ -16,7 +16,7 @@ summary: 親タスクで編集された issueファイルの frontmatter を再�
   1. `---` と `---` に挟まれた frontmatter ブロックを特定
   2. `status: done` が frontmatter 内に **1箇所だけ** 存在
   3. `status: pending` が frontmatter 内に **存在しない**
-  4. `status: in-progress` が frontmatter 内に **存在しない**
+  4. `status: pending` が frontmatter 内に **存在しない**
   5. 以下のフィールドが元のまま保持されていること:
      - priority
      - reported
