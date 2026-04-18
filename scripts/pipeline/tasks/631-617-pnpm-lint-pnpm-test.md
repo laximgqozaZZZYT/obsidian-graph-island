@@ -1,7 +1,7 @@
 ---
 priority: high
 reported: 2026-04-18
-status: pending
+status: in-progress
 source: decomposed
 parent: 617-593-594-585-done
 depends: subtask-2
