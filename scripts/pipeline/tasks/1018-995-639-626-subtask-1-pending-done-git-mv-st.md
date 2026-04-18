@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-19
-status: pending
+status: in-progress
 source: decomposed
 parent: 995-973-639-626-subtask-issue-1-pending-done-git
 depends: none
@@ -19,7 +19,7 @@ summary: 639-626 subtask 1件を pending→done へ git mv + status:done 書換 
      - 2件以上: 中止、ユーザー報告（自動選択禁止）
      - 1件: 次へ
   2. Read で対象ファイルを開き frontmatter 確認
-  3. Edit で `status: pending` または `status: pending` の該当1行のみ `status: done` に置換
+  3. Edit で `status: in-progress` または `status: pending` の該当1行のみ `status: done` に置換
      - replace_all 禁止、本文/他frontmatter 不変
   4. Bash `git mv issues/pending/<filename>.md issues/done/<filename>.md`
   5. Bash `git status --short` で差分検証
