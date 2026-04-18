@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-18
-status: decomposed
+status: done
 source: decomposed
 parent: 570-564-subtask
 depends: none
@@ -20,5 +20,12 @@ summary: GraphViewContainer.ts の verify-only 検証を実施
   違反があれば issue として別途報告する (このタスク内では修正しない)。
 
 ## Acceptance criteria
-- [ ] 実装が完了し、テストが通ること
-- [ ] CLAUDE.md のルールに違反しないこと
+- [x] 実装が完了し、テストが通ること (verify-only: コード変更なし、行数 8597 維持)
+- [x] CLAUDE.md のルールに違反しないこと (God Object ratchet 8597 ≤ 8597 PASS)
+
+## Verification Result (2026-04-18)
+- File: src/views/GraphViewContainer.ts
+- Actual lines: 8597
+- Max allowed: 8597
+- Status: PASS
+- Command: `wc -l src/views/GraphViewContainer.ts`
