@@ -16,7 +16,7 @@ summary: status フィールドを done に Edit して Read で内容を検証
 
   手順:
   1. Read ツールで対象ファイルを読み込み、現在の frontmatter 値を取得
-  2. Edit ツールで `status: pending` または `status: in-progress` を
+  2. Edit ツールで `status: pending` または `status: pending` を
      `status: done` に置換。old_string には周囲の frontmatter 行
      (前後1-2行) を含めて一意性を確保する。例:
        old_string: "reported: 2026-04-18\nstatus: pending\nsource:"
