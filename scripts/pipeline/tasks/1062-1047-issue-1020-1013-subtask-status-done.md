@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-19
-status: pending
+status: decomposed
 source: decomposed
 parent: 1047-1020-subtask
 depends: none
@@ -16,8 +16,8 @@ summary: 親 issue 1020-1013-subtask のフロントマター status を done �
   作業内容:
   1. 該当 issue ファイルを Read で読み込み、現在の frontmatter を確認
   2. frontmatter の `status:` 行を現状値から `status: done` に Edit で書き換える
-     - `status: in-progress` の場合 → `status: done`
-     - `status: pending` の場合も `status: done` に統一
+     - `status: decomposed` の場合 → `status: done`
+     - `status: decomposed` の場合も `status: done` に統一
   3. その他の frontmatter フィールド (priority, reported, source, parent, depends, summary) は一切変更しない
   4. 本文 (Description, Acceptance criteria 等) も変更しない
   5. `git mv` は使用しない (ファイル名変更禁止)
