@@ -5,16 +5,17 @@ status: pending
 source: decomposed
 parent: 609-595-graphviewcontainer-ts
 depends: none
-summary: GraphViewContainer 関連ユニットテストを実行し PASS/FAIL を記録
+summary: GraphViewContainer関連ユニットテストを実行しPASS/FAILを報告
 ---
 
 ## Description (subtask of 609-595-graphviewcontainer-ts)
 
-`pnpm test -- GraphViewContainer` を実行し、マッチするテストスイートを全て走らせる。
-  - 結果 (N passed / M failed / skipped) を記録
-  - FAIL がある場合、test file path + テスト名 + エラーメッセージ冒頭5行を抽出
-  - 全 PASS の場合: 次タスクに進む指示を残す
-  出力は一時ログ `/tmp/gvc-test-result.log` に保存。
+`pnpm test -- GraphViewContainer` を実行し、GraphViewContainer関連テストのみの結果を確認する。
+  - 全件PASSならPASS数を記録 (例: "42 tests passed")
+  - FAILが1件でもあれば、テスト名とエラーメッセージを報告
+  - テスト実行ログの末尾をissueコメントとして記録
+  実装変更は一切行わない（純粋な検証タスク）。
+  CLAUDE.mdのGOD OBJECTポリシーに抵触する編集は発生しない。
 
 ## Acceptance criteria
 - [ ] 実装が完了し、テストが通ること
