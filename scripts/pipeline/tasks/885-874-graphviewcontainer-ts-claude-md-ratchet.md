@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-19
-status: pending
+status: decomposed
 source: decomposed
 parent: 874-749-graphviewcontainer-ts-claude-md-ratchet
 depends: none
@@ -18,7 +18,7 @@ summary: GraphViewContainer.ts 行数測定→CLAUDE.md ratchet→parent issue d
   3. N <= 8597 なら CLAUDE.md の "GOD OBJECT Policy" テーブルの
      `src/views/GraphViewContainer.ts` 行の "Lines" と "Max Allowed" 両方を N に更新
   4. `issues/in-progress/727-715-graphviewcontainer-ratchet-issue-done.md` の
-     frontmatter `status: in-progress` → `status: done` に変更
+     frontmatter `status: decomposed` → `status: done` に変更
   5. `git mv` で `issues/done/727-715-graphviewcontainer-ratchet-issue-done.md` に移動
   6. 単一コミット: `chore: ratchet GraphViewContainer max-allowed to <N> lines`
 
