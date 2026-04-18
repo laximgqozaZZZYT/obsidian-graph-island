@@ -12,7 +12,7 @@ summary: 639-626 subtask issue を status:done 化して git mv でコミット
 
 1. Glob `issues/pending/*639-626*subtask*.md` で対象ファイル特定。frontmatter summary が「subtask issueのstatusをdoneに更新しコミット」系のもの。
      0件なら Glob `issues/done/*639-626*subtask*.md` を確認し、done 済みなら no-op 終了 (exit 0)。
-  2. Read で対象ファイル全体を確認。Edit で frontmatter `status: decomposed` または `status: decomposed` を `status: done` に書き換える。
+  2. Read で対象ファイル全体を確認。Edit で frontmatter `status: pending` または `status: in-progress` を `status: done` に書き換える。
      priority/reported/parent/depends/summary/source および本文は一切変更しない。
   3. `git mv issues/pending/<filename>.md issues/done/<filename>.md` を実行。
   4. `git status` で「pending delete + done add + status modify (= rename+変更) のみ」であることを確認。他ファイルに差分があれば中止。

@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-18
-status: decomposed
+status: done
 source: decomposed
 parent: 660-649-graphviewcontainer-ts-claude-md-ratchet
 depends: none
