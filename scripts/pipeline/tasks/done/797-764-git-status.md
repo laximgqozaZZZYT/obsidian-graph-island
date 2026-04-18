@@ -1,7 +1,7 @@
 ---
 priority: high
 reported: 2026-04-18
-status: in-progress
+status: done
 source: decomposed
 parent: 764-731-git-status-short-modified-1
 depends: subtask-1
