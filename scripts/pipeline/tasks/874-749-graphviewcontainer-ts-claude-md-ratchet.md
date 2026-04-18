@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-19
-status: pending
+status: decomposed
 source: decomposed
 parent: 749-727-subtask
 depends: none
@@ -21,7 +21,7 @@ summary: GraphViewContainer.ts 行数測定してCLAUDE.md ratchetし、parent i
      ratchet 違反のため CLAUDE.md を変更せず、issue に違反を記録して中断
   4. 測定値が現在の "Max Allowed" 以下の場合のみ更新実施
   5. 親 issue `issues/in-progress/727-715-graphviewcontainer-ratchet-issue-done.md`
-     の frontmatter `status: in-progress` → `status: done` に変更し、
+     の frontmatter `status: decomposed` → `status: done` に変更し、
      `git mv` で `issues/done/` に移動
   6. 上記すべてを1コミットで実施
      (例: `chore: ratchet GraphViewContainer max-allowed to <N> lines`)
