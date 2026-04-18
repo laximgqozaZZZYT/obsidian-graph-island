@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-18
-status: pending
+status: in-progress
 source: decomposed
 parent: 730-717-status-done-edit
 depends: subtask-1
@@ -16,10 +16,10 @@ summary: status フィールドを done に Edit して Read で内容を検証
 
   手順:
   1. Read ツールで対象ファイルを読み込み、現在の frontmatter 値を取得
-  2. Edit ツールで `status: pending` または `status: pending` を
+  2. Edit ツールで `status: in-progress` または `status: pending` を
      `status: done` に置換。old_string には周囲の frontmatter 行
      (前後1-2行) を含めて一意性を確保する。例:
-       old_string: "reported: 2026-04-18\nstatus: pending\nsource:"
+       old_string: "reported: 2026-04-18\nstatus: in-progress\nsource:"
        new_string: "reported: 2026-04-18\nstatus: done\nsource:"
   3. Edit 直後に Read で再読込し、以下を検証:
      - `status: done` に変わっている
