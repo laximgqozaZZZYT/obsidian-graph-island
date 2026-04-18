@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-18
-status: pending
+status: in-progress
 source: decomposed
 parent: 650-630-claude-md-ratchet-down-issue-done-1
 depends: none
