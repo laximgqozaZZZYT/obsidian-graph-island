@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-19
-status: pending
+status: in-progress
 source: decomposed
 parent: 852-840-704-694-ratchet-claude-md-issue
 depends: none
@@ -24,7 +24,7 @@ summary: 親704-694のratchet測定・CLAUDE.md更新・issue移動を単一コ�
 
   3. issueファイル移動
      - `git mv issues/in-progress/715-704-subtask.md issues/done/715-704-subtask.md`
-     - 移動後ファイルのfrontmatter編集: `status: pending` → `status: done`、`completed: 2026-04-19` 追加（今日の日付）
+     - 移動後ファイルのfrontmatter編集: `status: in-progress` → `status: done`、`completed: 2026-04-19` 追加（今日の日付）
 
   4. 検証ゲート（1つでも失敗なら中止）
      - `pnpm test` PASS
