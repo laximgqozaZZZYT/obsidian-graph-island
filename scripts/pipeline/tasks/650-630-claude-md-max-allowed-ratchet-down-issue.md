@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-18
-status: pending
+status: decomposed
 source: decomposed
 parent: 630-617-claude-md-max-allowed-ratchet-down-issue
 depends: subtask-1 (617-593-594-585-done の subtask-1 で緑確認済みが前提)
@@ -19,7 +19,7 @@ write-only操作のみ。以下を1コミットに集約する。
      - "Max Allowed" = 現行行数 のルールに厳密に従う。
 
   2. 本プレースホルダーissueファイル (issues/pending/ 配下の該当ファイル) の frontmatter を
-     `status: pending` または `status: in-progress` → `status: done` に更新。
+     `status: decomposed` または `status: decomposed` → `status: done` に更新。
 
   3. `git mv issues/pending/<filename>.md issues/done/<filename>.md` で移動。
 
