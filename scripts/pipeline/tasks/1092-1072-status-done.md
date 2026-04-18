@@ -5,31 +5,26 @@ status: pending
 source: decomposed
 parent: 1072-1056-639-626-subtask-active-1-status-done
 depends: subtask-1
-summary: 選定ファイルの status 行を done に置換し差分を検証
+summary: 選定ファイルの status を done に置換し差分を検証
 ---
 
 ## Description (subtask of 1072-1056-639-626-subtask-active-1-status-done)
 
-1. subtask-1 で選定されたファイルを Read し、frontmatter の `status:` 行が
-     ちょうど 1 行のみであることを確認する。
-  2. Edit で以下を replace_all=false で 1 件のみ実施:
-     - `status: decomposed` → `status: done`
-     - 無ければ `status: in-progress` → `status: done`
-  3. Bash `git status --short` で変更が当該 1 ファイルのみであることを確認。
-  4. Bash `git diff -- <file>` で frontmatter の status 1 行のみが差分に
-     なっていることを確認。
-  5. 再度 Read して priority / reported / source / parent / depends / summary /
-     Description 本文が一字一句保持されていることを確認する。
-
-  受け入れ基準:
+目的: 選定済み1ファイルの frontmatter status を done に置換する。
+  手順:
+  1. Edit で `status: decomposed` → `status: done` (無ければ `status: in-progress` → `status: done`) を replace_all=false で1件のみ実施。
+  2. Bash `git status --short` で変更が当該1ファイルのみであることを確認。
+  3. Bash `git diff -- <file>` で差分が frontmatter の status 1行のみであることを確認。
+  4. 再 Read で priority / reported / source / parent / depends / summary / Description 本文が一字一句保持されていることを確認。
+  禁止:
+  - src/**, tests/**, package.json, vitest.config.ts, esbuild.config.mjs への変更
+  - God Object 4ファイル (GraphViewContainer.ts / PanelBuilder.ts / EdgeRenderer.ts / RenderPipeline.ts) への変更
+  - `git mv` / done/ への移動 / 他フィールド改変
+  受け入れ:
   - 選定ファイルの `status:` が `done`
-  - frontmatter の他キーと Description 本文が一字一句保持
-  - `git status` の変更が当該 1 ファイルのみ
-  - ソース/設定未変更のため `pnpm test` / `pnpm lint` は非実行で可
-
-  禁止: src/**, tests/**, package.json, vitest.config.ts, esbuild.config.mjs,
-  God Object 4 ファイルへの変更。git mv や done/ への移動も禁止。
-  frontmatter の他フィールド・Description 本文の改変も禁止。
+  - `git status --short` 出力が当該1ファイルのみ
+  - `git diff` が frontmatter status 1行のみ
+  - pnpm test / pnpm lint は非実行で可 (ソース/設定未変更のため)
 
 ## Acceptance criteria
 - [ ] 実装が完了し、テストが通ること
