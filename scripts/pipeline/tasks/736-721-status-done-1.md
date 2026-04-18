@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-18
-status: pending
+status: in-progress
 source: decomposed
 parent: 721-702-subtask
 depends: subtask-1
@@ -12,8 +12,8 @@ summary: status フィールドが done に1箇所のみ存在することを検
 
 subtask-1 で取得した frontmatter に対して以下を検証:
   1. `status: done` が frontmatter 内にちょうど1回出現
-  2. `status: pending` が frontmatter 内に残存しない
-  3. `status: pending` が frontmatter 内に残存しない
+  2. `status: in-progress` が frontmatter 内に残存しない
+  3. `status: in-progress` が frontmatter 内に残存しない
   Grep ツールで `^status:` を対象ファイルに対して実行し、件数と値を確認。
   失敗時は実際の行内容と期待値を diff 形式で報告する。
   Acceptance:
