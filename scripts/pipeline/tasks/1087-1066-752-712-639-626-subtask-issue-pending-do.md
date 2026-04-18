@@ -10,7 +10,7 @@ summary: 752-712-639-626-subtask issue を pending→done に git mv + status:do
 
 ## Description (subtask of 1066-1049-752-712-639-626-subtask-issue-pending-do)
 
-不可分な原子操作のため単一タスクで実行する。
+不可分な原子操作として1セッションで完了させる。
 
   手順:
   1. `git mv .claude/issues/pending/752-712-639-626-subtask-issue-status-done-git-mv.md .claude/issues/done/752-712-639-626-subtask-issue-status-done-git-mv.md`
@@ -25,7 +25,6 @@ summary: 752-712-639-626-subtask issue を pending→done に git mv + status:do
   制約:
   - 他の issue ファイルには触らない
   - コード変更・テスト追加なし（God Object 非対象、CLAUDE.md ルール準拠）
-  - 単一 claude -p セッション（max-turns 30）で完了するサイズ
 
   受け入れ基準:
   - pending から元ファイルが消え done へ移動
