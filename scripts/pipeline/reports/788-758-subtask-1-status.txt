@@ -1,0 +1,1419 @@
+# subtask-1 listing — status: decomposed | in-progress
+# generated: 2026-04-18T12:58:40Z
+# task: 788-758-subtask-1-status (parent chain: 730-717-status-done-edit)
+
+## Summary
+- decomposed: 141
+- in-progress: 0
+
+## Files
+
+### 473-469-graphviewcontainer-wheel-pointer-handler.md
+path:scripts/pipeline/tasks/473-469-graphviewcontainer-wheel-pointer-handler.md
+  priority: high
+  reported: 2026-04-17
+  status: decomposed
+  source: decomposed
+  parent: 469-138-
+  depends: subtask-2
+  summary: GraphViewContainerのwheel/pointer handlerを新関数呼び出しに置換
+
+### 475-473-wheel-handler-scale-computezoomstep.md
+path:scripts/pipeline/tasks/475-473-wheel-handler-scale-computezoomstep.md
+  priority: high
+  reported: 2026-04-17
+  status: decomposed
+  source: decomposed
+  parent: 473-469-graphviewcontainer-wheel-pointer-handler
+  depends: none
+  summary: wheel handler の scale 直接代入を computeZoomStep 呼び出しに置換
+
+### 477-473-pointerup-handler-applypaninertia-raf.md
+path:scripts/pipeline/tasks/477-473-pointerup-handler-applypaninertia-raf.md
+  priority: high
+  reported: 2026-04-17
+  status: decomposed
+  source: decomposed
+  parent: 473-469-graphviewcontainer-wheel-pointer-handler
+  depends: subtask-2
+  summary: pointerup handler で applyPanInertia rAF ループを起動
+
+### 479-475-wheel-handler-scale.md
+path:scripts/pipeline/tasks/479-475-wheel-handler-scale.md
+  priority: high
+  reported: 2026-04-17
+  status: decomposed
+  source: decomposed
+  parent: 475-473-wheel-handler-scale-computezoomstep
+  depends: none
+  summary: wheel handler 内の scale 直接代入箇所を特定・記録
+
+### 483-475-god-object.md
+path:scripts/pipeline/tasks/483-475-god-object.md
+  priority: high
+  reported: 2026-04-17
+  status: decomposed
+  source: decomposed
+  parent: 475-473-wheel-handler-scale-computezoomstep
+  depends: subtask-2
+  summary: 単体テスト実行と GOD OBJECT 上限遵守確認
+
+### 484-477-subtask.md
+path:scripts/pipeline/tasks/484-477-subtask.md
+  priority: medium
+  reported: 2026-04-17
+  status: decomposed
+  source: decomposed
+  parent: 477-473-pointerup-handler-applypaninertia-raf
+  depends: none
+  summary: subtask
+
+### 486-477-pan-inertia-raf.md
+path:scripts/pipeline/tasks/486-477-pan-inertia-raf.md
+  priority: high
+  reported: 2026-04-17
+  status: decomposed
+  source: decomposed
+  parent: 477-473-pointerup-handler-applypaninertia-raf
+  depends: subtask-1
+  summary: pan inertia rAF ループの動作検証テスト追加
+
+### 489-483-pnpm-test.md
+path:scripts/pipeline/tasks/489-483-pnpm-test.md
+  priority: high
+  reported: 2026-04-17
+  status: decomposed
+  source: decomposed
+  parent: 483-475-god-object
+  depends: none
+  summary: pnpm test 実行と全テストパス確認
+
+### 491-483-god-object-graphviewcontainer-ts-8612.md
+path:scripts/pipeline/tasks/491-483-god-object-graphviewcontainer-ts-8612.md
+  priority: high
+  reported: 2026-04-17
+  status: decomposed
+  source: decomposed
+  parent: 483-475-god-object
+  depends: subtask-2
+  summary: GOD OBJECT 行数上限確認 (GraphViewContainer.ts ≤ 8612)
+
+### 492-483-pnpm-build-800kb.md
+path:scripts/pipeline/tasks/492-483-pnpm-build-800kb.md
+  priority: high
+  reported: 2026-04-17
+  status: decomposed
+  source: decomposed
+  parent: 483-475-god-object
+  depends: subtask-3
+  summary: pnpm build でバンドルサイズ 800KB 予算内確認
+
+### 501-491-.md
+path:scripts/pipeline/tasks/501-491-.md
+  priority: high
+  reported: 2026-04-17
+  status: decomposed
+  source: decomposed
+  parent: 491-483-god-object-graphviewcontainer-ts-8612
+  depends: none
+  summary: 行数計測と上限判定レポート作成
+
+### 502-491-subtask.md
+path:scripts/pipeline/tasks/502-491-subtask.md
+  priority: medium
+  reported: 2026-04-17
+  status: decomposed
+  source: decomposed
+  parent: 491-483-god-object-graphviewcontainer-ts-8612
+  depends: none
+  summary: subtask
+
+### 504-491-subtask.md
+path:scripts/pipeline/tasks/504-491-subtask.md
+  priority: medium
+  reported: 2026-04-17
+  status: decomposed
+  source: decomposed
+  parent: 491-483-god-object-graphviewcontainer-ts-8612
+  depends: none
+  summary: subtask
+
+### 506-492-pnpm-build.md
+path:scripts/pipeline/tasks/506-492-pnpm-build.md
+  priority: high
+  reported: 2026-04-17
+  status: decomposed
+  source: decomposed
+  parent: 492-483-pnpm-build-800kb
+  depends: none
+  summary: pnpm build 実行とバンドルサイズ計測
+
+### 507-492-subtask.md
+path:scripts/pipeline/tasks/507-492-subtask.md
+  priority: medium
+  reported: 2026-04-17
+  status: decomposed
+  source: decomposed
+  parent: 492-483-pnpm-build-800kb
+  depends: none
+  summary: subtask
+
+### 509-492-subtask.md
+path:scripts/pipeline/tasks/509-492-subtask.md
+  priority: medium
+  reported: 2026-04-17
+  status: decomposed
+  source: decomposed
+  parent: 492-483-pnpm-build-800kb
+  depends: none
+  summary: subtask
+
+### 510-506-subtask.md
+path:scripts/pipeline/tasks/510-506-subtask.md
+  priority: medium
+  reported: 2026-04-17
+  status: decomposed
+  source: decomposed
+  parent: 506-492-pnpm-build
+  depends: none
+  summary: subtask
+
+### 511-506-pnpm-build-main-js.md
+path:scripts/pipeline/tasks/511-506-pnpm-build-main-js.md
+  priority: high
+  reported: 2026-04-17
+  status: decomposed
+  source: decomposed
+  parent: 506-492-pnpm-build
+  depends: none
+  summary: pnpm build を実行して main.js のバイト数を取得
+
+### 513-506-subtask.md
+path:scripts/pipeline/tasks/513-506-subtask.md
+  priority: medium
+  reported: 2026-04-17
+  status: decomposed
+  source: decomposed
+  parent: 506-492-pnpm-build
+  depends: none
+  summary: subtask
+
+### 514-506-subtask.md
+path:scripts/pipeline/tasks/514-506-subtask.md
+  priority: medium
+  reported: 2026-04-17
+  status: decomposed
+  source: decomposed
+  parent: 506-492-pnpm-build
+  depends: none
+  summary: subtask
+
+### 517-501-graphviewcontainer-ts-claude-md.md
+path:scripts/pipeline/tasks/517-501-graphviewcontainer-ts-claude-md.md
+  priority: high
+  reported: 2026-04-17
+  status: decomposed
+  source: decomposed
+  parent: 501-491-
+  depends: none
+  summary: GraphViewContainer.ts の行数計測と CLAUDE.md 上限判定
+
+### 517-501-subtask.md
+path:scripts/pipeline/tasks/517-501-subtask.md
+  priority: medium
+  reported: 2026-04-17
+  status: decomposed
+  source: decomposed
+  parent: 501-491-
+  depends: none
+  summary: subtask
+
+### 518-501-graphviewcontainer-ts-verify.md
+path:scripts/pipeline/tasks/518-501-graphviewcontainer-ts-verify.md
+  priority: high
+  reported: 2026-04-17
+  status: decomposed
+  source: decomposed
+  parent: 501-491-
+  depends: none
+  summary: GraphViewContainer.ts 行数を計測しverifyコミットを作成
+
+### 519-511-pnpm-build-exit-code.md
+path:scripts/pipeline/tasks/519-511-pnpm-build-exit-code.md
+  priority: high
+  reported: 2026-04-17
+  status: decomposed
+  source: decomposed
+  parent: 511-506-pnpm-build-main-js
+  depends: none
+  summary: pnpm build 実行と exit code 検証
+
+### 520-511-main-js-build-ok.md
+path:scripts/pipeline/tasks/520-511-main-js-build-ok.md
+  priority: high
+  reported: 2026-04-17
+  status: decomposed
+  source: decomposed
+  parent: 511-506-pnpm-build-main-js
+  depends: subtask-1
+  summary: main.js のバイト数を BUILD_OK 形式で出力
+
+### 521-502-subtask.md
+path:scripts/pipeline/tasks/521-502-subtask.md
+  priority: medium
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 502-491-subtask
+  depends: none
+  summary: subtask
+
+### 521-517-subtask.md
+path:scripts/pipeline/tasks/521-517-subtask.md
+  priority: medium
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 517-501-graphviewcontainer-ts-claude-md
+  depends: none
+  summary: subtask
+
+### 522-517-graphviewcontainer-ts-claude-md-8597.md
+path:scripts/pipeline/tasks/522-517-graphviewcontainer-ts-claude-md-8597.md
+  priority: high
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 517-501-graphviewcontainer-ts-claude-md
+  depends: none
+  summary: GraphViewContainer.ts の行数計測と CLAUDE.md 上限 8597 との比較・判定
+
+### 523-518-subtask.md
+path:scripts/pipeline/tasks/523-518-subtask.md
+  priority: medium
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 518-501-graphviewcontainer-ts-verify
+  depends: none
+  summary: subtask
+
+### 524-519-subtask.md
+path:scripts/pipeline/tasks/524-519-subtask.md
+  priority: medium
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 519-511-pnpm-build-exit-code
+  depends: none
+  summary: subtask
+
+### 525-520-subtask.md
+path:scripts/pipeline/tasks/525-520-subtask.md
+  priority: medium
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 520-511-main-js-build-ok
+  depends: none
+  summary: subtask
+
+### 526-504-subtask.md
+path:scripts/pipeline/tasks/526-504-subtask.md
+  priority: medium
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 504-491-subtask
+  depends: none
+  summary: subtask
+
+### 527-507-subtask.md
+path:scripts/pipeline/tasks/527-507-subtask.md
+  priority: medium
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 507-492-subtask
+  depends: none
+  summary: subtask
+
+### 528-509-subtask.md
+path:scripts/pipeline/tasks/528-509-subtask.md
+  priority: medium
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 509-492-subtask
+  depends: none
+  summary: subtask
+
+### 529-510-subtask.md
+path:scripts/pipeline/tasks/529-510-subtask.md
+  priority: medium
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 510-506-subtask
+  depends: none
+  summary: subtask
+
+### 530-522-subtask.md
+path:scripts/pipeline/tasks/530-522-subtask.md
+  priority: medium
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 522-517-graphviewcontainer-ts-claude-md-8597
+  depends: none
+  summary: subtask
+
+### 532-514-subtask.md
+path:scripts/pipeline/tasks/532-514-subtask.md
+  priority: medium
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 514-506-subtask
+  depends: none
+  summary: subtask
+
+### 533-517-subtask.md
+path:scripts/pipeline/tasks/533-517-subtask.md
+  priority: medium
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 517-501-subtask
+  depends: none
+  summary: subtask
+
+### 534-521-subtask.md
+path:scripts/pipeline/tasks/534-521-subtask.md
+  priority: medium
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 521-502-subtask
+  depends: none
+  summary: subtask
+
+### 535-521-subtask.md
+path:scripts/pipeline/tasks/535-521-subtask.md
+  priority: medium
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 521-517-subtask
+  depends: none
+  summary: subtask
+
+### 536-523-subtask.md
+path:scripts/pipeline/tasks/536-523-subtask.md
+  priority: medium
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 523-518-subtask
+  depends: none
+  summary: subtask
+
+### 539-526-subtask.md
+path:scripts/pipeline/tasks/539-526-subtask.md
+  priority: medium
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 526-504-subtask
+  depends: none
+  summary: subtask
+
+### 546-533-subtask.md
+path:scripts/pipeline/tasks/546-533-subtask.md
+  priority: medium
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 533-517-subtask
+  depends: none
+  summary: subtask
+
+### 553-536-subtask.md
+path:scripts/pipeline/tasks/553-536-subtask.md
+  priority: medium
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 536-523-subtask
+  depends: none
+  summary: subtask
+
+### 554-536-graphviewcontainer-ts.md
+path:scripts/pipeline/tasks/554-536-graphviewcontainer-ts.md
+  priority: medium
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 536-523-subtask
+  depends: none
+  summary: GraphViewContainer.ts の行数を検証し空コミットで記録
+
+### 558-554-graphviewcontainer-ts-verify.md
+path:scripts/pipeline/tasks/558-554-graphviewcontainer-ts-verify.md
+  priority: medium
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 554-536-graphviewcontainer-ts
+  depends: none
+  summary: GraphViewContainer.ts の行数を verify し空コミットで記録
+
+### 559-558-subtask.md
+path:scripts/pipeline/tasks/559-558-subtask.md
+  priority: medium
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 558-554-graphviewcontainer-ts-verify
+  depends: none
+  summary: subtask
+
+### 560-558-graphviewcontainer-ts-verify.md
+path:scripts/pipeline/tasks/560-558-graphviewcontainer-ts-verify.md
+  priority: medium
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 558-554-graphviewcontainer-ts-verify
+  depends: none
+  summary: GraphViewContainer.ts の行数を verify し空コミットで記録
+
+### 561-559-graphviewcontainer-ts-verify.md
+path:scripts/pipeline/tasks/561-559-graphviewcontainer-ts-verify.md
+  priority: medium
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 559-558-subtask
+  depends: none
+  summary: GraphViewContainer.ts 行数 verify + 空コミット記録
+
+### 562-560-subtask.md
+path:scripts/pipeline/tasks/562-560-subtask.md
+  priority: medium
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 560-558-graphviewcontainer-ts-verify
+  depends: none
+  summary: subtask
+
+### 563-560-graphviewcontainer-ts-verify.md
+path:scripts/pipeline/tasks/563-560-graphviewcontainer-ts-verify.md
+  priority: medium
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 560-558-graphviewcontainer-ts-verify
+  depends: none
+  summary: GraphViewContainer.ts の行数を verify し空コミットで記録
+
+### 564-561-subtask.md
+path:scripts/pipeline/tasks/564-561-subtask.md
+  priority: medium
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 561-559-graphviewcontainer-ts-verify
+  depends: none
+  summary: subtask
+
+### 565-561-graphviewcontainer-ts-verify-lint-test.md
+path:scripts/pipeline/tasks/565-561-graphviewcontainer-ts-verify-lint-test.md
+  priority: medium
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 561-559-graphviewcontainer-ts-verify
+  depends: none
+  summary: GraphViewContainer.ts 行数 verify + lint/test + 空コミット
+
+### 566-562-subtask.md
+path:scripts/pipeline/tasks/566-562-subtask.md
+  priority: medium
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 562-560-subtask
+  depends: none
+  summary: subtask
+
+### 567-562-graphviewcontainer-ts-verify-only.md
+path:scripts/pipeline/tasks/567-562-graphviewcontainer-ts-verify-only.md
+  priority: medium
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 562-560-subtask
+  depends: none
+  summary: GraphViewContainer.ts 行数確認と空コミット作成 (verify-only)
+
+### 568-563-subtask.md
+path:scripts/pipeline/tasks/568-563-subtask.md
+  priority: medium
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 563-560-graphviewcontainer-ts-verify
+  depends: none
+  summary: subtask
+
+### 570-564-subtask.md
+path:scripts/pipeline/tasks/570-564-subtask.md
+  priority: medium
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 564-561-subtask
+  depends: none
+  summary: subtask
+
+### 573-565-graphviewcontainer-ts-8597.md
+path:scripts/pipeline/tasks/573-565-graphviewcontainer-ts-8597.md
+  priority: high
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 565-561-graphviewcontainer-ts-verify-lint-test
+  depends: none
+  summary: GraphViewContainer.ts の行数を計測し 8597 以下を確認
+
+### 575-565-subtask.md
+path:scripts/pipeline/tasks/575-565-subtask.md
+  priority: medium
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 565-561-graphviewcontainer-ts-verify-lint-test
+  depends: none
+  summary: subtask
+
+### 577-567-subtask.md
+path:scripts/pipeline/tasks/577-567-subtask.md
+  priority: medium
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 567-562-graphviewcontainer-ts-verify-only
+  depends: none
+  summary: subtask
+
+### 580-568-graphviewcontainer-ts-verify.md
+path:scripts/pipeline/tasks/580-568-graphviewcontainer-ts-verify.md
+  priority: medium
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 568-563-subtask
+  depends: none
+  summary: GraphViewContainer.ts の行数を verify し、閾値内であれば空コミットで記録
+
+### 583-573-subtask.md
+path:scripts/pipeline/tasks/583-573-subtask.md
+  priority: medium
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 573-565-graphviewcontainer-ts-8597
+  depends: none
+  summary: subtask
+
+### 585-575-graphviewcontainer-ts-god-object.md
+path:scripts/pipeline/tasks/585-575-graphviewcontainer-ts-god-object.md
+  priority: high
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 575-565-subtask
+  depends: none
+  summary: GraphViewContainer.ts の行数とGod Object上限を検証
+
+### 590-577-graphviewcontainer-ts-8597.md
+path:scripts/pipeline/tasks/590-577-graphviewcontainer-ts-8597.md
+  priority: medium
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 577-567-subtask
+  depends: none
+  summary: GraphViewContainer.ts の行数が 8597 上限以下であることを検証
+
+### 592-580-graphviewcontainer-ts-verify.md
+path:scripts/pipeline/tasks/592-580-graphviewcontainer-ts-verify.md
+  priority: medium
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 580-568-graphviewcontainer-ts-verify
+  depends: none
+  summary: GraphViewContainer.ts の行数を verify し、閾値内なら空コミットで記録
+
+### 593-585-subtask.md
+path:scripts/pipeline/tasks/593-585-subtask.md
+  priority: medium
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 585-575-graphviewcontainer-ts-god-object
+  depends: none
+  summary: subtask
+
+### 594-585-graphviewcontainer-ts-god-object-8597.md
+path:scripts/pipeline/tasks/594-585-graphviewcontainer-ts-god-object-8597.md
+  priority: high
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 585-575-graphviewcontainer-ts-god-object
+  depends: none
+  summary: GraphViewContainer.ts の行数を計測しGod Object上限8597行以内を検証
+
+### 595-582-subtask.md
+path:scripts/pipeline/tasks/595-582-subtask.md
+  priority: medium
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 582-570-graphviewcontainer-ts-verify-only
+  depends: none
+  summary: subtask
+
+### 596-582-graphviewcontainer-ts-8597.md
+path:scripts/pipeline/tasks/596-582-graphviewcontainer-ts-8597.md
+  priority: high
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 582-570-graphviewcontainer-ts-verify-only
+  depends: none
+  summary: GraphViewContainer.ts の行数が 8597 を超えていないか検証
+
+### 600-590-graphviewcontainer-ts-8597.md
+path:scripts/pipeline/tasks/600-590-graphviewcontainer-ts-8597.md
+  priority: medium
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 590-577-graphviewcontainer-ts-8597
+  depends: none
+  summary: GraphViewContainer.ts 行数が 8597 以下であることを検証し空コミット
+
+### 601-594-graphviewcontainer-ts-8597-pass-fail.md
+path:scripts/pipeline/tasks/601-594-graphviewcontainer-ts-8597-pass-fail.md
+  priority: high
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 594-585-graphviewcontainer-ts-god-object-8597
+  depends: none
+  summary: GraphViewContainer.ts の行数を計測し8597行上限と比較してPASS/FAIL判定
+
+### 606-596-issue.md
+path:scripts/pipeline/tasks/606-596-issue.md
+  priority: high
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 596-582-graphviewcontainer-ts-8597
+  depends: subtask-2
+  summary: 違反検出時のみ新規issue作成 (条件付き)
+
+### 607-595-graphviewcontainer-ts-8597.md
+path:scripts/pipeline/tasks/607-595-graphviewcontainer-ts-8597.md
+  priority: high
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 595-582-subtask
+  depends: none
+  summary: GraphViewContainer.ts の行数が 8597 以下か確認
+
+### 607-597-subtask.md
+path:scripts/pipeline/tasks/607-597-subtask.md
+  priority: medium
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 597-582-pnpm-test-pass
+  depends: none
+  summary: subtask
+
+### 609-595-graphviewcontainer-ts.md
+path:scripts/pipeline/tasks/609-595-graphviewcontainer-ts.md
+  priority: high
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 595-582-subtask
+  depends: none
+  summary: GraphViewContainer.ts 関連のユニットテストを実行
+
+### 610-595-verify-report.md
+path:scripts/pipeline/tasks/610-595-verify-report.md
+  priority: medium
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 595-582-subtask
+  depends: subtask-1, subtask-2, subtask-3
+  summary: 検証結果サマリを verify-report としてコミット
+
+### 616-593-subtask.md
+path:scripts/pipeline/tasks/616-593-subtask.md
+  priority: medium
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 593-585-subtask
+  depends: none
+  summary: subtask
+
+### 617-593-594-585-done.md
+path:scripts/pipeline/tasks/617-593-594-585-done.md
+  priority: medium
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 593-585-subtask
+  depends: none
+  summary: 親タスク594-585のdone遷移を検証し本タスクをクローズ
+
+### 619-600-subtask.md
+path:scripts/pipeline/tasks/619-600-subtask.md
+  priority: medium
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 600-590-graphviewcontainer-ts-8597
+  depends: 618-600-graphviewcontainer-ts-lint-test
+  summary: GraphViewContainer.ts 行数検証結果を空コミットで記録
+
+### 621-606-graphviewcontainer-ts-issue.md
+path:scripts/pipeline/tasks/621-606-graphviewcontainer-ts-issue.md
+  priority: high
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 606-596-issue
+  depends: none
+  summary: GraphViewContainer.ts 行数確認と次issue番号決定
+
+### 623-607-subtask.md
+path:scripts/pipeline/tasks/623-607-subtask.md
+  priority: medium
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 607-595-graphviewcontainer-ts-8597
+  depends: none
+  summary: subtask
+
+### 624-607-4-god-object.md
+path:scripts/pipeline/tasks/624-607-4-god-object.md
+  priority: high
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 607-595-graphviewcontainer-ts-8597
+  depends: none
+  summary: 4つのGod Object ファイルの行数を計測し上限と照合
+
+### 625-609-subtask.md
+path:scripts/pipeline/tasks/625-609-subtask.md
+  priority: medium
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 609-595-graphviewcontainer-ts
+  depends: none
+  summary: subtask
+
+### 626-609-graphviewcontainer-pass-fail.md
+path:scripts/pipeline/tasks/626-609-graphviewcontainer-pass-fail.md
+  priority: high
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 609-595-graphviewcontainer-ts
+  depends: none
+  summary: GraphViewContainer関連ユニットテストを実行しPASS/FAILを報告
+
+### 627-609-graphviewcontainer.md
+path:scripts/pipeline/tasks/627-609-graphviewcontainer.md
+  priority: high
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 609-595-graphviewcontainer-ts
+  depends: subtask-1
+  summary: GraphViewContainerカバレッジをラチェット閾値と照合
+
+### 627-609-subtask.md
+path:scripts/pipeline/tasks/627-609-subtask.md
+  priority: medium
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 609-595-graphviewcontainer-ts
+  depends: none
+  summary: subtask
+
+### 629-617-594-done-graphviewcontainer-ts.md
+path:scripts/pipeline/tasks/629-617-594-done-graphviewcontainer-ts.md
+  priority: high
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 617-593-594-585-done
+  depends: none
+  summary: 親タスク594のdone確認とGraphViewContainer.ts行数検証
+
+### 630-617-claude-md-max-allowed-ratchet-down-issue.md
+path:scripts/pipeline/tasks/630-617-claude-md-max-allowed-ratchet-down-issue.md
+  priority: medium
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 617-593-594-585-done
+  depends: subtask-1
+  summary: CLAUDE.md のMax Allowedをratchet down更新し、本issueをdoneに遷移してコミット
+
+### 630-617-subtask.md
+path:scripts/pipeline/tasks/630-617-subtask.md
+  priority: medium
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 617-593-594-585-done
+  depends: none
+  summary: subtask
+
+### 631-617-pnpm-lint-pnpm-test.md
+path:scripts/pipeline/tasks/631-617-pnpm-lint-pnpm-test.md
+  priority: high
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 617-593-594-585-done
+  depends: subtask-2
+  summary: pnpm lint と pnpm test で親タスクの成果を検証
+
+### 635-624-4-god-object-wc-l.md
+path:scripts/pipeline/tasks/635-624-4-god-object-wc-l.md
+  priority: high
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 624-607-4-god-object
+  depends: none
+  summary: 4つのGod Objectファイルの行数を wc -l で計測
+
+### 636-624-subtask.md
+path:scripts/pipeline/tasks/636-624-subtask.md
+  priority: medium
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 624-607-4-god-object
+  depends: none
+  summary: subtask
+
+### 639-607-memory-md.md
+path:scripts/pipeline/tasks/639-607-memory-md.md
+  priority: medium
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 607-597-subtask
+  depends: subtask-2
+  summary: 検証結果を MEMORY.md 該当ブロックへ反映
+
+### 639-626-subtask.md
+path:scripts/pipeline/tasks/639-626-subtask.md
+  priority: medium
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 626-609-graphviewcontainer-pass-fail
+  depends: none
+  summary: subtask
+
+### 649-630-claude-md-ratchet-down-issue-done-git-mv.md
+path:scripts/pipeline/tasks/649-630-claude-md-ratchet-down-issue-done-git-mv.md
+  priority: medium
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 630-617-claude-md-max-allowed-ratchet-down-issue
+  depends: none
+  summary: CLAUDE.md ratchet down + issue done遷移 + git mv + commit
+
+### 650-630-claude-md-max-allowed-ratchet-down-issue.md
+path:scripts/pipeline/tasks/650-630-claude-md-max-allowed-ratchet-down-issue.md
+  priority: medium
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 630-617-claude-md-max-allowed-ratchet-down-issue
+  depends: subtask-1 (617-593-594-585-done の subtask-1 で緑確認済みが前提)
+  summary: CLAUDE.md の Max Allowed を ratchet down 更新し、本issueを done へ遷移して単一コミット
+
+### 650-630-claude-md-ratchet-down-issue-done-1.md
+path:scripts/pipeline/tasks/650-630-claude-md-ratchet-down-issue-done-1.md
+  priority: medium
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 630-617-claude-md-max-allowed-ratchet-down-issue
+  depends: subtask-1 (親issueの594-585検証サブタスク)
+  summary: 行数を再確認しCLAUDE.md ratchet-down + issue done遷移を1コミット
+
+### 654-635-subtask.md
+path:scripts/pipeline/tasks/654-635-subtask.md
+  priority: medium
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 635-624-4-god-object-wc-l
+  depends: none
+  summary: subtask
+
+### 658-639-subtask-issue-status-done.md
+path:scripts/pipeline/tasks/658-639-subtask-issue-status-done.md
+  priority: medium
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 639-626-subtask
+  depends: subtask-2
+  summary: subtask issueのstatusをdoneに更新しコミット
+
+### 660-649-graphviewcontainer-ts-claude-md-ratchet.md
+path:scripts/pipeline/tasks/660-649-graphviewcontainer-ts-claude-md-ratchet.md
+  priority: medium
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 649-630-claude-md-ratchet-down-issue-done-git-mv
+  depends: 594-585-subtask-1
+  summary: GraphViewContainer.ts の行数を測定し CLAUDE.md ratchet down + issue done遷移 + git mv + 1コミット
+
+### 662-658-subtask-issue-done-git-mv.md
+path:scripts/pipeline/tasks/662-658-subtask-issue-done-git-mv.md
+  priority: medium
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 658-639-subtask-issue-status-done
+  depends: none
+  summary: subtask issue ファイルを done に更新し git mv でコミット
+
+### 664-662-639-626-subtask-issue-status-done-git-mv.md
+path:scripts/pipeline/tasks/664-662-639-626-subtask-issue-status-done-git-mv.md
+  priority: medium
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 662-658-subtask-issue-done-git-mv
+  depends: none
+  summary: 639-626 subtask issue ファイルを status:done 化して git mv でコミット
+
+### 667-663-subtask.md
+path:scripts/pipeline/tasks/667-663-subtask.md
+  priority: medium
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 663-660-graphviewcontainer-ts-claude-md-ratchet
+  depends: none
+  summary: subtask
+
+### 668-663-graphviewcontainer-ts-claude-md-ratchet.md
+path:scripts/pipeline/tasks/668-663-graphviewcontainer-ts-claude-md-ratchet.md
+  priority: medium
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 663-660-graphviewcontainer-ts-claude-md-ratchet
+  depends: none
+  summary: GraphViewContainer.ts行数測定後 CLAUDE.md ratchet down + 617-593-594-585 issue done遷移を1コミットで実行
+
+### 669-619-subtask.md
+path:scripts/pipeline/tasks/669-619-subtask.md
+  priority: medium
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 619-600-subtask
+  depends: none
+  summary: subtask
+
+### 675-627-subtask.md
+path:scripts/pipeline/tasks/675-627-subtask.md
+  priority: medium
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 627-609-subtask
+  depends: none
+  summary: subtask
+
+### 678-664-639-626-subtask-issue-status-done-git-mv.md
+path:scripts/pipeline/tasks/678-664-639-626-subtask-issue-status-done-git-mv.md
+  priority: medium
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 664-662-639-626-subtask-issue-status-done-git-mv
+  depends: none
+  summary: 639-626 subtask issue を status:done 化して git mv でコミット
+
+### 684-639-subtask-2-pass-fail.md
+path:scripts/pipeline/tasks/684-639-subtask-2-pass-fail.md
+  priority: medium
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 639-607-memory-md
+  depends: none
+  summary: subtask-2 の検証結果を読み取り PASS/FAIL を判定
+
+### 690-687-639-626-subtask-issue-status-done-git-mv.md
+path:scripts/pipeline/tasks/690-687-639-626-subtask-issue-status-done-git-mv.md
+  priority: medium
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 687-678-639-626-subtask-issue-status-done-git-mv
+  depends: none
+  summary: 639-626 subtask issueをstatus:done化してgit mvコミット
+
+### 691-662-subtask-status-done.md
+path:scripts/pipeline/tasks/691-662-subtask-status-done.md
+  priority: medium
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 662-658-subtask-issue-done-git-mv
+  depends: none
+  summary: 対象 subtask ファイル特定と status を done に書き換え
+
+### 694-650-graphviewcontainer-ts-claude-md-ratchet.md
+path:scripts/pipeline/tasks/694-650-graphviewcontainer-ts-claude-md-ratchet.md
+  priority: medium
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 650-630-claude-md-ratchet-down-issue-done-1
+  depends: none
+  summary: GraphViewContainer.ts行数再確認 → CLAUDE.md ratchet-down → issue done遷移を1コミット
+
+### 699-678-639-626-subtask-issue-status-done-git-mv.md
+path:scripts/pipeline/tasks/699-678-639-626-subtask-issue-status-done-git-mv.md
+  priority: medium
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 678-664-639-626-subtask-issue-status-done-git-mv
+  depends: none
+  summary: 639-626 subtask issue を status:done 化して git mv でコミット
+
+### 701-669-618.md
+path:scripts/pipeline/tasks/701-669-618.md
+  priority: medium
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 669-619-subtask
+  depends: none
+  summary: 618完了記録用の空コミットを作成
+
+### 702-691-edit-status.md
+path:scripts/pipeline/tasks/702-691-edit-status.md
+  priority: medium
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 691-662-subtask-status-done
+  depends: 701-691-glob-read
+  summary: frontmatter status を done に書き換え
+
+### 704-694-graphviewcontainer-claude-md-ratchet-dow.md
+path:scripts/pipeline/tasks/704-694-graphviewcontainer-claude-md-ratchet-dow.md
+  priority: medium
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 694-650-graphviewcontainer-ts-claude-md-ratchet
+  depends: none
+  summary: GraphViewContainer行数再確認→CLAUDE.md ratchet-down→issue done遷移を1コミット
+
+### 712-699-639-626-subtask-issue-status-done-git-mv.md
+path:scripts/pipeline/tasks/712-699-639-626-subtask-issue-status-done-git-mv.md
+  priority: medium
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 699-678-639-626-subtask-issue-status-done-git-mv
+  depends: none
+  summary: 639-626 subtask issue を status:done 化して git mv でコミット
+
+### 714-704-graphviewcontainer-claude-md-ratchet-617.md
+path:scripts/pipeline/tasks/714-704-graphviewcontainer-claude-md-ratchet-617.md
+  priority: medium
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 704-694-graphviewcontainer-claude-md-ratchet-dow
+  depends: none
+  summary: GraphViewContainer行数再確認→CLAUDE.md ratchet→617-593-594-585 issue done遷移を1コミット
+
+### 715-704-subtask.md
+path:scripts/pipeline/tasks/715-704-subtask.md
+  priority: medium
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 704-694-graphviewcontainer-claude-md-ratchet-dow
+  depends: none
+  summary: subtask
+
+### 717-691-status-done-edit.md
+path:scripts/pipeline/tasks/717-691-status-done-edit.md
+  priority: medium
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 691-662-subtask-status-done
+  depends: subtask-1
+  summary: 特定ファイルの status を done に Edit
+
+### 719-702-frontmatter-status-done-edit.md
+path:scripts/pipeline/tasks/719-702-frontmatter-status-done-edit.md
+  priority: medium
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 702-691-edit-status
+  depends: 701-691-glob-read
+  summary: frontmatter の status フィールドのみを done に Edit
+
+### 721-702-subtask.md
+path:scripts/pipeline/tasks/721-702-subtask.md
+  priority: medium
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 702-691-edit-status
+  depends: none
+  summary: subtask
+
+### 723-712-639-626-subtask-issue-status-done-git-mv.md
+path:scripts/pipeline/tasks/723-712-639-626-subtask-issue-status-done-git-mv.md
+  priority: medium
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 712-699-639-626-subtask-issue-status-done-git-mv
+  depends: none
+  summary: 639-626 subtask issue を status:done 化して git mv で単一コミット
+
+### 725-714-graphviewcontainer-claude-md-ratchet-617.md
+path:scripts/pipeline/tasks/725-714-graphviewcontainer-claude-md-ratchet-617.md
+  priority: medium
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 714-704-graphviewcontainer-claude-md-ratchet-617
+  depends: none
+  summary: GraphViewContainer行数再確認→CLAUDE.md ratchet→617-593-594-585 done遷移を1コミット
+
+### 727-715-graphviewcontainer-ratchet-issue-done.md
+path:scripts/pipeline/tasks/727-715-graphviewcontainer-ratchet-issue-done.md
+  priority: medium
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 715-704-subtask
+  depends: none
+  summary: GraphViewContainer ratchet + 親issue done化 + 単一コミット
+
+### 729-717-read-frontmatter.md
+path:scripts/pipeline/tasks/729-717-read-frontmatter.md
+  priority: high
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 717-691-status-done-edit
+  depends: none
+  summary: 対象ファイルを Read して frontmatter を検証
+
+### 730-717-status-done-edit.md
+path:scripts/pipeline/tasks/730-717-status-done-edit.md
+  priority: medium
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 717-691-status-done-edit
+  depends: subtask-1
+  summary: status フィールドを done に Edit し、差分を検証
+
+### 731-717-read-git-status.md
+path:scripts/pipeline/tasks/731-717-read-git-status.md
+  priority: high
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 717-691-status-done-edit
+  depends: subtask-2
+  summary: 再 Read と git status で差分検証
+
+### 733-719-issue-frontmatter-read-status.md
+path:scripts/pipeline/tasks/733-719-issue-frontmatter-read-status.md
+  priority: high
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 719-702-frontmatter-status-done-edit
+  depends: none
+  summary: 対象 issue ファイルの frontmatter を Read して現在の status 値を特定
+
+### 745-725-issue-617-593-594-585-subtask-1.md
+path:scripts/pipeline/tasks/745-725-issue-617-593-594-585-subtask-1.md
+  priority: high
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 725-714-graphviewcontainer-claude-md-ratchet-617
+  depends: none
+  summary: 親issue 617-593-594-585 subtask-1 完了コミットの存在を検証
+
+### 746-725-graphviewcontainer-ts-claude-md-god-obje.md
+path:scripts/pipeline/tasks/746-725-graphviewcontainer-ts-claude-md-god-obje.md
+  priority: high
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 725-714-graphviewcontainer-claude-md-ratchet-617
+  depends: subtask-1
+  summary: GraphViewContainer.ts の行数と CLAUDE.md の GOD OBJECT Policy 表を照合
+
+### 755-729-read-frontmatter.md
+path:scripts/pipeline/tasks/755-729-read-frontmatter.md
+  priority: high
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 729-717-read-frontmatter
+  depends: subtask-1
+  summary: ターゲットファイルを Read して frontmatter 必須フィールド存在確認
+
+### 756-729-status-done-no-op.md
+path:scripts/pipeline/tasks/756-729-status-done-no-op.md
+  priority: high
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 729-717-read-frontmatter
+  depends: subtask-2
+  summary: status 値を判定し done なら no-op 終了フラグを立てる
+
+### 758-730-status-done-edit.md
+path:scripts/pipeline/tasks/758-730-status-done-edit.md
+  priority: high
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 730-717-status-done-edit
+  depends: subtask-1 (parent chain)
+  summary: status フィールドを done に Edit で置換
+
+### 759-730-edit-read-frontmatter.md
+path:scripts/pipeline/tasks/759-730-edit-read-frontmatter.md
+  priority: high
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 730-717-status-done-edit
+  depends: subtask-1
+  summary: Edit 後に Read で frontmatter と本文の完全性を検証
+
+### 760-730-git-status-short-modified.md
+path:scripts/pipeline/tasks/760-730-git-status-short-modified.md
+  priority: high
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 730-717-status-done-edit
+  depends: subtask-2
+  summary: git status --short で modified マークを確認
+
+### 762-731-edit-read-status-done.md
+path:scripts/pipeline/tasks/762-731-edit-read-status-done.md
+  priority: high
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 731-717-read-git-status
+  depends: none
+  summary: Edit後のファイル再Readでstatus: done確認
+
+### 763-731-git-diff-status.md
+path:scripts/pipeline/tasks/763-731-git-diff-status.md
+  priority: high
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 731-717-read-git-status
+  depends: subtask-1
+  summary: git diff で status 行のみの変更を検証
+
+### 764-731-git-status-short-modified-1.md
+path:scripts/pipeline/tasks/764-731-git-status-short-modified-1.md
+  priority: high
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 731-717-read-git-status
+  depends: subtask-2
+  summary: git status --short で modified 1件のみ確認
+
+### 766-733-issue-read-frontmatter.md
+path:scripts/pipeline/tasks/766-733-issue-read-frontmatter.md
+  priority: high
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 733-719-issue-frontmatter-read-status
+  depends: none
+  summary: 対象 issue ファイルを Read し frontmatter 領域を取得
+
+### 769-760-git-status-short.md
+path:scripts/pipeline/tasks/769-760-git-status-short.md
+  priority: high
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 760-730-git-status-short-modified
+  depends: none
+  summary: git status --short を実行し生出力を取得
+
+### 771-760-.md
+path:scripts/pipeline/tasks/771-760-.md
+  priority: high
+  reported: 2026-04-18
+  status: decomposed
+  source: decomposed
+  parent: 760-730-git-status-short-modified
+  depends: subtask-2
+  summary: パイプライン次ステップ向け出力整形と完了
