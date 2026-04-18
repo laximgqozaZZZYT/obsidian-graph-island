@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-18
-status: pending
+status: done
 source: decomposed
 parent: 650-630-claude-md-max-allowed-ratchet-down-issue
 depends: none
