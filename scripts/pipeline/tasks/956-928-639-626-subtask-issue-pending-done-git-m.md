@@ -30,5 +30,6 @@ summary: 639-626 subtask issue を pending→done に git mv + status書換 + �
   - lint / test / build 実行は不要
 
 ## Acceptance criteria
-- [ ] 実装が完了し、テストが通ること
+- [ ] 対象ファイルが issues/done/ 配下に存在し `status: done` となっていること
+- [ ] `git status` clean かつコミット 1 件で完了していること
 - [ ] CLAUDE.md のルールに違反しないこと
