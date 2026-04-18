@@ -1,7 +1,7 @@
 ---
 priority: high
 reported: 2026-04-18
-status: pending
+status: in-progress
 source: decomposed
 parent: 594-585-graphviewcontainer-ts-god-object-8597
 depends: none
