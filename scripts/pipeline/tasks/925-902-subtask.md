@@ -1,22 +1,17 @@
 ---
 priority: medium
 reported: 2026-04-19
-status: pending
+status: done
 source: decomposed
 parent: 902-895-graphviewcontainer-ts-claude-md-ratchet
 depends: none
-summary: subtask
+summary: advisory — 分解せず単一タスクとして 926-902 に統合済み
 ---
 
 ## Description (subtask of 902-895-graphviewcontainer-ts-claude-md-ratchet)
 
-元のissueに「単一セッション・単一コミットで完結（再分解禁止）」と明記されているため、分解せず単一タスクとして出力します。
-
-`★ Insight ─────────────────────────────────────`
-- Ratchet down only ポリシー: Max Allowed を増やす変更は禁止されており、測定値 N が現上限 8597 を超えた場合は CLAUDE.md を変更せず違反記録のみ残す
-- メタデータのみの変更なので `pnpm build`/`pnpm test` 不要 — コード変更ゼロだからこそ単一コミットで完結できる
-`─────────────────────────────────────────────────`
+元 issue に「単一セッション・単一コミットで完結（再分解禁止）」と明記されているため、本 subtask は advisory のみで実質的な作業を持たない。分解成果物は `926-902-graphviewcontainer-ts-claude-md-ratchet.md` として別途出力済み。
 
 ## Acceptance criteria
-- [ ] 実装が完了し、テストが通ること
-- [ ] CLAUDE.md のルールに違反しないこと
+
+- [x] 分解禁止制約を明文化した上で 926-902 に統合済み
