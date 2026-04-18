@@ -49,6 +49,7 @@ import {
 import type { RoadNetwork } from "../layouts/cable-tray";
 import { RoadNetworkBuilder, getBestRoadNetwork, type RoadNetworkHost } from "../layouts/RoadNetworkBuilder";
 import * as ExportManager from "./ExportManager";
+import { orchestratePngExport, orchestrateJsonExport } from "./export-orchestrator";
 import {
 	yieldFrame,
 	buildAdj,
@@ -3248,9 +3249,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		return this._cachedBookmarkSet;
 	}
 
-	// =========================================================================
-	// Subgraph Export (Feature CY)
-	// =========================================================================
 	/** Export an N-hop subgraph around a node as a JSON download. */
 	exportSubgraph(nodeId: string): void {
 		ExportManager.exportSubgraph(this as unknown as ExportManager.ExportHost, nodeId);
@@ -3329,13 +3327,12 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		this.requestSave();
 	}
 
-	// FC: Export graph canvas as PNG
 	exportPng(): void {
-		ExportManager.exportPng(this as unknown as ExportManager.ExportHost);
+		orchestratePngExport(this as unknown as ExportManager.ExportHost);
 	}
 
 	exportFullGraph(): void {
-		ExportManager.exportFullGraph(this as unknown as ExportManager.ExportHost);
+		orchestrateJsonExport(this as unknown as ExportManager.ExportHost);
 	}
 
 	exportGraphAsCSV(): void {

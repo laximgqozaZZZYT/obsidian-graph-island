@@ -82,15 +82,19 @@ export function buildExportTimestamp(date: Date = new Date()): string {
 }
 
 /** Build a filename of shape `graph-island-<kind>-<YYYY-MM-DD>.<ext>`.
- *  `kind` and `ext` are sanitised to safe filename characters. */
+ *  If `kind` is omitted/empty, the kind segment is dropped, yielding
+ *  `graph-island-<YYYY-MM-DD>.<ext>`. `kind`/`ext` are sanitised to safe
+ *  filename characters. */
 export function buildExportFilename(
 	kind: string,
 	ext: string,
 	date: Date = new Date(),
 ): string {
-	const safeKind = sanitiseFilenameSegment(kind) || "export";
+	const safeKind = sanitiseFilenameSegment(kind);
 	const safeExt = sanitiseFilenameSegment(ext.replace(/^\./, "")) || "bin";
-	return `${FILENAME_PREFIX}-${safeKind}-${buildExportTimestamp(date)}.${safeExt}`;
+	const stamp = buildExportTimestamp(date);
+	const middle = safeKind ? `-${safeKind}` : "";
+	return `${FILENAME_PREFIX}${middle}-${stamp}.${safeExt}`;
 }
 
 function sanitiseFilenameSegment(segment: string): string {
@@ -155,7 +159,7 @@ export function orchestrateSvgExport(
 export function orchestratePngExport(host: ExportOrchestratorHost): void {
 	const canvas = host.pixiApp?.view;
 	if (!canvas) return;
-	const filename = buildExportFilename("graph", "png");
+	const filename = buildExportFilename("", "png");
 	canvas.toBlob((blob: Blob | null) => {
 		if (!blob) return;
 		const url = URL.createObjectURL(blob);
@@ -173,14 +177,13 @@ export function orchestratePngExport(host: ExportOrchestratorHost): void {
 /** Orchestrate JSON export of the full graph. */
 export function orchestrateJsonExport(host: ExportOrchestratorHost): void {
 	const gd = host.getGraphData();
-	const counts = resolveExportCounts(gd.nodes, gd.edges);
 	const json = exportFullGraphJSON(gd.nodes, gd.edges);
 	const filename = buildExportFilename("export", "json");
 	downloadFile(json, "application/json", filename);
 	new Notice(
 		t("export.graphDone")
-			.replace(/{nodes}/g, String(counts.nodeCount))
-			.replace(/{edges}/g, String(counts.edgeCount)),
+			.replace(/{nodes}/g, String(gd.nodes.length))
+			.replace(/{edges}/g, String(gd.edges.length)),
 		TOAST_MEDIUM_MS,
 	);
 }
