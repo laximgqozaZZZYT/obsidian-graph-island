@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-19
-status: pending
+status: decomposed
 source: decomposed
 parent: 941-934-760-730-status-done-acceptance
 depends: none
@@ -13,7 +13,7 @@ summary: subtask
 `★ Insight ─────────────────────────────────────`
 - このissueは単一マークダウンファイル1個の編集のみで、ビルド/テスト不要なため本来1タスクで完結可能
 - Edit ツールの replace_all は `- [ ]` が Description 本文にも存在する場合に誤変換リスクがあるため、Acceptance セクション限定の old_string 指定が安全
-- frontmatter の `status: in-progress` が既に `done` になっている場合の no-op 処理も必要
+- frontmatter の `status: decomposed` が既に `done` になっている場合の no-op 処理も必要
 `─────────────────────────────────────────────────`
 
 ## Acceptance criteria
