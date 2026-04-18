@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-19
-status: pending
+status: decomposed
 source: decomposed
 parent: 970-954-639-626-subtask-issue-frontmatter-status
 depends: none
@@ -16,7 +16,7 @@ summary: 639-626 subtask issue の frontmatter status を in-progress → done �
      - 両方0件: エラー終了
   3. 複数候補の場合、summary に「status を done」系の記述を含むものを優先選択
   4. Read で frontmatter を確認し、既に `status: done` なら no-op 終了
-  5. Edit で `status: in-progress` → `status: done` を1行のみ置換
+  5. Edit で `status: decomposed` → `status: done` を1行のみ置換
      - 他のフィールド (priority/reported/source/parent/depends/summary) と本文は変更禁止
   6. lint/test/build はスキップ (frontmatter のみの変更のため CI 影響なし)
   7. `git add <path>` してから `git commit -m "chore: done <basename>"` で1コミット作成
