@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-18
-status: pending
+status: decomposed
 source: decomposed
 parent: 717-691-status-done-edit
 depends: subtask-1
@@ -10,9 +10,9 @@ summary: status フィールドを done に Edit し、差分を検証
 
 ## Description (subtask of 717-691-status-done-edit)
 
-1. Edit ツールで `status: pending` または `status: in-progress` を
+1. Edit ツールで `status: decomposed` または `status: decomposed` を
      `status: done` に置換する。old_string には周囲の frontmatter 行を
-     含めて一意性を確保する (例: `---\n...\nstatus: pending\n...`)。
+     含めて一意性を確保する (例: `---\n...\nstatus: decomposed\n...`)。
   2. Edit 直後に Read で再読込し、以下を検証:
      - `status: done` になっている
      - 他の frontmatter フィールド (priority/reported/parent/depends/
