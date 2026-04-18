@@ -1,0 +1,2 @@
+ M docs/issues/target.md
+ D docs/issues/removed.md
