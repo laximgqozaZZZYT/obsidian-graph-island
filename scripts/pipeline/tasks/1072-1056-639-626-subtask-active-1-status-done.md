@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-19
-status: pending
+status: decomposed
 source: decomposed
 parent: 1056-1037-639-626-subtask-active-1-status-done
 depends: none
@@ -16,7 +16,7 @@ summary: 639-626-subtask の active 候補から1件のみ status:done に置換
   1. Bash `ls scripts/pipeline/tasks/ | grep -E '639-626.*subtask'` で active 直下の候補を列挙 (done/ サブディレクトリは除外)。
   2. 候補が複数なら各ファイルを Read で frontmatter 確認し、`status:` が `decomposed` または `in-progress` かつ `depends: none` のもののうち ID 番号最小の 1 件を選定。選定根拠 (候補一覧と ID 理由) をテキスト出力する。
   3. 選定ファイルを Read し、frontmatter の `status:` 行がちょうど 1 行のみであることを確認。
-  4. Edit で `status: decomposed` → `status: done` (無ければ `status: in-progress` → `status: done`) を replace_all=false で 1 件のみ実施。
+  4. Edit で `status: decomposed` → `status: done` (無ければ `status: decomposed` → `status: done`) を replace_all=false で 1 件のみ実施。
   5. Bash `git status --short` で変更が当該 1 ファイルのみであること、`git diff -- <file>` で frontmatter の status 1 行のみが差分になっていることを確認。
   6. 再 Read で priority / reported / source / parent / depends / summary / Description 本文が一字一句保持されていることを確認。
 
