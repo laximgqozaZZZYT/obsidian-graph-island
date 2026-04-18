@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-19
-status: pending
+status: decomposed
 source: decomposed
 parent: 1037-1014-639-626-subtask-1-frontmatter-status-don
 depends: none
@@ -16,7 +16,7 @@ summary: 639-626 subtask active 候補から1ファイルのみ status: done に
   1. Bash で `ls scripts/pipeline/tasks/ | grep -E '639-626.*subtask'` を実行し、done/ サブディレクトリを含まない active 直下の候補を列挙する。
   2. 候補が複数の場合、Read でそれぞれの frontmatter を順に確認し `status:` が `decomposed` または `in-progress`、かつ `depends:` が `none` のものから ID 番号最小のファイルを 1 件だけ選定。選定根拠(候補一覧と選ばれた ID 理由)をテキスト出力する。
   3. 選定ファイル全文を Read し、frontmatter の `status:` 行がちょうど 1 行のみであることを確認。
-  4. Edit で `status: decomposed` → `status: done` (無ければ `status: in-progress` → `status: done`) を replace_all=false で実施。一致 1 件を厳守。
+  4. Edit で `status: decomposed` → `status: done` (無ければ `status: decomposed` → `status: done`) を replace_all=false で実施。一致 1 件を厳守。
   5. Bash `git status --short` で変更が当該 1 ファイルのみ、`git diff -- <file>` で frontmatter の status 1 行のみが差分になっていることを確認。
   6. 再 Read で priority / reported / source / parent / depends / summary / Description 本文が一字一句保持されていることを確認。
 
