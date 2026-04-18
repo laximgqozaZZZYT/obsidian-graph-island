@@ -17,12 +17,13 @@ write操作のみ。subtask-1 (594-585 verify) が緑で完了していること
   2. N < 8597 の場合のみ、CLAUDE.md の GOD OBJECT Policy 表中の
      `src/views/GraphViewContainer.ts` 行の Max Allowed 列を `8597` → `N` に Edit する
      (ratchet down only、N >= 8597 なら CLAUDE.md は無変更で skip)。
-  3. `issues/pending/617-593-594-585-done-subtask-2.md` (本issueファイル自身) の
-     frontmatter を `status: decomposed` or `status: decomposed` から `status: done` に Edit する。
-  4. `git mv issues/pending/617-593-594-585-done-subtask-2.md issues/done/617-593-594-585-done-subtask-2.md`
+  3. 本タスクファイル `scripts/pipeline/tasks/666-649-claude-md-ratchet-down-issue-done-git-mv.md` の
+     frontmatter を `status: pending` または `status: in-progress` から `status: done` に Edit する
+     (frontmatter 行のみ対象、本文中の説明文字列は置換しない)。
+  4. `git mv scripts/pipeline/tasks/666-649-claude-md-ratchet-down-issue-done-git-mv.md scripts/pipeline/tasks/done/666-649-claude-md-ratchet-down-issue-done-git-mv.md`
      でファイル移動。
   5. 1コミットに集約:
-     `git add -A && git commit -m "chore: done 593-585-subtask — verified 594-585 (lines: N/8597)"`
+     `git add -A && git commit -m "chore: done 666-649-subtask — ratchet GraphViewContainer.ts (lines: N/8597)"`
      (N は手順1で取得した実数値に置換)。
 
   禁止事項:
