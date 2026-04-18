@@ -17,8 +17,8 @@ export interface GitStatusShortResult {
 }
 
 export function formatGitStatusShortResult(input: GitStatusShortInput): GitStatusShortResult {
-	const unexpected = Array.isArray(input.unexpected_changes) ? input.unexpected_changes : [];
-	const warnings = Array.isArray(input.warnings) ? input.warnings : [];
+	const unexpected = Array.isArray(input.unexpected_changes) ? [...input.unexpected_changes] : [];
+	const warnings = Array.isArray(input.warnings) ? [...input.warnings] : [];
 	const status: GitStatusShortResultStatus =
 		input.target_mark === "missing" || unexpected.length > 0 ? "warning" : "ok";
 	return {

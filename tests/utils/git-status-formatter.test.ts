@@ -48,9 +48,32 @@ describe("formatGitStatusShortResult", () => {
 			target_file: "foo.ts",
 			target_mark: "M",
 		});
+		const r3 = formatGitStatusShortResult({
+			target_file: "foo.ts",
+			target_mark: "M",
+			unexpected_changes: null,
+			warnings: [],
+		});
 		expect(r1.warnings).toEqual([]);
 		expect(r2.warnings).toEqual([]);
 		expect(r2.unexpected_changes).toEqual([]);
+		expect(r3.unexpected_changes).toEqual([]);
+		expect(r3.status).toBe("ok");
+	});
+
+	it("does not mutate caller's input arrays (defensive copy)", () => {
+		const unexpected = ["a"];
+		const warnings = ["w"];
+		const result = formatGitStatusShortResult({
+			target_file: "foo.ts",
+			target_mark: "M",
+			unexpected_changes: unexpected,
+			warnings,
+		});
+		result.unexpected_changes.push("mutated");
+		result.warnings.push("mutated");
+		expect(unexpected).toEqual(["a"]);
+		expect(warnings).toEqual(["w"]);
 	});
 
 	it("preserves warnings input as-is", () => {
