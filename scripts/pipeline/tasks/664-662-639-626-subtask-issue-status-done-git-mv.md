@@ -23,5 +23,8 @@ summary: 639-626 subtask issue ファイルを status:done 化して git mv で�
   7. 検証: `git status` がクリーン、`git log -1 --pretty=%s` で期待コミットメッセージ一致、`ls issues/done/<filename>.md` で移動後ファイル存在を確認。
 
 ## Acceptance criteria
-- [ ] 実装が完了し、テストが通ること
-- [ ] CLAUDE.md のルールに違反しないこと
+- [ ] `issues/done/*639-626*subtask*.md` が存在し、`issues/pending/` 側には残っていない
+- [ ] 対象ファイルの frontmatter `status:` が `done` に更新されている
+- [ ] `git log -1 --pretty=%s` が `chore: done <filename> — GVC test report appended` に一致
+- [ ] `git status` がクリーン (未ステージ/未コミット変更なし)
+- [ ] src/** および設定ファイルに変更がない (ドキュメント変更のみ)
