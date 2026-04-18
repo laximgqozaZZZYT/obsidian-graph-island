@@ -5,25 +5,27 @@ status: pending
 source: decomposed
 parent: 1063-1026-subtask
 depends: none
-summary: issueファイルの status フロントマターを done に更新
+summary: 親issueファイルのstatusをdoneに更新
 ---
 
 ## Description (subtask of 1063-1026-subtask)
 
-対象ファイルのフロントマター `status:` フィールドを適切な値 (pending/in-progress → done) に更新する。
+対象ファイル: `issues/1026-1014-639-626-subtask-status-done.md` (存在しない場合は `issues/pending/` または `issues/in-progress/` 配下を glob で探索)
 
-  手順:
-  1. `issues/` 配下から親issue名 `1026-1014-639-626-subtask-status-done` に該当するファイルを Glob で特定
-  2. Read tool でフロントマターの現在の status を確認
-  3. Edit tool で `status: <current>` → `status: done` に置換 (replace_all=false、フロントマター1箇所のみ)
-  4. `git status --short` で対象ファイル1件のみ変更されていることを確認
-  5. `git diff` で status 行のみ変更、他フィールド (priority/reported/source/parent/depends/summary) が保持されていることを確認
+  変更内容:
+  - フロントマター内の `status: in-progress` (または `status: pending`) を `status: done` に置換
+  - Edit tool を使用、`replace_all=false` 指定
+  - 他のフィールド (priority, reported, source, parent, depends, summary) は保持
+
+  検証:
+  - `git status --short` で対象ファイル1件のみ変更されていることを確認
+  - `git diff <file>` で status 行のみが変更されていることを確認
+  - フロントマター構造 (`---` 区切り) が壊れていないこと
 
   受け入れ基準:
-  - [ ] 対象ファイルの status が done に変わっている
-  - [ ] 他のフロントマターフィールドは変更されていない
-  - [ ] 他のファイルに変更が波及していない
-  - [ ] CLAUDE.md のルール (coverage/bundle size/God Object) に違反しない (メタデータ変更のため影響なし)
+  - [ ] status フィールドのみが `done` に変更
+  - [ ] 他ファイルへの波及なし
+  - [ ] frontmatter の他フィールドが全て保持される
 
 ## Acceptance criteria
 - [ ] 実装が完了し、テストが通ること
