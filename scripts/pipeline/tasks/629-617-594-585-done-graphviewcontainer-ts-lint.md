@@ -11,9 +11,10 @@ summary: 親594-585のdone状態とGraphViewContainer.ts行数を検証し、lin
 ## Description (subtask of 617-593-594-585-done)
 
 read-only検証フェーズ。以下を順次実行し、すべて緑の場合のみ次subtaskへ進める。
-  1. `issues/done/594-585-graphviewcontainer-ts-god-object-8597.md` を Read し、
-     frontmatter `status: done` を確認。存在しない/doneでない場合は本親issueを
-     doneに遷移させず「未完了」として終了すること(エラー扱いではない)。
+  1. `scripts/pipeline/tasks/done/594-585-graphviewcontainer-ts-god-object-8597.md`
+     を Read。`tasks/done/` 配下に存在することが「done」の指標。
+     存在しない場合 (現状: `scripts/pipeline/tasks/594-585-...md` に `status: decomposed` で滞留中)
+     は本親issueをdoneに遷移させず「未完了」として終了 (エラー扱いではない)。
   2. `wc -l src/views/GraphViewContainer.ts` で現在行数を取得。
      CLAUDE.md の GOD OBJECT Policy 表の Max Allowed: 8597 と比較。
      - 8597超過 → 失敗として報告し本タスク中断(肥大化禁止)

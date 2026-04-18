@@ -45,3 +45,14 @@ To eliminate this warning, add "type": "module" to .../package.json.
 ```
 
 This is a Node.js informational warning about `eslint.config.js` being reparsed as ESM; it does not affect lint results.
+
+---
+
+## Run 2026-04-18T16:10:27+09:00
+
+- Command: `pnpm lint` (== `eslint src/`)
+- Working dir: `.autonomous-worktrees/auto-20260418-154501-1777009`
+- Source task: `scripts/pipeline/tasks/610-598-subtask.md`
+- Exit code: `0`
+- Summary: **PASS (0 errors, 12 warnings)** — identical to 2026-04-18T15:32:27+09:00 run. Warning set unchanged (same 12 entries, same files, same rule `@typescript-eslint/no-unused-vars`).
+- No auto-fix executed. Result confirms lint gate stays green in this worktree.
