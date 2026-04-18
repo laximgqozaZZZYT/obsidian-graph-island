@@ -1,13 +1,19 @@
 #!/usr/bin/env bash
 # gate-subtask2-result.sh — Gate subtask-3 execution based on subtask-2 verify result.
 #
-# Scope: the "607-597" prefix in GATE_FILE and stdout header is a cross-task
-# contract fixed by scripts/pipeline/tasks/710-684-skip-pass.md — downstream
-# subtask-3 reads that exact path. Do not generalize without updating the spec.
+# Contract (authoritative: scripts/pipeline/tasks/710-684-skip-pass.md):
+#   Input   : key=value lines from scripts/read-subtask2-result.sh
+#             (keys: status, pass, fail, executed)
+#   Stdout  : 5-line summary headed "[607-597 subtask-2 result]" followed by
+#             one of "SKIP: subtask-3 は実行しない" / "OK: subtask-3 実行可" /
+#             "SKIP: gate write failed".
+#   Side FX : on PASS, one line at $GATE_FILE:
+#             status=done pass=<N> fail=0 executed=<YYYY-MM-DD>
+#   Exit    : always 0 — outer pipeline must never break; downstream steps
+#             decide from stdout / the gate file.
 #
-# Reads key=value output from scripts/read-subtask2-result.sh, prints a summary,
-# and decides whether subtask-3 may run. Always exits 0 so the outer pipeline
-# is never broken; downstream steps must check stdout / the gate file.
+# The "607-597" prefix is a cross-task contract — downstream subtask-3 reads
+# that exact path. Do not generalize without updating the spec.
 
 set -uo pipefail
 cd "$(git rev-parse --show-toplevel)" || exit 0
@@ -41,8 +47,14 @@ if { [[ "$fail" =~ ^[0-9]+$ ]] && (( fail > 0 )); } \
   exit 0
 fi
 
-# PASS branch: rm -f defuses any pre-existing symlink at GATE_FILE before write.
+# PASS branch: best-effort cleanup of any stale/symlinked gate file, then write
+# the contract line. NOT a security boundary — a TOCTOU window remains between
+# rm and >, and sticky /tmp silently swallows rm failures on foreign owners.
+# We therefore check the write itself so a silent failure never passes as PASS.
 rm -f -- "$GATE_FILE"
-printf 'status=done pass=%s fail=0 executed=%s\n' "$pass" "$executed" > "$GATE_FILE"
+if ! printf 'status=done pass=%s fail=0 executed=%s\n' "$pass" "$executed" > "$GATE_FILE" 2>/dev/null; then
+  echo "SKIP: gate write failed"
+  exit 0
+fi
 echo "OK: subtask-3 実行可"
 exit 0
