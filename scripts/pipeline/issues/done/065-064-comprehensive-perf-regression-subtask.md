@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-10
-status: pending
+status: done
 source: decomposed
 parent: 064-comprehensive-perf-regression
 depends: none
