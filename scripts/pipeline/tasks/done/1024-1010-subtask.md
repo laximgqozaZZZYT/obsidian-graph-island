@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-19
-status: in-progress
+status: done
 source: decomposed
 parent: 1010-988-639-626-subtask-issue-pending-done-git-m
 depends: none
