@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-18
-status: pending
+status: decomposed
 source: decomposed
 parent: 663-660-graphviewcontainer-ts-claude-md-ratchet
 depends: none
@@ -20,7 +20,7 @@ summary: GraphViewContainer.ts行数測定後 CLAUDE.md ratchet down + 617-593-5
 
   3. **issue ファイル特定**: `issues/pending/617-593-594-585-done-subtask-2.md` を Glob または Read で確認 (完全一致しない場合は `issues/pending/617-593-594-585*` パターンで検索)
 
-  4. **status 書き換え**: Edit ツールで frontmatter の `status: pending` または `status: in-progress` を `status: done` に変更
+  4. **status 書き換え**: Edit ツールで frontmatter の `status: decomposed` または `status: decomposed` を `status: done` に変更
 
   5. **git mv 実行**: `git mv issues/pending/617-593-594-585-done-subtask-2.md issues/done/617-593-594-585-done-subtask-2.md`
 
