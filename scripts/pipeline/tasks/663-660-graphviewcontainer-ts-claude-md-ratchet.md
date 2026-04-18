@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-18
-status: pending
+status: decomposed
 source: decomposed
 parent: 660-649-graphviewcontainer-ts-claude-md-ratchet
 depends: none
@@ -21,7 +21,7 @@ write操作専任の単一アトミックタスク (1コミット集約必須の
      - N == 8597 ちょうど: CLAUDE.md 無変更
   3. `issues/pending/617-593-594-585-done-subtask-2.md` を Glob で特定
      (ファイル名が完全一致しない場合は `617-593-594-585` パターンで検索)
-  4. frontmatter の `status: pending` または `status: in-progress` → `status: done` に Edit
+  4. frontmatter の `status: decomposed` または `status: decomposed` → `status: done` に Edit
   5. `git mv issues/pending/<file>.md issues/done/<file>.md` 実行
   6. 1コミットに集約:
      `git commit -m "chore: done 593-585-subtask — verified 594-585 (lines: N/8597)"`
