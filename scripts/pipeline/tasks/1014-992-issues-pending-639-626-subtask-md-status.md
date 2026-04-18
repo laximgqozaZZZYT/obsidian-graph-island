@@ -12,7 +12,7 @@ summary: issues/pending/*639-626*subtask*.md の status を done に置換
 
 1. `ls issues/pending/ | grep -E '639-626.*subtask'` で対象ファイル名を1つ特定する (Glob でも可)
   2. Read で該当ファイルのフロントマターを確認
-  3. Edit で frontmatter 内の `status: in-progress` または `status: pending` の行のみを `status: done` に置換 (replace_all=false、一致が1つのみであることを確認)
+  3. Edit で frontmatter 内の `status: pending` または `status: pending` の行のみを `status: done` に置換 (replace_all=false、一致が1つのみであることを確認)
   4. `git status` で変更が当該1ファイルのみであることを確認
   5. git mv / ファイル移動は行わない (別 issue で対応)
   制約:
