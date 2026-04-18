@@ -1,7 +1,7 @@
 ---
 priority: high
 reported: 2026-04-19
-status: pending
+status: in-progress
 source: decomposed
 parent: 898-891-760-730-status-done
 depends: none
