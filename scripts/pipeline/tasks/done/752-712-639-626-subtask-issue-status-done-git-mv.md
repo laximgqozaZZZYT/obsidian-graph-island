@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-18
-status: decomposed
+status: done
 source: decomposed
 parent: 712-699-639-626-subtask-issue-status-done-git-mv
 depends: none
