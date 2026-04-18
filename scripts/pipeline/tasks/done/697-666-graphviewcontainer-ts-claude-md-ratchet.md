@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-18
-status: in-progress
+status: done
 source: decomposed
 parent: 666-649-claude-md-ratchet-down-issue-done-git-mv
 depends: none
