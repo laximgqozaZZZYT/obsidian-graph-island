@@ -1,25 +1,25 @@
 ---
 priority: medium
 reported: 2026-04-19
-status: decomposed
+status: pending
 source: decomposed
-parent: 958-949-639-626-subtask-issue-pending-done-git-m
+parent: 973-958-639-626-subtask-issue-1-pending-done-git
 depends: none
 summary: 639-626 subtask issue 1件を pending→done へ git mv + status 書換 + 単一コミット
 ---
 
-## Description (subtask of 958-949-639-626-subtask-issue-pending-done-git-m)
+## Description (subtask of 973-958-639-626-subtask-issue-1-pending-done-git)
 
-単一アトミック操作のため1タスクに集約。
+単一アトミック操作。既に最小粒度のため分解せず1タスクで実行。
 
   手順:
-  1. `Glob issues/pending/*639-626*subtask*.md` で対象特定
-     - 0件 & `Glob issues/done/*639-626*subtask*.md` 存在: "already done" 報告で exit 0
+  1. Glob `issues/pending/*639-626*subtask*.md` で対象特定
+     - 0件 & `issues/done/*639-626*subtask*.md` 存在: "already done" 報告で exit 0
      - 0件 & done にも無い: 中止、ユーザー報告
      - 2件以上: 中止、ユーザー報告 (自動選択しない)
      - 1件: 次へ
   2. Read で対象ファイルを開き frontmatter 確認
-  3. Edit で `status: decomposed` または `status: decomposed` の該当1行のみ `status: done` に置換
+  3. Edit で `status: in-progress` または `status: pending` の該当1行のみ `status: done` に置換
      - replace_all 禁止、本文/他frontmatter 不変
   4. Bash `git mv issues/pending/<filename>.md issues/done/<filename>.md`
   5. Bash `git status --short` で差分検証
