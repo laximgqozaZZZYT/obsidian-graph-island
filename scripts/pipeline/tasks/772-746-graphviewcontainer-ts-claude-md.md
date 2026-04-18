@@ -1,7 +1,7 @@
 ---
 priority: high
 reported: 2026-04-18
-status: pending
+status: in-progress
 source: decomposed
 parent: 746-725-graphviewcontainer-ts-claude-md-god-obje
 depends: none
