@@ -11,6 +11,7 @@ data.json
 .claude/
 test-results/
 playwright-report/
+logs/
 *.log
 tests/e2e/
 
