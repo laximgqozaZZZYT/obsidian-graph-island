@@ -125,7 +125,7 @@ import { LayoutController, type LayoutHost } from "./LayoutController";
 import { LabelManager } from "./LabelManager";
 import { Minimap, type MinimapHost } from "./Minimap";
 import { DiffOverlay } from "./DiffOverlay";
-import { appendAutoSnapshot } from "./snapshot-service";
+import { createAutoSnapshotHandler } from "./snapshot/GraphSnapshot";
 import { GuideRenderer, type GuideRendererHost } from "./GuideRenderer";
 import { LayoutTransition } from "./LayoutTransition";
 import {
@@ -1566,28 +1566,28 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
 		// Auto-snapshot: capture graph state when vault metadata changes (configurable debounce)
 		{
-			let autoSnapTimer = 0;
-			this.registerEvent(
-				this.app.metadataCache.on("changed", () => {
-					const mins = this.plugin.settings.autoSnapshotIntervalMin ?? 5;
-					const debounceMs = mins * 60 * 1000;
-					if (debounceMs <= 0) return; // auto-snapshot disabled
-					if (autoSnapTimer) window.clearTimeout(autoSnapTimer);
-					autoSnapTimer = window.setTimeout(() => {
-						autoSnapTimer = 0;
-						if (!this.pixiNodes.size) return; // no graph data yet
-						const snapshots = this.plugin.settings.snapshots ?? [];
-						const snap = appendAutoSnapshot(snapshots, this.getGraphData(), {
-							layout: this.currentLayout ?? "force",
-							searchQuery: this.panel.searchQuery ?? "",
-							groupBy: this.panel.clusterGroupRules?.[0]?.groupBy ?? "",
-						});
-						if (!snap) return;
+			const autoSnap = createAutoSnapshotHandler(
+				{
+					getIntervalMin: () => this.plugin.settings.autoSnapshotIntervalMin ?? 5,
+					hasGraphData: () => this.pixiNodes.size > 0,
+					getGraphData: () => this.getGraphData(),
+					getContext: () => ({
+						layout: this.currentLayout ?? "force",
+						searchQuery: this.panel.searchQuery ?? "",
+						groupBy: this.panel.clusterGroupRules?.[0]?.groupBy ?? "",
+					}),
+					getSnapshots: () => this.plugin.settings.snapshots ?? [],
+					persist: (snapshots) => {
 						this.plugin.settings.snapshots = snapshots;
 						this.plugin.saveSettings();
-					}, debounceMs) as unknown as number;
-				}),
+					},
+				},
+				{
+					setTimeout: (cb, ms) => window.setTimeout(cb, ms) as unknown as number,
+					clearTimeout: (id) => window.clearTimeout(id),
+				},
 			);
+			this.registerEvent(this.app.metadataCache.on("changed", autoSnap.trigger));
 		}
 
 		// Ephemeral highlight from side-panel (property value hover, backlink hover)

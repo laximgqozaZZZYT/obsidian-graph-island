@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
 	AUTO_SNAP_PREFIX,
 	AUTO_SNAP_MAX,
@@ -7,8 +7,11 @@ import {
 	buildAutoSnapshotName,
 	pruneAutoSnapshots,
 	appendAutoSnapshot,
-} from "../../src/views/snapshot-service";
-import type { GraphData, GraphSnapshot } from "../../src/types";
+	createAutoSnapshotHandler,
+	type AutoSnapshotHost,
+	type TimerHooks,
+} from "../../../src/views/snapshot/GraphSnapshot";
+import type { GraphData, GraphSnapshot } from "../../../src/types";
 
 const ctx = { layout: "force", searchQuery: "", groupBy: "" };
 
@@ -31,7 +34,7 @@ function makeData(nodes = 2, edges = 1): GraphData {
 	return { nodes: ns, edges: es };
 }
 
-describe("snapshot-service: serializeState", () => {
+describe("GraphSnapshot: serializeState", () => {
 	it("returns null for null input", () => {
 		expect(serializeState(null, "x", ctx)).toBeNull();
 	});
@@ -59,7 +62,7 @@ describe("snapshot-service: serializeState", () => {
 	});
 });
 
-describe("snapshot-service: restoreState", () => {
+describe("GraphSnapshot: restoreState", () => {
 	it("returns null for null", () => {
 		expect(restoreState(null)).toBeNull();
 	});
@@ -95,7 +98,7 @@ describe("snapshot-service: restoreState", () => {
 	});
 });
 
-describe("snapshot-service: round-trip", () => {
+describe("GraphSnapshot: round-trip", () => {
 	it("serializeState → restoreState preserves node ids", () => {
 		const data = makeData(4, 3);
 		const snap = serializeState(data, "rt", ctx);
@@ -130,7 +133,7 @@ describe("snapshot-service: round-trip", () => {
 	});
 });
 
-describe("snapshot-service: buildAutoSnapshotName", () => {
+describe("GraphSnapshot: buildAutoSnapshotName", () => {
 	it("uses AUTO_SNAP_PREFIX", () => {
 		const name = buildAutoSnapshotName(new Date("2026-04-19T05:30:00.000Z"));
 		expect(name.startsWith(AUTO_SNAP_PREFIX)).toBe(true);
@@ -148,7 +151,7 @@ describe("snapshot-service: buildAutoSnapshotName", () => {
 	});
 });
 
-describe("snapshot-service: pruneAutoSnapshots", () => {
+describe("GraphSnapshot: pruneAutoSnapshots", () => {
 	function autoSnap(name: string): GraphSnapshot {
 		return {
 			name: AUTO_SNAP_PREFIX + name,
@@ -195,7 +198,7 @@ describe("snapshot-service: pruneAutoSnapshots", () => {
 	});
 });
 
-describe("snapshot-service: appendAutoSnapshot", () => {
+describe("GraphSnapshot: appendAutoSnapshot", () => {
 	it("appends a snapshot on valid data", () => {
 		const snaps: GraphSnapshot[] = [];
 		const snap = appendAutoSnapshot(snaps, makeData(2, 1), ctx, new Date("2026-04-19T10:00:00.000Z"));
@@ -228,5 +231,141 @@ describe("snapshot-service: appendAutoSnapshot", () => {
 		appendAutoSnapshot(snaps, makeData(1, 0), ctx, new Date("2026-04-19T10:00:00.000Z"));
 		expect(snaps.length).toBeLessThanOrEqual(AUTO_SNAP_MAX);
 		expect(snaps[snaps.length - 1].name).toBe("[auto] 2026-04-19 10:00");
+	});
+});
+
+// ---------------------------------------------------------------------------
+// createAutoSnapshotHandler — debounced scheduler extracted from GVC
+// ---------------------------------------------------------------------------
+describe("GraphSnapshot: createAutoSnapshotHandler", () => {
+	type FakeTimer = { id: number; cb: () => void; ms: number; active: boolean };
+
+	function makeTimers(): {
+		hooks: TimerHooks;
+		fire: (id: number) => void;
+		fireAll: () => void;
+		pending: () => FakeTimer[];
+	} {
+		let nextId = 1;
+		const timers: FakeTimer[] = [];
+		const hooks: TimerHooks = {
+			setTimeout: (cb, ms) => {
+				const id = nextId++;
+				timers.push({ id, cb, ms, active: true });
+				return id;
+			},
+			clearTimeout: (id) => {
+				const t = timers.find((x) => x.id === id);
+				if (t) t.active = false;
+			},
+		};
+		return {
+			hooks,
+			fire: (id) => {
+				const t = timers.find((x) => x.id === id);
+				if (t && t.active) {
+					t.active = false;
+					t.cb();
+				}
+			},
+			fireAll: () => {
+				for (const t of timers) {
+					if (t.active) {
+						t.active = false;
+						t.cb();
+					}
+				}
+			},
+			pending: () => timers.filter((t) => t.active),
+		};
+	}
+
+	function makeHost(
+		overrides: Partial<AutoSnapshotHost> & { snapshots?: GraphSnapshot[] } = {},
+	): { host: AutoSnapshotHost; snapshots: GraphSnapshot[]; persistSpy: ReturnType<typeof vi.fn> } {
+		const snapshots = overrides.snapshots ?? [];
+		const persistSpy = vi.fn();
+		const host: AutoSnapshotHost = {
+			getIntervalMin: overrides.getIntervalMin ?? (() => 1),
+			hasGraphData: overrides.hasGraphData ?? (() => true),
+			getGraphData: overrides.getGraphData ?? (() => makeData(2, 1)),
+			getContext: overrides.getContext ?? (() => ctx),
+			getSnapshots: overrides.getSnapshots ?? (() => snapshots),
+			persist: overrides.persist ?? persistSpy,
+		};
+		return { host, snapshots, persistSpy };
+	}
+
+	it("does nothing when interval is 0 (disabled)", () => {
+		const { host, persistSpy } = makeHost({ getIntervalMin: () => 0 });
+		const { hooks, pending } = makeTimers();
+		const handler = createAutoSnapshotHandler(host, hooks);
+		handler.trigger();
+		expect(pending()).toHaveLength(0);
+		expect(persistSpy).not.toHaveBeenCalled();
+	});
+
+	it("does nothing when interval is negative", () => {
+		const { host } = makeHost({ getIntervalMin: () => -5 });
+		const { hooks, pending } = makeTimers();
+		createAutoSnapshotHandler(host, hooks).trigger();
+		expect(pending()).toHaveLength(0);
+	});
+
+	it("schedules a timer using interval * 60 * 1000 ms", () => {
+		const { host } = makeHost({ getIntervalMin: () => 2 });
+		const { hooks, pending } = makeTimers();
+		createAutoSnapshotHandler(host, hooks).trigger();
+		const p = pending();
+		expect(p).toHaveLength(1);
+		expect(p[0].ms).toBe(2 * 60 * 1000);
+	});
+
+	it("debounces: a second trigger cancels the prior pending timer", () => {
+		const { host } = makeHost();
+		const { hooks, pending } = makeTimers();
+		const handler = createAutoSnapshotHandler(host, hooks);
+		handler.trigger();
+		handler.trigger();
+		expect(pending()).toHaveLength(1);
+	});
+
+	it("appends snapshot and calls persist after debounce fires", () => {
+		const { host, snapshots, persistSpy } = makeHost();
+		const { hooks, fireAll } = makeTimers();
+		createAutoSnapshotHandler(host, hooks).trigger();
+		fireAll();
+		expect(snapshots).toHaveLength(1);
+		expect(snapshots[0].name.startsWith(AUTO_SNAP_PREFIX)).toBe(true);
+		expect(persistSpy).toHaveBeenCalledOnce();
+	});
+
+	it("skips persistence when hasGraphData() is false", () => {
+		const { host, snapshots, persistSpy } = makeHost({ hasGraphData: () => false });
+		const { hooks, fireAll } = makeTimers();
+		createAutoSnapshotHandler(host, hooks).trigger();
+		fireAll();
+		expect(snapshots).toHaveLength(0);
+		expect(persistSpy).not.toHaveBeenCalled();
+	});
+
+	it("skips persistence when snapshot serialization returns null", () => {
+		const { host, snapshots, persistSpy } = makeHost({ getGraphData: () => null });
+		const { hooks, fireAll } = makeTimers();
+		createAutoSnapshotHandler(host, hooks).trigger();
+		fireAll();
+		expect(snapshots).toHaveLength(0);
+		expect(persistSpy).not.toHaveBeenCalled();
+	});
+
+	it("cancel() clears any pending timer", () => {
+		const { host, persistSpy } = makeHost();
+		const { hooks, fireAll, pending } = makeTimers();
+		const handler = createAutoSnapshotHandler(host, hooks);
+		handler.trigger();
+		expect(pending()).toHaveLength(1);
+		handler.cancel();
+		fireAll();
+		expect(persistSpy).not.toHaveBeenCalled();
 	});
 });
