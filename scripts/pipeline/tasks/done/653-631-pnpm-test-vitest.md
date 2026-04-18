@@ -1,7 +1,7 @@
 ---
 priority: high
 reported: 2026-04-18
-status: in-progress
+status: done
 source: decomposed
 parent: 631-617-pnpm-lint-pnpm-test
 depends: 652-631-pnpm-lint-eslint
