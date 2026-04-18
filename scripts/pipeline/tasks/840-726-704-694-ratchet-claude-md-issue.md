@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-18
-status: pending
+status: decomposed
 source: decomposed
 parent: 726-715-subtask
 depends: none
@@ -22,7 +22,7 @@ summary: 親タスク704-694の完了処理（ratchet測定・CLAUDE.md更新・
      - Quality Gates セクションに現行 coverage 実測値を反映（閾値は下げない）
   3. issue ファイル移動:
      - `git mv issues/in-progress/715-704-subtask.md issues/done/715-704-subtask.md`
-     - frontmatter の `status: in-progress` → `status: done` に更新、`completed: 2026-04-18` を追加
+     - frontmatter の `status: decomposed` → `status: done` に更新、`completed: 2026-04-18` を追加
   4. 検証ゲート（コミット前に必須）:
      - `pnpm test` PASS
      - `pnpm lint` PASS
