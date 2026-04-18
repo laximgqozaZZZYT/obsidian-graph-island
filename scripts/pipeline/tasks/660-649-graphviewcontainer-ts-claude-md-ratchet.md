@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-18
-status: pending
+status: decomposed
 source: decomposed
 parent: 649-630-claude-md-ratchet-down-issue-done-git-mv
 depends: 594-585-subtask-1 (verify緑確認済み前提)
@@ -19,7 +19,7 @@ write操作専任タスク。subtask-1 (594-585 verify) 完了が前提。
        `src/views/GraphViewContainer.ts` 行の Max Allowed 列を `8597` → `N` に更新。
      - N >= 8597 の場合: CLAUDE.md は無変更 (ratchet down only 原則)。
   3. `issues/pending/617-593-594-585-done-subtask-2.md` を検索・特定し、
-     frontmatter の `status: pending` または `status: in-progress` → `status: done` に更新。
+     frontmatter の `status: decomposed` または `status: decomposed` → `status: done` に更新。
   4. `git mv issues/pending/<file>.md issues/done/<file>.md` でファイル移動。
   5. 1コミットに集約してコミット:
      メッセージ: `chore: done 593-585-subtask — verified 594-585 (lines: N/8597)`
