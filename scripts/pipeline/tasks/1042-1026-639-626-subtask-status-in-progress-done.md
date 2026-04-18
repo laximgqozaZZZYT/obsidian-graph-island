@@ -20,7 +20,7 @@ summary: 639-626 subtask ファイルの status を in-progress → done に置�
   5. `git diff -- <file>` で以下を検証:
      - frontmatter の `status:` 行のみが変更
      - priority / reported / source / parent / depends / summary / Description 本文が完全一致で保持
-  6. 検証通過後にコミット。メッセージ例: `chore: done 1023-639-626-subtask-status-done`
+  6. 検証通過後にコミット。メッセージ例: `chore: done 1026-1014-639-626-subtask-status-done`
 
   制約:
   - src/**, tests/**, package.json, vitest.config.ts, esbuild.config.mjs は触らない
