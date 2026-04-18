@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-19
-status: in-progress
+status: done
 source: decomposed
 parent: 976-943-639-626-subtask-issue-frontmatter-status
 depends: none
@@ -17,8 +17,8 @@ summary: 639-626 subtask issue ファイルを特定し status を done に置�
   3. 複数候補の場合は summary に「status を done」「status done」「frontmatter status」等を含むものを優先選択
   4. Read で frontmatter を確認
      - 既に `status: done` なら no-op 正常終了（コミットもしない）
-     - `status: in-progress` (または他の pending 系) なら次へ
-  5. Edit で `status: in-progress` → `status: done` の1行置換のみ実施
+     - `status: done` (または他の pending 系) なら次へ
+  5. Edit で `status: done` → `status: done` の1行置換のみ実施
      - 他フィールド (priority, reported, source, parent, depends, summary) は不変
      - 本文 (Description, Acceptance criteria) も不変
   6. lint/test/build は実行しない (frontmatter変更のみ)
