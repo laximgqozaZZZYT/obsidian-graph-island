@@ -14,9 +14,10 @@ summary: GraphViewContainer.ts 行数測定→CLAUDE.md ratchet→parent issue d
 
   手順:
   1. `wc -l src/views/GraphViewContainer.ts` で現在行数 N を測定
-  2. N > 8597 の場合: ratchet 違反として CLAUDE.md を変更せず中断し、
+  2. N > 8597 の場合: ratchet 違反として CLAUDE.md を変更せず、
      `issues/in-progress/727-715-graphviewcontainer-ratchet-issue-done.md` の
-     description に違反記録（実測N行、上限8597超過）を追記して終了
+     description に違反記録（実測N行、上限8597超過）を追記して**終了**。
+     **手順3-6 はスキップ**（done化もコミットも行わない）
   3. N <= 8597 の場合: CLAUDE.md の "GOD OBJECT Policy" テーブルの
      `src/views/GraphViewContainer.ts` 行の "Lines" 列と "Max Allowed" 列の
      両方を N に更新（Edit toolでテーブル該当行のみ変更）
@@ -25,6 +26,7 @@ summary: GraphViewContainer.ts 行数測定→CLAUDE.md ratchet→parent issue d
   5. `git mv issues/in-progress/727-715-graphviewcontainer-ratchet-issue-done.md
      issues/done/727-715-graphviewcontainer-ratchet-issue-done.md` で移動
   6. 単一コミット: `chore: ratchet GraphViewContainer max-allowed to <N> lines`
+     （`<N>` は手順1の実測値で置換すること。文字列リテラルのまま残さない）
 
   制約（厳守）:
   - src/ tests/ には一切touch禁止（測定の Read/wc のみ許可）
