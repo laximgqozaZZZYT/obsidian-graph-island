@@ -41,7 +41,8 @@ body=$'## Description\n\nOriginal body with\ttab and [[wiki-link]].\n- item with
 
 make_target() {
   # make_target <out> [body]
-  local body_override="${2:-$body}"
+  # ${2-$body}: preserve empty-string override (colon form would collapse "" to default).
+  local body_override="${2-$body}"
   {
     printf -- '---\npriority: medium\nstatus: done\n---\n\n'
     printf '%s' "$body_override"
@@ -50,7 +51,7 @@ make_target() {
 
 make_baseline() {
   # make_baseline <out> [body]
-  local body_override="${2:-$body}"
+  local body_override="${2-$body}"
   jq -n --arg b "$body_override" '{frontmatter: {status: "done"}, body: $b}' > "$1"
 }
 
