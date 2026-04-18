@@ -1,7 +1,7 @@
 ---
 priority: high
 reported: 2026-04-18
-status: in-progress
+status: done
 source: decomposed
 parent: 725-714-graphviewcontainer-claude-md-ratchet-617
 depends: subtask-3
@@ -17,7 +17,7 @@ summary: 対象 issue の frontmatter を in-progress → done へ更新
   1. Glob で `issues/pending/617-593-594-585-done-*.md` を検索
   2. 該当ファイルを Read
   3. frontmatter を Edit:
-     - `status: in-progress` → `status: done`
+     - `status: done` → `status: done`
      - `completed: 2026-04-18` の行を追加 (status 行直後)
   4. ファイル移動はまだ行わない (subtask-5 で実施)
 
