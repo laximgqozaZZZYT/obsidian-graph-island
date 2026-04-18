@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-19
-status: pending
+status: in-progress
 source: decomposed
 parent: 976-943-639-626-subtask-issue-frontmatter-status
 depends: none
