@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-18
-status: decomposed
+status: done
 source: decomposed
 parent: 570-564-subtask
 depends: none
@@ -22,3 +22,10 @@ summary: GraphViewContainer.ts の verify-only 検証を実施
 ## Acceptance criteria
 - [ ] 実装が完了し、テストが通ること
 - [ ] CLAUDE.md のルールに違反しないこと
+
+## Verification Result (2026-04-18)
+- File: src/views/GraphViewContainer.ts
+- Actual lines: 8597
+- Max allowed: 8597
+- Status: PASS
+- Command: `wc -l src/views/GraphViewContainer.ts`
