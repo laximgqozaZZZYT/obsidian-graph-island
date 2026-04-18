@@ -1,7 +1,7 @@
 ---
 priority: high
 reported: 2026-04-18
-status: pending
+status: in-progress
 source: decomposed
 parent: 629-617-594-done-graphviewcontainer-ts
 depends: subtask-2
