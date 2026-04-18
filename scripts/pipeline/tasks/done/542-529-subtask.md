@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-18
-status: in-progress
+status: done
 source: decomposed
 parent: 529-510-subtask
 depends: none
