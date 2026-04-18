@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-18
-status: in-progress
+status: done
 source: decomposed
 parent: 606-596-issue
 depends: none
@@ -15,7 +15,7 @@ summary: subtask
   frontmatter:
   - priority: high
   - reported: 2026-04-18
-  - status: in-progress
+  - status: done
   - source: auto-detected
   - parent: 582-570-graphviewcontainer-ts-verify-only
   - summary: GraphViewContainer.ts が 8597 行を超過 (実測 <N> 行)
