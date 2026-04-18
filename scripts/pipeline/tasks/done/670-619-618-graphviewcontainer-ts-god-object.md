@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-18
-status: in-progress
+status: done
 source: decomposed
 parent: 619-600-subtask
 depends: 618-600-graphviewcontainer-ts-lint-test
