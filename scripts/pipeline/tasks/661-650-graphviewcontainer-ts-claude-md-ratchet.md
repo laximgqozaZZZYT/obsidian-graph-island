@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-18
-status: pending
+status: in-progress
 source: decomposed
 parent: 650-630-claude-md-max-allowed-ratchet-down-issue
 depends: none
@@ -19,7 +19,7 @@ write-only操作のみ。src/ と tests/ は一切触らない。pnpm build / pn
      (Edit tool で該当行のみ置換)。
      N >= 8597 の場合は CLAUDE.md を触らない (ratchet down only)。
   3. `ls issues/pending/` で該当issueファイル名を特定し、frontmatter の
-     `status: pending` (または `in-progress`) を `status: done` に Edit で変更。
+     `status: in-progress` (または `in-progress`) を `status: done` に Edit で変更。
   4. `git mv issues/pending/<filename>.md issues/done/<filename>.md` を実行。
   5. `git add CLAUDE.md issues/` して単一コミット:
      ```
