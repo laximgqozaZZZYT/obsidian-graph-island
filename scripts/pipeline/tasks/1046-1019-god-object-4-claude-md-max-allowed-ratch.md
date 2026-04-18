@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-19
-status: pending
+status: in-progress
 source: decomposed
 parent: 1019-1007-god-object-4-claude-md-max-allowed
 depends: none
