@@ -1,14 +1,14 @@
 ---
 priority: medium
 reported: 2026-04-19
-status: decomposed
+status: pending
 source: decomposed
-parent: 994-972-639-626-subtask-issue-pending-done-git-m
+parent: 1016-994-639-626-subtask-issue-pending-done-git-m
 depends: none
-summary: 639-626 subtask issue を pending→done に git mv + status 書換 + 単一コミット
+summary: 639-626 subtask issue を pending→done に移動し単一コミット
 ---
 
-## Description (subtask of 994-972-639-626-subtask-issue-pending-done-git-m)
+## Description (subtask of 1016-994-639-626-subtask-issue-pending-done-git-m)
 
 手順:
   1. `Glob issues/pending/*639-626*subtask*.md` で対象特定
@@ -16,7 +16,7 @@ summary: 639-626 subtask issue を pending→done に git mv + status 書換 + �
      - 2件以上 → 中止してユーザーに報告
      - 1件 → 続行
   2. Read で frontmatter の `status:` 値を確認
-  3. Edit で frontmatter の status 行のみ置換: `pending` または `in-progress` → `done`
+  3. Edit で frontmatter の status 行のみ `pending` または `in-progress` → `done` に置換
      - 他フィールド (priority/reported/source/parent/depends/summary) 不変
      - Description 本文は一切変更しない
   4. `git mv issues/pending/<filename>.md issues/done/<filename>.md`
@@ -40,6 +40,10 @@ summary: 639-626 subtask issue を pending→done に git mv + status 書換 + �
   - [ ] 単一コミットのみ作成されている
   - [ ] `git status` が clean
   - [ ] 他ファイルへの変更ゼロ
+
+---
+
+このissueは既にアトミックな単一操作 (glob → edit status → git mv → 単一 commit) であり、これ以上分解すると各サブタスクが独立コミット不可になるため、1タスクとして維持するのが適切です。
 
 ## Acceptance criteria
 - [ ] 実装が完了し、テストが通ること
