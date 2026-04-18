@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-18
-status: pending
+status: decomposed
 source: decomposed
 parent: 691-662-subtask-status-done
 depends: subtask-1
@@ -11,7 +11,7 @@ summary: 特定ファイルの status を done に Edit
 ## Description (subtask of 691-662-subtask-status-done)
 
 1. subtask-1 で特定したファイルを Read で再読込する（frontmatter 検証）。
-  2. Edit ツールで frontmatter の `status: pending` または `status: in-progress` を `status: done` に置換する。
+  2. Edit ツールで frontmatter の `status: decomposed` または `status: decomposed` を `status: done` に置換する。
   3. 他フィールド (priority / reported / parent / depends / summary / source) は一切変更しない。
   4. 本文 (## Description 以降、## Acceptance criteria) は変更しない。
   5. Edit 後に Read で再確認し、status 行以外に差分がないことを検証する。
