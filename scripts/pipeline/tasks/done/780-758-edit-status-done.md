@@ -1,7 +1,7 @@
 ---
 priority: high
 reported: 2026-04-18
-status: in-progress
+status: done
 source: decomposed
 parent: 758-730-status-done-edit
 depends: subtask-1
@@ -12,7 +12,7 @@ summary: Edit ツールで status 値を done に置換
 
 subtask-1 で特定した status 行を Edit ツールで置換する。
   old_string には一意性確保のため周囲 2-3 行の frontmatter を含める
-  (例: "priority: high\nreported: 2026-04-18\nstatus: in-progress\nsource: decomposed")。
+  (例: "priority: high\nreported: 2026-04-18\nstatus: done\nsource: decomposed")。
   new_string は old_string の status 値部分のみを "done" に変更したもの。
   replace_all は使用しない (単一置換を確実にするため)。
   Edit 成功を確認して終了。
