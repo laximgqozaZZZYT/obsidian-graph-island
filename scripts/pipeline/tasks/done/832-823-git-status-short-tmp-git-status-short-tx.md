@@ -1,7 +1,7 @@
 ---
 priority: high
 reported: 2026-04-18
-status: in-progress
+status: done
 source: decomposed
 parent: 823-811-git-status-short-tmp-git-status-short-tx
 depends: none
