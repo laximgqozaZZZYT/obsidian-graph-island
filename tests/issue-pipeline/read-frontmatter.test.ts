@@ -16,15 +16,25 @@ describe("scripts/issue-pipeline/read-frontmatter.mjs", () => {
 	let tmpDir: string;
 	let existingPath: string;
 	let emptyPath: string;
+	let frontmatterPath: string;
+	let crlfPath: string;
 
 	beforeAll(() => {
 		tmpDir = mkdtempSync(join(tmpdir(), "read-frontmatter-test-"));
 		existingPath = join(tmpDir, "issue.md");
 		emptyPath = join(tmpDir, "empty.md");
+		frontmatterPath = join(tmpDir, "frontmatter.md");
+		crlfPath = join(tmpDir, "crlf.md");
 
 		const lines = Array.from({ length: 50 }, (_, i) => `line-${i + 1}`);
 		writeFileSync(existingPath, lines.join("\n"), "utf8");
 		writeFileSync(emptyPath, "", "utf8");
+		writeFileSync(
+			frontmatterPath,
+			["---", "priority: high", "status: pending", "---", "", "## Description", "body"].join("\n"),
+			"utf8",
+		);
+		writeFileSync(crlfPath, ["---", "status: pending", "---", "body"].join("\r\n"), "utf8");
 	});
 
 	afterAll(() => {
@@ -58,5 +68,30 @@ describe("scripts/issue-pipeline/read-frontmatter.mjs", () => {
 		const parsed = JSON.parse(result.stdout);
 		expect(parsed.path).toBe(emptyPath);
 		expect(parsed.head30).toBe("");
+	});
+
+	it("exits with code 2 and stderr E_NO_ARG when no argument is provided", () => {
+		const result = runScript();
+		expect(result.status).toBe(2);
+		expect(result.stderr).toBe("E_NO_ARG");
+		expect(result.stdout).toBe("");
+	});
+
+	it("preserves frontmatter delimiters (---) within head30", () => {
+		const result = runScript(frontmatterPath);
+		expect(result.status).toBe(0);
+		const parsed = JSON.parse(result.stdout);
+		const head30Lines = parsed.head30.split("\n");
+		expect(head30Lines[0]).toBe("---");
+		expect(head30Lines[3]).toBe("---");
+		expect(head30Lines).toContain("## Description");
+	});
+
+	it("normalizes CRLF line endings when building head30", () => {
+		const result = runScript(crlfPath);
+		expect(result.status).toBe(0);
+		const parsed = JSON.parse(result.stdout);
+		expect(parsed.head30).not.toContain("\r");
+		expect(parsed.head30.split("\n")).toEqual(["---", "status: pending", "---", "body"]);
 	});
 });

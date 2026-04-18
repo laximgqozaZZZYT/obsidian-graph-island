@@ -10,9 +10,12 @@
 // Behavior:
 //   - Missing file       -> stderr "E_NOT_FOUND:<path>", process.exit(2)
 //   - Missing argument   -> stderr "E_NO_ARG", process.exit(2)
+//   - Other read errors  -> intentionally fail-loud: re-throw (Node prints stack + exits 1)
+//                            (EACCES/EISDIR/EPERM are considered environmental bugs, not contract paths)
 //   - Success            -> stdout JSON {path, head30}, exit 0
+//                            head30 is LF-normalized (CRLF/CR collapsed to LF) by design.
 
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 
 const HEAD_LIMIT = 30;
 
@@ -22,12 +25,19 @@ function main(argv) {
 		process.stderr.write("E_NO_ARG");
 		process.exit(2);
 	}
-	if (!existsSync(issueAbsPath)) {
-		process.stderr.write(`E_NOT_FOUND:${issueAbsPath}`);
-		process.exit(2);
+	// Single read with ENOENT handling avoids a TOCTOU gap between existsSync and readFileSync.
+	let raw;
+	try {
+		raw = readFileSync(issueAbsPath, "utf8");
+	} catch (err) {
+		if (err?.code === "ENOENT") {
+			process.stderr.write(`E_NOT_FOUND:${issueAbsPath}`);
+			process.exit(2);
+		}
+		throw err;
 	}
-	const raw = readFileSync(issueAbsPath, "utf8");
-	const head30 = raw.split("\n").slice(0, HEAD_LIMIT).join("\n");
+	// Accept CRLF (/\r?\n/) to stay aligned with 800-766-raw-head-frontmatter-text.md.
+	const head30 = raw.split(/\r?\n/).slice(0, HEAD_LIMIT).join("\n");
 	process.stdout.write(JSON.stringify({ path: issueAbsPath, head30 }));
 }
 
