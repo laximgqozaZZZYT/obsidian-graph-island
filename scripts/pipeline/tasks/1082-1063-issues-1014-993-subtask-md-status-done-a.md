@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-19
-status: pending
+status: decomposed
 source: decomposed
 parent: 1063-1048-issues-1014-993-subtask-md-status-done
 depends: none
@@ -13,7 +13,7 @@ summary: issues/1014-993-subtask.md の status を done に遷移 + acceptance c
 対象ファイル: `issues/1014-993-subtask.md` の1ファイルのみ編集。
 
   変更内容:
-  1. フロントマターの `status: in-progress` を `status: done` に書き換え
+  1. フロントマターの `status: decomposed` を `status: done` に書き換え
      - 他の frontmatter フィールド (priority/reported/source/parent/depends/summary) は一切変更しない
   2. Acceptance criteria セクション内の未チェック `- [ ]` を全て `- [x]` に変更
      - 典型的には `- [ ] 実装が完了し、テストが通ること` と `- [ ] CLAUDE.md のルールに違反しないこと` の2項目
