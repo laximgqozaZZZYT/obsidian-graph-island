@@ -37,14 +37,12 @@ echo "found=1"
 
 # Capture wc stdout separately from its exit code so we can log the raw error
 # message when wc fails (task requires "エラーメッセージをそのままログに残す").
-wc_stdout=""
-wc_stderr=""
+# Use mktemp so parallel invocations (CI, cron) don't collide on a fixed path.
+err_file="$(mktemp -t gate-git-status-short-wc.XXXXXX.err)"
+trap 'rm -f "${err_file}"' EXIT
 wc_exit=0
-wc_stdout="$(wc -l -- "${FILE}" 2>/tmp/gate-git-status-short-wc.err)" || wc_exit=$?
-if [[ -r /tmp/gate-git-status-short-wc.err ]]; then
-  wc_stderr="$(cat /tmp/gate-git-status-short-wc.err)"
-  rm -f /tmp/gate-git-status-short-wc.err
-fi
+wc_stdout="$(wc -l -- "${FILE}" 2>"${err_file}")" || wc_exit=$?
+wc_stderr="$(cat "${err_file}")"
 
 echo "wc_exit=${wc_exit}"
 
