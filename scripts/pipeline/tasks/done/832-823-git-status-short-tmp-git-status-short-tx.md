@@ -17,5 +17,7 @@ summary: git status --short を /tmp/git-status-short.txt に保存し exit code
   - 成果物: /tmp/git-status-short.txt (生成確認のみ、内容検証は subtask-2 で行う)
 
 ## Acceptance criteria
-- [ ] 実装が完了し、テストが通ること
-- [ ] CLAUDE.md のルールに違反しないこと
+- [ ] `git status --short > /tmp/git-status-short.txt 2>&1; echo "EXIT=$?"` の EXIT が 0
+- [ ] `/tmp/git-status-short.txt` が生成済み (stat / ls で存在確認)
+- [ ] state 変更コマンド (add/commit/mv/restore/checkout/reset) を一切実行していない
+- [ ] src/ 配下に書き込みが発生していない
