@@ -125,8 +125,7 @@ import { LayoutController, type LayoutHost } from "./LayoutController";
 import { LabelManager } from "./LabelManager";
 import { Minimap, type MinimapHost } from "./Minimap";
 import { DiffOverlay } from "./DiffOverlay";
-import { captureSnapshot } from "../utils/snapshot";
-import { AUTO_SNAP_PREFIX, AUTO_SNAP_MAX } from "./SnapshotManager";
+import { appendAutoSnapshot } from "./snapshot-service";
 import { GuideRenderer, type GuideRendererHost } from "./GuideRenderer";
 import { LayoutTransition } from "./LayoutTransition";
 import {
@@ -1568,35 +1567,22 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		// Auto-snapshot: capture graph state when vault metadata changes (configurable debounce)
 		{
 			let autoSnapTimer = 0;
-			const getDebounceMs = () => {
-				const mins = this.plugin.settings.autoSnapshotIntervalMin ?? 5;
-				return mins * 60 * 1000;
-			};
 			this.registerEvent(
 				this.app.metadataCache.on("changed", () => {
-					const debounceMs = getDebounceMs();
+					const mins = this.plugin.settings.autoSnapshotIntervalMin ?? 5;
+					const debounceMs = mins * 60 * 1000;
 					if (debounceMs <= 0) return; // auto-snapshot disabled
 					if (autoSnapTimer) window.clearTimeout(autoSnapTimer);
 					autoSnapTimer = window.setTimeout(() => {
 						autoSnapTimer = 0;
 						if (!this.pixiNodes.size) return; // no graph data yet
 						const snapshots = this.plugin.settings.snapshots ?? [];
-						// Remove oldest auto-snapshots if at limit
-						const autoSnaps = snapshots.filter((s) => s.name.startsWith(AUTO_SNAP_PREFIX));
-						while (autoSnaps.length >= AUTO_SNAP_MAX) {
-							const oldest = autoSnaps.shift()!;
-							const idx = snapshots.indexOf(oldest);
-							if (idx >= 0) snapshots.splice(idx, 1);
-						}
-						// Capture
-						const data = this.getGraphData();
-						const name = AUTO_SNAP_PREFIX + new Date().toISOString().replace("T", " ").slice(0, 16);
-						const snap = captureSnapshot(data, name, {
+						const snap = appendAutoSnapshot(snapshots, this.getGraphData(), {
 							layout: this.currentLayout ?? "force",
 							searchQuery: this.panel.searchQuery ?? "",
 							groupBy: this.panel.clusterGroupRules?.[0]?.groupBy ?? "",
 						});
-						snapshots.push(snap);
+						if (!snap) return;
 						this.plugin.settings.snapshots = snapshots;
 						this.plugin.saveSettings();
 					}, debounceMs) as unknown as number;
