@@ -13,10 +13,10 @@ assert_exit() {
   local label="$1" expected="$2" actual="$3"
   if [[ "$actual" -eq "$expected" ]]; then
     echo "PASS: $label"
-    ((passed++))
+    passed=$((passed + 1))
   else
     echo "FAIL: $label (expected exit $expected, got $actual)"
-    ((failed++))
+    failed=$((failed + 1))
   fi
 }
 
@@ -24,12 +24,12 @@ assert_stdout_contains() {
   local label="$1" pattern="$2" file="$3"
   if grep -q -- "$pattern" "$file" 2>/dev/null; then
     echo "PASS: $label"
-    ((passed++))
+    passed=$((passed + 1))
   else
     echo "FAIL: $label (stdout missing pattern: $pattern)"
     echo "  actual stdout:"
     sed 's/^/    /' "$file"
-    ((failed++))
+    failed=$((failed + 1))
   fi
 }
 
@@ -99,6 +99,20 @@ rc=0
 bash "$SUT" "$tmpdir/c6-target.md" "$tmpdir/c1-baseline.json" >"$tmpdir/c6.out" 2>&1 || rc=$?
 assert_exit "case6: missing heading → exit 1" 1 "$rc"
 assert_stdout_contains "case6: error mentions heading" "'## Description' not found" "$tmpdir/c6.out"
+
+# --- Case 7: unparseable baseline.json → exit 1, stderr mentions parse failure ---
+printf 'not valid json {' > "$tmpdir/c7-baseline.json"
+rc=0
+bash "$SUT" "$tmpdir/c1-target.md" "$tmpdir/c7-baseline.json" >"$tmpdir/c7.out" 2>&1 || rc=$?
+assert_exit "case7: broken baseline → exit 1" 1 "$rc"
+assert_stdout_contains "case7: error mentions parse failure" "failed to parse baseline.json" "$tmpdir/c7.out"
+
+# --- Case 8: baseline body is "" → exit 1, stderr mentions missing body ---
+make_baseline "$tmpdir/c8-baseline.json" ""
+rc=0
+bash "$SUT" "$tmpdir/c1-target.md" "$tmpdir/c8-baseline.json" >"$tmpdir/c8.out" 2>&1 || rc=$?
+assert_exit "case8: empty body → exit 1" 1 "$rc"
+assert_stdout_contains "case8: error mentions missing body" "no 'body' field" "$tmpdir/c8.out"
 
 # --- Summary ---
 echo

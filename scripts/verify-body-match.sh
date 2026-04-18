@@ -8,7 +8,10 @@
 #             baseline.json shape: { "body": "<original '## Description' block>", ... }
 #   Stdout  : "BODY OK" on match; on mismatch, "ERROR: ..." with first diff line
 #             number and expected/actual lines (Python repr for whitespace clarity).
+#   Stderr  : I/O / argument errors (missing file, unparseable baseline, etc.).
 #   Exit    : 0 on match, 2 on body mismatch, 1 on I/O / argument error.
+#
+# Requires: bash, jq, python3, grep, tail, cmp (GNU coreutils).
 #
 # Comparison is byte-exact: whitespace, tabs, wiki-links ([[...]]), and trailing
 # newlines must all match. `jq -j` keeps the baseline bytes as-is (no injected
@@ -36,7 +39,7 @@ if [[ ! -f "$baseline" ]]; then
 fi
 
 # Locate first "## Description" heading. grep -b emits "<byte>:<line>" on stdout.
-desc_hit=$(grep -b -m1 '^## Description' "$target" || true)
+desc_hit=$(grep -b -m1 -- '^## Description' "$target" || true)
 if [[ -z "$desc_hit" ]]; then
   echo "ERROR: '## Description' not found in target: $target" >&2
   exit 1
@@ -46,8 +49,8 @@ byte_off=${desc_hit%%:*}
 tmpdir=$(mktemp -d)
 trap 'rm -rf "$tmpdir"' EXIT
 
-tail -c +$((byte_off + 1)) "$target" > "$tmpdir/actual"
-if ! jq -j '.body // empty' "$baseline" > "$tmpdir/expected" 2>"$tmpdir/jq.err"; then
+tail -c +$((byte_off + 1)) -- "$target" > "$tmpdir/actual"
+if ! jq -j '.body // empty' -- "$baseline" > "$tmpdir/expected" 2>"$tmpdir/jq.err"; then
   echo "ERROR: failed to parse baseline.json" >&2
   cat "$tmpdir/jq.err" >&2
   exit 1
