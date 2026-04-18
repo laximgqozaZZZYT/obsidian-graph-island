@@ -25,11 +25,8 @@ read-only 検証タスク。ファイル変更・コミット禁止。
   - git add / git commit / git push
   - CLAUDE.md 上限値の書き換え (ratchet down のみ許可、本タスクでは触らない)
 
-  受入条件:
-  - 行数計測が完了しログ出力されていること
-  - 上限値比較結果 (PASS/FAIL) が明示されていること
-  - ファイルツリーに変更がないこと (`git status` が clean)
-
 ## Acceptance criteria
-- [ ] 実装が完了し、テストが通ること
+- [ ] `wc -l src/views/GraphViewContainer.ts` の結果がログ出力されている
+- [ ] 上限 8597 行との比較結果 (PASS/FAIL) が明示されている
+- [ ] `git status` が clean (ファイル変更・コミットなし)
 - [ ] CLAUDE.md のルールに違反しないこと
