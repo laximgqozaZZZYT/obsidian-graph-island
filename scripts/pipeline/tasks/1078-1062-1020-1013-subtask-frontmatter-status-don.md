@@ -10,18 +10,16 @@ summary: 1020-1013-subtask の frontmatter status を done に更新
 
 ## Description (subtask of 1062-1047-issue-1020-1013-subtask-status-done)
 
-1. `ls issues/ | grep '^1020-1013-subtask'` で対象ファイルを特定 (想定: `issues/1020-1013-subtask.md` 1件)
-  2. Read で現状の frontmatter を確認 (特に `status:` の現在値)
-  3. Edit で `status: <現状値>` → `status: done` の1行のみ置換
-     - `status: in-progress` / `status: pending` いずれの場合も `status: done` に統一
-  4. 変更禁止事項:
-     - 他の frontmatter フィールド (priority, reported, source, parent, depends, summary) は一切触らない
-     - Description / Acceptance criteria などの本文は変更しない
-     - ファイル名変更 (`git mv`) は禁止
-  5. `git add issues/1020-1013-subtask*.md` 後、`git diff --cached` で差分が `status:` 1行のみであることを確認
-  6. `git commit -m "chore(issues): mark 1020-1013-subtask as done"`
-  7. lint / test / build は対象が issues/ 配下の md のみのため実行不要
-  8. YAML frontmatter の `---` 区切り・コロン位置が壊れていないか Read で最終確認
+1. `ls issues/ | grep '^1020-1013-subtask'` で対象ファイルを特定
+  2. Read で該当 .md ファイルの frontmatter を確認
+  3. Edit で `status:` 行のみを `status: done` に書き換え
+     - `status: in-progress` / `status: pending` いずれも `status: done` に統一
+  4. 他の frontmatter フィールド (priority, reported, source, parent, depends, summary) および本文は一切変更しない
+  5. `git mv` は使用禁止（ファイル名変更しない）
+  6. `git add <対象ファイル>` 後、`git diff --cached` で `status:` 1行のみの差分であることを確認
+  7. YAML の `---` 区切りとコロン位置が壊れていないか目視確認
+  8. コミット: `chore(issues): mark 1020-1013-subtask as done`
+  9. lint/test/build は issues/ 配下の md 変更のみのため実行不要
 
 ## Acceptance criteria
 - [ ] 実装が完了し、テストが通ること
