@@ -22,3 +22,10 @@ summary: GraphViewContainer.ts の現行行数を測定し、Max Allowed と比�
 ## Acceptance criteria
 - [ ] 実装が完了し、テストが通ること
 - [ ] CLAUDE.md のルールに違反しないこと
+
+## Measurement Result (2026-04-18)
+
+- 実測: `wc -l src/views/GraphViewContainer.ts` → **8597**
+- Max Allowed (CLAUDE.md GOD OBJECT Policy): **8597**
+- 判定: **同一 (unchanged 8597)** — done 遷移可
+- 備考: 行数は Max Allowed と一致。超過なし、減少もなし。CLAUDE.md ratchet down は次サイクル以降の別タスクで本体分解 (snapshot/export/filter 抽出) が進んだ後に実施予定。本タスクでは CLAUDE.md は変更しない。
