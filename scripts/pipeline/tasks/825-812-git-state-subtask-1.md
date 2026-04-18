@@ -1,7 +1,7 @@
 ---
 priority: high
 reported: 2026-04-18
-status: pending
+status: in-progress
 source: decomposed
 parent: 812-802-repository-state
 depends: 811-802-subtask-1 (/tmp/git-status-short.txt が存在すること)
