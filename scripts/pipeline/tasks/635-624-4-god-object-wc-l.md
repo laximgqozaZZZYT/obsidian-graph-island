@@ -1,7 +1,7 @@
 ---
 priority: high
 reported: 2026-04-18
-status: in-progress
+status: decomposed
 source: decomposed
 parent: 624-607-4-god-object
 depends: none
