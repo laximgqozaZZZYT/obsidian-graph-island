@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-18
-status: decomposed
+status: done
 source: decomposed
 parent: 639-626-subtask
 depends: subtask-2
