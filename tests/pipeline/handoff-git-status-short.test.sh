@@ -13,10 +13,10 @@ assert_exit() {
   local label="$1" expected="$2" actual="$3"
   if [[ "$actual" -eq "$expected" ]]; then
     echo "PASS: $label"
-    ((passed++))
+    ((++passed))
   else
     echo "FAIL: $label (expected exit $expected, got $actual)"
-    ((failed++))
+    ((++failed))
   fi
 }
 
@@ -24,11 +24,11 @@ assert_stderr_contains() {
   local label="$1" pattern="$2" stderr_file="$3"
   if grep -q -E "$pattern" "$stderr_file" 2>/dev/null; then
     echo "PASS: $label"
-    ((passed++))
+    ((++passed))
   else
     echo "FAIL: $label (stderr missing pattern: $pattern)"
     echo "--- stderr ---"; cat "$stderr_file"; echo "--- end ---"
-    ((failed++))
+    ((++failed))
   fi
 }
 
@@ -36,12 +36,12 @@ assert_bytes_equal() {
   local label="$1" expected="$2" actual="$3"
   if cmp -s -- "$expected" "$actual"; then
     echo "PASS: $label"
-    ((passed++))
+    ((++passed))
   else
     echo "FAIL: $label (stdout bytes differ from input)"
     echo "--- expected ($(wc -c <"$expected") bytes) ---"; od -c -- "$expected" | head -5
     echo "--- actual ($(wc -c <"$actual") bytes) ---"; od -c -- "$actual" | head -5
-    ((failed++))
+    ((++failed))
   fi
 }
 

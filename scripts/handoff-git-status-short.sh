@@ -41,7 +41,10 @@ if [[ -z "$SRC" || "$SRC" == "-" ]]; then
   # re-reading a non-seekable stream. Bash $(…) strips trailing \n, so the
   # temp-file route is the only byte-preserving option.
   TMP="$(mktemp -t handoff-git-status-short.XXXXXX)"
-  cat >"$TMP"
+  # Without set -e, `cat >"$TMP"` silently ignores disk-full / write errors
+  # and the downstream awk/cat would report 0 lines — violating the
+  # "exit 0 = passthrough succeeded" contract. Fail loudly instead.
+  cat >"$TMP" || { echo "FAIL: stdin buffer failed" >&2; exit 1; }
   SRC="$TMP"
 elif [[ ! -r "$SRC" ]]; then
   echo "FAIL: input not readable: $SRC" >&2
