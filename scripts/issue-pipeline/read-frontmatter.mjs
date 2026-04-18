@@ -10,7 +10,10 @@
 // Behavior:
 //   - Missing file       -> stderr "E_NOT_FOUND:<path>", process.exit(2)
 //   - Missing argument   -> stderr "E_NO_ARG", process.exit(2)
+//   - Other read errors  -> intentionally fail-loud: re-throw (Node prints stack + exits 1)
+//                            (EACCES/EISDIR/EPERM are considered environmental bugs, not contract paths)
 //   - Success            -> stdout JSON {path, head30}, exit 0
+//                            head30 is LF-normalized (CRLF/CR collapsed to LF) by design.
 
 import { readFileSync } from "node:fs";
 

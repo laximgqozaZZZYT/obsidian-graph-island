@@ -19,9 +19,13 @@ RAW_HEAD の 1行目が `---` であることを確認し、
 
 ### 実行トレース（期待ログ）
 
+> 前提: RAW_HEAD は上流スクリプト (`scripts/issue-pipeline/read-frontmatter.mjs`) の時点で
+> 既に LF (`\n`) 正規化済み。本タスクの擬似コード中の `\n` リテラル前提の正規表現は
+> この正規化の上に成立している。原文の改行種別 (CRLF/CR) は保持されない点に留意。
+
 ```text
 # [前提] 799-766-read-offset-0-limit-30 の出力変数
-RAW_HEAD: string   # Read(offset=0, limit=30) で取得済みの先頭30行生テキスト
+RAW_HEAD: string   # Read(offset=0, limit=30) で取得済みの先頭30行生テキスト（LF 正規化済み）
 
 # [Step 1] 1行目判定（guard）
 #   - RAW_HEAD.split(/\r?\n/)[0] が "---" でなければ frontmatter 無しとみなし
