@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-19
-status: pending
+status: decomposed
 source: decomposed
 parent: 1018-995-639-626-subtask-1-pending-done-git-mv-st
 depends: none
@@ -18,7 +18,7 @@ summary: 639-626 subtask 1件を pending→done へ git mv + status書換 + 単�
      - 2件以上: 中止（自動選択禁止）
      - 1件: 次へ
   2. Read で frontmatter 確認
-  3. Edit: `status: decomposed` or `status: in-progress` の該当1行のみを `status: done` へ（replace_all 禁止、他行不変）
+  3. Edit: `status: decomposed` or `status: decomposed` の該当1行のみを `status: done` へ（replace_all 禁止、他行不変）
   4. Bash `git mv issues/pending/<filename>.md issues/done/<filename>.md`
   5. Bash `git status --short` 検証:
      - 期待: R pending→done + M done のみ
