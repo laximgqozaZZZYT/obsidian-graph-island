@@ -1,21 +1,21 @@
 ---
 priority: medium
 reported: 2026-04-19
-status: decomposed
+status: pending
 source: decomposed
-parent: 1037-1021-issues-992-971-subtask-md-status-done
+parent: 1057-1037-issues-992-971-subtask-md-status-done
 depends: none
 summary: issues/992-971-subtask.md の status を done に更新してコミット
 ---
 
-## Description (subtask of 1037-1021-issues-992-971-subtask-md-status-done)
+## Description (subtask of 1057-1037-issues-992-971-subtask-md-status-done)
 
-`issues/992-971-subtask.md` の frontmatter 内 `status: decomposed` 行を `status: done` に置換する単一編集タスク。
+`issues/992-971-subtask.md` の frontmatter 内 `status: in-progress` を `status: done` に置換する単一編集タスク。
 
   手順:
   1. `Read` で `issues/992-971-subtask.md` を読み、frontmatter の status 行を確認
-  2. `Edit` で `status: decomposed` → `status: done`（frontmatter ブロック内のみ、1 箇所）
-  3. `git diff issues/992-971-subtask.md` を実行し、変更が 1 行のみ（1 insertion / 1 deletion）であることを確認
+  2. `Edit` で `status: in-progress` → `status: done`（frontmatter ブロック内のみ、1 箇所）
+  3. `git diff issues/992-971-subtask.md` で変更が 1 行のみであることを確認
   4. `git diff --stat` で `1 file changed, 1 insertion(+), 1 deletion(-)` を確認
   5. `git add issues/992-971-subtask.md` && `git commit -m "chore: mark 992-971-subtask as done"`
 
@@ -31,7 +31,7 @@ summary: issues/992-971-subtask.md の status を done に更新してコミッ�
   - `git diff --stat` が `1 file changed, 1 insertion(+), 1 deletion(-)`
   - frontmatter の `---` 区切り 2 本が保持されている
 
-（注: 元 issue は 1 行編集 + 1 コミットのみで完結する最小粒度のため、これ以上の分解は不要。1 サブタスクに集約しました。）
+  注: 元 issue は 1 行編集 + 1 コミットで完結する最小粒度のため、これ以上の分解は不要。1 サブタスクに集約。
 
 ## Acceptance criteria
 - [ ] 実装が完了し、テストが通ること
