@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-18
-status: in-progress
+status: done
 source: decomposed
 parent: 600-590-graphviewcontainer-ts-8597
 depends: 619-600-subtask
