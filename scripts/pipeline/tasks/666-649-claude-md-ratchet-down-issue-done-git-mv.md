@@ -18,7 +18,7 @@ write操作のみ。subtask-1 (594-585 verify) が緑で完了していること
      `src/views/GraphViewContainer.ts` 行の Max Allowed 列を `8597` → `N` に Edit する
      (ratchet down only、N >= 8597 なら CLAUDE.md は無変更で skip)。
   3. 本タスクファイル `scripts/pipeline/tasks/666-649-claude-md-ratchet-down-issue-done-git-mv.md` の
-     frontmatter を `status: in-progress` または `status: in-progress` から `status: done` に Edit する
+     frontmatter を `status: decomposed` または `status: in-progress` から `status: done` に Edit する
      (frontmatter 行のみ対象、本文中の説明文字列は置換しない)。
   4. `git mv scripts/pipeline/tasks/666-649-claude-md-ratchet-down-issue-done-git-mv.md scripts/pipeline/tasks/done/666-649-claude-md-ratchet-down-issue-done-git-mv.md`
      でファイル移動。
