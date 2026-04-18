@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-18
-status: pending
+status: decomposed
 source: decomposed
 parent: 715-704-subtask
 depends: none
@@ -20,7 +20,7 @@ summary: GraphViewContainer ratchet + 親issue done化 + 単一コミット
      - N >= 8597: CLAUDE.md は編集しない(増加方向は絶対禁止)
   3. `ls issues/pending/617-593-594-585-done-*.md` で対象ファイル特定
   4. Edit で frontmatter を更新:
-     - status: in-progress → done
+     - status: decomposed → done
      - completed: 2026-04-18 を追加
   5. `git mv issues/pending/<file>.md issues/done/<file>.md`
   6. 単一コミット:
