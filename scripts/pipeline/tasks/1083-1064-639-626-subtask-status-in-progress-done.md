@@ -1,18 +1,18 @@
 ---
 priority: medium
 reported: 2026-04-19
-status: decomposed
+status: pending
 source: decomposed
-parent: 1026-1014-639-626-subtask-status-done
+parent: 1064-1026-639-626-subtask-status-in-progress-done
 depends: none
 summary: 639-626 subtask ファイルの status を in-progress → done に置換
 ---
 
-## Description (subtask of 1026-1014-639-626-subtask-status-done)
+## Description (subtask of 1064-1026-639-626-subtask-status-in-progress-done)
 
 1. Glob `issues/pending/*639-626*subtask*.md` で対象ファイル1件を特定
-  2. Read で先頭~30行を読み、frontmatter に `status: decomposed` が1行だけ存在することを確認
-  3. Edit (replace_all=false) で `status: decomposed` → `status: done` に置換
+  2. Read で先頭~30行を読み、frontmatter に `status: in-progress` が1行だけ存在することを確認
+  3. Edit (replace_all=false) で `status: in-progress` → `status: done` に置換
   4. Bash `git status --short` で変更が当該1ファイルのみであることを確認
   5. Bash `git diff -- <file>` で status 行のみ変更、priority/reported/source/parent/depends/summary および Description 本文が完全一致で保持されていることを確認
 
