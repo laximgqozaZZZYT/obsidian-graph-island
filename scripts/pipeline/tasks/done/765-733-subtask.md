@@ -10,12 +10,15 @@ summary: subtask
 
 ## Description (subtask of 733-719-issue-frontmatter-read-status)
 
-`★ Insight ─────────────────────────────────────`
-- この issue は既にかなりアトミック（Read 1回 + 値抽出 + 分岐判定）なので、過剰分解は避け2タスクに留めるのが妥当
-- frontmatter status の YAML 抽出は `/^status:\s*(pending|in-progress|done)\s*$/m` の正規表現で十分（YAMLパーサー不要）
-- depends チェーンは 701-691-glob-read → 本タスク → 後続の edit 処理、という流れが前提
-`─────────────────────────────────────────────────`
+親タスク 733 は `Read 1 回 + 値抽出 + 分岐判定` というアトミックな作業のため、
+実処理は兄弟 `766-733-issue-read-frontmatter` (Read) と `767-733-subtask` (regex 抽出 + 分岐) の 2 タスクで充足する。
+本タスクは過剰分解の記録用プレースホルダとして残し、追加の作業は行わない。
+
+参考実装メモ:
+- YAML 抽出は `/^status:\s*(pending|in-progress|done)\s*$/m` の単一正規表現で足り、YAML パーサーは不要。
+- depends チェーンは `701-691-glob-read → 766/767 → 後続 edit 処理` の順。
 
 ## Acceptance criteria
-- [ ] 実装が完了し、テストが通ること
-- [ ] CLAUDE.md のルールに違反しないこと
+- [ ] 兄弟タスク 766-733-issue-read-frontmatter.md と 767-733-subtask.md が存在し、実処理を担うこと
+- [ ] 本ファイル自体の frontmatter が parser で読取可能 (status/parent/depends が正しく記述されている)
+- [ ] ソースコード・テスト・設定ファイルへの変更が 0 件 (メタタスクであり実装を伴わない)
