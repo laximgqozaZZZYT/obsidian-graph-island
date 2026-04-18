@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-19
-status: in-progress
+status: decomposed
 source: decomposed
 parent: 1013-992-subtask
 depends: none
@@ -10,7 +10,7 @@ summary: 親 issue 992-971-subtask のフロントマター status を done に�
 
 ## Description (subtask of 1013-992-subtask)
 
-`issues/992-971-subtask.md` のフロントマター `status: in-progress` を `status: done` に書き換える単一編集タスク。
+`issues/992-971-subtask.md` のフロントマター `status: decomposed` を `status: done` に書き換える単一編集タスク。
   制約:
   - `git mv` 禁止 (ファイル名変更は並行タスク 988-928-...-git-m 系列が担当)
   - 編集範囲は `issues/` 配下のみ
