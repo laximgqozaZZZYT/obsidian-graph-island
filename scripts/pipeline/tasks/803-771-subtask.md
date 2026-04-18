@@ -5,17 +5,22 @@ status: pending
 source: decomposed
 parent: 771-760-
 depends: none
-summary: subtask
+summary: 分類結果 (target_file / unexpected_changes / warnings) を JSON 風構造化形式へ整形
 ---
 
 ## Description (subtask of 771-760-)
 
-`★ Insight ─────────────────────────────────────`
-- このissueは「git status の M マーク検証」パイプラインの最終段（subtask-3）で、実際のコード変更ではなく **レポート整形とステータス出力**が責務
-- parent task (760-730) は「git 操作を勝手にしない」safety gate パターンを実装しており、このsubtaskは検証結果の構造化出力のみを担う
-- subtask-2 の分類結果（target_file / unexpected_changes / warnings）を JSON 風の構造化形式に整えて stdout に出すだけなので、1セッションで完結可能な粒度
-`─────────────────────────────────────────────────`
+上流 (親タスク 760-730 の subtask-2) の分類結果を次の構造で stdout に出力する。
+コード変更や git 操作は行わず、整形出力のみを責務とする。
+
+出力スキーマ:
+- `status`: "ok" | "warning"
+- `target_file`: `<path>`
+- `target_mark`: "M" | "missing"
+- `unexpected_changes`: [`<path>`, ...]
+- `warnings`: [`<message>`, ...]
 
 ## Acceptance criteria
-- [ ] 実装が完了し、テストが通ること
-- [ ] CLAUDE.md のルールに違反しないこと
+- [ ] 上記スキーマに沿った構造化出力を stdout に書き出している
+- [ ] git mv / git add / git commit を実行していない (safety gate)
+- [ ] CLAUDE.md の Forbidden Patterns に違反しない
