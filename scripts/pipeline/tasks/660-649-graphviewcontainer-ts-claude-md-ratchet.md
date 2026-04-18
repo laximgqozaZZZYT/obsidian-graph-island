@@ -40,7 +40,3 @@ write操作専任タスク。subtask-1 (594-585 verify) 完了が前提。
   - [ ] `git log --diff-filter=R` で pending → done のリネーム検出可能
   - [ ] `git show HEAD --stat` で src/ と tests/ に変更が一切ないこと
   - [ ] コミット数 = 1 (追加コミット禁止)
-
-## Acceptance criteria
-- [ ] 実装が完了し、テストが通ること
-- [ ] CLAUDE.md のルールに違反しないこと
