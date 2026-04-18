@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-18
-status: pending
+status: done
 source: decomposed
 parent: 639-607-memory-md
 depends: none
