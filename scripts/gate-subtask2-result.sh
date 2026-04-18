@@ -1,50 +1,32 @@
 #!/usr/bin/env bash
 # gate-subtask2-result.sh — Gate subtask-3 execution based on subtask-2 verify result.
 #
+# Scope: the "607-597" prefix in GATE_FILE and stdout header is a cross-task
+# contract fixed by scripts/pipeline/tasks/710-684-skip-pass.md — downstream
+# subtask-3 reads that exact path. Do not generalize without updating the spec.
+#
 # Reads key=value output from scripts/read-subtask2-result.sh, prints a summary,
 # and decides whether subtask-3 may run. Always exits 0 so the outer pipeline
 # is never broken; downstream steps must check stdout / the gate file.
-#
-# Outputs (stdout):
-#   [607-597 subtask-2 result]
-#   status  : <status>
-#   PASS    : <pass>
-#   FAIL    : <fail>
-#   executed: <YYYY-MM-DD>
-#   <SKIP: ...>  | <OK: subtask-3 実行可>
-#
-# Side effects:
-#   On PASS only, writes a one-line summary to /tmp/607-597-subtask-2-result.txt.
-#   No repo files are modified.
 
 set -uo pipefail
-cd "$(git rev-parse --show-toplevel)"
+cd "$(git rev-parse --show-toplevel)" || exit 0
 
 READER=scripts/read-subtask2-result.sh
 GATE_FILE=/tmp/607-597-subtask-2-result.txt
 
-# Capture subtask-1 reader output. Missing or failing reader → empty (defaults apply).
-if [[ -x "$READER" ]] || [[ -f "$READER" ]]; then
-  reader_out=$(bash "$READER" 2>/dev/null || true)
-else
-  reader_out=""
-fi
+# Missing or failing reader → empty output → defaults applied below.
+reader_out=$(bash "$READER" 2>/dev/null || true)
 
 extract() {
-  # extract <key> — print value of the first key=value line for <key>, or empty.
+  # extract <key> — print value of the first key=value line, or empty.
   printf '%s\n' "$reader_out" | awk -F= -v k="$1" '$1==k {sub(/^[^=]*=/,""); print; exit}'
 }
 
-status=$(extract status)
-pass=$(extract pass)
-fail=$(extract fail)
-executed=$(extract executed)
-
-# Defaults — keep semantics identical to "report not found" (subtask-1 contract).
-status=${status:-unknown}
-pass=${pass:-0}
-fail=${fail:-0}
-executed=${executed:-$(date +%Y-%m-%d)}
+status=$(extract status);     status=${status:-unknown}
+pass=$(extract pass);         pass=${pass:-0}
+fail=$(extract fail);         fail=${fail:-0}
+executed=$(extract executed); executed=${executed:-$(date +%Y-%m-%d)}
 
 echo "[607-597 subtask-2 result]"
 echo "status  : ${status}"
@@ -52,18 +34,15 @@ echo "PASS    : ${pass}"
 echo "FAIL    : ${fail}"
 echo "executed: ${executed}"
 
-# Gate: SKIP when fail>0, status=blocked, or status=unknown.
-fail_positive=false
-if [[ "$fail" =~ ^[0-9]+$ ]] && (( fail > 0 )); then
-  fail_positive=true
-fi
-
-if $fail_positive || [[ "$status" == "blocked" ]] || [[ "$status" == "unknown" ]]; then
+# SKIP when fail>0, or status is blocked/unknown.
+if { [[ "$fail" =~ ^[0-9]+$ ]] && (( fail > 0 )); } \
+   || [[ "$status" == "blocked" || "$status" == "unknown" ]]; then
   echo "SKIP: subtask-3 は実行しない"
   exit 0
 fi
 
-# PASS branch: status=done && fail=0 → record one-line summary for subtask-3.
+# PASS branch: rm -f defuses any pre-existing symlink at GATE_FILE before write.
+rm -f -- "$GATE_FILE"
 printf 'status=done pass=%s fail=0 executed=%s\n' "$pass" "$executed" > "$GATE_FILE"
 echo "OK: subtask-3 実行可"
 exit 0
