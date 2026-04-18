@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-19
-status: pending
+status: decomposed
 source: decomposed
 parent: 928-911-639-626-subtask-issue-pending-done-git-m
 depends: none
@@ -14,7 +14,7 @@ summary: 639-626 subtask issue を pending→done に git mv + status書換 + �
      - 0件 → `Glob issues/done/*639-626*subtask*.md` 確認、該当すればno-op (exit 0)
      - 複数件 → 中止してユーザー報告
   2. Read で対象ファイルを開く
-  3. Edit で `status: in-progress` または `status: pending` のみを `status: done` に置換
+  3. Edit で `status: decomposed` または `status: decomposed` のみを `status: done` に置換
      - 他のfrontmatter/Description本文は一切変更しない
   4. `git mv issues/pending/<filename>.md issues/done/<filename>.md`
   5. `git status` で差分検証:
