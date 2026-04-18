@@ -32,6 +32,7 @@ const COMPARE_KEYS = [
 	"source",
 ];
 const DEFAULT_BASELINE = ".claude/tasks/730-717-status-done-edit/baseline.json";
+const USAGE = "Usage: verify-frontmatter-baseline.mjs <target.md> [baseline.json]";
 
 function fail(msg) {
 	console.log(msg);
@@ -41,17 +42,18 @@ function fail(msg) {
 // Parse frontmatter exactly the way subtask-1 was expected to — the value
 // after "key:" keeps its original spacing (apart from the single separating
 // space, which is the YAML convention subtask-1 serializes with).
+// Only inline `key: value` is handled; block scalars / array form are out of
+// contract (subtask-1 must serialize `depends` inline). If subtask-1 ever
+// emits a non-string, the typeof guard in main() fails loudly.
 function parseFrontmatter(text, label) {
-	const match = text.match(/^---\n([\s\S]*?)\n---/);
+	const match = text.match(/^---\r?\n([\s\S]*?)\r?\n---/);
 	if (!match) {
 		fail(`ERROR: ${label} has no '---' frontmatter block`);
 	}
-	const body = match[1];
 	const fm = {};
-	for (const line of body.split("\n")) {
+	for (const line of match[1].split(/\r?\n/)) {
 		const m = line.match(/^([A-Za-z_][A-Za-z0-9_-]*):(?: (.*))?$/);
-		if (!m) continue;
-		fm[m[1]] = m[2] ?? "";
+		if (m) fm[m[1]] = m[2] ?? "";
 	}
 	return fm;
 }
@@ -80,10 +82,12 @@ function readText(path, label) {
 
 function main() {
 	const argv = process.argv.slice(2);
-	if (argv.length < 1 || argv[0] === "-h" || argv[0] === "--help") {
-		console.error(
-			"Usage: verify-frontmatter-baseline.mjs <target.md> [baseline.json]",
-		);
+	if (argv[0] === "-h" || argv[0] === "--help") {
+		console.log(USAGE);
+		process.exit(0);
+	}
+	if (argv.length < 1) {
+		console.error(USAGE);
 		process.exit(1);
 	}
 	const targetPath = resolve(argv[0]);
@@ -101,8 +105,13 @@ function main() {
 	const diffs = [];
 	for (const key of COMPARE_KEYS) {
 		if (!(key in expected)) continue; // baseline omitted → nothing to compare
-		const exp = String(expected[key]);
-		const act = key in actual ? String(actual[key]) : "";
+		if (typeof expected[key] !== "string") {
+			fail(
+				`ERROR: baseline key '${key}' must be a string (got ${typeof expected[key]})`,
+			);
+		}
+		const exp = expected[key];
+		const act = actual[key] ?? "";
 		if (exp !== act) diffs.push({ key, expected: exp, actual: act });
 	}
 
