@@ -1,19 +1,19 @@
 ---
 priority: medium
 reported: 2026-04-18
-status: decomposed
+status: pending
 source: decomposed
-parent: 564-561-subtask
+parent: 570-564-subtask
 depends: none
 summary: subtask
 ---
 
-## Description (subtask of 564-561-subtask)
+## Description (subtask of 570-564-subtask)
 
 `★ Insight ─────────────────────────────────────`
-- 親タスクが既に "verify-only" として明示されており、再分解は不要なケース
-- このようなタスクは単一タスクとして出力し、パイプラインのオーバーヘッドを避ける
-- depends: none で独立実行可能
+- 親タスク `564-561-subtask` は既に "verify-only" として明示されており、実装ではなく検証のみを要求している
+- このようなタスクは再分解するとオーバーヘッドが増えるだけなので、単一の SUBTASK として出力する
+- verify-only タスクは GOD OBJECT ポリシー遵守の確認など、読み取りベースの作業に留めるべき
 `─────────────────────────────────────────────────`
 
 ## Acceptance criteria
