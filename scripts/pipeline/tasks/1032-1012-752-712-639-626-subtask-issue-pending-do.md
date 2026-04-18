@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-19
-status: pending
+status: decomposed
 source: decomposed
 parent: 1012-990-752-712-639-626-subtask-issue-pending-do
 depends: none
@@ -12,7 +12,7 @@ summary: 752-712-639-626-subtask issue を pending→done へ git mv + status:do
 
 手順:
   1. `git mv .claude/issues/pending/752-712-639-626-subtask-issue-status-done-git-mv.md .claude/issues/done/752-712-639-626-subtask-issue-status-done-git-mv.md`
-  2. Edit ツールで `.claude/issues/done/752-712-639-626-subtask-issue-status-done-git-mv.md` の frontmatter `status: in-progress` を `status: done` に 1 行のみ書き換え
+  2. Edit ツールで `.claude/issues/done/752-712-639-626-subtask-issue-status-done-git-mv.md` の frontmatter `status: decomposed` を `status: done` に 1 行のみ書き換え
   3. `git status` で以下3点が同一変更内にあることを確認:
      - pending/752-712-639-626-subtask-issue-status-done-git-mv.md の削除
      - done/752-712-639-626-subtask-issue-status-done-git-mv.md の追加
