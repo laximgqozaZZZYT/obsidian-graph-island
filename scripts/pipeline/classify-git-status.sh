@@ -5,10 +5,15 @@
 # file the preceding Edit step was supposed to touch, decide whether
 #   - the target file shows up as exactly " M" or "M " (modified only, on
 #     either worktree or index, but not both and not anything weirder),
-#   - any OTHER file has a change mark (M / A / D / ??), meaning the Edit
-#     may have leaked outside its intended scope.
+#   - any OTHER file has a change mark (M / A / D / R / ??), meaning the
+#     Edit may have leaked outside its intended scope. Rename (R) uses the
+#     post-rename path.
 # Emits a key=value classification plus human warnings so the next pipeline
 # step (subtask-3) can decide gating without re-parsing the raw status.
+#
+# Assumes ASCII-safe paths (no quoted `"..."` entries from git status).
+# Fine for the current pipeline scope (`docs/issues/*.md`); callers with
+# spaces/non-ASCII in paths should prefer `git status --porcelain -z`.
 #
 # Usage:
 #   bash scripts/pipeline/classify-git-status.sh <target> [<status-file>]
@@ -51,7 +56,7 @@ fi
 # A "change mark" is M / A / D / R / ?; any of these in X or Y makes the
 # line interesting for scope-leak detection.
 result="$(printf '%s\n' "$input" | awk -v target="$target" '
-  function record(xy, file,    ok) {
+  function record(xy, file) {
     if (file == target) {
       if (xy == " M" || xy == "M ") {
         expected_found = 1
@@ -99,7 +104,7 @@ result="$(printf '%s\n' "$input" | awk -v target="$target" '
 printf '%s\n' "$result"
 
 # Exit 1 if any warning was emitted.
-if printf '%s\n' "$result" | grep -q '^warning='; then
+if grep -q '^warning=' <<<"$result"; then
   exit 1
 fi
 exit 0
