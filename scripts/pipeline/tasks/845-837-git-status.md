@@ -1,7 +1,7 @@
 ---
 priority: high
 reported: 2026-04-18
-status: in-progress
+status: decomposed
 source: decomposed
 parent: 837-834-git-diff-acceptance
 depends: none
