@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-18
-status: pending
+status: in-progress
 source: decomposed
 parent: 823-811-git-status-short-tmp-git-status-short-tx
 depends: none
