@@ -24,6 +24,18 @@ describe("extractFrontmatter", () => {
 		expect(extractFrontmatter(lines.join("\n"))).toBeNull();
 	});
 
+	it("③c extracts body when the closing --- sits exactly at line 30 (boundary)", () => {
+		// Opening at index 0, 28 filler lines (index 1..28), closing at index 29 (30th line)
+		const filler = Array.from({ length: 28 }, (_, i) => `k${i}: v`);
+		const input = ["---", ...filler, "---"].join("\n");
+		expect(extractFrontmatter(input)).toBe(filler.join("\n"));
+	});
+
+	it("③d tolerates CRLF line endings", () => {
+		const input = "---\r\nstatus: done\r\npriority: high\r\n---\r\n## Body";
+		expect(extractFrontmatter(input)).toBe("status: done\npriority: high");
+	});
+
 	it("④ returns empty string for empty frontmatter (---\\n---)", () => {
 		expect(extractFrontmatter("---\n---")).toBe("");
 		expect(extractFrontmatter("---\n---\nbody")).toBe("");

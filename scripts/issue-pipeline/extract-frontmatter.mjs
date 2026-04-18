@@ -15,7 +15,7 @@ const DELIM = "---";
 export function extractFrontmatter(head30) {
 	if (typeof head30 !== "string" || head30.length === 0) return null;
 
-	const lines = head30.split("\n");
+	const lines = head30.split(/\r?\n/);
 	if (lines[0] !== DELIM) return null;
 
 	const limit = Math.min(lines.length, MAX_LINES);
