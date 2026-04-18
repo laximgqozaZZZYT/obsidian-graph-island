@@ -14,10 +14,9 @@ summary: GraphViewContainer.ts の行数を verify し、閾値内であれば�
 
   手順:
   1. `wc -l src/views/GraphViewContainer.ts` で現在行数を取得
-  2. 行数判定:
+  2. 行数判定（CLAUDE.md "Ratchet down only"）:
      - 8597行以下: 想定通り。次ステップへ進む
-     - 8598-8612行: 警告として記録しつつ進む（fail-fast境界内）
-     - 8613行以上: **commit せず fail-fast**。行数と超過量を報告して終了
+     - 8598行以上: **commit せず fail-fast**。行数と超過量を報告して終了
   3. `pnpm lint` と `pnpm test` をスモーク実行し、既存状態に回帰がないことを確認（verifyの一環）
   4. 問題なければ空コミットで verify 結果を記録:
      ```
@@ -30,7 +29,7 @@ summary: GraphViewContainer.ts の行数を verify し、閾値内であれば�
   5. `git log -1` と `git status` で記録確認
 
   Acceptance criteria:
-  - [ ] 行数が 8597 以下であることを確認、または 8598-8612 の警告帯で記録
+  - [ ] 行数が 8597 以下であること（8598以上は fail-fast）
   - [ ] `pnpm lint` / `pnpm test` が pass
   - [ ] 空コミットが記録され `git log` で確認可能
   - [ ] CLAUDE.md の "GOD OBJECT Policy" / "Ratchet down only" に違反しない (行数を増やさない)
