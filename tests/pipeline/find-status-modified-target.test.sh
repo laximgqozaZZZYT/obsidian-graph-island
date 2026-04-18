@@ -14,10 +14,10 @@ assert_exit() {
   local label="$1" expected="$2" actual="$3"
   if [[ "$actual" -eq "$expected" ]]; then
     echo "PASS: $label"
-    ((passed++))
+    passed=$((passed+1))
   else
     echo "FAIL: $label (expected exit $expected, got $actual)"
-    ((failed++))
+    failed=$((failed+1))
   fi
 }
 
@@ -27,12 +27,12 @@ assert_stdout_eq() {
   actual="$(cat "$stdout_file")"
   if [[ "$actual" == "$expected" ]]; then
     echo "PASS: $label"
-    ((passed++))
+    passed=$((passed+1))
   else
     echo "FAIL: $label"
     echo "  expected: $(printf '%q' "$expected")"
     echo "  actual:   $(printf '%q' "$actual")"
-    ((failed++))
+    failed=$((failed+1))
   fi
 }
 

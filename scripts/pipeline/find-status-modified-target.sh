@@ -43,10 +43,12 @@ else
   exit 2
 fi
 
-# Pick the first " M <path>" line (worktree-only modification). awk's `exit`
-# stops scanning after the first hit so multi-candidate input still yields
-# exactly one path — matching the task requirement "最初の1件を対象とする".
-target="$(printf '%s\n' "$input" | awk '/^ M / { print $2; exit }')"
+# Pick the first " M <path>" line (worktree-only modification). Porcelain
+# format is `XY <path>` with XY fixed at 2 chars + one space, so the path
+# begins at column 4 — `substr($0, 4)` preserves embedded spaces that
+# `$2` would truncate. `exit` caps output to one path, matching the task
+# requirement "最初の1件を対象とする".
+target="$(printf '%s\n' "$input" | awk '/^ M / { print substr($0, 4); exit }')"
 
 if [[ -n "$target" ]]; then
   printf '%s\n' "$target"
