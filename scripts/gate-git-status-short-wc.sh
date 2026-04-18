@@ -42,7 +42,7 @@ err_file="$(mktemp -t gate-git-status-short-wc.XXXXXX.err)"
 trap 'rm -f "${err_file}"' EXIT
 wc_exit=0
 wc_stdout="$(wc -l -- "${FILE}" 2>"${err_file}")" || wc_exit=$?
-wc_stderr="$(cat "${err_file}")"
+wc_stderr="$(cat "${err_file}" 2>/dev/null || true)"
 
 echo "wc_exit=${wc_exit}"
 
