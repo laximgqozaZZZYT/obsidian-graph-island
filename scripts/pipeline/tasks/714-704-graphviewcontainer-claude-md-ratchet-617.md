@@ -29,7 +29,12 @@ summary: GraphViewContainer行数再確認→CLAUDE.md ratchet→617-593-594-585
      - ratchet なし: "chore: done 593-585-subtask — verified 594-585 (lines: 8597/8597, no ratchet)"
 
   検証 (コミット後):
-  - `git diff HEAD~1 -- src/ tests/` が空 (空でなければ即座に reset)
+  - `git diff HEAD~1 -- src/ tests/` が空であること
+  - 空でなかった場合のロールバック手順 (HEAD~1 より前を巻き込まないこと):
+    1. `git reset --soft HEAD~1` (作業ツリーは保持、indexに戻す)
+    2. `git restore --staged src/ tests/` (src/tests/ のみ staged 解除)
+    3. `git checkout -- src/ tests/` (src/tests/ の作業ツリー変更を破棄)
+    4. CLAUDE.md と issues/ の staged 変更のみ残った状態で再コミット
   - `git log -1 --stat` で変更ファイルが CLAUDE.md と issues/ のみ
 
   禁止事項:
@@ -38,6 +43,7 @@ summary: GraphViewContainer行数再確認→CLAUDE.md ratchet→617-593-594-585
   - pnpm test / pnpm lint / pnpm build の実行
   - Max Allowed の増加方向更新
   - 複数コミット分割
+  - `git reset --hard` (HEAD~1 より前の他変更を巻き込むため禁止)
 
   Acceptance:
   - [ ] CLAUDE.md の GOD OBJECT Policy 表が現行行数と整合 (または同値で無変更)
@@ -49,7 +55,3 @@ summary: GraphViewContainer行数再確認→CLAUDE.md ratchet→617-593-594-585
 - このissueの本質は「観測 (wc -l) → 条件分岐 (ratchet/no-op) → 状態遷移 (status, ファイル移動)」の3ステップで、claude -p の30ターン制限内に余裕で収まります。
 - 検証フリー設計 (test/lint/build skip) は親issueでの品質保証を信頼することで、CIコストとレイテンシを削減する自律パイプライン特有の最適化パターンです。
 `─────────────────────────────────────────────────`
-
-## Acceptance criteria
-- [ ] 実装が完了し、テストが通ること
-- [ ] CLAUDE.md のルールに違反しないこと
