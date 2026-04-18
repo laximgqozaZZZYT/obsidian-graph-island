@@ -11,8 +11,9 @@ summary: subtask
 ## Description (subtask of 900-893-639-626-subtask-issue-frontmatter-status)
 
 `★ Insight ─────────────────────────────────────`
-- 元issue は「1ファイルの status フィールド1行置換＋コミット」という単一アトミック操作。Glob→Read→Edit→Commit は自然に1セッションで完結するため、過剰分解は無意味。
-- 分解ルールは「最大5タスク」であり下限ではない。依存が直列かつ小規模な場合は1タスクが最適。
+- このissueは既にアトミック(単一ファイルのstatus行1箇所の置換+commit)なので、さらに分解せず1 subtaskにまとめるのが正しい判断です
+- 自律パイプラインでは「Glob→Read→Edit→commit」の直列フローが1セッションで完了可能なサイズであり、分解は過剰設計になります
+- CLAUDE.md の「max-turns 30 で完了できるサイズ」基準を満たしており、独立してcommit可能
 `─────────────────────────────────────────────────`
 
 ## Acceptance criteria
