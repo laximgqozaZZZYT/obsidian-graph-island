@@ -11,14 +11,8 @@ summary: subtask
 ## Description (subtask of 972-956-639-626-subtask-issue-pending-done-git-m)
 
 `★ Insight ─────────────────────────────────────`
-- このissueは「単一コミット」制約があるため、本質的にアトミックな操作。過度な分解はコミット単位を壊す
-- 先行issueの同種タスク（872-747, 984-865）は単一subtaskで処理されている履歴がある
-- discovery（Glob）とexecution（git mv + commit）を別セッションに分けると状態引き継ぎが不安定
+このissueは自律パイプラインの「1コミット1タスク原則」に従う git mv 系タスクです。既に十分に atomic (単一ファイル移動 + status書換 + 単一コミット) なので、過剰分解せず1-2サブタスクに留めるのが正解です。
 `─────────────────────────────────────────────────`
-
-この issue は `git mv + frontmatter 1行書換 + 単一コミット` という**アトミック操作**なので、分解せず 1 subtask にまとめるのが適切です。
-
----
 
 ## Acceptance criteria
 - [ ] 実装が完了し、テストが通ること
