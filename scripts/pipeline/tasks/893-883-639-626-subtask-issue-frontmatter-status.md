@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-19
-status: pending
+status: decomposed
 source: decomposed
 parent: 883-868-639-626-subtask-issue-frontmatter-status
 depends: none
@@ -16,7 +16,7 @@ summary: 639-626 subtask issue の frontmatter status を done に更新して�
      - 両方 0件 → エラー報告して終了
   3. 複数候補の場合は frontmatter `summary` が「subtask issue の status を done に更新しコミット」系のものを採用
   4. Read で対象ファイル全体を取得（frontmatter と本文を確認）
-  5. Edit で frontmatter の `status: in-progress` を `status: done` に 1行だけ置換
+  5. Edit で frontmatter の `status: decomposed` を `status: done` に 1行だけ置換
      - priority / reported / parent / depends / summary / source と本文は一切変更しない
      - 既に `status: done` の場合は no-op 終了
   6. basename を記録（例: `639-626-subtask-xxx.md`）
