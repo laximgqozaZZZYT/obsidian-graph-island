@@ -11,9 +11,9 @@ summary: subtask
 ## Description (subtask of 723-712-639-626-subtask-issue-status-done-git-mv)
 
 `★ Insight ─────────────────────────────────────`
-- この issue は単一の atomic 操作（frontmatter 編集 + git mv + commit）のため、過分解は避けて1タスクにまとめるのが適切
-- `git mv` を edit 後に実行することで、rename + modify 検出になる（先に mv すると rename + modify が別々に扱われることがある）
-- No-op 終了パス（done に既にある場合）を明示することで、冪等性を確保
+- このissueは「1ファイルのfrontmatter編集 + git mv + 単一コミット」という不可分な原子操作なので、分割するとコミット履歴が汚れて検証が難しくなる
+- 自律パイプラインの max-turns 30 は十分な余裕があり、Glob→Read→Edit→git mv→commit→検証のシーケンスは1セッションで完結可能
+- 分解すると「edit 済みのまま git mv する」という順序制約が壊れる可能性がある(rename検出を狙うため)
 `─────────────────────────────────────────────────`
 
 ## Acceptance criteria
