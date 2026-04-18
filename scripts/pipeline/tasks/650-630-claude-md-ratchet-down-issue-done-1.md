@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-18
-status: pending
+status: in-progress
 source: decomposed
 parent: 630-617-claude-md-max-allowed-ratchet-down-issue
 depends: subtask-1 (親issueの594-585検証サブタスク)
