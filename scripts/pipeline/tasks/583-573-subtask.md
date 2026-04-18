@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-18
-status: in-progress
+status: decomposed
 source: decomposed
 parent: 573-565-graphviewcontainer-ts-8597
 depends: none
