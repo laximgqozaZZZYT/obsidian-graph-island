@@ -4,7 +4,7 @@ reported: 2026-04-18
 status: pending
 source: decomposed
 parent: 649-630-claude-md-ratchet-down-issue-done-git-mv
-depends: 594-585-subtask-1 (verify緑確認済み前提)
+depends: 594-585-subtask-1
 summary: GraphViewContainer.ts の行数を測定し CLAUDE.md ratchet down + issue done遷移 + git mv + 1コミット
 ---
 
@@ -34,6 +34,7 @@ write操作専任タスク。subtask-1 (594-585 verify) 完了が前提。
   - subtask-1 (594-585 verify) 未完了状態での開始禁止
 
   受け入れ基準:
+  - [ ] 594-585-subtask-1 (verify) が `status: done` であること (precondition)
   - [ ] `wc -l` の実測値 N がコミットメッセージに含まれる
   - [ ] N < 8597 なら CLAUDE.md の該当行 Max Allowed が N に更新、N >= 8597 なら CLAUDE.md 差分なし
   - [ ] issue frontmatter が `status: done` に更新済み
