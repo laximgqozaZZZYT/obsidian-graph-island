@@ -1,0 +1,45 @@
+# frontmatter Read — 編集済み status ファイル再読込
+# generated: 2026-04-19
+# task: 735-721-status-read-frontmatter (parent chain: 721-702-subtask → 702-691-edit-status → 691-662-subtask-status-done)
+
+## 対象ファイル特定プロセス
+- 親タスク 702-691-edit-status 自身が、decompose commit 479cff81 で
+  `status: pending → decomposed` に編集された issue ファイル (git log -1 で確認済み)
+- 701-691-glob-read の成果物 (孫階層で本来 Edit 対象となる外部 issue ファイル) は本 session では未受領
+- タスク仕様の fallback 条項「対象ファイルが特定できない場合は、親タスクのログ/コミット履歴 (git log -1) から推定する」
+  に従い、親タスク自身のファイル 702-691-edit-status.md を再読込対象とする
+
+## Target file (一意特定)
+- path: scripts/pipeline/tasks/702-691-edit-status.md
+- 最終変更コミット: 479cff81 (2026-04-18 19:17:52 +0900) chore: decompose 702-691-edit-status into tasks
+- Read 実行: offset=0, limit=30
+
+## Frontmatter ブロック (`---` 〜 `---` 全体)
+---
+priority: medium
+reported: 2026-04-18
+status: decomposed
+source: decomposed
+parent: 691-662-subtask-status-done
+depends: 701-691-glob-read
+summary: frontmatter status を done に書き換え
+---
+
+## Frontmatter フィールド別 (差分比較用ベースライン)
+- priority: medium
+- reported: 2026-04-18
+- status: decomposed     ← decompose 時に pending から書き換え済み (done ではない)
+- source: decomposed
+- parent: 691-662-subtask-status-done
+- depends: 701-691-glob-read
+- summary: frontmatter status を done に書き換え
+
+## 本文セクション冒頭 (L10-L21)
+- L10: ## Description (subtask of 691-662-subtask-status-done)
+- L12-L17: 編集手順 (1. Edit で開く / 2. status: decomposed → done / ...)
+- L19: ## Acceptance criteria
+
+## 観察 / 次サブタスクへの引き継ぎ
+- status は `decomposed` (既に pending ではない); 親自身は decompose 済みで、実 Edit は子タスク 719 系で実施
+- 721-702-subtask 配下の後続サブタスクは、この frontmatter ブロックを元に status/source/parent/depends フィールド保全を verify できる
+- 兄弟: 734-721-subtask (decomposed), 735-721-status-read-frontmatter (本タスク)
