@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-19
-status: in-progress
+status: done
 source: decomposed
 parent: 1031-1011-git-mv-frontmatter-status-1
 depends: none
