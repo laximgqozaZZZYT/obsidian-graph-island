@@ -10,7 +10,7 @@ summary: GraphViewContainer.ts 行数検証結果を空コミットで記録
 
 ## Description (subtask of 600-590-graphviewcontainer-ts-8597)
 
-618 で取得した実測行数 NNNN を使って空コミットを作成。
+618 で取得した実測行数 NNNN を使って空コミットを作成。実行者は 618 の出力から NNNN を受け取り、コマンド・メッセージ中の `NNNN` を必ず実数値に置換すること (未置換のまま実行禁止)。
 
   1. `git status` でワーキングツリーがクリーンであることを確認 (変更があれば停止)
   2. `git commit --allow-empty -m "chore: verify GraphViewContainer.ts within GOD OBJECT limit (NNNN/8597 lines)"` を実行 (NNNN は 618 の実測値)
