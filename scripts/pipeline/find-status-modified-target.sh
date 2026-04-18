@@ -2,17 +2,23 @@
 # find-status-modified-target.sh — Identify the first `docs/issues/*.md`
 # candidate whose only change is a worktree-side modification.
 #
-# Purpose (pipeline subtask 792-763): scan `git status --porcelain docs/issues/`
-# for lines beginning with " M " (worktree-modified, index-clean) and emit
-# the first matching path on stdout so the next pipeline step (793) can
-# format it as `TARGET_FILE=<path>` and step (794) can run `git diff` on it.
+# Purpose (pipeline subtask 792-763, 793-763): scan `git status --porcelain
+# docs/issues/` for lines beginning with " M " (worktree-modified,
+# index-clean) and emit the first matching path on stdout in the
+# machine-readable `TARGET_FILE=<path>` form so downstream pipeline steps
+# (e.g. autonomous-improve.sh, step 794) can extract it with a simple
+# `grep '^TARGET_FILE='` and feed it into `git diff`.
 #
 # Contract:
+#   - Output format: `TARGET_FILE=<path>\n` on stdout, one line per path.
+#     The `TARGET_FILE=` prefix distinguishes it from ad-hoc log output
+#     and lets callers parse it robustly with `sed 's/^TARGET_FILE=//'`.
 #   - Lines not starting with " M " (untracked "??", staged "M ", renames
 #     "R ", deletes " D", etc.) are ignored by design — this step is for
 #     the *status-line-only* verification pipeline.
-#   - If no candidate exists, stdout is empty and exit code is 0 ("skip",
-#     not failure). Callers detect the skip by testing `[[ -z "$target" ]]`.
+#   - If no candidate exists, stdout is empty (no bare `TARGET_FILE=`
+#     line) and exit code is 0 ("skip", not failure). Callers detect the
+#     skip by testing `[[ -z "$target" ]]` on the extracted value.
 #
 # Usage:
 #   bash scripts/pipeline/find-status-modified-target.sh [<porcelain-input>]
@@ -51,6 +57,8 @@ fi
 target="$(printf '%s\n' "$input" | awk '/^ M / { print substr($0, 4); exit }')"
 
 if [[ -n "$target" ]]; then
-  printf '%s\n' "$target"
+  # Machine-readable emission. Empty-target case suppresses the line
+  # entirely so callers never see a bare `TARGET_FILE=` with no value.
+  printf 'TARGET_FILE=%s\n' "$target"
 fi
 exit 0

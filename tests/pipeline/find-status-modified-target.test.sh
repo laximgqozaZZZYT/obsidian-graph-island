@@ -44,8 +44,8 @@ rc=0
 bash "$SUT" "$FIXTURES/case1-target-worktree-modified.txt" \
   >"$tmpdir/c1.out" 2>"$tmpdir/c1.err" || rc=$?
 assert_exit "case1: ' M target' → exit 0" 0 "$rc"
-assert_stdout_eq "case1: stdout = target path" \
-  "docs/issues/target.md" "$tmpdir/c1.out"
+assert_stdout_eq "case1: stdout = TARGET_FILE=<path>" \
+  "TARGET_FILE=docs/issues/target.md" "$tmpdir/c1.out"
 
 # --- Case 2: Target is index-modified ("M "), not worktree ("  M") ---
 # Script must ignore — only " M " counts as a status-line-edit candidate.
@@ -69,7 +69,7 @@ bash "$SUT" "$FIXTURES/case4-target-plus-untracked.txt" \
   >"$tmpdir/c4.out" 2>"$tmpdir/c4.err" || rc=$?
 assert_exit "case4: target + untracked → exit 0" 0 "$rc"
 assert_stdout_eq "case4: emits only the ' M' target, not the '??' file" \
-  "docs/issues/target.md" "$tmpdir/c4.out"
+  "TARGET_FILE=docs/issues/target.md" "$tmpdir/c4.out"
 
 # --- Case 5: Target with MM ("both index and worktree") → not a clean
 # status-line-edit candidate; script filters only on leading " M ". ---
@@ -106,7 +106,7 @@ rc=0
 bash "$SUT" "$multi_fixture" >"$tmpdir/c7.out" 2>"$tmpdir/c7.err" || rc=$?
 assert_exit "case7: multiple candidates → exit 0" 0 "$rc"
 assert_stdout_eq "case7: emits first candidate only" \
-  "docs/issues/first.md" "$tmpdir/c7.out"
+  "TARGET_FILE=docs/issues/first.md" "$tmpdir/c7.out"
 
 # --- Case 8: Stdin input ("-") ---
 rc=0
@@ -114,7 +114,7 @@ printf ' M docs/issues/target.md\n' \
   | bash "$SUT" - >"$tmpdir/c8.out" 2>"$tmpdir/c8.err" || rc=$?
 assert_exit "case8: stdin → exit 0" 0 "$rc"
 assert_stdout_eq "case8: stdin path emitted" \
-  "docs/issues/target.md" "$tmpdir/c8.out"
+  "TARGET_FILE=docs/issues/target.md" "$tmpdir/c8.out"
 
 # --- Case 9: Non-existent file → usage error, exit 2 ---
 rc=0
@@ -136,7 +136,7 @@ rc=0
 bash "$SUT" "$edge_fixture" >"$tmpdir/c10.out" 2>"$tmpdir/c10.err" || rc=$?
 assert_exit "case10: mixed statuses → exit 0" 0 "$rc"
 assert_stdout_eq "case10: picks only the ' M' line" \
-  "docs/issues/real-target.md" "$tmpdir/c10.out"
+  "TARGET_FILE=docs/issues/real-target.md" "$tmpdir/c10.out"
 
 # --- Summary ---
 echo ""
