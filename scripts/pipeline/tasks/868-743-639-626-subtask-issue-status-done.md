@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-19
-status: pending
+status: decomposed
 source: decomposed
 parent: 743-690-639-626-subtask-issue-frontmatter-status
 depends: none
@@ -14,7 +14,7 @@ summary: 639-626 subtask issueファイルを特定しstatus:doneに編集
   2. 0件の場合は Glob `issues/done/*639-626*subtask*.md` で確認し、done済みなら no-op 終了（コミットもスキップ）
   3. 複数候補があれば frontmatter summary が「subtask issueのstatusをdoneに更新しコミット」系のものを採用
   4. Read で対象ファイル全体を取得
-  5. Edit で frontmatter の `status: in-progress` を `status: done` に変更（他フィールド priority/reported/parent/depends/summary/source と本文は一切触らない）
+  5. Edit で frontmatter の `status: decomposed` を `status: done` に変更（他フィールド priority/reported/parent/depends/summary/source と本文は一切触らない）
   6. basename を記録（例: `639-626-subtask-xxx.md`）
   7. lint/test/build は実行しない
   8. 変更が発生した場合のみコミット
