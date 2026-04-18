@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-18
-status: pending
+status: in-progress
 source: decomposed
 parent: 809-785-717-691-status-done
 depends: 817-809-git-log-grep-717-691-tasks-md
