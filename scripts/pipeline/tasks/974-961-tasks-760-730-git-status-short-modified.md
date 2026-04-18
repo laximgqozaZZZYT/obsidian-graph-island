@@ -1,7 +1,7 @@
 ---
 priority: low
 reported: 2026-04-19
-status: pending
+status: decomposed
 source: decomposed
 parent: 961-951-tasks-760-730-git-status-short-modified
 depends: none
