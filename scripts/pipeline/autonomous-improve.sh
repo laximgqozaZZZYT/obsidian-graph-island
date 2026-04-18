@@ -91,11 +91,17 @@ fi
 # ── Count active sessions via lock directory (not pgrep) ──
 LOCK_DIR="/tmp/graph-island-sessions"
 mkdir -p "$LOCK_DIR"
-# Clean stale locks (PID no longer running)
+# Clean stale locks (PID dead OR session older than 2 hours)
+MAX_SESSION_AGE=7200  # 2 hours
 for lockfile in "$LOCK_DIR"/*.pid; do
   [[ -f "$lockfile" ]] || continue
   LOCK_PID=$(cat "$lockfile" 2>/dev/null || echo "0")
-  kill -0 "$LOCK_PID" 2>/dev/null || rm -f "$lockfile"
+  LOCK_AGE=$(( $(date +%s) - $(stat -c%Y "$lockfile" 2>/dev/null || echo "$(date +%s)") ))
+  if ! kill -0 "$LOCK_PID" 2>/dev/null || [[ $LOCK_AGE -gt $MAX_SESSION_AGE ]]; then
+    kill -9 "$LOCK_PID" 2>/dev/null  # force kill if still alive but too old
+    rm -f "$lockfile"
+    log "CLEANED: stale lock $(basename $lockfile) (PID=$LOCK_PID, age=${LOCK_AGE}s)"
+  fi
 done
 ACTIVE_COUNT=$(find "$LOCK_DIR" -maxdepth 1 -name '*.pid' 2>/dev/null | wc -l)
 if [[ $ACTIVE_COUNT -ge $MAX_SESSIONS ]]; then
@@ -130,7 +136,12 @@ for dir in "$ISSUE_DIR" "$TASK_DIR"; do
       DEPTH=$(echo "$FNAME" | grep -o "subtask" | wc -l)
       if [[ $DEPTH -lt 2 ]]; then
         log "SUBDIVIDE: $FNAME timed out (${FILE_AGE}s, depth=$DEPTH)"
-        bash "$PROJECT_DIR/scripts/pipeline/decompose-issue.sh" "$f" 2>&1 | while IFS= read -r line; do log "  $line"; done
+        if ! bash "$PROJECT_DIR/scripts/pipeline/decompose-issue.sh" "$f" 2>&1 | while IFS= read -r line; do log "  $line"; done; then
+          # Subdivision failed (rate limit, etc) → reset to pending instead of leaving in-progress
+          log "SUBDIVIDE FAILED: $FNAME — resetting to pending"
+          sed -i 's/status: in-progress/status: pending/' "$f"
+          sed -i 's/status: decomposed/status: pending/' "$f"
+        fi
       else
         # Max depth reached → mark as blocked, don't subdivide further
         log "BLOCKED: $FNAME at max subdivision depth ($DEPTH) — needs manual attention"
