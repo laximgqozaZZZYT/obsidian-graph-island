@@ -26,13 +26,15 @@
 //   node scripts/pipeline/format-git-status-short.mjs <classify-output-file>
 
 import { readFileSync } from "node:fs";
+import { pathToFileURL } from "node:url";
 
 function parseClassifyOutput(text) {
 	const out = { target: "", expected_found: "0", unexpected_files: "", warnings: [] };
 	for (const line of text.split(/\r?\n/)) {
 		if (!line) continue;
 		const eq = line.indexOf("=");
-		if (eq < 0) continue;
+		// eq <= 0 rejects both "no =" (-1) and empty keys ("=value", 0).
+		if (eq <= 0) continue;
 		const key = line.slice(0, eq);
 		const value = line.slice(eq + 1);
 		if (key === "warning") out.warnings.push(value);
@@ -44,10 +46,14 @@ function parseClassifyOutput(text) {
 function formatGitStatusShortResult(input) {
 	const target_file = String(input.target ?? "");
 	const target_mark = String(input.expected_found) === "1" ? "M" : "missing";
-	const raw = input.unexpected_files ?? "";
-	const unexpected_changes = raw ? String(raw).split(",").filter(Boolean) : [];
+	const unexpected_changes = String(input.unexpected_files ?? "").split(",").filter(Boolean);
 	const warnings = Array.isArray(input.warnings) ? input.warnings.slice() : [];
-	const status = target_mark === "M" && unexpected_changes.length === 0 ? "ok" : "warning";
+	// "ok" means: target cleanly modified, no scope leak, AND no upstream warning.
+	// The last clause future-proofs against awk emitting warnings beyond the current two cases.
+	const status =
+		target_mark === "M" && unexpected_changes.length === 0 && warnings.length === 0
+			? "ok"
+			: "warning";
 	return { status, target_file, target_mark, unexpected_changes, warnings };
 }
 
@@ -61,7 +67,9 @@ function main(argv) {
 	process.stdout.write("DONE\n");
 }
 
-const invoked = process.argv[1] && import.meta.url === `file://${process.argv[1]}`;
+// pathToFileURL handles spaces / non-ASCII paths; raw `file://` interpolation does not.
+const invoked =
+	process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
 if (invoked) main(process.argv);
 
 export { parseClassifyOutput, formatGitStatusShortResult };
