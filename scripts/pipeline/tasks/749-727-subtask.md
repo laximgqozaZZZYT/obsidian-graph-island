@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-18
-status: in-progress
+status: pending
 source: decomposed
 parent: 727-715-graphviewcontainer-ratchet-issue-done
 depends: none
