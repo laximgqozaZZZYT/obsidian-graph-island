@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-18
-status: pending
+status: decomposed
 source: decomposed
 parent: 650-630-claude-md-ratchet-down-issue-done-1
 depends: none
@@ -20,7 +20,7 @@ summary: GraphViewContainer.ts行数再確認 → CLAUDE.md ratchet-down → iss
      - N < 8597 → 現在行数とMax Allowedの両方を N に更新 (ratchet down only)
      - N >= 8597 → CLAUDE.md は一切変更しない (増加方向更新は絶対禁止)
   3. issues/pending/617-593-594-585-done-*.md の frontmatter:
-     - status: in-progress → done
+     - status: decomposed → done
      - completed: 2026-04-18 を追加
   4. git mv issues/pending/<file>.md issues/done/<file>.md
   5. 単一コミット:
