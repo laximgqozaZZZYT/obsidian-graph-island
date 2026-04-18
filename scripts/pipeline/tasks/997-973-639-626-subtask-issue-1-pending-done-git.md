@@ -19,7 +19,7 @@ summary: 639-626 subtask issue 1件を pending→done へ git mv + status書換 
      - 2件以上: 中止、ユーザー報告 (自動選択禁止)
      - 1件のみ: 次へ進む
   2. Read で対象ファイルを開き frontmatter を確認 (status 行の現在値を把握)
-  3. Edit で `status: in-progress` または `status: pending` の該当1行のみを `status: done` に置換
+  3. Edit で `status: pending` または `status: pending` の該当1行のみを `status: done` に置換
      - `replace_all: false` 必須 (frontmatter の1行のみ変更)
      - 本文・他frontmatterフィールド不変
   4. Bash `git mv issues/pending/<filename>.md issues/done/<filename>.md`
