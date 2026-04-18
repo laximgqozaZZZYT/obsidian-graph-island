@@ -1,7 +1,7 @@
 ---
 priority: high
 reported: 2026-04-19
-status: in-progress
+status: pending
 source: decomposed
 parent: 845-837-git-status
 depends: none
