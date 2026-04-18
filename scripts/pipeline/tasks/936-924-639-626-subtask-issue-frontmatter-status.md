@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-19
-status: pending
+status: decomposed
 source: decomposed
 parent: 924-900-639-626-subtask-issue-frontmatter-status
 depends: none
@@ -14,7 +14,7 @@ summary: 639-626 subtask issue の frontmatter status を done に更新して�
   2. 0件の場合は Glob `issues/done/*639-626*subtask*.md` を確認。ヒットすれば既に完了として no-op で成功終了。両方0件ならエラー終了
   3. 複数候補がある場合は frontmatter の summary が「status を done」系の記述を含むものを優先採用
   4. Read で対象ファイルの frontmatter を確認し、既に `status: done` なら no-op 終了
-  5. Edit で `status: in-progress` を `status: done` に置換(1行のみ、他フィールド・本文は不変)
+  5. Edit で `status: decomposed` を `status: done` に置換(1行のみ、他フィールド・本文は不変)
   6. frontmatter のみの変更なので lint/test/build は実行しない
   7. `git add <path> && git commit -m "chore: done <basename>"` でコミット
   8. ファイル移動は行わない (pending/ 配下に残す)
