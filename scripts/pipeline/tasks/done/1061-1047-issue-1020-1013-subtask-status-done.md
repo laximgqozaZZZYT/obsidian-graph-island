@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-19
-status: in-progress
+status: done
 source: decomposed
 parent: 1047-1020-subtask
 depends: none
@@ -11,7 +11,7 @@ summary: 親issue 1020-1013-subtask のフロントマター status を done へ
 ## Description (subtask of 1047-1020-subtask)
 
 `issues/` ディレクトリ配下の親 issue ファイル `1020-1013-subtask.md` (または同名パターンのファイル) を特定し、
-  フロントマターの `status: in-progress` (または `in-progress`) を `status: done` に書き換える。
+  フロントマターの `status: done` (または `in-progress`) を `status: done` に書き換える。
 
   手順:
   1. `ls issues/ | grep 1020-1013` でファイル名を確認 (git mv 回避のためリネームしない)
