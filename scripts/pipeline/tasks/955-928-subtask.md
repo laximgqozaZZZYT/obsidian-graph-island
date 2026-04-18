@@ -10,13 +10,9 @@ summary: subtask
 
 ## Description (subtask of 928-911-639-626-subtask-issue-pending-done-git-m)
 
-元issueが既に1セッション完結粒度のため、単一SUBTASKとして出力します。
-
-`★ Insight ─────────────────────────────────────`
-- 原子的rename+frontmatter書換パターンは、`git mv`が pending削除+done追加をアトミックに記録できるため差分検証が容易
-- Glob検索で0件時のdone側確認→no-op exit 0 は冪等性保証のイディオム(再実行耐性)
-`─────────────────────────────────────────────────`
+元issueが既に1セッション完結粒度のため、単一SUBTASKとして出力します。親タスク `928-911-...md` の手順に従い、`issues/pending/*639-626*subtask*.md` を `issues/done/` へ `git mv` + `status: done` 書換 + 単一コミット。
 
 ## Acceptance criteria
-- [ ] 実装が完了し、テストが通ること
+- [ ] 対象ファイルが issues/done/ 配下に存在し `status: done` となっていること
+- [ ] `git status` clean かつコミット 1 件で完了していること
 - [ ] CLAUDE.md のルールに違反しないこと
