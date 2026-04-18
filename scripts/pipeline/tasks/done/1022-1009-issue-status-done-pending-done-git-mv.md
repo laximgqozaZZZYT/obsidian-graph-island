@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-19
-status: in-progress
+status: done
 source: decomposed
 parent: 1009-988-subtask
 depends: none
@@ -13,7 +13,7 @@ summary: issue の status を done に更新し pending→done へ git mv
 親 issue (988-928-639-626-subtask-issue-pending-done-git-m) の完了処理を 1 セッション・1 コミットで実施する原子的操作。
 
   手順:
-  1. `issues/pending/988-928-639-626-subtask-issue-pending-done-git-m.md` の frontmatter `status: in-progress` を `status: done` に書き換え
+  1. `issues/pending/988-928-639-626-subtask-issue-pending-done-git-m.md` の frontmatter `status: done` を `status: done` に書き換え
   2. `git mv issues/pending/988-928-639-626-subtask-issue-pending-done-git-m.md issues/done/` で done/ 配下へ移動
   3. `git commit -m "chore: close 988-928-639-626-subtask-issue-pending-done-git-m"` で単一コミットを作成
 
