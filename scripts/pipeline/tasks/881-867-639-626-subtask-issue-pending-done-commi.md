@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-19
-status: pending
+status: decomposed
 source: decomposed
 parent: 867-752-639-626-subtask-issue-status-done-git-mv
 depends: none
@@ -13,9 +13,9 @@ summary: 639-626 subtask issue を pending→done に移動して commit
 1. `Glob issues/pending/*639-626*subtask*.md` で対象ファイル1件を特定。
      - 0件なら `Glob issues/done/*639-626*subtask*.md` を確認し、該当すれば no-op で exit 0（コミット不要・正常終了）。
      - 複数件ヒットした場合は中止しユーザー報告。
-  2. Read で対象ファイルを開き、Edit で frontmatter の `status: in-progress` 行のみを `status: done` に置換。
+  2. Read で対象ファイルを開き、Edit で frontmatter の `status: decomposed` 行のみを `status: done` に置換。
      - priority / reported / parent / depends / summary / source / Description 以下本文は一切変更しない。
-     - もし `status: pending` の場合も同様に `status: done` に変更。
+     - もし `status: decomposed` の場合も同様に `status: done` に変更。
   3. `git mv issues/pending/<filename>.md issues/done/<filename>.md` を実行。
   4. `git status` で差分を検証:
      - `issues/pending/<filename>.md` 削除
