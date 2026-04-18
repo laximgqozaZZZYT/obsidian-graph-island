@@ -1,18 +1,18 @@
 ---
 priority: medium
-reported: 2026-04-18
-status: decomposed
+reported: 2026-04-19
+status: pending
 source: decomposed
-parent: 764-731-git-status-short-modified-1
+parent: 795-764-subtask
 depends: none
 summary: subtask
 ---
 
-## Description (subtask of 764-731-git-status-short-modified-1)
+## Description (subtask of 795-764-subtask)
 
 `★ Insight ─────────────────────────────────────`
-- この親タスクは「検証のみ（read-only）」で add/commit/mv を禁止しているため、副作用がない＝分解粒度は小さくて済む
-- `git status --short <path>` と `git status --short`（全体）は別用途: 前者は対象ファイルの状態確認、後者は副作用スキャン
+- 元タスクは read-only 検証で副作用禁止のため、分解は「対象パスの状態確認」と「全体スキャン」の2段で十分
+- `git status --short <path>` と `git status --short` は別用途なので、タスクを分けた方が失敗時の切り分けが明確
 `─────────────────────────────────────────────────`
 
 ## Acceptance criteria
