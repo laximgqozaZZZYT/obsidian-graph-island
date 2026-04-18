@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-19
-status: pending
+status: decomposed
 source: decomposed
 parent: 1063-1026-subtask
 depends: none
@@ -13,7 +13,7 @@ summary: 親issueファイルのstatusをdoneに更新
 対象ファイル: `issues/1026-1014-639-626-subtask-status-done.md` (存在しない場合は `issues/pending/` または `issues/in-progress/` 配下を glob で探索)
 
   変更内容:
-  - フロントマター内の `status: in-progress` (または `status: pending`) を `status: done` に置換
+  - フロントマター内の `status: decomposed` (または `status: decomposed`) を `status: done` に置換
   - Edit tool を使用、`replace_all=false` 指定
   - 他のフィールド (priority, reported, source, parent, depends, summary) は保持
 
