@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-19
-status: in-progress
+status: done
 source: decomposed
 parent: 747-725-claude-md-god-object-policy-ratchet-down
 depends: none
