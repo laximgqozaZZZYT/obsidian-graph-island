@@ -1,14 +1,14 @@
 ---
 priority: medium
 reported: 2026-04-18
-status: decomposed
+status: pending
 source: decomposed
-parent: 558-554-graphviewcontainer-ts-verify
+parent: 560-558-graphviewcontainer-ts-verify
 depends: none
 summary: GraphViewContainer.ts の行数を verify し空コミットで記録
 ---
 
-## Description (subtask of 558-554-graphviewcontainer-ts-verify)
+## Description (subtask of 560-558-graphviewcontainer-ts-verify)
 
 verify-only タスク。コード変更は一切行わない。
 
@@ -39,6 +39,12 @@ verify-only タスク。コード変更は一切行わない。
   - [ ] wc -l 実測値が 8612 以下
   - [ ] 空コミットが fix/autofit-suppress-order に存在
   - [ ] git status がクリーン
+
+`★ Insight ─────────────────────────────────────`
+- verify-only タスクは「副作用ゼロ＋記録のみ」なので分解コストが分解メリットを上回る。無理に分割すると pipeline オーバーヘッドが増える。
+- GOD OBJECT Policy の ratchet 原則 (Max Allowed = 現行行数、減る方向のみ許容) はこうした定期 verify で守られる。空コミットは「測定したという証跡」として機能する。
+- fail-fast 条件 (8612 超過時は commit しない) を明示することで、regression を通す誤動作を防げる。
+`─────────────────────────────────────────────────`
 
 ## Acceptance criteria
 - [ ] 実装が完了し、テストが通ること
