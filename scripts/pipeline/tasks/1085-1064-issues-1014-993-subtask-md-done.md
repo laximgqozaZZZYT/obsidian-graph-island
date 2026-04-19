@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-19
-status: pending
+status: decomposed
 source: decomposed
 parent: 1064-1048-issues-1014-993-subtask-md-done
 depends: none
@@ -13,7 +13,7 @@ summary: issues/1014-993-subtask.md を done 状態に遷移してコミット
 `issues/1014-993-subtask.md` に対して以下の編集を1セッション内で完了する:
 
   1. Read tool で `issues/1014-993-subtask.md` を読み、現在の内容を確認する
-  2. Edit tool でフロントマター内の `status: in-progress` を `status: done` に書き換える (単一マッチ想定)
+  2. Edit tool でフロントマター内の `status: decomposed` を `status: done` に書き換える (単一マッチ想定)
   3. Edit tool で `- [ ]` を `- [x]` に `replace_all: true` で全置換する (Acceptance criteria のチェックボックス)
   4. `git mv` は使用せず、ファイル名・パスは変更しない
   5. 他ファイル (コード・テスト・設定等) は一切編集しない
