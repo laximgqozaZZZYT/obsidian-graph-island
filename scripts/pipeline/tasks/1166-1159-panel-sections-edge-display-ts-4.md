@@ -1,7 +1,7 @@
 ---
 priority: high
 reported: 2026-04-19
-status: pending
+status: in-progress
 source: decomposed
 parent: 1159-140-panel-sections-display-ts-buildedgedispl
 depends: none
