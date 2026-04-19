@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-19
-status: pending
+status: decomposed
 source: decomposed
 parent: 1080-1063-issue-status-done
 depends: none
@@ -16,10 +16,10 @@ summary: 対象ファイル探索とstatusフィールドのdone更新
      - 見つからない場合はタスク終了 (exit 0、既に処理済みとみなす)
 
   2. Read tool で該当ファイルを読み、frontmatter の現在の status 値を確認
-     (`status: in-progress` または `status: pending`)
+     (`status: decomposed` または `status: decomposed`)
 
   3. Edit tool で置換 (replace_all=false):
-     - old_string: `status: in-progress` (または `status: pending`、実際に存在する方)
+     - old_string: `status: decomposed` (または `status: decomposed`、実際に存在する方)
      - new_string: `status: done`
      - 他のフィールド (priority, reported, source, parent, depends, summary) は触らない
 
