@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-19
-status: pending
+status: in-progress
 source: decomposed
 parent: 1103-1081-issues-1014-993-subtask-md-status-done
 depends: none
