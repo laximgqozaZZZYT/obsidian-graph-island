@@ -222,4 +222,179 @@ describe("applyTreeLayout", () => {
 			expect(isFinite(n.y)).toBe(true);
 		}
 	});
+
+	// --- Structural edge root selection ---
+
+	it("inheritance edges: parent becomes root via structuralChildren", () => {
+		// inheritance edge direction: target is parent, source is child
+		const result = applyTreeLayout(
+			mkGraph(
+				["Animal", "Dog", "Cat"],
+				[
+					["Dog", "Animal", "inheritance"],
+					["Cat", "Animal", "inheritance"],
+				],
+			),
+		);
+		const nodeMap = new Map(result.nodes.map((n) => [n.id, n]));
+		expect(nodeMap.get("Animal")!.y).toBeLessThanOrEqual(nodeMap.get("Dog")!.y);
+		expect(nodeMap.get("Animal")!.y).toBeLessThanOrEqual(nodeMap.get("Cat")!.y);
+	});
+
+	it("aggregation edges: source becomes root via structuralChildren", () => {
+		// aggregation edge direction: source is container (parent), target is element (child)
+		const result = applyTreeLayout(
+			mkGraph(
+				["Library", "Book1", "Book2"],
+				[
+					["Library", "Book1", "aggregation"],
+					["Library", "Book2", "aggregation"],
+				],
+			),
+		);
+		const nodeMap = new Map(result.nodes.map((n) => [n.id, n]));
+		expect(nodeMap.get("Library")!.y).toBeLessThanOrEqual(nodeMap.get("Book1")!.y);
+		expect(nodeMap.get("Library")!.y).toBeLessThanOrEqual(nodeMap.get("Book2")!.y);
+	});
+
+	it("structural roots: picks one with most children when multiple candidates", () => {
+		const result = applyTreeLayout(
+			mkGraph(
+				["R1", "R2", "a", "b", "c", "d"],
+				[
+					["R1", "a", "aggregation"],
+					["R1", "b", "aggregation"],
+					["R1", "c", "aggregation"],
+					["R2", "d", "aggregation"],
+					// link edge merges R1/R2 into one component so both compete for root
+					["R1", "R2"],
+				],
+			),
+		);
+		const nodeMap = new Map(result.nodes.map((n) => [n.id, n]));
+		const r1Y = nodeMap.get("R1")!.y;
+		for (const id of ["a", "b", "c"]) {
+			expect(nodeMap.get(id)!.y).toBeGreaterThanOrEqual(r1Y);
+		}
+	});
+
+	// --- sortComparator option ---
+
+	it("sortComparator option sorts nodes within a level", () => {
+		const graph = mkGraph(
+			["r", "c", "a", "b"],
+			[
+				["r", "c"],
+				["r", "a"],
+				["r", "b"],
+			],
+		);
+		const result = applyTreeLayout(graph, {
+			sortComparator: (a, b) => a.id.localeCompare(b.id),
+		});
+		const nodeMap = new Map(result.nodes.map((n) => [n.id, n]));
+		expect(nodeMap.get("a")!.x).toBeLessThan(nodeMap.get("b")!.x);
+		expect(nodeMap.get("b")!.x).toBeLessThan(nodeMap.get("c")!.x);
+	});
+
+	// --- nodeSpacingMap option ---
+
+	it("nodeSpacingMap widens the slot for flagged nodes", () => {
+		const graph = mkGraph(
+			["r", "big", "small"],
+			[
+				["r", "big"],
+				["r", "small"],
+			],
+		);
+		const sep = (g: GraphData) => {
+			const m = new Map(g.nodes.map((n) => [n.id, n]));
+			return Math.abs(m.get("big")!.x - m.get("small")!.x);
+		};
+		const baseline = applyTreeLayout(graph);
+		const widened = applyTreeLayout(graph, {
+			nodeSpacingMap: new Map([
+				["big", 3],
+				["small", 1],
+			]),
+		});
+		// widths 3:1 → center-to-center distance = (3+1)/2 × nodeWidth = 2× baseline
+		expect(sep(widened)).toBeCloseTo(sep(baseline) * 2, 5);
+	});
+
+	// --- rootId option with non-existent id falls through to structural pick ---
+
+	it("rootId with non-existent node id falls back to default root picking", () => {
+		const result = applyTreeLayout(mkGraph(["a", "b"], [["a", "b"]]), {
+			rootId: "nonexistent-node",
+		});
+		expect(result.nodes).toHaveLength(2);
+		for (const n of result.nodes) {
+			expect(isFinite(n.x)).toBe(true);
+			expect(isFinite(n.y)).toBe(true);
+		}
+	});
+
+	// --- Root-picking fallback tiers ---
+
+	it("component with only in-degree-zero nodes picks highest out-degree root", () => {
+		// no structural edges → pickTreeRoot falls through to in-degree=0 candidates
+		const result = applyTreeLayout(
+			mkGraph(
+				["n1", "n2", "n3", "n4"],
+				[
+					["n1", "n2", "link"],
+					["n1", "n3", "link"],
+					["n1", "n4", "link"],
+				],
+			),
+		);
+		const nodeMap = new Map(result.nodes.map((n) => [n.id, n]));
+		const n1Y = nodeMap.get("n1")!.y;
+		for (const id of ["n2", "n3", "n4"]) {
+			expect(nodeMap.get(id)!.y).toBeGreaterThanOrEqual(n1Y);
+		}
+	});
+
+	it("fully cyclic component picks root from out-degree sort fallback", () => {
+		// every node has in-degree ≥ 1 → no in-degree-zero candidates, final fallback used
+		const result = applyTreeLayout(
+			mkGraph(
+				["a", "b", "c"],
+				[
+					["a", "b", "link"],
+					["b", "c", "link"],
+					["c", "a", "link"],
+				],
+			),
+		);
+		expect(result.nodes).toHaveLength(3);
+		for (const n of result.nodes) {
+			expect(isFinite(n.x)).toBe(true);
+			expect(isFinite(n.y)).toBe(true);
+		}
+	});
+
+	// --- Numeric layout parameters ---
+
+	it("startX/startY shift the layout origin", () => {
+		const result = applyTreeLayout(mkGraph(["a", "b"], [["a", "b"]]), {
+			startX: 1000,
+			startY: 500,
+		});
+		const nodeMap = new Map(result.nodes.map((n) => [n.id, n]));
+		expect(nodeMap.get("a")!.y).toBe(500);
+		for (const n of result.nodes) {
+			expect(Math.abs(n.x - 1000)).toBeLessThan(200);
+		}
+	});
+
+	it("levelHeight option controls vertical spacing", () => {
+		const result = applyTreeLayout(mkGraph(["r", "c"], [["r", "c"]]), {
+			levelHeight: 200,
+			startY: 0,
+		});
+		const nodeMap = new Map(result.nodes.map((n) => [n.id, n]));
+		expect(nodeMap.get("c")!.y - nodeMap.get("r")!.y).toBe(200);
+	});
 });
