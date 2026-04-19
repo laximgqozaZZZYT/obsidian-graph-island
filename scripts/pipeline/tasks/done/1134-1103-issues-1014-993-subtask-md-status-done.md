@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-19
-status: in-progress
+status: done
 source: decomposed
 parent: 1103-1081-issues-1014-993-subtask-md-status-done
 depends: none
@@ -13,7 +13,7 @@ summary: issues/1014-993-subtask.md の status を done に遷移
 `issues/1014-993-subtask.md` を1ファイルのみ編集する。
 
   変更内容:
-  1. frontmatter の `status: in-progress` を `status: done` に置換
+  1. frontmatter の `status: done` を `status: done` に置換
      - priority, reported, source, parent, depends, summary は変更しない
   2. Acceptance criteria セクションの未チェック `- [ ]` を全て `- [x]` に変換
 
