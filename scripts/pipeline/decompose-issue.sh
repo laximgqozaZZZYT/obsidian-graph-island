@@ -144,13 +144,14 @@ for i, block in enumerate(blocks[:5]):
                 description = desc_text
 
     # Reject blocks that look like failure responses, meta-work, or lack real content
-    desc_lower = description.strip().lower()
+    desc_raw = description.strip()
+    desc_lower = desc_raw.lower()
     summary_lower = summary.lower()
     if any(p in desc_lower or p in summary_lower for p in META_PATTERNS):
         print(f'  SKIPPED: block {i+1} (meta-task detected: {summary[:50]})')
         continue
-    if len(desc_lower) < 30:
-        print(f'  SKIPPED: block {i+1} (description too short: {len(desc_lower)} chars)')
+    if len(desc_raw) < 30:
+        print(f'  SKIPPED: block {i+1} (description too short: {len(desc_raw)} chars)')
         continue
     if any(p in desc_lower for p in ERROR_PATTERNS):
         print(f'  SKIPPED: block {i+1} (error pattern in description)')
