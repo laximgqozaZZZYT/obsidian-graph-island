@@ -1,7 +1,7 @@
 ---
 priority: high
 reported: 2026-04-19
-status: pending
+status: in-progress
 source: decomposed
 parent: 1154-1149-getgraphdata-nodecount
 depends: none
