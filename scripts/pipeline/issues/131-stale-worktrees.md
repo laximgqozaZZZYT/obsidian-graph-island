@@ -1,7 +1,7 @@
 ---
 priority: low
 reported: 2026-04-15
-status: decomposed
+status: pending
 source: auto-discovered
 summary: 3個の放置されたworktree
 ---

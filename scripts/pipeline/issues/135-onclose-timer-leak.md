@@ -1,7 +1,7 @@
 ---
 priority: high
 reported: 2026-04-16
-status: decomposed
+status: pending
 source: kaizen
 summary: onClose()で_saveTimerと_zoomAnimIdが未クリア — view破棄後にコールバック実行
 ---

@@ -1,7 +1,7 @@
 ---
 priority: high
 reported: 2026-04-16
-status: decomposed
+status: pending
 source: kaizen
 summary: _showNodeExpansionがdocumentのkeydownリスナーを蓄積 — ESCが誤ったハンドラを削除
 ---
