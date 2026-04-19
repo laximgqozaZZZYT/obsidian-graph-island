@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-19
-status: pending
+status: decomposed
 source: decomposed
 parent: 1064-1048-issues-1014-993-subtask-md-done
 depends: none
@@ -12,7 +12,7 @@ summary: issues/1014-993-subtask.md を status: done に遷移してコミット
 
 `issues/1014-993-subtask.md` の1ファイルのみを編集する。
 
-  1. Edit tool で frontmatter の `status: in-progress` を `status: done` に書き換える
+  1. Edit tool で frontmatter の `status: decomposed` を `status: done` に書き換える
   2. Edit tool (replace_all=true) で Acceptance criteria セクションの `- [ ]` を `- [x]` に全置換する
   3. ファイルパスは据え置き (`git mv` 禁止)
   4. 他ファイル編集禁止
