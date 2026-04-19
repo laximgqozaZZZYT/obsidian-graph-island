@@ -1,7 +1,7 @@
 ---
 priority: high
 reported: 2026-04-19
-status: in-progress
+status: blocked
 source: decomposed
 parent: 137-uncancellable-raf-chains
 depends: none
