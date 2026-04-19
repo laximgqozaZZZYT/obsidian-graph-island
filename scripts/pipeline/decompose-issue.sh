@@ -138,8 +138,16 @@ for i, block in enumerate(blocks[:5]):
                     desc_text = desc_text[1:].strip()
                 description = desc_text
 
-    # Reject blocks that look like failure responses or lack real content
+    # Reject blocks that look like failure responses, meta-work, or lack real content
     desc_stripped = description.strip()
+    summary_lower = summary.lower()
+    META_PATTERNS = ('git mv', 'frontmatter', 'status: done', 'status: pending',
+                     'issues/', 'tasks/', 'done/', '原子操作', 'ステータス変更',
+                     'status を', 'status: ', 'move to done')
+    if any(p in desc_stripped.lower() for p in META_PATTERNS) or \
+       any(p in summary_lower for p in META_PATTERNS):
+        print(f'  SKIPPED: block {i+1} (meta-task detected: {summary[:50]})')
+        continue
     if len(desc_stripped) < 30:
         print(f'  SKIPPED: block {i+1} (description too short: {len(desc_stripped)} chars)')
         continue
