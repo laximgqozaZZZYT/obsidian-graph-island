@@ -21,6 +21,18 @@ import {
 } from "./PanelBuilder";
 
 // ---------------------------------------------------------------------------
+// Public context type — bundles the inputs that Nodes-tab section builders
+// need from the parent orchestrator. Kept in this file so callers can import
+// it alongside the section builders.
+// ---------------------------------------------------------------------------
+export interface NodesTabContext {
+	panel: PanelState;
+	cb: PanelCallbacks;
+	entries: NodeTreeEntry[];
+	excludeSet: Set<string>;
+}
+
+// ---------------------------------------------------------------------------
 // Internal types & helpers (not exported)
 // ---------------------------------------------------------------------------
 interface DirNode {
@@ -243,6 +255,23 @@ export function buildNodesStatsSection(
 	}
 }
 
+/**
+ * Build the per-node degree lookup used by the sort/filter handlers.
+ * Pure — derives the map from `entries` + `cb` without mutating either.
+ * Separated so the orchestrator (and tests) can construct it independently
+ * of DOM-producing section builders.
+ */
+export function buildNodesDegreeSection(
+	entries: NodeTreeEntry[],
+	cb: PanelCallbacks,
+): Map<string, number> {
+	const degreeLookup = new Map<string, number>();
+	for (const e of entries) {
+		degreeLookup.set(e.id, cb.getForwardLinks(e.id).length + cb.getBacklinks(e.id).length);
+	}
+	return degreeLookup;
+}
+
 /** Filter + sort bar. Returns filterInput and sortSelect so tree section can wire handlers. */
 export function buildNodesFilterSection(
 	tabEl: HTMLElement,
@@ -395,10 +424,7 @@ export function buildNodesTab(
 	const excludeSet = new Set(panel.excludeNodes ?? []);
 	const visibleCount = entries.filter((e) => e.isVisible).length;
 
-	const degreeLookup = new Map<string, number>();
-	for (const e of entries) {
-		degreeLookup.set(e.id, cb.getForwardLinks(e.id).length + cb.getBacklinks(e.id).length);
-	}
+	const degreeLookup = buildNodesDegreeSection(entries, cb);
 
 	buildNodesStatsSection(tabEl, entries.length, visibleCount, excludeSet.size);
 	const { filterInput, sortSelect } = buildNodesFilterSection(tabEl, degreeLookup, excludeSet);
