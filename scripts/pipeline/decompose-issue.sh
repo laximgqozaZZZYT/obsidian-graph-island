@@ -75,7 +75,15 @@ description: |
 ## 重要
 - アイデアや提案は不要。具体的な実装タスクのみ
 - CLAUDE.md のルールに従うタスクにすること
-- God Object を肥大化させるタスクは禁止"
+- God Object を肥大化させるタスクは禁止
+
+## 絶対禁止 (メタタスク生成の禁止)
+以下のようなパイプライン管理作業をタスクにしてはならない:
+- issueやタスクのstatusを変更する作業
+- git mv や frontmatter の書き換え作業
+- issueファイルの移動や整理作業
+- 「done に移動する」「pending に戻す」等の管理作業
+タスクは必ず src/ 配下のソースコードを変更する実装作業であること。"
 
 RESULT=$(claude -p "$DECOMPOSE_PROMPT" \
   --allowedTools "Bash,Read,Glob,Grep" \
