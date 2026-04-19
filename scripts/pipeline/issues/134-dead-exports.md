@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-15
-status: pending
+status: decomposed
 source: auto-discovered
 summary: 57個のdead exports (使われていないpublic API)
 ---
