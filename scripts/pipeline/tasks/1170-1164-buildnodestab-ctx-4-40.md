@@ -1,7 +1,7 @@
 ---
 priority: high
 reported: 2026-04-19
-status: in-progress
+status: pending
 source: decomposed
 parent: 1164-1158-panelbuilder-buildnodestab-4
 depends: subtask-1
