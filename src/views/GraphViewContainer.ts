@@ -1828,9 +1828,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
 	async onClose() {
 		clearTimeout(this._autoFitTimer);
-		// B3: Clear doRender debounce timer
 		clearTimeout(this._doRenderDebounceTimer);
-		// Clear all tracked one-shot timers
+		if (this._saveTimer) clearTimeout(this._saveTimer);
+		cancelAnimationFrame(this._zoomAnimId);
 		for (const id of this._pendingTimers) clearTimeout(id);
 		this._pendingTimers.clear();
 		// C1: Clear hover preview
@@ -1838,10 +1838,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		// Clean up panel resize listeners (may persist if destroyed mid-drag)
 		if (this._resizeOnMove) document.removeEventListener("pointermove", this._resizeOnMove);
 		if (this._resizeOnUp) document.removeEventListener("pointerup", this._resizeOnUp);
-		if (this._expansionKeyHandler) {
-			document.removeEventListener("keydown", this._expansionKeyHandler);
-			this._expansionKeyHandler = null;
-		}
+		this._clearExpansionKeyHandler();
 		this.stopOrbitAnimation();
 		this.stopSim();
 		this.ac?.abort();
@@ -3051,6 +3048,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		this._applyFocusHighlight();
 	}
 
+	private _clearExpansionKeyHandler(): void {
+		if (!this._expansionKeyHandler) return;
+		document.removeEventListener("keydown", this._expansionKeyHandler);
+		this._expansionKeyHandler = null;
+	}
 	// D2: Show in-canvas node expansion panel
 	private _showNodeExpansion(nodeId: string): void {
 		const pn = this.pixiNodes.get(nodeId);
@@ -3062,6 +3064,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		// Remove existing expansion
 		const existing = canvasArea.querySelector(".gi-node-expand");
 		if (existing) existing.remove();
+		this._clearExpansionKeyHandler();
 
 		// Screen coordinates
 		const sx = pn.data.x * world.scale.x + world.x;
@@ -3101,10 +3104,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		const actions = panel.createDiv({ cls: "gi-node-expand-actions" });
 		const closePanel = () => {
 			panel.remove();
-			if (this._expansionKeyHandler) {
-				document.removeEventListener("keydown", this._expansionKeyHandler);
-				this._expansionKeyHandler = null;
-			}
+			this._clearExpansionKeyHandler();
 		};
 
 		const openBtn = actions.createEl("button", { text: t("detail.openFile"), cls: "mod-cta" });
@@ -5913,7 +5913,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		}
 
 		// Cancel any running zoom animation
-		if (this._zoomAnimId) cancelAnimationFrame(this._zoomAnimId);
+		cancelAnimationFrame(this._zoomAnimId);
 
 		// Animated zoom (150ms ease-out)
 		const cx = wrap.clientWidth / 2;
@@ -7880,7 +7880,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		}
 
 		// Cancel any running zoom animation
-		if (this._zoomAnimId) cancelAnimationFrame(this._zoomAnimId);
+		cancelAnimationFrame(this._zoomAnimId);
 
 		const startX = world.x;
 		const startY = world.y;
