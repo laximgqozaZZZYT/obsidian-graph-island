@@ -5,17 +5,17 @@ status: decomposed
 source: decomposed
 parent: 1149-139-baseline-node-count-2000
 depends: none
-summary: getGraphData() の各パイプライン段階に一時的な nodeCount トレースログを追加
+summary: getGraphData() 各段階の nodeCount トレース (詳細は子タスク 1157 参照)
 ---
 
 ## Description (subtask of 1149-139-baseline-node-count-2000)
 
-`getGraphData()` 内の各フィルタ段階 (rawData / showOrphans後 / existingOnly後 / tag filter後 / searchQuery後 / groupCollapse後) の直後に
-  `console.debug('[nodecount-trace] stage=<name> nodes=<n> edges=<m>')` を一時的に挿入する。
-  ブランチ名: `investigate/139-1-nodecount-trace`。
-  ビルド (`pnpm build`) と `pnpm lint` が通ることを確認してコミット。本番ビルドでは esbuild が console.debug を drop するため影響なし。
-  God Object 上限 8580 行を超えないように注意 (追加は10行未満で収まるはず)。
+`getGraphData()` パイプライン各段階 (rawData / afterShowOrphans / afterExistingOnly / afterTagFilter / afterSearchQuery / afterGroupCollapse) の nodeCount / edgeCount を計測する。
+
+実装詳細は子タスクへ委譲 (当初案の `console.debug` 挿入は CLAUDE.md `Forbidden Patterns` および `GOD OBJECT Policy` に抵触するため CDP eval 方式に変更):
+
+- `1157-1154-getgraphdata-nodecount.md` — CDP eval (E2E) による外部計測。`src/` 無変更。
 
 ## Acceptance criteria
-- [ ] 実装が完了し、テストが通ること
-- [ ] CLAUDE.md のルールに違反しないこと
+
+- [ ] 子タスク 1157 が完了していること。

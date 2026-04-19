@@ -5,34 +5,39 @@ status: pending
 source: decomposed
 parent: 1154-1149-getgraphdata-nodecount
 depends: none
-summary: getGraphData() にパイプライン各段階の nodeCount トレースログを挿入
+summary: getGraphData() パイプライン各段階の nodeCount を CDP eval で外部計測
 ---
 
 ## Description (subtask of 1154-1149-getgraphdata-nodecount)
 
-ブランチ `investigate/139-1-nodecount-trace` を作成し、`src/views/GraphViewContainer.ts` の `getGraphData()` 内で以下6段階の直後に `console.debug('[nodecount-trace] stage=<name> nodes=<n> edges=<m>')` を挿入する:
-    1. rawData 取得直後 (stage=rawData)
-    2. showOrphans フィルタ後 (stage=afterShowOrphans)
-    3. existingOnly フィルタ後 (stage=afterExistingOnly)
-    4. includeTagsInData/showTagNodes tag フィルタ後 (stage=afterTagFilter)
-    5. searchQuery フィルタ後 (stage=afterSearchQuery)
-    6. groupBy collapse 処理後 (stage=afterGroupCollapse)
+`getGraphData()` の各フィルタ段階での nodeCount / edgeCount を、**プロダクションコードを変更せずに** CDP eval で外部から計測する。
 
-  制約:
-    - 追加行は合計10行未満。GraphViewContainer.ts の行数が 8580 を超えないこと (超える場合は既存の空行を詰める等で吸収)。
-    - `console.debug` のみ使用 (esbuild 本番ビルドで drop される)。`console.log` 等は不可。
-    - 各ステージで `nodes.length` と `edges.length` を出力。段階によって変数名が異なる場合は実際の変数を参照すること。
-    - 既存ロジックは一切変更しない。挿入のみ。
+理由:
+- CLAUDE.md 「Forbidden Patterns」により `console.*` はプロダクションコード禁止 (esbuild drop は禁止理由ではなく但し書き)。
+- `src/views/GraphViewContainer.ts` は 8580 行 = Max Allowed。God Object Policy の "ratchet down only" によりロジック密度を上げる変更も不可。
 
-  検証:
-    - `pnpm build` が成功し main.js が生成される。
-    - `pnpm lint` が PASS する。
-    - `wc -l src/views/GraphViewContainer.ts` が 8580 以下。
+### 実装方針
 
-  コミット:
-    - ブランチ `investigate/139-1-nodecount-trace` にコミット。メッセージ例: `chore(debug): add temporary nodecount trace logs in getGraphData pipeline stages (#139-1)`
-    - PR 作成や main へのマージは行わない。ブランチ push のみで完了。
+1. `e2e/cdp-e2e-nodecount-trace.spec.ts` を新規作成 (E2E のみ、`src/` 変更なし)。
+2. CDP 経由で以下を段階的に評価:
+   - stage=rawData: `buildGraphFromVault()` の戻り値
+   - stage=afterShowOrphans, afterExistingOnly, afterTagFilter, afterSearchQuery, afterGroupCollapse: 各フラグ単独適用時の `getGraphData()` 戻り値を比較
+3. 各段階の `nodes.length` / `edges.length` を収集し、test console に `[nodecount-trace] stage=<name> nodes=<n> edges=<m>` を **テストコード側で** 出力 (プロダクションではない E2E コードなので console 可)。
+4. 既存 CDP ヘルパー `e2e/helpers/cdp-helpers.ts` の `connectCDP` / `cdpEval` を使用。
+
+### 検証
+
+- [ ] `src/**` が 1 byte も変更されていない (`git diff --stat src/` が空)。
+- [ ] `wc -l src/views/GraphViewContainer.ts` が 8580 以下 (不変)。
+- [ ] `pnpm build` PASS、`pnpm lint` PASS。
+- [ ] 新規 spec 実行で 6 段階すべての trace 行が出力される。
+- [ ] ブランチ `investigate/139-1-nodecount-trace` に push 済み (main merge 不要、spec は永続化して OK)。
 
 ## Acceptance criteria
-- [ ] 実装が完了し、テストが通ること
-- [ ] CLAUDE.md のルールに違反しないこと
+
+- [ ] `src/` 配下に変更がないこと (`git diff --stat src/` が空)。
+- [ ] `e2e/cdp-e2e-nodecount-trace.spec.ts` が新規追加されており、6 段階 (rawData / afterShowOrphans / afterExistingOnly / afterTagFilter / afterSearchQuery / afterGroupCollapse) すべての `[nodecount-trace]` 行を stdout に出すこと。
+- [ ] `pnpm build` / `pnpm lint` PASS。
+- [ ] `GraphViewContainer.ts` の行数が 8580 以下であること。
+- [ ] ブランチ `investigate/139-1-nodecount-trace` に push 済み。
+- [ ] CLAUDE.md の Forbidden Patterns / God Object Policy に違反しないこと。
