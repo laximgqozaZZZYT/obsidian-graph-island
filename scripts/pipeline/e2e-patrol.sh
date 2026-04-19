@@ -33,6 +33,9 @@ echo $$ > "$LOCK_FILE"
 trap 'rm -f "$LOCK_FILE"' EXIT
 
 log() { echo "[$(date -Iseconds)] [e2e-patrol] $*"; }
+# Strip ANSI CSI sequences (cursor-up, erase-line, colors) so captured
+# Playwright output is safe to embed in markdown issue bodies.
+strip_ansi() { sed -E $'s/\x1b\\[[0-9;?]*[a-zA-Z]//g'; }
 
 # ── Ensure CDP (headless Obsidian on Xvfb, isolated from main session) ──
 LOG_PREFIX="e2e-patrol" bash "$PROJECT_DIR/scripts/pipeline/ensure-cdp.sh" || {
@@ -67,13 +70,15 @@ EOF
 
 # ── 1. Smoke tests ──
 log "Running smoke tests..."
-E2E_OUT=$(npx playwright test --config e2e/cdp-smoke.config.ts --reporter=line 2>&1)
+E2E_OUT=$(NO_COLOR=1 FORCE_COLOR=0 npx playwright test --config e2e/cdp-smoke.config.ts --reporter=line 2>&1 | strip_ansi)
 E2E_EXIT=$?
 PASSED=$(echo "$E2E_OUT" | grep -oP '\d+ passed' | head -1 || echo "?")
 FAILED=$(echo "$E2E_OUT" | grep -oP '\d+ failed' | head -1 || echo "0")
 log "Smoke: $PASSED, failed=$FAILED (exit $E2E_EXIT)"
 if [[ $E2E_EXIT -ne 0 ]]; then
-  DETAILS=$(echo "$E2E_OUT" | grep -A2 "failed" | head -10)
+  HEAD_SHA=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+  EXCERPT=$(echo "$E2E_OUT" | grep -A2 "failed" | head -10)
+  DETAILS="exit=$E2E_EXIT, head=$HEAD_SHA"$'\n\n'"$EXCERPT"
   file_issue "e2e-smoke-fail" "high" "E2E smoke test failure — $FAILED" "$DETAILS" "- [ ] E2E smoke tests pass"
 fi
 
