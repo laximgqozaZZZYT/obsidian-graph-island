@@ -44,7 +44,7 @@ function buildAdjacencyList(edges: LouvainEdge[], idToIdx: Map<string, number>, 
 }
 
 /** 各ノードの次数（隣接エッジ重みの合計）を計算する。 */
-export function computeNodeDegrees(adj: Map<number, number>[], n: number): Float64Array {
+function computeNodeDegrees(adj: Map<number, number>[], n: number): Float64Array {
 	const degree = new Float64Array(n);
 	for (let i = 0; i < n; i++) {
 		let d = 0;
