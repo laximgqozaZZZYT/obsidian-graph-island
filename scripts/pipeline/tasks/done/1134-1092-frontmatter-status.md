@@ -1,7 +1,7 @@
 ---
 priority: high
 reported: 2026-04-19
-status: in-progress
+status: cancelled
 source: decomposed
 parent: 1092-1072-subtask
 depends: 1091-1072-active

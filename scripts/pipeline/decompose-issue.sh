@@ -154,6 +154,9 @@ for i, block in enumerate(blocks[:5]):
     if any(p in desc_stripped.lower() for p in ERROR_PATTERNS):
         print(f'  SKIPPED: block {i+1} (error pattern in description)')
         continue
+    if summary.strip().lower() in ('subtask', 'task', ''):
+        print(f'  SKIPPED: block {i+1} (no meaningful summary)')
+        continue
 
     last_num += 1
     num = f'{last_num:03d}'
