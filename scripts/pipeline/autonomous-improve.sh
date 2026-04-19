@@ -131,10 +131,13 @@ for dir in "$ISSUE_DIR" "$TASK_DIR"; do
 
     FNAME=$(basename "$f")
     if [[ "$dir" == "$TASK_DIR" ]]; then
-      # Task timed out → subdivide, but only up to depth 2
-      # Count depth by number of "-subtask" segments in filename
+      # Task timed out → subdivide, with guards against explosion:
+      # 1. Max depth 1 (parent→child only, no grandchildren)
+      # 2. Max 10 total tasks per parent issue
       DEPTH=$(echo "$FNAME" | grep -o "subtask" | wc -l)
-      if [[ $DEPTH -lt 2 ]]; then
+      PARENT_NUM=$(echo "$FNAME" | grep -oP '^\d+-\K\d+' | head -1)
+      SIBLING_COUNT=$(find "$TASK_DIR" "$TASK_DONE_DIR" -maxdepth 1 -name "*-${PARENT_NUM:-xxx}-*" 2>/dev/null | wc -l)
+      if [[ $DEPTH -lt 1 && $SIBLING_COUNT -lt 10 ]]; then
         log "SUBDIVIDE: $FNAME timed out (${FILE_AGE}s, depth=$DEPTH)"
         if ! bash "$PROJECT_DIR/scripts/pipeline/decompose-issue.sh" "$f" 2>&1 | while IFS= read -r line; do log "  $line"; done; then
           # Subdivision failed (rate limit, etc) → reset to pending instead of leaving in-progress
