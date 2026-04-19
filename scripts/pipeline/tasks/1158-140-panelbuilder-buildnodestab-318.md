@@ -1,7 +1,7 @@
 ---
 priority: high
 reported: 2026-04-19
-status: in-progress
+status: decomposed
 source: decomposed
 parent: 140-giant-functions
 depends: none
