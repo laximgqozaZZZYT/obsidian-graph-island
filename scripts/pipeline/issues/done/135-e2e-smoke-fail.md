@@ -1,7 +1,7 @@
 ---
 priority: high
 reported: 2026-04-16
-status: decomposed
+status: done
 source: e2e-patrol
 summary: E2E smoke test failure — 1 failed
 ---
