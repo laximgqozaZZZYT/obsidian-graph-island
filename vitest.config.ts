@@ -13,10 +13,10 @@ export default defineConfig({
       reportsDirectory: "coverage",
       thresholds: {
         // Ratchet: floor to 1 decimal of actual coverage
-        statements: 50.9,
-        branches: 45.3,
-        functions: 48.4,
-        lines: 51.2,
+        statements: 52.2,
+        branches: 46.4,
+        functions: 50.2,
+        lines: 52.5,
 
       },
     },
