@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-19
-status: pending
+status: decomposed
 source: decomposed
 parent: 1075-1057-issues-992-971-subtask-md-status-done
 depends: none
@@ -10,11 +10,11 @@ summary: issues/992-971-subtask.md の status を done に更新してコミッ�
 
 ## Description (subtask of 1075-1057-issues-992-971-subtask-md-status-done)
 
-`issues/992-971-subtask.md` の frontmatter 内 `status: in-progress` を `status: done` に置換する単一編集。
+`issues/992-971-subtask.md` の frontmatter 内 `status: decomposed` を `status: done` に置換する単一編集。
 
   手順:
   1. `Read` で `issues/992-971-subtask.md` を読み、frontmatter の `status:` 行を確認
-  2. `Edit` で `status: in-progress` → `status: done`（frontmatter ブロック内の 1 箇所のみ）
+  2. `Edit` で `status: decomposed` → `status: done`（frontmatter ブロック内の 1 箇所のみ）
   3. `git diff issues/992-971-subtask.md` で変更が 1 行のみであることを確認
   4. `git diff --stat` で `1 file changed, 1 insertion(+), 1 deletion(-)` であることを確認
   5. `git add issues/992-971-subtask.md` && `git commit -m "chore: mark 992-971-subtask as done"`
