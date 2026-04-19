@@ -439,6 +439,78 @@ describe("filterOrphans self-loop", () => {
 	});
 });
 
+// ---------------------------------------------------------------------------
+// showOrphans=false invariant (parent: 135-e2e-smoke-fail subtask-3)
+// Guards the E2E smoke invariant: `showOrphans=false reduces nodes` count
+// strictly when orphans exist, and is a no-op when all nodes are connected.
+// ---------------------------------------------------------------------------
+describe("showOrphans=false invariant", () => {
+	const baseOpts: VisibilityOptions = {
+		showOrphans: true,
+		showAttachments: true,
+		includeTagsInData: true,
+		showTagNodes: true,
+		tagDisplay: "node",
+		showSimilar: true,
+		showNamedRelation: true,
+	};
+
+	it("strictly reduces node count when orphans present", () => {
+		const nodes = [node("a"), node("b"), node("iso1"), node("iso2")];
+		const edges = [edge("a", "b")];
+		const baseline = applyVisibilityFilters(nodes, edges, { ...baseOpts, showOrphans: true });
+		const filtered = applyVisibilityFilters(nodes, edges, { ...baseOpts, showOrphans: false });
+		expect(filtered.nodes.length).toBeLessThan(baseline.nodes.length);
+		expect(filtered.nodes.length).toBe(2);
+	});
+
+	it("is no-op when every node is connected", () => {
+		const nodes = [node("a"), node("b"), node("c")];
+		const edges = [edge("a", "b"), edge("b", "c")];
+		const baseline = applyVisibilityFilters(nodes, edges, { ...baseOpts, showOrphans: true });
+		const filtered = applyVisibilityFilters(nodes, edges, { ...baseOpts, showOrphans: false });
+		expect(filtered.nodes.length).toBe(baseline.nodes.length);
+	});
+
+	it("treats has-tag edges as connections even when tag nodes are hidden", () => {
+		// filterOrphans runs before filterTagNodes: "a" survives via has-tag edge,
+		// then the tag node and its has-tag edge are stripped downstream.
+		const nodes = [node("a"), node("#tag", { isTag: true })];
+		const edges = [edge("a", "#tag", "has-tag")];
+		const result = applyVisibilityFilters(nodes, edges, {
+			...baseOpts,
+			showOrphans: false,
+			includeTagsInData: false,
+		});
+		expect(result.nodes.map((n) => n.id)).toEqual(["a"]);
+	});
+
+	it("keeps node whose only edge points to an attachment being filtered out", () => {
+		// filterOrphans runs before filterAttachments: note.md is non-orphan at
+		// orphan-check time (edge to pic.png still present); pic.png is stripped
+		// after. iso.md has no edges at all, so it's dropped as a true orphan.
+		const nodes = [
+			node("note.md"),
+			node("pic.png", { filePath: "pic.png" }),
+			node("iso.md"),
+		];
+		const edges = [edge("note.md", "pic.png")];
+		const result = applyVisibilityFilters(nodes, edges, {
+			...baseOpts,
+			showOrphans: false,
+			showAttachments: false,
+		});
+		expect(result.nodes.map((n) => n.id)).toEqual(["note.md"]);
+	});
+
+	it("all-isolated graph collapses to empty under showOrphans=false", () => {
+		const nodes = [node("a"), node("b"), node("c")];
+		const result = applyVisibilityFilters(nodes, [], { ...baseOpts, showOrphans: false });
+		expect(result.nodes).toHaveLength(0);
+		expect(result.edges).toHaveLength(0);
+	});
+});
+
 // =========================================================================
 // filterBySubgraph
 // =========================================================================

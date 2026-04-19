@@ -114,6 +114,11 @@ issue_dir = '$TASK_DIR'
 parent = '$ISSUE_NAME'
 last_num = $LAST_NUM
 ERROR_PATTERNS = (\"you've hit your limit\", 'rate limit', 'quota exceeded')
+# Pipeline-management patterns. Curated to avoid path-fragment false positives
+# (e.g. 'tasks/' would also match 'tests/tasks-utils.ts').
+META_PATTERNS = ('git mv ', 'status: done', 'status: pending',
+                 'frontmatter status', 'move to done',
+                 '原子操作', 'ステータス変更', 'status を')
 
 for i, block in enumerate(blocks[:5]):
     # Extract fields
@@ -139,19 +144,16 @@ for i, block in enumerate(blocks[:5]):
                 description = desc_text
 
     # Reject blocks that look like failure responses, meta-work, or lack real content
-    desc_stripped = description.strip()
+    desc_raw = description.strip()
+    desc_lower = desc_raw.lower()
     summary_lower = summary.lower()
-    META_PATTERNS = ('git mv', 'frontmatter', 'status: done', 'status: pending',
-                     'issues/', 'tasks/', 'done/', '原子操作', 'ステータス変更',
-                     'status を', 'status: ', 'move to done')
-    if any(p in desc_stripped.lower() for p in META_PATTERNS) or \
-       any(p in summary_lower for p in META_PATTERNS):
+    if any(p in desc_lower or p in summary_lower for p in META_PATTERNS):
         print(f'  SKIPPED: block {i+1} (meta-task detected: {summary[:50]})')
         continue
-    if len(desc_stripped) < 30:
-        print(f'  SKIPPED: block {i+1} (description too short: {len(desc_stripped)} chars)')
+    if len(desc_raw) < 30:
+        print(f'  SKIPPED: block {i+1} (description too short: {len(desc_raw)} chars)')
         continue
-    if any(p in desc_stripped.lower() for p in ERROR_PATTERNS):
+    if any(p in desc_lower for p in ERROR_PATTERNS):
         print(f'  SKIPPED: block {i+1} (error pattern in description)')
         continue
     if summary.strip().lower() in ('subtask', 'task', ''):
