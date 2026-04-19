@@ -1828,9 +1828,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
 	async onClose() {
 		clearTimeout(this._autoFitTimer);
-		// B3: Clear doRender debounce timer
 		clearTimeout(this._doRenderDebounceTimer);
-		// Clear all tracked one-shot timers
+		if (this._saveTimer) clearTimeout(this._saveTimer);
+		cancelAnimationFrame(this._zoomAnimId);
 		for (const id of this._pendingTimers) clearTimeout(id);
 		this._pendingTimers.clear();
 		// C1: Clear hover preview
