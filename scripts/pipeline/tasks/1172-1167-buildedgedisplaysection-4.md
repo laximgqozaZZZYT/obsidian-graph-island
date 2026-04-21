@@ -1,7 +1,7 @@
 ---
 priority: high
 reported: 2026-04-20
-status: in-progress
+status: pending
 source: decomposed
 parent: 1167-1159-buildedgedisplaysection
 depends: subtask-1 (parent: 1159-140)
