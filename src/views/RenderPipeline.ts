@@ -15,7 +15,28 @@ import type { ShapeRule } from "../utils/node-shapes";
 import { effectiveRadius } from "../layouts/cluster-force";
 import { Platform } from "obsidian";
 import { clamp } from "../utils/geometry";
-import { LABEL_CHAR_WIDTH_FACTOR } from "../constants";
+import {
+	LABEL_CHAR_WIDTH_FACTOR,
+	EDGE_REDRAW_SKIP,
+	IDLE_FRAME_DETACH_THRESHOLD,
+	NODE_SCREEN_PX_BASE,
+	MIN_WORLD_RADIUS_PX,
+	VIEWPORT_CULL_MARGIN_PX,
+	IMMEDIATE_BATCH_SIZE,
+	DEFERRED_BATCH_SIZE,
+	HOLD_RING_LINE_WIDTH,
+	HOLD_RING_PADDING,
+	INDICATOR_RING_ALPHA,
+	ZONE_MAX_PROXIMITY_CANDIDATES,
+	SUPER_NODE_FILL_ALPHA,
+	OVERLAP_GRID_CELL_SIZE,
+	KB_FOCUS,
+	LABEL_LAYOUT,
+	LABEL_PAD,
+	SUB_LABEL,
+} from "../constants";
+// Re-export for public API (tests and other modules import MIN_WORLD_RADIUS_PX from here)
+export { MIN_WORLD_RADIUS_PX } from "../constants";
 import {
 	darkenColor, lightenColor, blendColors, desaturateColor,
 	computeGlowParams, computeLabelColors, isDensityTooClose,
@@ -73,27 +94,13 @@ interface NormalZoomCtx {
 }
 
 // ---------------------------------------------------------------------------
-// Constants
+// Constants — consolidated in constants.ts (Render Constants section)
 // ---------------------------------------------------------------------------
-const EDGE_REDRAW_SKIP = 3;
-
-/** Number of frames the render loop idles before detaching the ticker */
-const IDLE_FRAME_DETACH_THRESHOLD = 60;
-
-/** Screen-space node radius estimate used for LOD tier calculations (px) */
-const NODE_SCREEN_PX_BASE = 30;
-
-/** Minimum world radius applied at non-extreme zoom to keep nodes visible.
- *  Nodes are always at least 2×this value in screen-pixel diameter. */
-export const MIN_WORLD_RADIUS_PX = 3;
 
 /** Convert a screen-pixel size to world units, floored at `floor`. */
 export function screenToWorld(screenPx: number, ws: number, floor: number): number {
 	return Math.max(floor, ws > 0 ? screenPx / ws : floor);
 }
-
-/** Viewport culling margin in world units (divided by worldScale) */
-const VIEWPORT_CULL_MARGIN_PX = 60;
 
 /**
  * Compute a fade-out alpha for individual nodes/intra-group cables at extreme zoom-out.
@@ -106,57 +113,8 @@ export function computeZoomFadeAlpha(zoom: number, fadeStart = 0.7, fadeEnd = 0.
 	return fadeFloor + ((1 - fadeFloor) * (zoom - fadeEnd)) / (fadeStart - fadeEnd);
 }
 
-/** Number of nodes created synchronously before deferring the rest */
-const IMMEDIATE_BATCH_SIZE = 50;
-
-/** Number of nodes processed per deferred batch frame (higher = faster initial render) */
-const DEFERRED_BATCH_SIZE = 500;
-
-/** Hold indicator ring line width */
-const HOLD_RING_LINE_WIDTH = 2;
-/** Hold indicator ring padding beyond node radius */
-const HOLD_RING_PADDING = 4;
-/** Hold ring / pathfinder ring stroke alpha */
-const INDICATOR_RING_ALPHA = 0.9;
-
-/** Maximum proximity candidates for zone placement to limit O(n^2) cost */
-const ZONE_MAX_PROXIMITY_CANDIDATES = 20;
-
-/** Keyboard focus ring constants */
-const KB_FOCUS = {
-	SEGMENTS: 12,
-	GAP_FRACTION: 0.4,
-	RADIUS_FACTOR: 1.6,
-	LINE_WIDTH: 2.5,
-	LINE_ALPHA: 0.95,
-} as const;
-
-/** Super node fill alpha */
-const SUPER_NODE_FILL_ALPHA = 0.3;
-
-/** Label layout metrics */
-const LABEL_LAYOUT = {
-	LINE_HEIGHT_FACTOR: 1.3,
-	EDGE_OFFSET: 2,
-	TAG_BG_ALPHA_DAMPEN: 0.7,
-} as const;
-
-/** Label background pill padding (px) per node type */
-const LABEL_PAD = {
-	SUPER_X: 10, SUPER_Y: 4,
-	REGULAR_X: 8, REGULAR_Y: 3,
-	TAG_X: 4, TAG_Y: 1,
-} as const;
-
-/** Sub-label rendering constants */
-const SUB_LABEL = {
-	FONT_SIZE: 9,
-	ALPHA: 0.6,
-	GAP: 2,
-} as const;
-
-/** Spatial hash grid cell size for label overlap detection (screen px) */
-const OVERLAP_GRID_CELL_SIZE = 120;
+// Render pipeline numeric/object constants (IMMEDIATE_BATCH_SIZE, KB_FOCUS,
+// LABEL_LAYOUT, LABEL_PAD, SUB_LABEL, etc.) now live in constants.ts.
 
 /**
  * Compute the LOD (Level of Detail) tier based on node screen-space pixel size.

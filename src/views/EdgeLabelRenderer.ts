@@ -13,28 +13,25 @@ import {
 	EDGE_TYPE_SIMILAR,
 	EDGE_TYPE_SIBLING,
 	EDGE_TYPE_HAS_TAG,
+	EDGE_LABEL_FONT_SIZE_DEFAULT,
+	EDGE_LABEL_BG_ALPHA,
+	EDGE_LABEL_ALPHA,
+	EDGE_LABEL_RESOLUTION,
+	MAX_EDGE_LABELS,
+	SMART_LABEL_HW,
+	SMART_LABEL_HH,
+	SMART_SHIFT_STEP,
+	SMART_MAX_SHIFTS,
+	PERPENDICULAR_OFFSET,
 } from "../constants";
 import { shouldSkipEdge, shouldSkipByDirection, type EdgeDrawConfig } from "./EdgeRenderer";
 
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
-
-export const EDGE_LABEL_FONT_SIZE_DEFAULT = 10;
-/** A11y: edge label background for contrast (WCAG 1.4.3) */
-export const EDGE_LABEL_BG_ALPHA = 0.75;
-/** Edge label alpha */
-const EDGE_LABEL_ALPHA = 0.7;
-/** Edge label resolution */
-const EDGE_LABEL_RESOLUTION = 2;
-/** Maximum number of edge labels rendered */
-export const MAX_EDGE_LABELS = 200;
-
-const SMART_LABEL_HW = 25; // estimated half-width of a label
-const SMART_LABEL_HH = 7; // estimated half-height of a label
-const SMART_SHIFT_STEP = 12; // shift distance per collision attempt
-const SMART_MAX_SHIFTS = 4; // maximum shift attempts
-const PERPENDICULAR_OFFSET = 8;
+// Re-export for public API (tests import these from EdgeLabelRenderer)
+export {
+	EDGE_LABEL_FONT_SIZE_DEFAULT,
+	EDGE_LABEL_BG_ALPHA,
+	MAX_EDGE_LABELS,
+} from "../constants";
 
 // ---------------------------------------------------------------------------
 // Helpers
