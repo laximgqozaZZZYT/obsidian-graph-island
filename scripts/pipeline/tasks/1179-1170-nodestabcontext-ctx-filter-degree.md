@@ -1,7 +1,7 @@
 ---
 priority: high
 reported: 2026-04-24
-status: pending
+status: in-progress
 source: decomposed
 parent: 1170-1164-buildnodestab-ctx-4-40
 depends: none
