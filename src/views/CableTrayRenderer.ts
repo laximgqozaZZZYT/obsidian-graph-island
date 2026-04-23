@@ -140,33 +140,27 @@ interface Pos {
 }
 
 // ---------------------------------------------------------------------------
-// Constants
+// Constants — consolidated in constants.ts (Render Constants section)
 // ---------------------------------------------------------------------------
 
-/** Highlighted cable trunk width */
-export const HIGHLIGHT_CABLE_TRUNK_WIDTH = 3;
-/** Cable fan crowd attenuation threshold (edges) */
-export const CABLE_FAN_CROWD_THRESHOLD = 6.0;
-/** Cable fan crowd min alpha fraction */
-export const CABLE_FAN_CROWD_MIN_FRACTION = 0.4;
-/** Cable lane spacing in screen pixels — wide enough to distinguish parallel cables */
-export const CABLE_LANE_SPACING = 14;
-/** Trunk conduit alpha — semi-transparent so wires show through */
-export const TRUNK_CONDUIT_ALPHA = 0.12;
-/** Wire alpha — most opaque layer, clearly visible */
-export const WIRE_BASE_ALPHA = 0.9;
-/** Wire spacing within a cable (screen pixels between parallel wires) */
-export const STUB_WIRE_SPACING = 7;
-/** Maximum conduit width in screen pixels */
-export const MAX_CONDUIT_WIDTH = 16;
-/** Trunk conduit screen width (px) — thickest layer */
-export const TRUNK_SCREEN_WIDTH = 12;
-/** Cable conduit screen width (px) — medium layer */
-export const CABLE_SCREEN_WIDTH = 6;
-/** Wire screen width (px) — thinnest layer */
-export const WIRE_SCREEN_WIDTH = 2.5;
-/** Default fallback cluster radius */
-export const DEFAULT_CLUSTER_RADIUS = 50;
+// DEFAULT_CLUSTER_RADIUS is used locally below (fallback radius for groups).
+import { DEFAULT_CLUSTER_RADIUS } from "../constants";
+
+// Re-export for public API (tests import these from CableTrayRenderer)
+export {
+	HIGHLIGHT_CABLE_TRUNK_WIDTH,
+	CABLE_FAN_CROWD_THRESHOLD,
+	CABLE_FAN_CROWD_MIN_FRACTION,
+	CABLE_LANE_SPACING,
+	TRUNK_CONDUIT_ALPHA,
+	WIRE_BASE_ALPHA,
+	STUB_WIRE_SPACING,
+	MAX_CONDUIT_WIDTH,
+	TRUNK_SCREEN_WIDTH,
+	CABLE_SCREEN_WIDTH,
+	WIRE_SCREEN_WIDTH,
+	DEFAULT_CLUSTER_RADIUS,
+} from "../constants";
 
 // ---------------------------------------------------------------------------
 // Zoom fade

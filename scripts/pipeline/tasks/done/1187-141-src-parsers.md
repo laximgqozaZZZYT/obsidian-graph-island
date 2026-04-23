@@ -23,3 +23,8 @@ src/parsers/metadata-parser.ts と src/parsers/ 配下の他ファイルにつ�
 ## Acceptance criteria
 - [ ] 実装が完了し、テストが通ること
 - [ ] CLAUDE.md のルールに違反しないこと
+
+## Blocker
+自律パイプラインの実行枠内でタイムアウト (commit 52f6abf5)。再開条件: 次サイクルで
+未カバー分岐の特定から再着手 (`pnpm test:coverage -- --reporter=verbose src/parsers/`)、
+1 バッチあたり 3〜5 ケースに絞って時間内に収める。

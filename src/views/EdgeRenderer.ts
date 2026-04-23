@@ -20,6 +20,70 @@ import {
 	EDGE_TYPE_TAG,
 	EDGE_TYPE_INLINE_RELATION,
 	EDGE_TYPE_NAMED_RELATION,
+	// Render constants (consolidated in constants.ts)
+	LINK_COLOR,
+	TAG_EDGE_COLOR,
+	CATEGORY_EDGE_COLOR,
+	SEMANTIC_EDGE_COLOR,
+	INHERITANCE_COLOR,
+	AGGREGATION_COLOR,
+	SIMILAR_COLOR,
+	HAS_TAG_COLOR,
+	SIBLING_COLOR,
+	SEQUENCE_COLOR,
+	INLINE_RELATION_COLOR,
+	ANGLE_BINS,
+	BIN_WIDTH,
+	GRID_CELL,
+	MIN_BUNDLE_SIZE,
+	BUNDLE_SKIP,
+	STRUCTURAL_EDGE_ALPHA,
+	NON_STRUCTURAL_EDGE_ALPHA,
+	DEFAULT_LINE_THICKNESS,
+	WEIGHT_THICKNESS_FACTOR,
+	FADE_BY_DEGREE_MIN_ALPHA,
+	RELATION_COLOR_ALPHA,
+	HIGHLIGHT_THICKNESS_MULTIPLIER,
+	ARC_CP_HEIGHT_FACTOR,
+	ARC_CP_VERTICAL_OFFSET,
+	ARC_MAX_EDGE_COUNT,
+	EDGE_MARKER_SIZE,
+	SEQUENCE_ARROW_SIZE,
+	GENERIC_ARROW_MIN_SIZE,
+	GENERIC_ARROW_RADIUS_FACTOR,
+	GENERIC_ARROW_HALF_WIDTH,
+	GENERIC_ARROW_TIP_OFFSET,
+	ARROW_HALF_WIDTH_FACTOR,
+	MARKER_STROKE_WIDTH,
+	MARKER_FILL_ALPHA_RATIO,
+	MARKER_HALF_WIDTH,
+	DENSITY_FULL_ALPHA_THRESHOLD,
+	DENSITY_GENTLE_THRESHOLD,
+	DENSITY_AGGRESSIVE_THRESHOLD,
+	DENSITY_GENTLE_REDUCTION,
+	DENSITY_AGGRESSIVE_MID_ALPHA,
+	DENSITY_AGGRESSIVE_REDUCTION,
+	DENSITY_MIN_ALPHA,
+	ZOOM_FADE_THRESHOLD,
+	ZOOM_FADE_MIN_ALPHA,
+	DEFAULT_DENSITY_FLOOR,
+} from "../constants";
+// Re-export for public API (tests and other modules import these from here)
+export {
+	STRUCTURAL_EDGE_ALPHA,
+	NON_STRUCTURAL_EDGE_ALPHA,
+	DEFAULT_LINE_THICKNESS,
+	WEIGHT_THICKNESS_FACTOR,
+	FADE_BY_DEGREE_MIN_ALPHA,
+	RELATION_COLOR_ALPHA,
+	HIGHLIGHT_THICKNESS_MULTIPLIER,
+	DENSITY_FULL_ALPHA_THRESHOLD,
+	DENSITY_GENTLE_THRESHOLD,
+	DENSITY_AGGRESSIVE_THRESHOLD,
+	DENSITY_MIN_ALPHA,
+	ZOOM_FADE_THRESHOLD,
+	ZOOM_FADE_MIN_ALPHA,
+	DEFAULT_DENSITY_FLOOR,
 } from "../constants";
 import {
 	type GroupPort,
@@ -268,24 +332,12 @@ export function shouldSkipByDirection(
 }
 
 // ---------------------------------------------------------------------------
-// Constants
+// Edge type colors — see constants.ts for the palette values
 // ---------------------------------------------------------------------------
 // Theme-aware edge colors
 export function defaultColor(isDark: boolean) {
 	return isDark ? 0x666666 : 0x999999;
 }
-// C4: Intuitive edge color palette — distinct, accessible, memorable
-const LINK_COLOR = 0x60a5fa; // blue-400 — wikilink (primary relationship)
-const TAG_EDGE_COLOR = 0x22d3ee; // cyan-400 — shared-tag co-occurrence
-const CATEGORY_EDGE_COLOR = 0xa78bfa; // violet-400 — shared-category
-const SEMANTIC_EDGE_COLOR = 0xfb923c; // orange-400 — semantic/related
-const INHERITANCE_COLOR = 0x8b5cf6; // purple-500 — hierarchy/inheritance
-const AGGREGATION_COLOR = 0x3b82f6; // blue-500 — composition/aggregation
-const SIMILAR_COLOR = 0xf59e0b; // amber-500 — similarity/semantic
-const HAS_TAG_COLOR = 0x6b7280; // gray-500 — tag membership (subtle)
-const SIBLING_COLOR = 0x10b981; // emerald-500 — peer relationship
-const SEQUENCE_COLOR = 0xef4444; // red-500 — sequential order (directional)
-const INLINE_RELATION_COLOR = 0x14b8a6; // teal-500 — explicit inline annotation
 
 // ---------------------------------------------------------------------------
 // Edge type specification map — single source of truth for per-type behavior
@@ -312,76 +364,8 @@ export const EDGE_TYPE_SPECS: ReadonlyMap<string, EdgeTypeSpec> = new Map<string
 	[EDGE_TYPE_NAMED_RELATION, { visibilityField: "showNamedRelation", color: null }],
 ]);
 
-/** Number of angular bins over [0, π). 6 bins = 30° each. */
-const ANGLE_BINS = 6;
-const BIN_WIDTH = Math.PI / ANGLE_BINS;
-/** Spatial grid cell size in pixels for locality-aware bundling */
-const GRID_CELL = 200;
-/** Minimum edges in a direction-color-cell group to activate bundling */
-const MIN_BUNDLE_SIZE = 4;
-
-/** Edge alpha for structural edge types */
-export const STRUCTURAL_EDGE_ALPHA = 0.7;
-/** Edge alpha for non-structural edge types */
-export const NON_STRUCTURAL_EDGE_ALPHA = 0.65;
-/** Default line thickness for edges */
-export const DEFAULT_LINE_THICKNESS = 2;
-/** Edge weight additional thickness per log2 step */
-export const WEIGHT_THICKNESS_FACTOR = 0.6;
-/** Fade-by-degree minimum alpha fraction */
-export const FADE_BY_DEGREE_MIN_ALPHA = 0.3;
-/** Alpha for relation-colored edges */
-export const RELATION_COLOR_ALPHA = 0.8;
-/** Highlighted edge line thickness */
-/** Multiplier applied to edge thickness when highlighted (hover/focus). */
-export const HIGHLIGHT_THICKNESS_MULTIPLIER = 2.5;
-// Cable-tray constants, types, and pure functions are in CableTrayRenderer.ts
-/** Arc layout control point height factor */
-const ARC_CP_HEIGHT_FACTOR = 0.3;
-/** Arc layout control point vertical offset */
-const ARC_CP_VERTICAL_OFFSET = 20;
-/** Arc layout max edge count before disabling curves */
-const ARC_MAX_EDGE_COUNT = 500;
-/** Edge marker size for ontology markers */
-const EDGE_MARKER_SIZE = 8;
-/** Sequence arrow marker size */
-const SEQUENCE_ARROW_SIZE = 7;
-/** Generic arrow minimum size */
-const GENERIC_ARROW_MIN_SIZE = 10;
-/** Generic arrow radius proportion */
-const GENERIC_ARROW_RADIUS_FACTOR = 0.35;
-/** Generic arrow half-width proportion */
-const GENERIC_ARROW_HALF_WIDTH = 0.45;
-/** Generic arrow tip offset from node boundary */
-const GENERIC_ARROW_TIP_OFFSET = 2;
-/** Sequence/ontology arrow half-width factor */
-const ARROW_HALF_WIDTH_FACTOR = 0.4;
-/** Edge marker stroke width */
-const MARKER_STROKE_WIDTH = 1.5;
-/** Edge marker fill alpha ratio (relative to line alpha) */
-const MARKER_FILL_ALPHA_RATIO = 0.9;
-/** Edge marker half-width ratio (for inheritance triangle and aggregation diamond) */
-const MARKER_HALF_WIDTH = 0.5;
-/** Density scale: edge count threshold for full alpha */
-export const DENSITY_FULL_ALPHA_THRESHOLD = 100;
-/** Density scale: gentle fade upper bound */
-export const DENSITY_GENTLE_THRESHOLD = 500;
-/** Density scale: aggressive fade upper bound */
-export const DENSITY_AGGRESSIVE_THRESHOLD = 2000;
-/** Density scale: gentle fade reduction factor */
-const DENSITY_GENTLE_REDUCTION = 0.35;
-/** Density scale: aggressive fade mid-alpha */
-const DENSITY_AGGRESSIVE_MID_ALPHA = 0.65;
-/** Density scale: aggressive fade reduction */
-const DENSITY_AGGRESSIVE_REDUCTION = 0.35;
-/** Density scale: floor alpha */
-export const DENSITY_MIN_ALPHA = 0.4;
-/** Zoom fade threshold for extreme zoom-out */
-export const ZOOM_FADE_THRESHOLD = 0.05;
-/** Zoom fade minimum alpha */
-export const ZOOM_FADE_MIN_ALPHA = 0.4;
-/** Default density floor */
-export const DEFAULT_DENSITY_FLOOR = 0.25;
+// Render constants (bundling / alpha / arrows / density) now live in constants.ts.
+// Cable-tray constants, types, and pure functions are in CableTrayRenderer.ts.
 
 // ---------------------------------------------------------------------------
 // Edge color helper (shared between pre-computation and draw loop)
@@ -1523,10 +1507,8 @@ function _drawSmoothPath(
 }
 
 // ---------------------------------------------------------------------------
-// Direction bundle cache — now stored in _cache
+// Direction bundle cache — now stored in _cache (BUNDLE_SKIP in constants.ts)
 // ---------------------------------------------------------------------------
-/** Recompute bundles every Nth frame during animation (reduces cost by ~66%) */
-const BUNDLE_SKIP = 3;
 
 // Trunk bundling cache — now stored in _cache
 
