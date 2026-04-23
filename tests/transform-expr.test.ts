@@ -468,3 +468,298 @@ describe("transformExprToString property and curve paths", () => {
 		expect(result).toBe("UNKNOWN");
 	});
 });
+
+// ---------------------------------------------------------------------------
+// transform-expr coverage fill — branch coverage for uncovered paths
+// ---------------------------------------------------------------------------
+describe("transform-expr coverage fill", () => {
+	// --- Each TRANSFORM function (正常系 1 ケース) ---
+	describe("each transform function — happy path", () => {
+		it("LINEAR without scale arg defaults to 1", () => {
+			const result = parseTransformExpr("LINEAR(index)");
+			expect(result).not.toBeNull();
+			expect(result!.transform.kind).toBe(TRANSFORM_LINEAR);
+			expect((result!.transform as any).scale).toBe(1);
+		});
+
+		it("BIN without count arg defaults to 5", () => {
+			const result = parseTransformExpr("BIN(index)");
+			expect(result).not.toBeNull();
+			expect(result!.transform.kind).toBe(TRANSFORM_BIN);
+			expect((result!.transform as any).count).toBe(5);
+		});
+
+		it("EVEN without totalRange arg defaults to 360", () => {
+			const result = parseTransformExpr("EVEN(index)");
+			expect(result).not.toBeNull();
+			expect(result!.transform.kind).toBe("even-divide");
+			expect((result!.transform as any).totalRange).toBe(360);
+		});
+
+		it("POW without exponent defaults exponent to 2 in expr", () => {
+			const result = parseTransformExpr("POW(index)");
+			expect(result).not.toBeNull();
+			expect(result!.transform.kind).toBe(TRANSFORM_EXPRESSION);
+			expect((result!.transform as any).expr).toContain("2");
+		});
+
+		it("each math func emits a TRANSFORM_EXPRESSION with scale 1", () => {
+			const funcs = ["SIN", "COS", "TAN", "SQRT", "ABS", "LOG", "EXP", "FLOOR", "CEIL"];
+			for (const fn of funcs) {
+				const result = parseTransformExpr(`${fn}(index)`);
+				expect(result, `${fn} should parse`).not.toBeNull();
+				expect(result!.transform.kind).toBe(TRANSFORM_EXPRESSION);
+				expect((result!.transform as any).scale).toBe(1);
+			}
+		});
+	});
+
+	// --- NaN / unparseable numeric argument fallback ---
+	describe("NaN / unparseable numeric fallback", () => {
+		it("LINEAR with non-numeric scale falls back to 1", () => {
+			const result = parseTransformExpr("LINEAR(index, notanumber)");
+			expect(result).not.toBeNull();
+			expect((result!.transform as any).scale).toBe(1);
+		});
+
+		it("BIN with non-numeric count falls back to 5", () => {
+			const result = parseTransformExpr("BIN(index, abc)");
+			expect(result).not.toBeNull();
+			expect((result!.transform as any).count).toBe(5);
+		});
+
+		it("EVEN with non-numeric totalRange falls back to 360", () => {
+			const result = parseTransformExpr("EVEN(index, xyz)");
+			expect(result).not.toBeNull();
+			expect((result!.transform as any).totalRange).toBe(360);
+		});
+
+		it("POW with non-numeric exponent falls back to 2 in expr", () => {
+			const result = parseTransformExpr("POW(index, notnum)");
+			expect(result).not.toBeNull();
+			expect((result!.transform as any).expr).toContain("2");
+		});
+
+		it("key=value with non-numeric value is ignored (curve keeps default)", () => {
+			// "k=notnum" — val becomes NaN, so ROSE keeps its default k (whatever registry provides)
+			const withBadKey = parseTransformExpr("ROSE(index, k=bad)");
+			const withDefault = parseTransformExpr("ROSE(index)");
+			expect(withBadKey).not.toBeNull();
+			expect(withDefault).not.toBeNull();
+			expect((withBadKey!.transform as any).params.k).toBe(
+				(withDefault!.transform as any).params.k,
+			);
+		});
+
+		it("random:notanumber uses fallback seed 42", () => {
+			const result = parseTransformExpr("random:notnum");
+			expect(result).not.toBeNull();
+			expect(result!.source.kind).toBe("random");
+			expect((result!.source as any).seed).toBe(42);
+		});
+
+		it("const:notanumber uses fallback value 1", () => {
+			const result = parseTransformExpr("const:bad");
+			expect(result).not.toBeNull();
+			expect(result!.source.kind).toBe("const");
+			expect((result!.source as any).value).toBe(1);
+		});
+
+		it("hop:from:notanumber ignores maxDepth (stays undefined)", () => {
+			const result = parseTransformExpr("hop:start:bad");
+			expect(result).not.toBeNull();
+			expect(result!.source.kind).toBe("hop");
+			expect((result!.source as any).from).toBe("start");
+			expect((result!.source as any).maxDepth).toBeUndefined();
+		});
+	});
+
+	// --- Unknown function / unknown source branches ---
+	describe("unknown function / source branches", () => {
+		it("unknown function name falls through to plain field source", () => {
+			// "FOOBAR(x)" → regex matches FUNC(args), factory undefined,
+			// falls through to plain source parser → SOURCE_FIELD with literal string
+			const result = parseTransformExpr("FOOBAR(x)");
+			expect(result).not.toBeNull();
+			expect(result!.source.kind).toBe(SOURCE_FIELD);
+			expect((result!.source as any).field).toBe("FOOBAR(x)");
+			expect(result!.transform.kind).toBe(TRANSFORM_LINEAR);
+		});
+
+		it("known function with empty source arg returns null", () => {
+			// "BIN( , 5)" → sourceStr is empty after trim → parseAxisSource returns null
+			const result = parseTransformExpr("BIN( , 5)");
+			expect(result).toBeNull();
+		});
+
+		it("raw expression without fallback returns the field source (not null)", () => {
+			// Any non-matching expression without fallback still parses as field source
+			const result = parseTransformExpr("completely+garbage*stuff");
+			expect(result).not.toBeNull();
+			expect(result!.source.kind).toBe(SOURCE_FIELD);
+		});
+	});
+
+	// --- fallback source behavior ---
+	// Note: parseAxisSource always succeeds for non-empty strings (returns SOURCE_FIELD),
+	// so the matchCurveFormula / raw-expression branches are effectively unreachable.
+	// These tests verify the observable behavior instead.
+	describe("fallback source behavior (observable)", () => {
+		it("any non-empty free-form string without fallback becomes SOURCE_FIELD linear", () => {
+			const result = parseTransformExpr("a + b*t");
+			expect(result).not.toBeNull();
+			expect(result!.source.kind).toBe(SOURCE_FIELD);
+			expect((result!.source as any).field).toBe("a + b*t");
+			expect(result!.transform.kind).toBe(TRANSFORM_LINEAR);
+		});
+
+		it("expression-like string with fallback still becomes SOURCE_FIELD linear", () => {
+			// Because parseAxisSource catches everything as a field before fallback is used
+			const fallback: AxisSource = { kind: SOURCE_INDEX };
+			const result = parseTransformExpr("t * 999 + 42", fallback);
+			expect(result).not.toBeNull();
+			expect(result!.source.kind).toBe(SOURCE_FIELD);
+			expect(result!.transform.kind).toBe(TRANSFORM_LINEAR);
+		});
+	});
+
+	// --- type coercion boundaries (string→number) ---
+	describe("type coercion boundaries", () => {
+		it("numeric string in key=value is coerced to number", () => {
+			const result = parseTransformExpr("LISSAJOUS(index, a=2.5)");
+			expect(result).not.toBeNull();
+			expect((result!.transform as any).params.a).toBe(2.5);
+			expect(typeof (result!.transform as any).params.a).toBe("number");
+		});
+
+		it("integer scale is stored as number, not string", () => {
+			const result = parseTransformExpr("LINEAR(index, 7)");
+			expect(result).not.toBeNull();
+			expect((result!.transform as any).scale).toBe(7);
+			expect(typeof (result!.transform as any).scale).toBe("number");
+		});
+
+		it("float count is accepted (number type)", () => {
+			const result = parseTransformExpr("BIN(index, 3.7)");
+			expect(result).not.toBeNull();
+			expect(typeof (result!.transform as any).count).toBe("number");
+		});
+
+		it("serialized number→string for BIN count", () => {
+			const source: AxisSource = { kind: SOURCE_INDEX };
+			const transform: AxisTransform = { kind: TRANSFORM_BIN, count: 12 };
+			const result = transformExprToString(source, transform);
+			expect(typeof result).toBe("string");
+			expect(result).toContain("12");
+		});
+
+		it("serialized number→string for LINEAR non-unit scale", () => {
+			const source: AxisSource = { kind: SOURCE_INDEX };
+			const transform: AxisTransform = { kind: TRANSFORM_LINEAR, scale: 0.5 };
+			const result = transformExprToString(source, transform);
+			expect(typeof result).toBe("string");
+			expect(result).toContain("0.5");
+		});
+	});
+
+	// --- getTransformExprSuggestions branch paths ---
+	describe("getTransformExprSuggestions branches", () => {
+		it("empty sources array → exampleSource defaults to 'index'", () => {
+			const suggestions = getTransformExprSuggestions([]);
+			expect(suggestions.length).toBeGreaterThan(0);
+			// No plain sources; only function-wrapped with "index"
+			const hasIndexWrapped = suggestions.some((s) => s.includes("(index)"));
+			expect(hasIndexWrapped).toBe(true);
+		});
+
+		it("first source is used as exampleSource for wrapped suggestions", () => {
+			const suggestions = getTransformExprSuggestions(["degree", "tag:?"]);
+			// First wrapped example should use "degree"
+			const hasDegreeWrapped = suggestions.some((s) => s.includes("(degree)"));
+			expect(hasDegreeWrapped).toBe(true);
+		});
+	});
+
+	// --- transformExprToString: all source kinds default branch ---
+	describe("transformExprToString source default branch", () => {
+		it("metric source serializes as metric name", () => {
+			const source: AxisSource = { kind: SOURCE_METRIC, metric: "bfs-depth" as any };
+			const transform: AxisTransform = { kind: TRANSFORM_LINEAR, scale: 1 };
+			const result = transformExprToString(source, transform);
+			expect(result).toBe("bfs-depth");
+		});
+
+		it("random source with default seed 42 serializes as bare 'random'", () => {
+			const source: AxisSource = { kind: "random" as any, seed: 42 };
+			const transform: AxisTransform = { kind: TRANSFORM_LINEAR, scale: 1 };
+			const result = transformExprToString(source, transform);
+			expect(result).toBe("random");
+		});
+
+		it("const source with default value 1 serializes as bare 'const'", () => {
+			const source: AxisSource = { kind: "const" as any, value: 1 };
+			const transform: AxisTransform = { kind: TRANSFORM_LINEAR, scale: 1 };
+			const result = transformExprToString(source, transform);
+			expect(result).toBe("const");
+		});
+
+		it("const source with non-default value serializes with value", () => {
+			const source: AxisSource = { kind: "const" as any, value: 7 };
+			const transform: AxisTransform = { kind: TRANSFORM_LINEAR, scale: 1 };
+			const result = transformExprToString(source, transform);
+			expect(result).toContain("const:7");
+		});
+
+		it("hop source serializes 'hop:from' without maxDepth", () => {
+			const source: AxisSource = { kind: "hop" as any, from: "nodeA" };
+			const transform: AxisTransform = { kind: TRANSFORM_LINEAR, scale: 1 };
+			const result = transformExprToString(source, transform);
+			expect(result).toBe("hop:nodeA");
+		});
+
+		it("unknown source kind falls through to 'index'", () => {
+			const source = { kind: "unknown-kind" } as any;
+			const transform: AxisTransform = { kind: TRANSFORM_LINEAR, scale: 1 };
+			const result = transformExprToString(source, transform);
+			expect(result).toBe("index");
+		});
+	});
+
+	// --- curveToFuncName fallback path (via transformExprToString) ---
+	describe("curve fallback: unknown curve kind", () => {
+		it("TRANSFORM_CURVE with curve not in registry falls back to 'NAME(t)'", () => {
+			const source: AxisSource = { kind: SOURCE_INDEX };
+			const transform = {
+				kind: "curve" as any,
+				curve: "unknown-curve" as any,
+				params: {},
+				scale: 1,
+			} as any;
+			const result = transformExprToString(source, transform);
+			// curveDef undefined → falls to `${curveToFuncName(curve)}(t)`
+			// curveToFuncName returns curve.toUpperCase() fallback
+			expect(result).toContain("(t)");
+			expect(result.toUpperCase()).toContain("UNKNOWN-CURVE");
+		});
+	});
+
+	// --- splitArgs nested parens handling ---
+	describe("splitArgs nested parens (indirect via parser)", () => {
+		it("nested parens in source arg keep argument boundaries", () => {
+			// "LINEAR(SIN(degree), 2)" — source contains parens, comma inside NOT a separator
+			const result = parseTransformExpr("LINEAR(SIN(degree), 2)");
+			expect(result).not.toBeNull();
+			// source becomes SOURCE_FIELD literal "SIN(degree)" (not recursively parsed)
+			expect(result!.source.kind).toBe(SOURCE_FIELD);
+			expect((result!.source as any).field).toBe("SIN(degree)");
+			expect((result!.transform as any).scale).toBe(2);
+		});
+
+		it("multi-level nested parens in source do not break splitting", () => {
+			const result = parseTransformExpr("BIN(A(B(C), D), 3)");
+			expect(result).not.toBeNull();
+			expect(result!.source.kind).toBe(SOURCE_FIELD);
+			expect((result!.transform as any).count).toBe(3);
+		});
+	});
+});

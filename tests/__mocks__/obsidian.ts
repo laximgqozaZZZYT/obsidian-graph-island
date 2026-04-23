@@ -28,6 +28,7 @@ export class App {
 	vault = {
 		getAbstractFileByPath: () => null,
 		cachedRead: async () => "",
+		getMarkdownFiles: () => [] as any[],
 	};
 	metadataCache = {
 		getFileCache: () => null,
