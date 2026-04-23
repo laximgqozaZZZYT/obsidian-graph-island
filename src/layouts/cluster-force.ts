@@ -1535,7 +1535,7 @@ function computeUnifiedTimelineTargets(
 // ---------------------------------------------------------------------------
 
 /** Compute effective column spacing from the X range of unified offsets. */
-function computeEffectiveColumnSpacing(
+export function computeEffectiveColumnSpacing(
 	unifiedOffsets: Map<string, { dx: number; dy: number }>,
 	nodeSize: number,
 ): number {
@@ -2342,7 +2342,7 @@ function applyGroupRule(
 // Grouping
 // ---------------------------------------------------------------------------
 
-function partitionNodes(nodes: GraphNode[], groupBy: string, degrees: Map<string, number>): Map<string, GraphNode[]> {
+export function partitionNodes(nodes: GraphNode[], groupBy: string, degrees: Map<string, number>): Map<string, GraphNode[]> {
 	const groups = new Map<string, GraphNode[]>();
 
 	// Normalize "field:?" syntax → extract field name
@@ -2435,7 +2435,7 @@ function splitByConnectedComponents(groups: Map<string, GraphNode[]>, edges: Gra
 	return result;
 }
 
-function backlinkBucket(deg: number): string {
+export function backlinkBucket(deg: number): string {
 	if (deg === 0) return "0";
 	if (deg <= 2) return "1-2";
 	if (deg <= 5) return "3-5";
