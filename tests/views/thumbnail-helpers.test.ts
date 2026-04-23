@@ -47,6 +47,12 @@ describe("extractFrontmatterImage", () => {
 		expect(extractFrontmatterImage({ image: null })).toBeNull();
 	});
 
+	it("falls back from null `image` to `thumbnail` (?? semantics, not ||)", () => {
+		// Guards against a regression where `??` is rewritten to `||`: `||` would
+		// also fall through on `""`, changing behavior for intentional empty strings.
+		expect(extractFrontmatterImage({ image: null, thumbnail: "thumb.png" })).toBe("thumb.png");
+	});
+
 	it("rejects non-string image values (number, object, array)", () => {
 		expect(extractFrontmatterImage({ image: 42 })).toBeNull();
 		expect(extractFrontmatterImage({ image: { path: "x.png" } })).toBeNull();
@@ -137,6 +143,6 @@ describe("createThumbnailClone", () => {
 		const src = makeSrcImg("orig.png");
 		const clone = createThumbnailClone(src, 10, 20, 30);
 		expect(clone).not.toBe(src);
-		expect(src.className).toBe(undefined as unknown as string);
+		expect(src).toEqual({ src: "orig.png" });
 	});
 });
