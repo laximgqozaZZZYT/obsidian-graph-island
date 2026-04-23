@@ -1,7 +1,7 @@
 ---
 priority: high
 reported: 2026-04-24
-status: pending
+status: in-progress
 source: decomposed
 parent: 145-coverage-drop
 depends: none
