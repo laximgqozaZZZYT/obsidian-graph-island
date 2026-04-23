@@ -1,7 +1,7 @@
 ---
 priority: high
 reported: 2026-04-20
-status: in-progress
+status: done
 source: decomposed
 parent: 1168-1159-panel-sections-edge-display
 depends: none
