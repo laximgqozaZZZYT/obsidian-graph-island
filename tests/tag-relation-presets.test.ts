@@ -211,4 +211,79 @@ describe("detectTagRelations", () => {
 			expect(r.type).toBe("inheritance");
 		}
 	});
+
+	// --- Branch coverage supplement (141-coverage-drop) ---
+
+	it("returns empty array when getFileCache returns null for all files", () => {
+		// Cache miss path (`!cache?.frontmatter?.tags` with cache=null) — line 74
+		const mdFiles = [
+			{ path: "a.md", name: "a.md" },
+			{ path: "b.md", name: "b.md" },
+		];
+		const app = {
+			vault: { getMarkdownFiles: () => mdFiles },
+			metadataCache: { getFileCache: () => null },
+		} as any;
+		expect(detectTagRelations(app)).toEqual([]);
+	});
+
+	it("returns empty array when frontmatter has no tags field", () => {
+		// frontmatter exists but .tags is undefined
+		const mdFiles = [
+			{ path: "a.md", name: "a.md" },
+			{ path: "b.md", name: "b.md" },
+		];
+		const fileCache = new Map<string, any>([
+			["a.md", { frontmatter: { title: "A" } }],
+			["b.md", { frontmatter: { title: "B" } }],
+		]);
+		const app = {
+			vault: { getMarkdownFiles: () => mdFiles },
+			metadataCache: { getFileCache: (f: any) => fileCache.get(f.path) },
+		} as any;
+		expect(detectTagRelations(app)).toEqual([]);
+	});
+
+	it("single file with multiple tags produces co-occurrence but no relation (count below MIN_TAG_COUNT)", () => {
+		// Each tag count = 1 (< MIN_TAG_COUNT=2) → co-occurrence built but no relations emitted
+		const app = mockApp([{ path: "solo.md", tags: ["alpha", "beta", "gamma"] }]);
+		const relations = detectTagRelations(app);
+		expect(relations).toEqual([]);
+	});
+
+	it("aggregates co-occurrence counts across multiple files into transitive hub chain", () => {
+		// "parent" appears in 27 files, "child" in 12; both pass hub threshold (>=10).
+		// child always co-occurs with parent → Step 4 emits child→parent via count aggregation.
+		const files: { path: string; tags: string[] }[] = [];
+		for (let i = 0; i < 12; i++) files.push({ path: `both${i}.md`, tags: ["child", "parent"] });
+		for (let i = 0; i < 15; i++) files.push({ path: `p${i}.md`, tags: ["parent"] });
+		const app = mockApp(files);
+		const relations = detectTagRelations(app);
+		const rel = relations.find((r: TagRelation) => r.source === "child");
+		expect(rel).toBeDefined();
+		expect(rel?.target).toBe("parent");
+		expect(rel?.type).toBe("inheritance");
+	});
+
+	it("normalizes mixed # prefix and case as the same tag (count aggregation across variants)", () => {
+		// "#Parent", "parent", "#PARENT" all collapse into a single normalized tag "parent".
+		// Without normalization parent's count would be 6 each (below hub threshold).
+		const files: { path: string; tags: string[] }[] = [];
+		for (let i = 0; i < 6; i++) files.push({ path: `a${i}.md`, tags: ["#Parent", "child"] });
+		for (let i = 0; i < 6; i++) files.push({ path: `b${i}.md`, tags: ["parent", "child"] });
+		for (let i = 0; i < 6; i++) files.push({ path: `c${i}.md`, tags: ["#PARENT"] });
+		const app = mockApp(files);
+		const relations = detectTagRelations(app);
+		// parent aggregates to count 18 (hub), child aggregates to 12 (hub).
+		// Transitive chain: child → parent.
+		const rel = relations.find((r: TagRelation) => r.source === "child");
+		expect(rel).toBeDefined();
+		expect(rel?.target).toBe("parent");
+		for (const r of relations) {
+			expect(r.source.startsWith("#")).toBe(false);
+			expect(r.target.startsWith("#")).toBe(false);
+			expect(r.source).toBe(r.source.toLowerCase());
+			expect(r.target).toBe(r.target.toLowerCase());
+		}
+	});
 });
