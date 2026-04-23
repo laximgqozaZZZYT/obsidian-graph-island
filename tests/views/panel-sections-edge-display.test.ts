@@ -261,6 +261,17 @@ describe("buildEdgeVisibilityControls", () => {
 		expect(dir).toBeDefined();
 	});
 
+	it("edgeDirectionFilter セレクト変更 → cb.markDirty が呼ばれる", () => {
+		const panel = makePanel();
+		const cb = makeCb();
+		buildEdgeVisibilityControls(makeMockEl(), panel, cb, {});
+		const dir = addSelectCalls.find((c) => c[1] === "display.edgeDirectionFilter");
+		expect(dir).toBeDefined();
+		dir![4]("bidirectional");
+		expect(panel.edgeDirectionFilter).toBe("bidirectional");
+		expect(cb.markDirty).toHaveBeenCalled();
+	});
+
 	it("shows edge-type toggles only for types with non-zero counts (plus similar)", () => {
 		const counts = { link: 100, tag: 50, similar: 0, inheritance: 10 };
 		buildEdgeVisibilityControls(makeMockEl(), makePanel(), makeCb(), counts);
