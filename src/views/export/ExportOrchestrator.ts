@@ -108,8 +108,7 @@ export function buildSvgExportArgs(
 ): SvgExportArgs {
 	const width = viewState.width ?? DEFAULT_SVG_WIDTH;
 	const height = viewState.height ?? DEFAULT_SVG_HEIGHT;
-	const background =
-		viewState.background ?? settings.background ?? DEFAULT_SVG_BACKGROUND;
+	const background = viewState.background ?? settings.background ?? DEFAULT_SVG_BACKGROUND;
 	const nodeRadius = settings.nodeSize ?? DEFAULT_SVG_NODE_RADIUS;
 	const showLabels = viewState.showLabels ?? settings.showLabels ?? true;
 	const edgeAlpha = settings.edgeAlpha ?? DEFAULT_SVG_EDGE_ALPHA;
@@ -141,13 +140,9 @@ export function buildSvgExportArgs(
  * `width`/`height` are clamped to {@link MIN_CANVAS_DIMENSION} so a 0x0 offscreen
  * canvas cannot produce an invalid export.
  */
-export function buildPngExportArgs(
-	canvas: PngExportCanvasLike,
-	settings: PngExportSettings = {},
-): PngExportArgs {
+export function buildPngExportArgs(canvas: PngExportCanvasLike, settings: PngExportSettings = {}): PngExportArgs {
 	const rawScale = settings.scale;
-	const scale =
-		typeof rawScale === "number" && rawScale > 0 ? rawScale : DEFAULT_PNG_SCALE;
+	const scale = typeof rawScale === "number" && rawScale > 0 ? rawScale : DEFAULT_PNG_SCALE;
 
 	const baseW = Math.max(MIN_CANVAS_DIMENSION, Math.floor(canvas.width));
 	const baseH = Math.max(MIN_CANVAS_DIMENSION, Math.floor(canvas.height));
@@ -204,9 +199,7 @@ function normalisePresetValue(value: unknown): unknown {
 // safeExport
 // ---------------------------------------------------------------------------
 
-export type SafeExportResult<T> =
-	| { ok: true; data: T }
-	| { ok: false; error: Error };
+export type SafeExportResult<T> = { ok: true; data: T } | { ok: false; error: Error };
 
 /**
  * Run an export-producing function and wrap the outcome in a discriminated

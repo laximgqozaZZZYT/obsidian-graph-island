@@ -110,9 +110,7 @@ describe("GraphSnapshot: round-trip", () => {
 		const data = makeData(3, 2);
 		const snap = serializeState(data, "rt", ctx);
 		const restored = restoreState(snap);
-		expect(restored?.edges).toEqual(
-			data.edges.map((e) => ({ source: e.source, target: e.target, type: e.type })),
-		);
+		expect(restored?.edges).toEqual(data.edges.map((e) => ({ source: e.source, target: e.target, type: e.type })));
 	});
 
 	it("serializeState → restoreState preserves context", () => {
@@ -280,9 +278,11 @@ describe("GraphSnapshot: createAutoSnapshotHandler", () => {
 		};
 	}
 
-	function makeHost(
-		overrides: Partial<AutoSnapshotHost> & { snapshots?: GraphSnapshot[] } = {},
-	): { host: AutoSnapshotHost; snapshots: GraphSnapshot[]; persistSpy: ReturnType<typeof vi.fn> } {
+	function makeHost(overrides: Partial<AutoSnapshotHost> & { snapshots?: GraphSnapshot[] } = {}): {
+		host: AutoSnapshotHost;
+		snapshots: GraphSnapshot[];
+		persistSpy: ReturnType<typeof vi.fn>;
+	} {
 		const snapshots = overrides.snapshots ?? [];
 		const persistSpy = vi.fn();
 		const host: AutoSnapshotHost = {

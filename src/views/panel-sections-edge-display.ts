@@ -39,18 +39,10 @@ export function buildEdgeStyleControls(parent: HTMLElement, panel: PanelState, c
 		t("desc.fadeEdges"),
 	);
 	const rtEdge = mergeRenderThresholds(panel.renderThresholds);
-	addSlider(
-		parent,
-		t("display.edgeOpacity") ?? "Edge Opacity",
-		0.05,
-		1.0,
-		0.05,
-		rtEdge.globalEdgeAlpha,
-		(v) => {
-			ensureRT(panel).globalEdgeAlpha = v;
-			cb.markDirty();
-		},
-	);
+	addSlider(parent, t("display.edgeOpacity") ?? "Edge Opacity", 0.05, 1.0, 0.05, rtEdge.globalEdgeAlpha, (v) => {
+		ensureRT(panel).globalEdgeAlpha = v;
+		cb.markDirty();
+	});
 	addSlider(
 		parent,
 		t("display.edgeMinZoom") ?? "Edge Min Zoom",
@@ -154,18 +146,10 @@ export function buildEdgeLabelControls(parent: HTMLElement, panel: PanelState, c
 		},
 		t("desc.edgeLabelZoomFade"),
 	);
-	addSlider(
-		parent,
-		t("display.edgeLabelFontSize") ?? "Edge Label Size",
-		6,
-		18,
-		1,
-		rtEdge.edgeLabelFontSize,
-		(v) => {
-			ensureRT(panel).edgeLabelFontSize = v;
-			cb.markDirty();
-		},
-	);
+	addSlider(parent, t("display.edgeLabelFontSize") ?? "Edge Label Size", 6, 18, 1, rtEdge.edgeLabelFontSize, (v) => {
+		ensureRT(panel).edgeLabelFontSize = v;
+		cb.markDirty();
+	});
 }
 
 // ---------------------------------------------------------------------------
@@ -253,13 +237,7 @@ export function buildEdgeVisibilityControls(
 	const edgeTypeToggles: [string, string, keyof PanelState, string, () => void][] = [
 		[t("display.links"), "link", "showLinks", t("desc.links"), () => cb.markDirty()],
 		[t("display.sharedTags"), "tag", "showTagEdges", t("desc.sharedTags"), () => cb.markDirty()],
-		[
-			t("display.sharedCategory"),
-			"category",
-			"showCategoryEdges",
-			t("desc.sharedCategory"),
-			() => cb.markDirty(),
-		],
+		[t("display.sharedCategory"), "category", "showCategoryEdges", t("desc.sharedCategory"), () => cb.markDirty()],
 		[t("display.semantic"), "semantic", "showSemanticEdges", t("desc.semantic"), () => cb.markDirty()],
 		[t("display.inheritance"), "inheritance", "showInheritance", t("desc.inheritance"), () => cb.markDirty()],
 		[t("display.aggregation"), "aggregation", "showAggregation", t("desc.aggregation"), () => cb.markDirty()],

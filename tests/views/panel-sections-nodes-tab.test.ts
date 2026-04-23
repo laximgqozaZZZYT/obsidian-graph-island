@@ -36,7 +36,10 @@ type MockEl = {
 	dataset: Record<string, string>;
 	classList: { toggle: (c: string) => void };
 	createDiv: (opts?: { cls?: string }) => MockEl;
-	createEl: (tag: string, opts?: { cls?: string; text?: string; type?: string; placeholder?: string; value?: string }) => MockEl;
+	createEl: (
+		tag: string,
+		opts?: { cls?: string; text?: string; type?: string; placeholder?: string; value?: string },
+	) => MockEl;
 	addEventListener: (ev: string, fn: (...a: any[]) => void) => void;
 	querySelector: (sel: string) => MockEl | null;
 	querySelectorAll: (sel: string) => MockEl[];
@@ -224,12 +227,7 @@ describe("panel-sections-nodes-tab", () => {
 			const classes = tab.children.map((c) => c.cls);
 			// Expected section classes in DOM order
 			expect(classes).toEqual(
-				expect.arrayContaining([
-					"gi-node-stats",
-					"gi-node-tree-filter",
-					"gi-node-tree",
-					"gi-node-legend",
-				]),
+				expect.arrayContaining(["gi-node-stats", "gi-node-tree-filter", "gi-node-tree", "gi-node-legend"]),
 			);
 			expect(classes.indexOf("gi-node-stats")).toBeLessThan(classes.indexOf("gi-node-tree-filter"));
 			expect(classes.indexOf("gi-node-tree-filter")).toBeLessThan(classes.indexOf("gi-node-tree"));

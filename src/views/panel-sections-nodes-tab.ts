@@ -227,12 +227,7 @@ function renderDir(parent: HTMLElement, dir: DirNode, path: string, depth: numbe
 // ---------------------------------------------------------------------------
 
 /** Stats bar — total / visible / hidden counts. */
-export function buildNodesStatsSection(
-	tabEl: HTMLElement,
-	total: number,
-	visible: number,
-	hidden: number,
-): void {
+export function buildNodesStatsSection(tabEl: HTMLElement, total: number, visible: number, hidden: number): void {
 	const statsBar = tabEl.createDiv({ cls: "gi-node-stats" });
 	statsBar.style.cssText = "padding:4px 8px;font-size:10px;color:var(--text-muted);display:flex;gap:8px;";
 	statsBar.createEl("span", { text: `${total} total` });
@@ -249,10 +244,7 @@ export function buildNodesStatsSection(
  * Separated so the orchestrator (and tests) can construct it independently
  * of DOM-producing section builders.
  */
-export function buildNodesDegreeSection(
-	entries: NodeTreeEntry[],
-	cb: PanelCallbacks,
-): Map<string, number> {
+export function buildNodesDegreeSection(entries: NodeTreeEntry[], cb: PanelCallbacks): Map<string, number> {
 	const degreeLookup = new Map<string, number>();
 	for (const e of entries) {
 		degreeLookup.set(e.id, cb.getForwardLinks(e.id).length + cb.getBacklinks(e.id).length);
@@ -265,7 +257,12 @@ export function buildNodesFilterSection(
 	tabEl: HTMLElement,
 	degreeLookup: Map<string, number>,
 	excludeSet: Set<string>,
-): { filterInput: HTMLInputElement; sortSelect: HTMLSelectElement; degreeLookup: Map<string, number>; excludeSet: Set<string> } {
+): {
+	filterInput: HTMLInputElement;
+	sortSelect: HTMLSelectElement;
+	degreeLookup: Map<string, number>;
+	excludeSet: Set<string>;
+} {
 	const filterWrap = tabEl.createDiv({ cls: "gi-node-tree-filter" });
 	filterWrap.style.cssText = "padding:4px 8px;display:flex;gap:4px;align-items:center;";
 	const filterInput = filterWrap.createEl("input", {
@@ -402,12 +399,7 @@ function exportNodesCsv(entries: NodeTreeEntry[]): void {
 }
 
 /** Orchestrator — builds the full Nodes tab by delegating to section builders. */
-export function buildNodesTab(
-	tabEl: HTMLElement,
-	panel: PanelState,
-	_ctx: PanelContext,
-	cb: PanelCallbacks,
-): void {
+export function buildNodesTab(tabEl: HTMLElement, panel: PanelState, _ctx: PanelContext, cb: PanelCallbacks): void {
 	const entries = cb.getNodeTreeData();
 	const excludeSet = new Set(panel.excludeNodes ?? []);
 	const visibleCount = entries.filter((e) => e.isVisible).length;

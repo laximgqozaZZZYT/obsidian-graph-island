@@ -489,11 +489,7 @@ describe("showOrphans=false invariant", () => {
 		// filterOrphans runs before filterAttachments: note.md is non-orphan at
 		// orphan-check time (edge to pic.png still present); pic.png is stripped
 		// after. iso.md has no edges at all, so it's dropped as a true orphan.
-		const nodes = [
-			node("note.md"),
-			node("pic.png", { filePath: "pic.png" }),
-			node("iso.md"),
-		];
+		const nodes = [node("note.md"), node("pic.png", { filePath: "pic.png" }), node("iso.md")];
 		const edges = [edge("note.md", "pic.png")];
 		const result = applyVisibilityFilters(nodes, edges, {
 			...baseOpts,

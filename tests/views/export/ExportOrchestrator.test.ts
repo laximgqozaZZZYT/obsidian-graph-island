@@ -38,11 +38,7 @@ describe("buildSvgExportArgs", () => {
 	});
 
 	it("viewState.background overrides settings.background, defaults fill the rest", () => {
-		const args = buildSvgExportArgs(
-			{ nodes: [], edges: [] },
-			{ background: "#aaa" },
-			{ background: "#zzz" },
-		);
+		const args = buildSvgExportArgs({ nodes: [], edges: [] }, { background: "#aaa" }, { background: "#zzz" });
 
 		expect(args.options.background).toBe("#zzz");
 		expect(args.options.width).toBeGreaterThan(0);
@@ -52,11 +48,7 @@ describe("buildSvgExportArgs", () => {
 	});
 
 	it("preserves falsy-but-valid values (empty string background, showLabels=false)", () => {
-		const args = buildSvgExportArgs(
-			{ nodes: [], edges: [] },
-			{ showLabels: false },
-			{ background: "" },
-		);
+		const args = buildSvgExportArgs({ nodes: [], edges: [] }, { showLabels: false }, { background: "" });
 
 		expect(args.options.background).toBe("");
 		expect(args.options.showLabels).toBe(false);

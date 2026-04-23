@@ -107,21 +107,15 @@ describe("buildExportFilename", () => {
 	const FIXED_DATE = new Date("2026-04-24T00:00:00Z");
 
 	it("builds `graph-island-<kind>-<date>.<ext>` for typical inputs", () => {
-		expect(buildExportFilename("graph", "svg", FIXED_DATE)).toBe(
-			"graph-island-graph-2026-04-24.svg",
-		);
+		expect(buildExportFilename("graph", "svg", FIXED_DATE)).toBe("graph-island-graph-2026-04-24.svg");
 	});
 
 	it("drops the kind segment when kind is empty", () => {
-		expect(buildExportFilename("", "png", FIXED_DATE)).toBe(
-			"graph-island-2026-04-24.png",
-		);
+		expect(buildExportFilename("", "png", FIXED_DATE)).toBe("graph-island-2026-04-24.png");
 	});
 
 	it("strips a leading dot from the extension", () => {
-		expect(buildExportFilename("export", ".json", FIXED_DATE)).toBe(
-			"graph-island-export-2026-04-24.json",
-		);
+		expect(buildExportFilename("export", ".json", FIXED_DATE)).toBe("graph-island-export-2026-04-24.json");
 	});
 
 	it("sanitises unsafe characters from kind", () => {
@@ -131,21 +125,15 @@ describe("buildExportFilename", () => {
 	});
 
 	it("sanitises unsafe characters from ext", () => {
-		expect(buildExportFilename("x", "sv g!", FIXED_DATE)).toBe(
-			"graph-island-x-2026-04-24.svg",
-		);
+		expect(buildExportFilename("x", "sv g!", FIXED_DATE)).toBe("graph-island-x-2026-04-24.svg");
 	});
 
 	it("falls back to 'bin' when the extension sanitises away to empty", () => {
-		expect(buildExportFilename("x", "!!!", FIXED_DATE)).toBe(
-			"graph-island-x-2026-04-24.bin",
-		);
+		expect(buildExportFilename("x", "!!!", FIXED_DATE)).toBe("graph-island-x-2026-04-24.bin");
 	});
 
 	it("drops the kind segment when kind sanitises away to empty", () => {
-		expect(buildExportFilename("???", "svg", FIXED_DATE)).toBe(
-			"graph-island-2026-04-24.svg",
-		);
+		expect(buildExportFilename("???", "svg", FIXED_DATE)).toBe("graph-island-2026-04-24.svg");
 	});
 
 	it("preserves underscores and hyphens in kind/ext", () => {
