@@ -1185,7 +1185,7 @@ export function buildPanel(panelEl: HTMLElement, panel: PanelState, ctx: PanelCo
 		filter: () => buildFilterTab(filterTab, panel, ctx, cb),
 		display: () => buildDisplayTab(displayTab, panel, ctx, cb),
 		layout: () => buildLayoutTab(layoutTab, panel, ctx, cb),
-		nodes: () => _buildNodesTab(nodesTab, panel, ctx, cb),
+		nodes: () => buildNodesTab(nodesTab, panel, ctx, cb),
 		settings: () => buildSettingsTab(settingsTab, panel, ctx, cb),
 	};
 	const builtTabs = new Set<TabId>();
@@ -1617,13 +1617,6 @@ function _buildSettingsActionButtons(
 			cb.rebuildPanel();
 		});
 	}
-}
-
-// ---------------------------------------------------------------------------
-// Nodes Tab — Directory tree with visibility toggle and hover/link highlighting
-// ---------------------------------------------------------------------------
-function _buildNodesTab(tabEl: HTMLElement, panel: PanelState, ctx: PanelContext, cb: PanelCallbacks): void {
-	buildNodesTab(tabEl, panel, ctx, cb);
 }
 
 function buildSettingsTab(settingsTab: HTMLElement, panel: PanelState, ctx: PanelContext, cb: PanelCallbacks): void {
