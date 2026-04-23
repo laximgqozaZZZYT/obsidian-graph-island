@@ -1,7 +1,7 @@
 ---
 priority: high
 reported: 2026-04-24
-status: in-progress
+status: done
 source: decomposed
 parent: 1175-1168-buildedgevisibilitycontrols-3
 depends: none
