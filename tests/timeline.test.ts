@@ -791,3 +791,239 @@ describe("applyTimelineLayout edge cases", () => {
 		expect(result.timeSteps).toEqual(["2024-01-01"]);
 	});
 });
+
+// ---------------------------------------------------------------------------
+// applyTimelineLayout — hierarchical lanes via parent_id (assignHierarchicalLanes)
+// ---------------------------------------------------------------------------
+describe("applyTimelineLayout hierarchical parent_id lanes", () => {
+	it("uses hierarchical strategy when any timed node has parent_id", () => {
+		const nodes = [
+			makeNode("parent", { filePath: "classic-hamlet/parent.md" } as any),
+			makeNode("child1", { filePath: "classic-hamlet/child1.md" } as any),
+			makeNode("child2", { filePath: "classic-hamlet/child2.md" } as any),
+		];
+		const fm = makeFrontmatter({
+			parent: { date: "T1" },
+			child1: { date: "T2", parent_id: "parent", story_order: "1" },
+			child2: { date: "T3", parent_id: "parent", story_order: "2" },
+		});
+
+		const result = applyTimelineLayout(
+			{ nodes, edges: [] },
+			{ timeKey: "date", getNodeProperty: fm, laneHeight: 50, startY: 0 },
+		);
+
+		// All in same work folder "classic-hamlet" → single lane
+		const yA = result.data.nodes.find((n) => n.id === "parent")!.y;
+		const yB = result.data.nodes.find((n) => n.id === "child1")!.y;
+		const yC = result.data.nodes.find((n) => n.id === "child2")!.y;
+		expect(yA).toBe(yB);
+		expect(yB).toBe(yC);
+		expect(result.lanes).toBe(1);
+	});
+
+	it("separates different works (classic-/mythology-/bible- prefixes) into distinct lanes", () => {
+		const nodes = [
+			makeNode("a", { filePath: "classic-hamlet/a.md" } as any),
+			makeNode("b", { filePath: "mythology-norse/b.md" } as any),
+			makeNode("c", { filePath: "bible-genesis/c.md" } as any),
+		];
+		const fm = makeFrontmatter({
+			a: { date: "T1", parent_id: "root-a" },
+			b: { date: "T1", parent_id: "root-b" },
+			c: { date: "T1", parent_id: "root-c" },
+		});
+
+		const result = applyTimelineLayout(
+			{ nodes, edges: [] },
+			{ timeKey: "date", getNodeProperty: fm, laneHeight: 50, startY: 0 },
+		);
+
+		const yA = result.data.nodes.find((n) => n.id === "a")!.y;
+		const yB = result.data.nodes.find((n) => n.id === "b")!.y;
+		const yC = result.data.nodes.find((n) => n.id === "c")!.y;
+		const unique = new Set([yA, yB, yC]);
+		expect(unique.size).toBe(3);
+		expect(result.lanes).toBe(3);
+	});
+
+	it("generic dashed folder name qualifies as work group", () => {
+		const nodes = [
+			makeNode("a", { filePath: "my-saga/a.md" } as any),
+			makeNode("b", { filePath: "my-saga/b.md" } as any),
+			makeNode("c", { filePath: "other-epic/c.md" } as any),
+		];
+		const fm = makeFrontmatter({
+			a: { date: "T1", parent_id: "pa" },
+			b: { date: "T2", parent_id: "pa" },
+			c: { date: "T1", parent_id: "pc" },
+		});
+
+		const result = applyTimelineLayout(
+			{ nodes, edges: [] },
+			{ timeKey: "date", getNodeProperty: fm, laneHeight: 50, startY: 0 },
+		);
+
+		const yA = result.data.nodes.find((n) => n.id === "a")!.y;
+		const yB = result.data.nodes.find((n) => n.id === "b")!.y;
+		const yC = result.data.nodes.find((n) => n.id === "c")!.y;
+		// my-saga members share, other-epic separate
+		expect(yA).toBe(yB);
+		expect(yA).not.toBe(yC);
+	});
+
+	it("falls back to second-to-last segment when no dashed folder is present", () => {
+		// No segment with "-" → uses segs[segs.length - 2] ("notes" in "workX/notes/file.md")
+		const nodes = [
+			makeNode("a", { filePath: "work1/notes/a.md" } as any),
+			makeNode("b", { filePath: "work1/notes/b.md" } as any),
+			makeNode("c", { filePath: "work2/notes/c.md" } as any),
+		];
+		const fm = makeFrontmatter({
+			a: { date: "T1", parent_id: "pa" },
+			b: { date: "T2" },
+			c: { date: "T3" }, // distinct time to avoid cell stacking with a
+		});
+
+		const result = applyTimelineLayout(
+			{ nodes, edges: [] },
+			{ timeKey: "date", getNodeProperty: fm, laneHeight: 50, startY: 0 },
+		);
+
+		// All three have workGroup="notes" (second-to-last segment fallback) → single lane
+		// Verify via placements to avoid Y-stacking artifacts
+		const pA = result.placements.find((p) => p.nodeId === "a")!;
+		const pB = result.placements.find((p) => p.nodeId === "b")!;
+		const pC = result.placements.find((p) => p.nodeId === "c")!;
+		expect(pA.lane).toBe(0);
+		expect(pB.lane).toBe(0);
+		expect(pC.lane).toBe(0);
+		expect(result.lanes).toBe(1);
+	});
+
+	it("single-segment path falls back to the segment itself", () => {
+		// filePath "solo.md" → segs=["solo.md"] → segs.length < 2 → returns segs[0]="solo.md"
+		const nodes = [
+			makeNode("a", { filePath: "fileA.md" } as any),
+			makeNode("b", { filePath: "fileB.md" } as any),
+		];
+		const fm = makeFrontmatter({
+			a: { date: "T1", parent_id: "pa" },
+			b: { date: "T2" },
+		});
+
+		const result = applyTimelineLayout(
+			{ nodes, edges: [] },
+			{ timeKey: "date", getNodeProperty: fm, laneHeight: 50, startY: 0 },
+		);
+
+		const yA = result.data.nodes.find((n) => n.id === "a")!.y;
+		const yB = result.data.nodes.find((n) => n.id === "b")!.y;
+		// Different works: fileA.md vs fileB.md → distinct lanes
+		expect(yA).not.toBe(yB);
+		expect(result.lanes).toBe(2);
+	});
+
+	it("story_order is parsed without throwing on non-numeric values", () => {
+		// story_order parse failure path (parseFloat returns NaN → falls back to 0)
+		const nodes = [
+			makeNode("a", { filePath: "classic-x/a.md" } as any),
+			makeNode("b", { filePath: "classic-x/b.md" } as any),
+		];
+		const fm = makeFrontmatter({
+			a: { date: "T1", parent_id: "pa", story_order: "not-a-number" },
+			b: { date: "T2", parent_id: "pa", story_order: "5.5" },
+		});
+
+		// Should not throw
+		expect(() =>
+			applyTimelineLayout({ nodes, edges: [] }, { timeKey: "date", getNodeProperty: fm }),
+		).not.toThrow();
+	});
+
+	it("falls back to id when filePath is missing (workGroup uses n.id)", () => {
+		// Node without filePath — workGroup uses n.id as fallback
+		const nodes = [makeNode("classic-hero/a"), makeNode("classic-hero/b")];
+		const fm = makeFrontmatter({
+			"classic-hero/a": { date: "T1", parent_id: "p1" },
+			"classic-hero/b": { date: "T2" },
+		});
+
+		const result = applyTimelineLayout(
+			{ nodes, edges: [] },
+			{ timeKey: "date", getNodeProperty: fm, laneHeight: 50, startY: 0 },
+		);
+
+		const yA = result.data.nodes.find((n) => n.id === "classic-hero/a")!.y;
+		const yB = result.data.nodes.find((n) => n.id === "classic-hero/b")!.y;
+		// Both match "classic-hero" work → same lane
+		expect(yA).toBe(yB);
+	});
+
+	it("sorts work groups deterministically (alphabetical)", () => {
+		// Work assignment order: alphabetical by folder name
+		const nodes = [
+			makeNode("z1", { filePath: "zebra-tale/z1.md" } as any),
+			makeNode("a1", { filePath: "alpha-saga/a1.md" } as any),
+		];
+		const fm = makeFrontmatter({
+			z1: { date: "T1", parent_id: "pz" },
+			a1: { date: "T1" },
+		});
+
+		const result = applyTimelineLayout(
+			{ nodes, edges: [] },
+			{ timeKey: "date", getNodeProperty: fm, laneHeight: 50, startY: 0 },
+		);
+
+		const yA = result.data.nodes.find((n) => n.id === "a1")!.y;
+		const yZ = result.data.nodes.find((n) => n.id === "z1")!.y;
+		// alpha-saga sorts before zebra-tale → lane 0 for alpha, lane 1 for zebra
+		expect(yA).toBeLessThan(yZ);
+	});
+
+	it("hierarchical strategy takes precedence over sequence DAG", () => {
+		// Has both parent_id AND sequence edges → hierarchical wins
+		const nodes = [
+			makeNode("a", { filePath: "classic-x/a.md" } as any),
+			makeNode("b", { filePath: "classic-x/b.md" } as any),
+		];
+		const edges = [makeEdge("a", "b", "sequence")];
+		const fm = makeFrontmatter({
+			a: { date: "T1", parent_id: "root" },
+			b: { date: "T2", parent_id: "root" },
+		});
+
+		const result = applyTimelineLayout(
+			{ nodes, edges },
+			{ timeKey: "date", getNodeProperty: fm, laneHeight: 50, startY: 0 },
+		);
+
+		// In hierarchical mode (same work), both on same lane
+		const yA = result.data.nodes.find((n) => n.id === "a")!.y;
+		const yB = result.data.nodes.find((n) => n.id === "b")!.y;
+		expect(yA).toBe(yB);
+	});
+
+	it("node without parent_id in mixed scenario still groups by workGroup", () => {
+		// Some nodes have parent_id triggers hierarchical; others don't but still grouped
+		const nodes = [
+			makeNode("a", { filePath: "classic-x/a.md" } as any),
+			makeNode("b", { filePath: "classic-x/b.md" } as any),
+		];
+		const fm = makeFrontmatter({
+			a: { date: "T1", parent_id: "root" },
+			b: { date: "T2" }, // no parent_id but same work
+		});
+
+		const result = applyTimelineLayout(
+			{ nodes, edges: [] },
+			{ timeKey: "date", getNodeProperty: fm, laneHeight: 50, startY: 0 },
+		);
+
+		const yA = result.data.nodes.find((n) => n.id === "a")!.y;
+		const yB = result.data.nodes.find((n) => n.id === "b")!.y;
+		// Both in classic-x work → same lane
+		expect(yA).toBe(yB);
+	});
+});
