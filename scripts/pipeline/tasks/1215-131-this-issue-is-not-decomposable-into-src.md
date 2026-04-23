@@ -1,7 +1,7 @@
 ---
 priority: skip
 reported: 2026-04-24
-status: pending
+status: in-progress
 source: decomposed
 parent: 131-stale-worktrees
 depends: none
