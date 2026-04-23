@@ -22,7 +22,7 @@ import type {
 	CardinalityRenderConfig,
 	RenderThresholds,
 } from "../types";
-import { setIcon, Menu } from "obsidian";
+import { setIcon } from "obsidian";
 import type { App } from "obsidian";
 import { t, tHelp } from "../i18n";
 import type { ShapeRule } from "../utils/node-shapes";
@@ -40,7 +40,6 @@ import { asInternalApp, asObsidianWindow } from "../obsidian-internals";
 import { isSectionVisible } from "../utils/view-mode-sections";
 import type { PanelSectionId } from "../utils/view-mode-sections";
 import {
-	_buildQueryHintContainer,
 	addSlider,
 	addToggle,
 	addSelect,
