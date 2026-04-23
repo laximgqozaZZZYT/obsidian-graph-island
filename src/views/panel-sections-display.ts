@@ -37,9 +37,9 @@ export function buildEdgeDisplaySection(
 		t("section.displayEdges"),
 		(body) => {
 			buildEdgeStyleControls(body, panel, cb);
-			buildEdgeLabelControls(body, panel, cb);
 			addAdvancedGroup(body, (adv) => {
 				buildEdgeColorControls(adv, panel, cb);
+				buildEdgeLabelControls(adv, panel, cb);
 				buildEdgeVisibilityControls(adv, panel, cb, _ctx.edgeTypeCounts ?? {});
 			});
 		},
