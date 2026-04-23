@@ -219,6 +219,16 @@ describe("buildEdgeColorControls", () => {
 		expect(cb.rebuildPanel).toHaveBeenCalled();
 	});
 
+	it("colorEdgesByRelation トグル → cb.rebuildPanel が呼ばれる", () => {
+		const panel = makePanel();
+		const cb = makeCb();
+		buildEdgeColorControls(makeMockEl(), panel, cb);
+		const color = addToggleCalls.find((c) => c[1] === "display.edgeColor");
+		expect(color).toBeDefined();
+		color![3](!panel.colorEdgesByRelation);
+		expect(cb.rebuildPanel).toHaveBeenCalled();
+	});
+
 	it("adds show-edge-labels toggle", () => {
 		buildEdgeColorControls(makeMockEl(), makePanel(), makeCb());
 		const labelToggle = addToggleCalls.find((c) => c[1] === "display.edgeLabelMode.relation");
@@ -243,6 +253,17 @@ describe("buildEdgeVisibilityControls", () => {
 		expect(layer).toBeDefined();
 		const dir = addSelectCalls.find((c) => c[1] === "display.edgeDirectionFilter");
 		expect(dir).toBeDefined();
+	});
+
+	it("edgeDirectionFilter セレクト変更 → cb.markDirty が呼ばれる", () => {
+		const panel = makePanel();
+		const cb = makeCb();
+		buildEdgeVisibilityControls(makeMockEl(), panel, cb, {});
+		const dir = addSelectCalls.find((c) => c[1] === "display.edgeDirectionFilter");
+		expect(dir).toBeDefined();
+		dir![4]("bidirectional");
+		expect(panel.edgeDirectionFilter).toBe("bidirectional");
+		expect(cb.markDirty).toHaveBeenCalled();
 	});
 
 	it("shows edge-type toggles only for types with non-zero counts (plus similar)", () => {
