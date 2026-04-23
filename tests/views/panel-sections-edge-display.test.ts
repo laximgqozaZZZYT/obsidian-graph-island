@@ -198,6 +198,22 @@ describe("buildEdgeLabelControls", () => {
 		expect(addToggleCalls.length).toBe(0);
 		expect(addSelectCalls.length).toBe(0);
 	});
+
+	// showEdgeLabels-related invariant: label-control mutations should refresh
+	// the canvas (markDirty) without forcing a panel rebuild. Note that the
+	// actual showEdgeLabels toggle lives in buildEdgeColorControls; here we
+	// lock the same pattern for this function's label sliders.
+	it("label slider callbacks call markDirty without rebuildPanel", () => {
+		const panel = makePanel();
+		const cb = makeCb();
+		buildEdgeLabelControls(makeMockEl(), panel, cb);
+		for (const call of addSliderCalls) {
+			const setter = call[6];
+			if (typeof setter === "function") setter(0.5);
+		}
+		expect(cb.markDirty).toHaveBeenCalled();
+		expect(cb.rebuildPanel).not.toHaveBeenCalled();
+	});
 });
 
 describe("buildEdgeColorControls", () => {
