@@ -12,6 +12,31 @@ import { t, tHelp } from "../i18n";
 import { addSlider, addToggle, addSelect, addTextInput } from "./panel-widgets";
 import type { PanelState, PanelCallbacks, PanelContext } from "./PanelBuilder";
 import { ensureRT, buildSection } from "./PanelBuilder";
+import {
+	applyCardPreset,
+	ensureHoverHighlightTypes,
+	normalizeCardFields,
+	normalizeDefinitionField,
+	normalizeDonutBreakdownField,
+	removeBookmark,
+	removeViewport,
+	shouldShowApplyEgoButton,
+	shouldShowCableSubSettings,
+	shouldShowCardSubSettings,
+	shouldShowClusterLabelDetail,
+	shouldShowDonutSubSettings,
+	shouldShowFocusLayout,
+	shouldShowHierarchyBreadcrumb,
+	shouldShowHierarchyTree,
+	shouldShowImportanceMetric,
+	shouldShowMultiSelectSection,
+	shouldShowOntologyBackbone,
+	shouldShowRecencySlider,
+	shouldShowRelationColorSection,
+	shouldShowRoadSubSettings,
+	shouldShowThumbnailToggle,
+	shouldShowViewportList,
+} from "./panel-sections-filter-logic";
 
 // ---------------------------------------------------------------------------
 // Bookmark section builder (Feature L)
@@ -43,7 +68,7 @@ export function buildBookmarkSection(
 				setIcon(removeBtn, "x");
 				removeBtn.setAttribute("aria-label", t("bookmark.remove"));
 				removeBtn.addEventListener("click", () => {
-					panel.bookmarkedNodes = panel.bookmarkedNodes.filter((id) => id !== nodeId);
+					panel.bookmarkedNodes = removeBookmark(panel.bookmarkedNodes, nodeId);
 					cb.markDirty();
 					cb.rebuildPanel();
 				});
@@ -69,12 +94,7 @@ export function buildHoverBehaviorSection(
 		t("section.hoverBehavior") ?? "ホバー時の動作",
 		(body) => {
 			// Hover highlight type toggles
-			const hht = panel.hoverHighlightTypes ?? {
-				forwardLinks: true,
-				backlinks: true,
-				sharedTags: false,
-				sameFolder: false,
-			};
+			const hht = ensureHoverHighlightTypes(panel.hoverHighlightTypes);
 			addToggle(body, t("hover.forwardLinks") ?? "リンク先", hht.forwardLinks, (v) => {
 				if (!panel.hoverHighlightTypes) panel.hoverHighlightTypes = { ...hht };
 				panel.hoverHighlightTypes.forwardLinks = v;
@@ -162,9 +182,9 @@ export function buildNodeDisplayModeSection(
 			);
 
 			// Progressive disclosure: show sub-settings based on mode
-			if (panel.nodeDisplayMode === "card") {
+			if (shouldShowCardSubSettings(panel.nodeDisplayMode)) {
 				_buildCardSubSettings(body, panel, cb);
-			} else if (panel.nodeDisplayMode === "donut") {
+			} else if (shouldShowDonutSubSettings(panel.nodeDisplayMode)) {
 				_buildDonutSubSettings(body, panel, cb);
 			}
 			// sunburst-segment mode: uses default arcAngle (30 degrees)
@@ -233,7 +253,7 @@ export function buildNodeDecorationSection(
 				},
 				t("desc.showImportanceRing"),
 			);
-			if (panel.showImportanceRing) {
+			if (shouldShowImportanceMetric(panel)) {
 				addSelect(
 					body,
 					t("display.importanceMetric"),
@@ -262,7 +282,7 @@ export function buildNodeDecorationSection(
 				},
 				t("desc.showRecencyMarker"),
 			);
-			if (panel.showRecencyMarker) {
+			if (shouldShowRecencySlider(panel)) {
 				addSlider(body, t("display.recencyDays"), 1, 90, 1, panel.recencyDays, (v) => {
 					panel.recencyDays = v;
 					cb.markDirty();
@@ -270,11 +290,11 @@ export function buildNodeDecorationSection(
 			}
 			// Definition field
 			addTextInput(body, t("display.definitionField"), panel.definitionField, "e.g. definition, summary", (v) => {
-				panel.definitionField = v.trim();
+				panel.definitionField = normalizeDefinitionField(v);
 				cb.rebuildNodesInPlace();
 			});
 			// Gate: showNodeThumbnails only when nodes have image/thumbnail/cover metadata
-			if (_ctx.hasImageMetaNodes) {
+			if (shouldShowThumbnailToggle(_ctx)) {
 				addToggle(
 					body,
 					t("display.showNodeThumbnails") ?? "Node Thumbnails",
@@ -307,7 +327,7 @@ export function buildStructureAnalysisSection(
 		t("section.structureAnalysis"),
 		(body) => {
 			// Gate: ontology backbone requires ontology rules
-			if (_ctx.settings.ontology?.rules?.length) {
+			if (shouldShowOntologyBackbone(_ctx.settings)) {
 				addToggle(
 					body,
 					t("display.ontologyBackbone"),
@@ -321,7 +341,7 @@ export function buildStructureAnalysisSection(
 				);
 			}
 			// Gate: cluster label detail only when tag enclosures are active
-			if (panel.showTagNodes && panel.tagDisplay === "enclosure") {
+			if (shouldShowClusterLabelDetail(panel)) {
 				addSelect(
 					body,
 					t("display.clusterLabelDetail"),
@@ -351,7 +371,7 @@ export function buildStructureAnalysisSection(
 			);
 			// R2: showBridgeNodes toggle removed — now controlled via analysisOverlay dropdown
 			// Gate: focusLayout requires focusMode
-			if (panel.focusMode) {
+			if (shouldShowFocusLayout(panel)) {
 				addToggle(
 					body,
 					t("display.focusLayout"),
