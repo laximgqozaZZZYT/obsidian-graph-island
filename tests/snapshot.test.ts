@@ -551,3 +551,172 @@ describe("hashMeta edge cases", () => {
 		expect(hashMeta(meta1)).not.toBe(hashMeta(meta2));
 	});
 });
+
+// ---------------------------------------------------------------------------
+// Coverage fill — captureSnapshot 出力フィールドの網羅的確認
+// ---------------------------------------------------------------------------
+describe("captureSnapshot output field shape", () => {
+	it("top-level fields exist with correct types", () => {
+		const data: GraphData = {
+			nodes: [{ id: "n1", label: "N1", meta: { v: 1 } }],
+			edges: [{ source: "n1", target: "n1", type: "link" }],
+		};
+		const snap = captureSnapshot(data, "shape-test", {
+			layout: "force",
+			searchQuery: "q",
+			groupBy: "category",
+		});
+		expect(snap).toHaveProperty("name");
+		expect(snap).toHaveProperty("createdAt");
+		expect(snap).toHaveProperty("nodes");
+		expect(snap).toHaveProperty("edges");
+		expect(snap).toHaveProperty("context");
+		expect(Array.isArray(snap.nodes)).toBe(true);
+		expect(Array.isArray(snap.edges)).toBe(true);
+	});
+
+	it("each snapshot node has id and metaHash", () => {
+		const data: GraphData = {
+			nodes: [
+				{ id: "a.md", label: "A", meta: { v: 1 } },
+				{ id: "b.md", label: "B" }, // no meta
+			],
+			edges: [],
+		};
+		const snap = captureSnapshot(data, "s", {
+			layout: "",
+			searchQuery: "",
+			groupBy: "",
+		});
+		for (const n of snap.nodes) {
+			expect(typeof n.id).toBe("string");
+			expect(typeof n.metaHash).toBe("string");
+		}
+		// No-meta node → empty metaHash
+		expect(snap.nodes[1].metaHash).toBe("");
+		// With-meta node → non-empty metaHash
+		expect(snap.nodes[0].metaHash.length).toBeGreaterThan(0);
+	});
+
+	it("each snapshot edge has source, target, and type", () => {
+		const data: GraphData = {
+			nodes: [
+				{ id: "a", label: "A" },
+				{ id: "b", label: "B" },
+			],
+			edges: [{ source: "a", target: "b", type: "semantic" }],
+		};
+		const snap = captureSnapshot(data, "s", {
+			layout: "",
+			searchQuery: "",
+			groupBy: "",
+		});
+		expect(snap.edges[0].source).toBe("a");
+		expect(snap.edges[0].target).toBe("b");
+		expect(snap.edges[0].type).toBe("semantic");
+	});
+
+	it("context.groupBy is preserved", () => {
+		const snap = captureSnapshot(
+			{ nodes: [], edges: [] },
+			"g",
+			{ layout: "arc", searchQuery: "", groupBy: "folder" },
+		);
+		expect(snap.context.groupBy).toBe("folder");
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Coverage fill — edge.type の ?? "link" フォールバック分岐
+// ---------------------------------------------------------------------------
+describe("captureSnapshot edge type fallback", () => {
+	it("edge without type defaults to 'link' in snapshot", () => {
+		const data: GraphData = {
+			nodes: [
+				{ id: "a", label: "A" },
+				{ id: "b", label: "B" },
+			],
+			// type フィールド未指定
+			edges: [{ source: "a", target: "b" } as unknown as GraphData["edges"][number]],
+		};
+		const snap = captureSnapshot(data, "s", {
+			layout: "",
+			searchQuery: "",
+			groupBy: "",
+		});
+		expect(snap.edges[0].type).toBe("link");
+	});
+});
+
+describe("computeSnapshotDiff edge type fallback", () => {
+	it("current edge without type is matched to snapshot edge with link type", () => {
+		const withType: GraphData = {
+			nodes: [
+				{ id: "a", label: "A" },
+				{ id: "b", label: "B" },
+			],
+			edges: [{ source: "a", target: "b", type: "link" }],
+		};
+		const snap = captureSnapshot(withType, "s", {
+			layout: "",
+			searchQuery: "",
+			groupBy: "",
+		});
+		// 現在側は type 未指定 → ?? "link" → snapshot と一致しエッジ差分なし
+		const noType: GraphData = {
+			nodes: withType.nodes,
+			edges: [{ source: "a", target: "b" } as unknown as GraphData["edges"][number]],
+		};
+		const diff = computeSnapshotDiff(noType, snap);
+		expect(diff.addedEdgeKeys.size).toBe(0);
+		expect(diff.removedEdges).toHaveLength(0);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Coverage fill — d3-force 変換後のオブジェクト形式 source/target
+// ---------------------------------------------------------------------------
+describe("captureSnapshot with d3-force transformed endpoints", () => {
+	it("handles source/target as {id} objects (post-simulation form)", () => {
+		const data = {
+			nodes: [
+				{ id: "a", label: "A" },
+				{ id: "b", label: "B" },
+			],
+			edges: [
+				{
+					source: { id: "a" },
+					target: { id: "b" },
+					type: "link",
+				},
+			],
+		} as unknown as GraphData;
+		const snap = captureSnapshot(data, "d3", {
+			layout: "force",
+			searchQuery: "",
+			groupBy: "",
+		});
+		expect(snap.edges[0].source).toBe("a");
+		expect(snap.edges[0].target).toBe("b");
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Coverage fill — stableStringify の undefined 値分岐
+// ---------------------------------------------------------------------------
+describe("hashMeta with undefined property values", () => {
+	it("object containing a property whose value is undefined is hashable", () => {
+		// Object.keys({a: undefined}) includes "a" → stableStringify(undefined) → ""
+		const meta = { a: undefined, b: 1 } as unknown as Record<string, unknown>;
+		const hash = hashMeta(meta);
+		expect(typeof hash).toBe("string");
+		expect(hash.length).toBeGreaterThan(0);
+	});
+
+	it("undefined and null at the same key produce the same hash", () => {
+		// stableStringify は null/undefined どちらも "" を返すため
+		const h1 = hashMeta({ a: null } as unknown as Record<string, unknown>);
+		const h2 = hashMeta({ a: undefined } as unknown as Record<string, unknown>);
+		expect(h1).toBe(h2);
+	});
+});
