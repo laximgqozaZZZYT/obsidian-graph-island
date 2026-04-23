@@ -2342,10 +2342,20 @@ function applyGroupRule(
 // Grouping
 // ---------------------------------------------------------------------------
 
+/**
+ * Partition nodes into groups keyed by the given grouping mode.
+ *
+ * `groupBy` accepts either a special key or an arbitrary field name:
+ * - `"backlinks"` — buckets by degree via {@link backlinkBucket}
+ * - `"node_type"` — tag vs `category`/`"file"`
+ * - `"none"` — single `"__all__"` bucket
+ * - any other value — first value of {@link getNodeFieldValues}, or `"__no_<field>__"` if empty
+ *
+ * A trailing `":?"` on `groupBy` is stripped before field lookup (partial-query syntax).
+ */
 export function partitionNodes(nodes: GraphNode[], groupBy: string, degrees: Map<string, number>): Map<string, GraphNode[]> {
 	const groups = new Map<string, GraphNode[]>();
 
-	// Normalize "field:?" syntax → extract field name
 	const field = groupBy.endsWith(":?") ? groupBy.slice(0, -2) : groupBy;
 
 	for (const n of nodes) {
