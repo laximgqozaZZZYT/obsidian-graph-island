@@ -1,7 +1,7 @@
 ---
 priority: high
 reported: 2026-04-24
-status: in-progress
+status: done
 source: decomposed
 parent: 1205-145-cluster-force-ts-export
 depends: subtask-1
