@@ -215,24 +215,19 @@ function parseNumArg(arg: string | undefined, fallback: number): number {
 function makeCurveTransform(curve: CurveKind, extraArgs: string[]): AxisTransform {
 	const def = CURVE_REGISTRY[curve];
 	const params: Record<string, number> = def ? { ...def.defaultParams } : {};
+	const keys = def ? Object.keys(def.defaultParams) : [];
 
-	// Parse key=value pairs from extra args
-	for (const arg of extraArgs) {
+	extraArgs.forEach((arg, idx) => {
 		const eqIdx = arg.indexOf("=");
 		if (eqIdx >= 0) {
 			const key = arg.slice(0, eqIdx).trim();
 			const val = parseFloat(arg.slice(eqIdx + 1).trim());
 			if (!isNaN(val)) params[key] = val;
-		} else {
-			// Positional: assign to parameter keys in order
-			const keys = def ? Object.keys(def.defaultParams) : [];
-			const idx = extraArgs.indexOf(arg);
-			if (idx < keys.length) {
-				const val = parseFloat(arg);
-				if (!isNaN(val)) params[keys[idx]] = val;
-			}
+		} else if (idx < keys.length) {
+			const val = parseFloat(arg);
+			if (!isNaN(val)) params[keys[idx]] = val;
 		}
-	}
+	});
 
 	return { kind: TRANSFORM_CURVE, curve, params, scale: 1 };
 }
