@@ -1,7 +1,7 @@
 ---
 priority: high
 reported: 2026-04-24
-status: in-progress
+status: blocked
 source: decomposed
 parent: 133-type-assertions
 depends: none
