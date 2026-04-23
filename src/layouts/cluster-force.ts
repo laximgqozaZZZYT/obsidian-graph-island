@@ -942,7 +942,7 @@ function buildClusterForceFunction(
 // ---------------------------------------------------------------------------
 
 /** Look up per-node spacing multiplier (defaults to 1.0 if absent). */
-function getSpacing(id: string, map?: Map<string, number>): number {
+export function getSpacing(id: string, map?: Map<string, number>): number {
 	return map?.get(id) ?? 1.0;
 }
 
@@ -1535,7 +1535,7 @@ function computeUnifiedTimelineTargets(
 // ---------------------------------------------------------------------------
 
 /** Compute effective column spacing from the X range of unified offsets. */
-function computeEffectiveColumnSpacing(
+export function computeEffectiveColumnSpacing(
 	unifiedOffsets: Map<string, { dx: number; dy: number }>,
 	nodeSize: number,
 ): number {
@@ -2291,7 +2291,7 @@ function layoutGroupsGrid(
 
 /** Estimate a group's visual radius based on member count and base node size.
  *  When `members` array is provided, accounts for super node sizes. */
-function estimateGroupRadius(
+export function estimateGroupRadius(
 	memberCount: number,
 	nodeSize: number,
 	nodeSpacing: number,
@@ -2435,7 +2435,7 @@ function splitByConnectedComponents(groups: Map<string, GraphNode[]>, edges: Gra
 	return result;
 }
 
-function backlinkBucket(deg: number): string {
+export function backlinkBucket(deg: number): string {
 	if (deg === 0) return "0";
 	if (deg <= 2) return "1-2";
 	if (deg <= 5) return "3-5";
