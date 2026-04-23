@@ -21,18 +21,6 @@ import {
 } from "./PanelBuilder";
 
 // ---------------------------------------------------------------------------
-// Public context type — bundles the inputs that Nodes-tab section builders
-// need from the parent orchestrator. Kept in this file so callers can import
-// it alongside the section builders.
-// ---------------------------------------------------------------------------
-export interface NodesTabContext {
-	panel: PanelState;
-	cb: PanelCallbacks;
-	entries: NodeTreeEntry[];
-	excludeSet: Set<string>;
-}
-
-// ---------------------------------------------------------------------------
 // Internal types & helpers (not exported)
 // ---------------------------------------------------------------------------
 interface DirNode {
