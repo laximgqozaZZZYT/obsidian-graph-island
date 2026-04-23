@@ -1,7 +1,7 @@
 ---
 priority: high
 reported: 2026-04-24
-status: decomposed
+status: done
 source: auto-discovered
 summary: カバレッジ低下: statements 51.0% < 52.3%|functions 48.5% < 50.4%
 ---
