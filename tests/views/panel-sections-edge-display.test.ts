@@ -113,6 +113,17 @@ beforeEach(() => {
 });
 
 describe("buildEdgeStyleControls", () => {
+	it("showArrows toggle callback invokes cb.markDirty and flips the field", () => {
+		const panel = makePanel();
+		const cb = makeCb();
+		buildEdgeStyleControls(makeMockEl(), panel, cb);
+		const arrows = addToggleCalls.find((c) => c[1] === "display.arrows");
+		expect(arrows).toBeDefined();
+		arrows![3](false);
+		expect(panel.showArrows).toBe(false);
+		expect(cb.markDirty).toHaveBeenCalled();
+	});
+
 	it("adds arrows toggle initialized from panel.showArrows", () => {
 		buildEdgeStyleControls(makeMockEl(), makePanel(), makeCb());
 		const arrows = addToggleCalls.find((c) => c[1] === "display.arrows");
