@@ -617,11 +617,11 @@ describe("captureSnapshot output field shape", () => {
 	});
 
 	it("context.groupBy is preserved", () => {
-		const snap = captureSnapshot(
-			{ nodes: [], edges: [] },
-			"g",
-			{ layout: "arc", searchQuery: "", groupBy: "folder" },
-		);
+		const snap = captureSnapshot({ nodes: [], edges: [] }, "g", {
+			layout: "arc",
+			searchQuery: "",
+			groupBy: "folder",
+		});
 		expect(snap.context.groupBy).toBe("folder");
 	});
 });

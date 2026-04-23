@@ -58,9 +58,7 @@ export const DEFAULT_SVG_EXPORT_OPTIONS: ResolvedSvgExportOptions = {
 
 /** Merge partial overrides with defaults, preserving falsy-but-valid values
  *  like `background: ""` (transparent) and `showLabels: false`. */
-export function resolveSvgExportOptions(
-	overrides?: SvgExportOverrides,
-): ResolvedSvgExportOptions {
+export function resolveSvgExportOptions(overrides?: SvgExportOverrides): ResolvedSvgExportOptions {
 	if (!overrides) return { ...DEFAULT_SVG_EXPORT_OPTIONS };
 	return {
 		width: overrides.width ?? DEFAULT_SVG_EXPORT_OPTIONS.width,
@@ -85,11 +83,7 @@ export function buildExportTimestamp(date: Date = new Date()): string {
  *  If `kind` is omitted/empty, the kind segment is dropped, yielding
  *  `graph-island-<YYYY-MM-DD>.<ext>`. `kind`/`ext` are sanitised to safe
  *  filename characters. */
-export function buildExportFilename(
-	kind: string,
-	ext: string,
-	date: Date = new Date(),
-): string {
+export function buildExportFilename(kind: string, ext: string, date: Date = new Date()): string {
 	const safeKind = sanitiseFilenameSegment(kind);
 	const safeExt = sanitiseFilenameSegment(ext.replace(/^\./, "")) || "bin";
 	const stamp = buildExportTimestamp(date);
@@ -113,10 +107,7 @@ export interface ExportCounts {
 
 /** Lightweight summary used by orchestrators to decide whether to abort on
  *  empty graphs and to render user-facing toast counts. */
-export function resolveExportCounts(
-	nodes: ReadonlyArray<unknown>,
-	edges: ReadonlyArray<unknown>,
-): ExportCounts {
+export function resolveExportCounts(nodes: ReadonlyArray<unknown>, edges: ReadonlyArray<unknown>): ExportCounts {
 	return {
 		nodeCount: nodes.length,
 		edgeCount: edges.length,
@@ -138,10 +129,7 @@ export interface ExportOrchestratorHost {
 // ---------------------------------------------------------------------------
 
 /** Orchestrate SVG export: resolves options, generates SVG, triggers download. */
-export function orchestrateSvgExport(
-	host: ExportOrchestratorHost,
-	overrides?: SvgExportOverrides,
-): void {
+export function orchestrateSvgExport(host: ExportOrchestratorHost, overrides?: SvgExportOverrides): void {
 	const gd = host.getGraphData();
 	const counts = resolveExportCounts(gd.nodes, gd.edges);
 	if (counts.empty) {

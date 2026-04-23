@@ -109,11 +109,7 @@ describe("cancelAllHandles", () => {
 		const c1 = vi.fn();
 		const c2 = vi.fn();
 		const c3 = vi.fn();
-		const handles = new Set<RAFHandle>([
-			{ cancel: c1 },
-			{ cancel: c2 },
-			{ cancel: c3 },
-		]);
+		const handles = new Set<RAFHandle>([{ cancel: c1 }, { cancel: c2 }, { cancel: c3 }]);
 		cancelAllHandles(handles);
 		expect(c1).toHaveBeenCalledTimes(1);
 		expect(c2).toHaveBeenCalledTimes(1);

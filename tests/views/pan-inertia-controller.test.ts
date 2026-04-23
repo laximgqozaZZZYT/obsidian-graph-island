@@ -146,9 +146,7 @@ describe("PanInertiaController", () => {
 		expect(onStep).not.toHaveBeenCalled();
 
 		// Structural check on the private velocity field (test-only introspection).
-		const velocity = (
-			ctrl as unknown as { velocity: { x: number; y: number } }
-		).velocity;
+		const velocity = (ctrl as unknown as { velocity: { x: number; y: number } }).velocity;
 		expect(velocity).toEqual({ x: 0, y: 0 });
 	});
 

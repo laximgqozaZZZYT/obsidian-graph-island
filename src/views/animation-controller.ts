@@ -32,10 +32,7 @@ const defaultRAFApi: RAFApi = {
  *             will NOT be invoked again, even if a frame was already queued.
  * @param api  rAF/cAF implementation — override for tests.
  */
-export function startCancellableRAF(
-	step: (t: number) => boolean,
-	api: RAFApi = defaultRAFApi,
-): RAFHandle {
+export function startCancellableRAF(step: (t: number) => boolean, api: RAFApi = defaultRAFApi): RAFHandle {
 	let rafId: number | null = null;
 	let cancelled = false;
 

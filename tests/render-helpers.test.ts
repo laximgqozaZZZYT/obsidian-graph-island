@@ -1,11 +1,6 @@
 import { describe, it, expect } from "vitest";
 
-import {
-	setFrontmatterField,
-	addFrontmatterTag,
-	generatePhantomNodes,
-	heatmapColor,
-} from "../src/views/RenderHelpers";
+import { setFrontmatterField, addFrontmatterTag, generatePhantomNodes, heatmapColor } from "../src/views/RenderHelpers";
 import { AGGREGATE_ZOOM_THRESHOLD } from "../src/constants";
 
 // ---------------------------------------------------------------------------

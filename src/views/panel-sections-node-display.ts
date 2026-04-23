@@ -47,16 +47,10 @@ export function buildNodeSizeControls(parent: HTMLElement, panel: PanelState, cb
 	if (currentColorMode === "field") {
 		const fields = cb.collectFieldSuggestions();
 		const options = [{ value: "", label: "-- select --" }, ...fields.map((f) => ({ value: f, label: f }))];
-		addSelect(
-			parent,
-			t("display.nodeColorField") ?? "Color Field",
-			options,
-			panel.nodeColorField ?? "",
-			(v) => {
-				panel.nodeColorField = v;
-				cb.recolorNodes();
-			},
-		);
+		addSelect(parent, t("display.nodeColorField") ?? "Color Field", options, panel.nodeColorField ?? "", (v) => {
+			panel.nodeColorField = v;
+			cb.recolorNodes();
+		});
 		// ET: Custom color palette input
 		addTextInput(
 			parent,

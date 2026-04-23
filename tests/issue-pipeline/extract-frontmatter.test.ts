@@ -51,9 +51,7 @@ describe("extractFrontmatter", () => {
 			"---",
 			"# Title",
 		].join("\n");
-		expect(extractFrontmatter(input)).toBe(
-			"tags:\n  - foo\n  - bar\nsummary: spec text without triple dashes",
-		);
+		expect(extractFrontmatter(input)).toBe("tags:\n  - foo\n  - bar\nsummary: spec text without triple dashes");
 	});
 
 	it("strips trailing blank lines before the closing delimiter", () => {
