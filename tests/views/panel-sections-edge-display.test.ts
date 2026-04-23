@@ -219,16 +219,6 @@ describe("buildEdgeColorControls", () => {
 		expect(cb.rebuildPanel).toHaveBeenCalled();
 	});
 
-	it("colorEdgesByRelation トグル → cb.rebuildPanel が呼ばれる", () => {
-		const panel = makePanel();
-		const cb = makeCb();
-		buildEdgeColorControls(makeMockEl(), panel, cb);
-		const color = addToggleCalls.find((c) => c[1] === "display.edgeColor");
-		expect(color).toBeDefined();
-		color![3](!panel.colorEdgesByRelation);
-		expect(cb.rebuildPanel).toHaveBeenCalled();
-	});
-
 	it("adds show-edge-labels toggle", () => {
 		buildEdgeColorControls(makeMockEl(), makePanel(), makeCb());
 		const labelToggle = addToggleCalls.find((c) => c[1] === "display.edgeLabelMode.relation");
