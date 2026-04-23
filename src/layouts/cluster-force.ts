@@ -942,7 +942,7 @@ function buildClusterForceFunction(
 // ---------------------------------------------------------------------------
 
 /** Look up per-node spacing multiplier (defaults to 1.0 if absent). */
-function getSpacing(id: string, map?: Map<string, number>): number {
+export function getSpacing(id: string, map?: Map<string, number>): number {
 	return map?.get(id) ?? 1.0;
 }
 
@@ -1049,7 +1049,7 @@ export function effectiveRadius(
 
 /** Consolidated parameters for intra-group arrangement offset functions.
  *  Replaces 10+ positional parameters with a single typed object. */
-interface ArrangementParams {
+export interface ArrangementParams {
 	members: GraphNode[];
 	degrees: Map<string, number>;
 	edges: GraphEdge[];
@@ -1535,7 +1535,7 @@ function computeUnifiedTimelineTargets(
 // ---------------------------------------------------------------------------
 
 /** Compute effective column spacing from the X range of unified offsets. */
-function computeEffectiveColumnSpacing(
+export function computeEffectiveColumnSpacing(
 	unifiedOffsets: Map<string, { dx: number; dy: number }>,
 	nodeSize: number,
 ): number {
@@ -2291,7 +2291,7 @@ function layoutGroupsGrid(
 
 /** Estimate a group's visual radius based on member count and base node size.
  *  When `members` array is provided, accounts for super node sizes. */
-function estimateGroupRadius(
+export function estimateGroupRadius(
 	memberCount: number,
 	nodeSize: number,
 	nodeSpacing: number,
@@ -2435,7 +2435,7 @@ function splitByConnectedComponents(groups: Map<string, GraphNode[]>, edges: Gra
 	return result;
 }
 
-function backlinkBucket(deg: number): string {
+export function backlinkBucket(deg: number): string {
 	if (deg === 0) return "0";
 	if (deg <= 2) return "1-2";
 	if (deg <= 5) return "3-5";
@@ -2736,7 +2736,7 @@ function dispatchHardcoded(
 // Ring capacity adapts to actual node radii.
 // ---------------------------------------------------------------------------
 
-function concentricOffsets(p: ArrangementParams): ArrangementResult {
+export function concentricOffsets(p: ArrangementParams): ArrangementResult {
 	const { members, degrees, nodeSpacing, groupScale, nodeSize, cmp, nodeSpacingMap, cfg } = p;
 	const maxR = cfg.maxNodeRadius ?? 60;
 	const minR = cfg.minNodeRadius ?? 18;
@@ -2846,7 +2846,7 @@ function radialOffsets(p: ArrangementParams): ArrangementResult {
 // Grid — square grid sorted by degree (cols = √n)
 // ---------------------------------------------------------------------------
 
-function gridOffsets(p: ArrangementParams): ArrangementResult {
+export function gridOffsets(p: ArrangementParams): ArrangementResult {
 	const { members, nodeSpacing, groupScale, maxGroupNodeR: nodeSize, cmp, nodeSpacingMap } = p;
 	const sorted = [...members].sort(cmp);
 	const offsets = new Map<string, { dx: number; dy: number }>();
@@ -2897,7 +2897,7 @@ function gridOffsets(p: ArrangementParams): ArrangementResult {
 // equilateral triangle silhouette pointing upward.
 // ---------------------------------------------------------------------------
 
-function triangleOffsets(p: ArrangementParams): ArrangementResult {
+export function triangleOffsets(p: ArrangementParams): ArrangementResult {
 	const { members, nodeSpacing, groupScale, maxGroupNodeR: nodeSize, cmp, nodeSpacingMap } = p;
 	const sorted = [...members].sort(cmp);
 	const offsets = new Map<string, { dx: number; dy: number }>();
@@ -3074,7 +3074,7 @@ function egoOffsets(p: ArrangementParams): ArrangementResult {
 // visually chaotic.
 // ---------------------------------------------------------------------------
 
-function randomOffsets(p: ArrangementParams): Map<string, { dx: number; dy: number }> {
+export function randomOffsets(p: ArrangementParams): Map<string, { dx: number; dy: number }> {
 	const { members, degrees, nodeSpacing, groupScale, nodeSize, nodeSpacingMap, cfg } = p;
 	const maxR = cfg.maxNodeRadius ?? 60;
 	const minR = cfg.minNodeRadius ?? 18;
