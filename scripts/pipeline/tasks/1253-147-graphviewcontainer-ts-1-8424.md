@@ -1,7 +1,7 @@
 ---
 priority: high
 reported: 2026-04-25
-status: in-progress
+status: blocked
 source: decomposed
 parent: 147-god-object-violation
 depends: none
