@@ -386,8 +386,13 @@ for iter in $(seq 1 "$MAX_ITERATIONS"); do
 
   if [[ -n "$ISSUE_FILE" ]]; then
     # Task exhaustion: 同じタスクで 2回連続 0-commit なら blocked 化して飛ばす
-    ATTEMPT_COUNT=$(grep -c "^### Attempt " "$ISSUE_FILE" 2>/dev/null || echo "0")
-    if [[ "${ATTEMPT_COUNT:-0}" -ge 2 ]]; then
+    # grep -c outputs the match count on success; on no-match it exits 1 with
+    # the count still "0", so we can't use `|| echo 0` (that produces "0\n0"
+    # and the subsequent arithmetic breaks). Suppress stderr and normalize to
+    # first-line digits only.
+    ATTEMPT_COUNT=$(grep -c "^### Attempt " "$ISSUE_FILE" 2>/dev/null | head -1 | tr -cd '0-9')
+    ATTEMPT_COUNT=${ATTEMPT_COUNT:-0}
+    if [[ "$ATTEMPT_COUNT" -ge 2 ]]; then
       log "BLOCKED: $(basename "$ISSUE_FILE") exhausted ($ATTEMPT_COUNT attempts, 0 commits) — marking blocked"
       sed -i 's/status: pending/status: blocked/; s/status: in-progress/status: blocked/' "$ISSUE_FILE" 2>/dev/null || true
       (cd "$PROJECT_DIR" && git add scripts/pipeline/tasks/ && git commit -m "chore: block exhausted task $(basename "$ISSUE_FILE")" --no-verify 2>/dev/null) || true
