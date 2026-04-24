@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-24
-status: in-progress
+status: done
 source: decomposed
 parent: 1221-143-renderer-decorator-constants-ts
 depends: subtask-3
