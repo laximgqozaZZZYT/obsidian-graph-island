@@ -18,9 +18,15 @@ PROJECT_DIR="/home/ubuntu/obsidian-plugins/obsidian-graph-island"
 LOG_FILE="/tmp/graph-island-improve.log"
 RESULT_DIR="/tmp/graph-island-improve-results"
 MAX_LOG_SIZE=$((10 * 1024 * 1024))
-MAX_SESSIONS=4
+MAX_SESSIONS=3
 MAX_ITERATIONS=3
 MAX_TURNS=30
+
+# ── Token-saving knobs (kaizen 2026-04-24) ──
+# These were added to prevent rate-limit burning from */5 cron + 4-way parallel.
+DEBUG_RETRY_COUNT=1          # was 3 — systematic-debugging retries on gate fail
+SIMPLIFY_ENABLED=false       # was implicit true — simplify step after review findings
+KAIZEN_PENDING_THRESHOLD=0   # was 5 — only run kaizen when pending==0
 
 cd "$PROJECT_DIR" || exit 1
 
@@ -35,6 +41,27 @@ SESSION_ID="auto-$(date +%Y%m%d-%H%M%S)-$$"
 SESSION_LOG="$RESULT_DIR/$SESSION_ID.log"
 
 log() { echo "[$(date -Iseconds)] [$SESSION_ID] $*" | tee -a "$SESSION_LOG"; }
+
+# ── Rate-limit-aware claude wrapper (kaizen 2026-04-24) ──
+# Captures claude -p output, detects rate-limit/quota messages, and exits the
+# whole cycle with exit 0 (not error) when detected — no point spending more
+# API calls once we're throttled. Returns claude's exit code otherwise.
+_claude_guard() {
+  local tmp
+  tmp=$(mktemp)
+  claude "$@" >"$tmp" 2>&1
+  local rc=$?
+  if grep -qiE "you've hit your limit|rate limit|quota exceeded|resets[[:space:]]+[0-9]+(am|pm)" "$tmp"; then
+    log "RATE LIMIT detected — aborting cycle early (no more claude -p calls)"
+    tail -3 "$tmp" | while IFS= read -r l; do log "  $l"; done
+    rm -f "$tmp"
+    # Mark cycle outcome, release worktree via trap, exit cleanly
+    exit 0
+  fi
+  tail -5 "$tmp" | while IFS= read -r l; do log "  $l"; done
+  rm -f "$tmp"
+  return $rc
+}
 
 log "================================================================"
 log "AUTONOMOUS IMPROVE CYCLE START"
@@ -244,7 +271,7 @@ bash "$PROJECT_DIR/scripts/pipeline/discover-issues.sh" 2>&1 | tail -5 | while I
 HOUR=${HOUR:-$(date +%-H)}
 if [[ $((HOUR % 4)) -eq 0 ]]; then
   PENDING_COUNT=$(find "$PROJECT_DIR/scripts/pipeline/issues" -maxdepth 1 -name '*.md' 2>/dev/null | wc -l)
-  if [[ $PENDING_COUNT -lt 5 ]]; then
+  if [[ $PENDING_COUNT -le $KAIZEN_PENDING_THRESHOLD ]]; then
     log "Running /kaizen issue discovery (hour=$HOUR, pending=$PENDING_COUNT)..."
     KAIZEN_PROMPT="あなたはKaizen(継続的改善)のスペシャリストです。
 
@@ -287,10 +314,9 @@ summary: 1行要約
 最大3件まで。既に scripts/pipeline/issues/ にある課題と重複しないこと。
 既存のissueを確認してから書くこと。"
 
-    claude -p "$KAIZEN_PROMPT" \
+    _claude_guard -p "$KAIZEN_PROMPT" \
       --allowedTools "Bash,Read,Glob,Grep,Write" \
-      --max-turns 20 \
-      2>&1 | tail -5 | while IFS= read -r line; do log "  kaizen: $line"; done
+      --max-turns 20
 
     # Auto-commit any newly created issues to keep main clean
     if [[ -n "$(cd "$PROJECT_DIR" && git status --porcelain scripts/pipeline/issues/)" ]]; then
@@ -359,10 +385,18 @@ for iter in $(seq 1 "$MAX_ITERATIONS"); do
   fi
 
   if [[ -n "$ISSUE_FILE" ]]; then
+    # Task exhaustion: 同じタスクで 2回連続 0-commit なら blocked 化して飛ばす
+    ATTEMPT_COUNT=$(grep -c "^### Attempt " "$ISSUE_FILE" 2>/dev/null || echo "0")
+    if [[ "${ATTEMPT_COUNT:-0}" -ge 2 ]]; then
+      log "BLOCKED: $(basename "$ISSUE_FILE") exhausted ($ATTEMPT_COUNT attempts, 0 commits) — marking blocked"
+      sed -i 's/status: pending/status: blocked/; s/status: in-progress/status: blocked/' "$ISSUE_FILE" 2>/dev/null || true
+      (cd "$PROJECT_DIR" && git add scripts/pipeline/tasks/ && git commit -m "chore: block exhausted task $(basename "$ISSUE_FILE")" --no-verify 2>/dev/null) || true
+      exit 0
+    fi
     FOCUS="task"
     ISSUE_CONTENT=$(cat "$ISSUE_FILE")
     ISSUE_NAME=$(basename "$ISSUE_FILE")
-    log "TASK: $ISSUE_NAME"
+    log "TASK: $ISSUE_NAME (attempt $((ATTEMPT_COUNT + 1)))"
     sed -i 's/status: pending/status: in-progress/' "$ISSUE_FILE" 2>/dev/null || true
     (cd "$PROJECT_DIR" && git add scripts/pipeline/tasks/ && git commit -m "chore: start task $ISSUE_NAME" --no-verify 2>/dev/null) || true
   else
@@ -381,7 +415,15 @@ for iter in $(seq 1 "$MAX_ITERATIONS"); do
     if [[ -n "$ISSUE_FILE" ]]; then
       ISSUE_NAME=$(basename "$ISSUE_FILE")
       log "ISSUE: $ISSUE_NAME — decomposing into tasks..."
-      bash "$PROJECT_DIR/scripts/pipeline/decompose-issue.sh" "$ISSUE_FILE" 2>&1 | while IFS= read -r line; do log "  decompose: $line"; done
+      DECOMPOSE_LOG=$(mktemp)
+      bash "$PROJECT_DIR/scripts/pipeline/decompose-issue.sh" "$ISSUE_FILE" >"$DECOMPOSE_LOG" 2>&1
+      DECOMPOSE_EXIT=$?
+      while IFS= read -r line; do log "  decompose: $line"; done < "$DECOMPOSE_LOG"
+      rm -f "$DECOMPOSE_LOG"
+      if [[ $DECOMPOSE_EXIT -eq 2 ]]; then
+        log "ABORT: decomposition hit rate-limit — skipping rest of cycle to conserve tokens"
+        exit 0
+      fi
 
       # Pick first task from newly created tasks
       ISSUE_FILE=""
@@ -516,24 +558,25 @@ focus=$FOCUS の改善を1つ実装せよ:
 実装後は何もせず終了（検証はシェルが行う）。CLAUDE.md厳守。"
   fi
 
-  claude -p "$PROMPT" \
-    --allowedTools "Bash,Read,Write,Edit,Glob,Grep,Agent" \
-    --max-turns "$MAX_TURNS" \
-    2>&1 | tail -5
+  # Agent tool removed (kaizen 2026-04-24) to prevent subagent fan-out
+  _claude_guard -p "$PROMPT" \
+    --allowedTools "Bash,Read,Write,Edit,Glob,Grep" \
+    --max-turns "$MAX_TURNS"
 
   # ── VERIFY: gates (mechanical) ──
+  # (kaizen 2026-04-24) DEBUG_RETRY_COUNT=1 was 3 — 1回で直らないなら3回目も無駄
   log "Verifying gates..."
   VERIFY_OK=false
-  for fix_attempt in $(seq 1 3); do
+  TOTAL_GATE_TRIES=$((DEBUG_RETRY_COUNT + 1))
+  for fix_attempt in $(seq 1 "$TOTAL_GATE_TRIES"); do
     if bash scripts/pipeline/enforce-gates.sh >/dev/null 2>&1; then
       VERIFY_OK=true
       break
     fi
-    if [[ $fix_attempt -lt 3 ]]; then
-      log "Gate failed, fix attempt $fix_attempt/3 — /systematic-debugging..."
+    if [[ $fix_attempt -lt $TOTAL_GATE_TRIES ]]; then
+      log "Gate failed, fix attempt $fix_attempt/$TOTAL_GATE_TRIES — /systematic-debugging..."
       ERRORS=$(bash scripts/pipeline/enforce-gates.sh 2>&1 | grep "^FAIL" || echo "unknown")
-      # Layer: /systematic-debugging — diagnose root cause before fixing
-      claude -p "あなたは systematic-debugging のスペシャリストです。
+      _claude_guard -p "あなたは systematic-debugging のスペシャリストです。
 
 ゲートが失敗しました: $ERRORS
 
@@ -545,8 +588,7 @@ focus=$FOCUS の改善を1つ実装せよ:
 
 修正してください。CLAUDE.md厳守。" \
         --allowedTools "Bash,Read,Write,Edit,Glob,Grep" \
-        --max-turns 15 \
-        2>&1 | tail -3
+        --max-turns 15
     fi
   done
 
@@ -556,9 +598,12 @@ focus=$FOCUS の改善を1つ実装せよ:
   fi
 
   # ── REVIEW: /review — code review the changes ──
+  # (kaizen 2026-04-24) simplify follow-up step removed — too expensive per-cycle
+  # and often broke gates requiring revert. Review stays read-only (diagnostic).
   log "Running /review on changes..."
   DIFF_STAT=$(git diff HEAD~1 --stat 2>/dev/null | tail -3 || echo "no diff")
-  REVIEW_FINDINGS=$(claude -p "あなたはコードレビューのスペシャリストです。
+  REVIEW_TMP=$(mktemp)
+  claude -p "あなたはコードレビューのスペシャリストです。
 
 直近の変更をレビューしてください。
 
@@ -574,37 +619,33 @@ diff stat: $DIFF_STAT
 findingsがあれば番号付きリストで出力。なければ 'NO FINDINGS' と出力。" \
     --allowedTools "Bash,Read,Glob,Grep" \
     --max-turns 10 \
-    2>&1 || echo "NO FINDINGS")
+    >"$REVIEW_TMP" 2>&1 || echo "NO FINDINGS" >"$REVIEW_TMP"
+  if grep -qiE "you've hit your limit|rate limit|quota exceeded|resets[[:space:]]+[0-9]+(am|pm)" "$REVIEW_TMP"; then
+    log "RATE LIMIT during review — skipping rest of cycle"
+    rm -f "$REVIEW_TMP"
+    exit 0
+  fi
+  REVIEW_FINDINGS=$(cat "$REVIEW_TMP")
+  rm -f "$REVIEW_TMP"
 
   if echo "$REVIEW_FINDINGS" | grep -qi "NO FINDINGS"; then
     log "Review: clean"
-  else
-    log "Review: findings detected — /simplify で修正..."
-    # Layer: /simplify — fix review findings + simplify
-    claude -p "あなたはコード簡素化のスペシャリストです。
-
-以下のレビューfindingsを修正し、コードを簡素化してください。
+  elif [[ "$SIMPLIFY_ENABLED" == "true" ]]; then
+    log "Review: findings detected — /simplify enabled, running follow-up..."
+    _claude_guard -p "以下のレビューfindingsを修正し、コードを簡素化してください。
 
 ## Findings
 $REVIEW_FINDINGS
 
-## /simplify の原則
-- 変更されたコードに焦点を当てる
-- 冗長なコードを簡潔にする
-- 重複を排除する
-- 命名を改善する
-- 動作は変えない (純粋なリファクタ)
-
 CLAUDE.md厳守。God Object行数を増やさない。" \
       --allowedTools "Bash,Read,Write,Edit,Glob,Grep" \
-      --max-turns 10 \
-      2>&1 | tail -3
-
-    # Re-verify after simplification
+      --max-turns 10
     if ! bash scripts/pipeline/enforce-gates.sh >/dev/null 2>&1; then
       log "WARN: Simplification broke gates — reverting"
       git checkout -- . 2>/dev/null
     fi
+  else
+    log "Review: findings detected (simplify step disabled — will be picked up as future issue)"
   fi
 
 

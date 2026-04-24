@@ -49,7 +49,7 @@ $ISSUE_CONTENT
 2. 各タスクは独立して実装・テスト・コミットできる
 3. タスク間の依存順序を明示 (先にAを完了しないとBができない場合)
 4. 各タスクに具体的なファイル名と変更内容を含める
-5. 最大5タスクに分解 (それ以上なら上位タスクにまとめる)
+5. 最大3タスクに分解 (それ以上なら上位タスクにまとめる)
 6. 新機能追加の場合: パーサー → 型定義 → ロジック → UI → テスト の順
 7. バグ修正の場合: 調査 → 修正 → テスト の順
 
@@ -120,7 +120,7 @@ META_PATTERNS = ('git mv ', 'status: done', 'status: pending',
                  'frontmatter status', 'move to done',
                  '原子操作', 'ステータス変更', 'status を')
 
-for i, block in enumerate(blocks[:5]):
+for i, block in enumerate(blocks[:3]):
     # Extract fields
     priority = 'medium'
     summary = 'subtask'
