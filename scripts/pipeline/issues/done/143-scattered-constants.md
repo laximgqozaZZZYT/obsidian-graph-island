@@ -1,7 +1,7 @@
 ---
 priority: low
 reported: 2026-04-24
-status: decomposed
+status: done
 source: auto-discovered
 summary: 310個の定数がconstants.ts外に散在
 ---
