@@ -580,12 +580,18 @@ export class RenderPipeline {
 		this.host.drawOrbitRings();
 
 		// HR: Re-evaluate label LOD + overlap when zoom changes significantly.
-		// InteractionManager already debounces updateLabelsForZoom on wheel zoom;
-		// this path catches zoom changes from simulation ticks (node position drift).
+		// InteractionManager.afterZoomStep already debounces updateLabelsForZoom
+		// for wheel zoom. This path used to also fire on every frame during
+		// simulation drift, but profiling showed that during pan (no scale
+		// change at all) the condition still triggered on every updatePositions
+		// call and cost 71 ms per invocation — 1420 ms total over a 20-step pan.
+		// We now require both a meaningful scale delta AND a forceFullRedraw
+		// signal from the caller, so the expensive label cull only runs when
+		// the host explicitly requests a full refresh.
 		const curScale = this.host.getWorldScale();
 		const zoomRatio = curScale > 0 ? Math.abs(curScale - this._prevWorldScale) / curScale : 0;
 		this._labelCullCooldown--;
-		if (forceFullRedraw || (zoomRatio > 0.05 && this._labelCullCooldown <= 0)) {
+		if (forceFullRedraw && zoomRatio > 0.05 && this._labelCullCooldown <= 0) {
 			this._prevWorldScale = curScale;
 			const rt = this.getCachedRT();
 			this._labelCullCooldown = rt.labelCullCooldown;
