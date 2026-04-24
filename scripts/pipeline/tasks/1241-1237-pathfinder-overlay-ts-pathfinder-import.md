@@ -1,7 +1,7 @@
 ---
 priority: high
 reported: 2026-04-24
-status: in-progress
+status: decomposed
 source: decomposed
 parent: 1237-1234-pathfinder-overlay-ts-pathfinder-import
 depends: subtask-1 of parent (constants定義完了済みであること)
