@@ -2354,6 +2354,16 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		// Expand collapsed super node
 		if (pn.data.collapsedMembers && pn.data.id.startsWith("__super__")) {
 			const groupKey = pn.data.id.replace("__super__", "");
+			// Capture fade-in origin (the super-node's current position) and the
+			// member IDs that will spawn from it. _setupForceLayout reads this to
+			// seed member positions + initial scale, _tickFadeIn animates them out.
+			this._fadeInTween = {
+				nodeIds: new Set(pn.data.collapsedMembers),
+				originX: pn.data.x,
+				originY: pn.data.y,
+				startMs: performance.now(),
+				durationMs: 450,
+			};
 			this.panel.collapsedGroups.delete(groupKey);
 			// Do NOT clear rawData — group collapse/expand only affects the last
 			// step of getGraphData's filter pipeline (_applyGroupCollapse reads
@@ -2716,6 +2726,64 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	 * based on whether saved positions exist (re-renders) or not (fresh load).
 	 */
 	private _restartAlpha = 1;
+	/**
+	 * Fade-in animation state for nodes being revealed (super-node expand).
+	 * When active, listed nodes start at (originX, originY) with scale 0 / alpha 0
+	 * and interpolate up to full size over durationMs, creating an "explode outward
+	 * from the collapsed cluster" effect as the force simulation pushes them apart.
+	 */
+	private _fadeInTween: {
+		nodeIds: Set<string>;
+		originX: number;
+		originY: number;
+		startMs: number;
+		durationMs: number;
+	} | null = null;
+
+	/** Advance the fade-in tween one frame. Returns true while animating. */
+	private _tickFadeIn(): boolean {
+		const tw = this._fadeInTween;
+		if (!tw) return false;
+
+		// Respect prefers-reduced-motion: snap to final state immediately.
+		if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+			this._fadeInFinish();
+			return false;
+		}
+
+		const elapsed = performance.now() - tw.startMs;
+		const t = Math.min(elapsed / tw.durationMs, 1);
+		// easeOutCubic: fast at start, decelerating. Feels organic without overshoot.
+		const eased = 1 - Math.pow(1 - t, 3);
+		// Alpha reaches 1 slightly faster than scale, so nodes are fully visible
+		// as they grow into place rather than being transparent at final size.
+		const alpha = Math.min(1, t * 1.6);
+
+		for (const id of tw.nodeIds) {
+			const pn = this.pixiNodes.get(id);
+			if (!pn) continue;
+			pn.gfx.scale.set(eased);
+			pn.gfx.alpha = alpha;
+		}
+
+		if (t >= 1) {
+			this._fadeInFinish();
+			return false;
+		}
+		return true;
+	}
+
+	private _fadeInFinish(): void {
+		const tw = this._fadeInTween;
+		if (!tw) return;
+		for (const id of tw.nodeIds) {
+			const pn = this.pixiNodes.get(id);
+			if (!pn) continue;
+			pn.gfx.scale.set(1);
+			pn.gfx.alpha = 1;
+		}
+		this._fadeInTween = null;
+	}
 	/** Called by RenderPipeline once the deferred batch queue has drained. */
 	onAllPixiNodesCreated(): void {
 		if (!this._pendingSimulationRestart) return;
@@ -5307,7 +5375,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	// Layout transition animation (called by RenderPipeline each frame)
 	// =========================================================================
 	tickLayoutTransition(): boolean {
-		return this.layoutTransition.tick();
+		// OR the two animation channels — position lerp + fade-in pop — so the
+		// render pipeline keeps ticking while either is still running.
+		const pos = this.layoutTransition.tick();
+		const fade = this._tickFadeIn();
+		return pos || fade;
 	}
 
 	// =========================================================================
@@ -6712,6 +6784,13 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		this.ac = new AbortController();
 		const signal = this.ac.signal;
 		this.layoutTransition.cancel();
+		// If an in-flight fade-in belongs to the previous render (not the one
+		// we're about to start), finish it immediately so its leftover scale/
+		// alpha don't bleed into the next sprite set. The new render will
+		// install its own _fadeInTween before _setupForceLayout runs if needed.
+		if (this._fadeInTween && this._fadeInTween.startMs < performance.now() - 10) {
+			this._fadeInFinish();
+		}
 		this._applyAnalysisOverlay();
 		this._savePositionsForTransition();
 		this.stopSim();
@@ -7036,7 +7115,16 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		this._restartAlpha = savedPositionsValid && this.savedPositions.size > 0 ? 0.5 : 1;
 		const maxReasonableCoord = Math.max(W, H) * 5;
 
+		const fade = this._fadeInTween;
 		for (const n of gd.nodes) {
+			// Fade-in case: member nodes revealed by a super-node expand start at
+			// the super-node's position (with a tiny jitter so the collision force
+			// has distinct directions to push them outward).
+			if (fade && fade.nodeIds.has(n.id)) {
+				n.x = fade.originX + (Math.random() - 0.5) * 8;
+				n.y = fade.originY + (Math.random() - 0.5) * 8;
+				continue;
+			}
 			// Use saved positions from previous layout as starting positions,
 			// but only if they are within a reasonable range (prevents sunburst/concentric
 			// polar coordinates from causing force layout divergence)
@@ -7077,7 +7165,24 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		}
 
 		this.renderPipeline?.setSkipNodeRendering(viewModeSkipsNodeRendering(this.panel.viewMode));
+		// Arm the simulation-restart flag BEFORE createPixiNodes: on the sync
+		// (small-graph) path, RenderPipeline fires onAllPixiNodesCreated() from
+		// inside createPixiNodes — earlier in this function than alpha(0).stop()
+		// below. Setting the flag now means the callback schedules the restart
+		// that will actually run after alpha(0).stop() suspends the sim.
+		this._pendingSimulationRestart = true;
 		this.createPixiNodes(gd.nodes, nodeR, nodeColor);
+		// Fade-in: hide freshly-created member sprites so they emerge from the
+		// super-node origin rather than popping into existence at full size.
+		// _tickFadeIn (driven by renderTick) scales them back up over durationMs.
+		if (fade) {
+			for (const id of fade.nodeIds) {
+				const pn = this.pixiNodes.get(id);
+				if (!pn) continue;
+				pn.gfx.scale.set(0);
+				pn.gfx.alpha = 0;
+			}
+		}
 		// Restore held state for pinned nodes
 		for (const nodeId of Object.keys(this.panel.pinnedPositions)) {
 			const pn = this.pixiNodes.get(nodeId);
@@ -7101,10 +7206,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		// deferred-batch sprite creator is still running. (applyClusterForce +
 		// applyNodeRulesForce internally call sim.restart(), which would undo
 		// an earlier .stop() — we must stop AFTER those have run.)
-		// onAllPixiNodesCreated() restarts it with full alpha once all sprites exist.
+		// onAllPixiNodesCreated() restarts it once all sprites exist; the
+		// restart flag is set above, before createPixiNodes, because the sync
+		// path (small graphs) fires the callback from inside createPixiNodes.
 		if (this.simulation) {
 			this.simulation.alpha(0).stop();
-			this._pendingSimulationRestart = true;
 		}
 
 		// Show world immediately so users see progressive layout forming.

@@ -1348,7 +1348,11 @@ export class RenderPipeline {
 			this.scheduleDeferredBatch();
 		} else {
 			this.cullOverlappingLabels();
-			this.host.onAllPixiNodesCreated?.();
+			// Defer onAllPixiNodesCreated so any post-createPixiNodes setup
+			// in the host (alpha(0).stop(), force application) completes before
+			// the callback restarts the simulation. Without this, the sync path
+			// would restart the sim before the host has finished configuring it.
+			setTimeout(() => this.host.onAllPixiNodesCreated?.(), 0);
 		}
 	}
 
