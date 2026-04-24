@@ -268,6 +268,12 @@ cleanup() {
   # Preserve uncommitted work-in-progress in the worktree before teardown.
   local wip_committed=0
   if [[ -d "$WORKTREE_DIR" ]] && cd "$WORKTREE_DIR" 2>/dev/null; then
+    # Log git state so we can diagnose why WIP preservation did/did not fire.
+    local _status_summary
+    _status_summary=$(git status --porcelain 2>/dev/null | wc -l)
+    local _log_summary
+    _log_summary=$(git log --oneline "$BASE_BRANCH..HEAD" 2>/dev/null | wc -l)
+    log "Worktree state at cleanup: $_status_summary uncommitted file(s), $_log_summary branch commits above base"
     if [[ -n "$(git status --porcelain 2>/dev/null)" ]]; then
       git add -A 2>/dev/null || true
       if git commit --no-verify -m "wip(auto): partial work — cycle aborted ($SESSION_ID)
