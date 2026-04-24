@@ -1,7 +1,7 @@
 ---
 priority: high
 reported: 2026-04-24
-status: in-progress
+status: pending
 source: decomposed
 parent: 1231-1221-pathfinder-overlay-12-node-decorations-1
 depends: none
