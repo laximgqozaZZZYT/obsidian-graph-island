@@ -1,7 +1,7 @@
 ---
 priority: high
 reported: 2026-04-24
-status: in-progress
+status: decomposed
 source: decomposed
 parent: 1234-1231-pathfinder-overlay-ts-12-constants-ts-pa
 depends: none
