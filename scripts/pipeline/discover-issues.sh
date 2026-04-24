@@ -37,10 +37,24 @@ file_issue() {
   local description="$4"
   local criteria="$5"
 
-  # Skip if same slug already exists (pending or in-progress)
-  if ls "$ISSUE_DIR"/*-"$slug".md 2>/dev/null | grep -q .; then
+  # Skip if same slug is currently active (pending / in-progress / decomposed).
+  # NOTE: blocked is NOT a skip reason — see cooldown below.
+  if grep -lE '^status: (pending|in-progress|decomposed)$' "$ISSUE_DIR"/*-"$slug".md 2>/dev/null | grep -q .; then
     return 0
   fi
+  # Cooldown: if the same slug was recently blocked (within 24h), skip re-filing
+  # to avoid thrashing on permanently-difficult issues. After 24h, allow re-file
+  # so the discovery loop can resurface still-broken invariants.
+  local cooldown_sec=86400
+  local now_epoch
+  now_epoch=$(date +%s)
+  local blocked_f mtime
+  for blocked_f in $(grep -lE '^status: blocked$' "$ISSUE_DIR"/*-"$slug".md 2>/dev/null); do
+    mtime=$(stat -c %Y "$blocked_f" 2>/dev/null || echo 0)
+    if (( now_epoch - mtime < cooldown_sec )); then
+      return 0
+    fi
+  done
   # Stagnation check: compare summary with the latest done issue of same slug.
   # If the summary is identical, no progress was made → don't re-file.
   # If it differs (e.g., "122個" → "112個"), progress happened → re-file to continue.

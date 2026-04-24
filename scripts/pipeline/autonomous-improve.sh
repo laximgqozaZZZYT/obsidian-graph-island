@@ -384,7 +384,9 @@ bash "$PROJECT_DIR/scripts/pipeline/discover-issues.sh" 2>&1 | tail -5 | while I
 # Kaizen-driven deep analysis (every 4th session to save API calls)
 HOUR=${HOUR:-$(date +%-H)}
 if [[ $((HOUR % 4)) -eq 0 ]]; then
-  PENDING_COUNT=$(find "$PROJECT_DIR/scripts/pipeline/issues" -maxdepth 1 -name '*.md' 2>/dev/null | wc -l)
+  # Count only TRUE pending issues — blocked/decomposed shouldn't lock the discovery loop
+  PENDING_COUNT=$(grep -lE '^status: pending$' "$PROJECT_DIR"/scripts/pipeline/issues/*.md 2>/dev/null | wc -l | tr -cd '0-9')
+  PENDING_COUNT=${PENDING_COUNT:-0}
   if [[ $PENDING_COUNT -le $KAIZEN_PENDING_THRESHOLD ]]; then
     log "Running /kaizen issue discovery (hour=$HOUR, pending=$PENDING_COUNT)..."
     KAIZEN_PROMPT="あなたはKaizen(継続的改善)のスペシャリストです。
