@@ -410,36 +410,36 @@ describe("createAutoSnapshot", () => {
 		vi.clearAllMocks();
 	});
 
-	it("does nothing when pixiNodes is empty", () => {
+	it("does nothing when pixiNodes is empty", async () => {
 		const host = createMockHost({ pixiNodes: new Map() });
-		createAutoSnapshot(host);
+		await createAutoSnapshot(host);
 		expect(host.plugin.saveSettings).not.toHaveBeenCalled();
 	});
 
-	it("creates an auto-snapshot with prefixed name", () => {
+	it("creates an auto-snapshot with prefixed name", async () => {
 		const host = createMockHost();
-		createAutoSnapshot(host);
+		await createAutoSnapshot(host);
 
 		expect(host.plugin.settings.snapshots!.length).toBe(1);
 		expect(host.plugin.settings.snapshots![0].name).toContain(AUTO_SNAP_PREFIX);
 		expect(host.plugin.saveSettings).toHaveBeenCalled();
 	});
 
-	it("removes oldest auto-snapshot when at limit", () => {
+	it("removes oldest auto-snapshot when at limit", async () => {
 		const host = createMockHost();
 		host.plugin.settings.snapshots = Array.from({ length: AUTO_SNAP_MAX }, (_, i) => ({
 			...createMockSnapshot(`${AUTO_SNAP_PREFIX}2026-01-0${i + 1} 12:00`),
 			name: `${AUTO_SNAP_PREFIX}2026-01-0${i + 1} 12:00`,
 		}));
 
-		createAutoSnapshot(host);
+		await createAutoSnapshot(host);
 
 		expect(host.plugin.settings.snapshots!.length).toBe(AUTO_SNAP_MAX);
 		const last = host.plugin.settings.snapshots![host.plugin.settings.snapshots!.length - 1];
 		expect(last.name).toContain(AUTO_SNAP_PREFIX);
 	});
 
-	it("does not remove manual snapshots when pruning auto ones", () => {
+	it("does not remove manual snapshots when pruning auto ones", async () => {
 		const host = createMockHost();
 		const manual = createMockSnapshot("Manual Snap");
 		const autoSnaps = Array.from({ length: AUTO_SNAP_MAX }, (_, i) => ({
@@ -448,23 +448,23 @@ describe("createAutoSnapshot", () => {
 		}));
 		host.plugin.settings.snapshots = [manual, ...autoSnaps];
 
-		createAutoSnapshot(host);
+		await createAutoSnapshot(host);
 
 		const names = host.plugin.settings.snapshots!.map((s) => s.name);
 		expect(names).toContain("Manual Snap");
 	});
 
-	it("initializes snapshots array if undefined", () => {
+	it("initializes snapshots array if undefined", async () => {
 		const host = createMockHost();
 		host.plugin.settings.snapshots = undefined;
-		createAutoSnapshot(host);
+		await createAutoSnapshot(host);
 		expect(host.plugin.settings.snapshots).toBeDefined();
 		expect(host.plugin.settings.snapshots!.length).toBe(1);
 	});
 
-	it("auto-snapshot name includes date prefix", () => {
+	it("auto-snapshot name includes date prefix", async () => {
 		const host = createMockHost();
-		createAutoSnapshot(host);
+		await createAutoSnapshot(host);
 		const snap = host.plugin.settings.snapshots![0];
 		expect(snap.name.startsWith(AUTO_SNAP_PREFIX)).toBe(true);
 		expect(snap.name.length).toBeGreaterThan(AUTO_SNAP_PREFIX.length);

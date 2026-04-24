@@ -123,8 +123,11 @@ export interface AutoSnapshotHost {
 	getGraphData(): GraphData | null | undefined;
 	/** Current context (layout/searchQuery/groupBy). */
 	getContext(): SnapshotContext;
-	/** Current snapshot list (mutated in place). */
-	getSnapshots(): GraphSnapshot[];
+	/**
+	 * Current snapshot list (mutated in place).
+	 * May return a Promise when snapshots live in a lazy-loaded sidecar file.
+	 */
+	getSnapshots(): GraphSnapshot[] | Promise<GraphSnapshot[]>;
 	/** Persist the updated snapshot list. */
 	persist(snapshots: GraphSnapshot[]): void;
 }
@@ -157,10 +160,10 @@ export function createAutoSnapshotHandler(
 			const debounceMs = mins * 60 * 1000;
 			if (debounceMs <= 0) return;
 			if (timer) timers.clearTimeout(timer);
-			timer = timers.setTimeout(() => {
+			timer = timers.setTimeout(async () => {
 				timer = 0;
 				if (!host.hasGraphData()) return;
-				const snapshots = host.getSnapshots();
+				const snapshots = await host.getSnapshots();
 				const snap = appendAutoSnapshot(snapshots, host.getGraphData(), host.getContext());
 				if (!snap) return;
 				host.persist(snapshots);

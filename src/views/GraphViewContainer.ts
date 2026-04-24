@@ -1428,7 +1428,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 						searchQuery: this.panel.searchQuery ?? "",
 						groupBy: this.panel.clusterGroupRules?.[0]?.groupBy ?? "",
 					}),
-					getSnapshots: () => this.plugin.settings.snapshots ?? [],
+					getSnapshots: async () => {
+						await this.plugin.ensureSnapshotsLoaded();
+						return this.plugin.settings.snapshots ?? [];
+					},
 					persist: (snapshots) => {
 						this.plugin.settings.snapshots = snapshots;
 						this.plugin.saveSettings();

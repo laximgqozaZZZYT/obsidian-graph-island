@@ -330,11 +330,14 @@ describe("GraphSnapshot: createAutoSnapshotHandler", () => {
 		expect(pending()).toHaveLength(1);
 	});
 
-	it("appends snapshot and calls persist after debounce fires", () => {
+	it("appends snapshot and calls persist after debounce fires", async () => {
 		const { host, snapshots, persistSpy } = makeHost();
 		const { hooks, fireAll } = makeTimers();
 		createAutoSnapshotHandler(host, hooks).trigger();
 		fireAll();
+		// getSnapshots may return a Promise (lazy sidecar) — flush microtasks
+		await Promise.resolve();
+		await Promise.resolve();
 		expect(snapshots).toHaveLength(1);
 		expect(snapshots[0].name.startsWith(AUTO_SNAP_PREFIX)).toBe(true);
 		expect(persistSpy).toHaveBeenCalledOnce();

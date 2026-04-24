@@ -24,6 +24,7 @@ export interface SnapshotHost {
 			autoSnapshotIntervalMin?: number;
 		};
 		saveSettings(): Promise<void>;
+		ensureSnapshotsLoaded?(): Promise<void>;
 	};
 	readonly panel: {
 		searchQuery?: string;
@@ -44,7 +45,9 @@ export interface SnapshotHost {
 // ---------------------------------------------------------------------------
 
 /** Show snapshot context menu. */
-export function showSnapshotMenu(host: SnapshotHost, evt: MouseEvent): void {
+export async function showSnapshotMenu(host: SnapshotHost, evt: MouseEvent): Promise<void> {
+	// Sidecar lazy-load: snapshots live in data-snapshots.json, load on first access.
+	await host.plugin.ensureSnapshotsLoaded?.();
 	const menu = new Menu();
 
 	// Save menu item
@@ -285,8 +288,9 @@ export const AUTO_SNAP_PREFIX = "[auto] ";
 export const AUTO_SNAP_MAX = 10;
 
 /** Create an auto-snapshot from the current graph state. */
-export function createAutoSnapshot(host: SnapshotHost): void {
+export async function createAutoSnapshot(host: SnapshotHost): Promise<void> {
 	if (!host.pixiNodes.size) return; // no graph data yet
+	await host.plugin.ensureSnapshotsLoaded?.();
 	const snapshots = host.plugin.settings.snapshots ?? [];
 	// Remove oldest auto-snapshots if at limit
 	const autoSnaps = snapshots.filter((s) => s.name.startsWith(AUTO_SNAP_PREFIX));

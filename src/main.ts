@@ -12,6 +12,7 @@ import { asInternalWorkspace, asGraphView, type GraphViewInternal } from "./obsi
 
 export default class GraphViewsPlugin extends Plugin {
 	settings: GraphViewsSettings = DEFAULT_SETTINGS;
+	private _snapshotsLoaded = false;
 
 	async onload() {
 		await this.loadSettings();
@@ -236,12 +237,83 @@ export default class GraphViewsPlugin extends Plugin {
 
 	onunload() {}
 
+	// Snapshots live in a sidecar file (data-snapshots.json) to keep data.json
+	// small and loadSettings() fast. Without this separation, data.json grows
+	// unbounded (~6MB+) and loadData() becomes a multi-second blocker on startup.
+	private _snapshotsSidecarPath(): string {
+		return `${this.manifest.dir ?? ".obsidian/plugins/graph-island"}/data-snapshots.json`;
+	}
+
 	async loadSettings() {
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+		const raw = (await this.loadData()) as Record<string, unknown> | null;
+		let migrationSnapshots: unknown[] | null = null;
+		if (raw && Array.isArray((raw as any).snapshots) && (raw as any).snapshots.length > 0) {
+			// One-time migration: move embedded snapshots to sidecar file.
+			migrationSnapshots = (raw as any).snapshots;
+			delete (raw as any).snapshots;
+		}
+		this.settings = Object.assign({}, DEFAULT_SETTINGS, raw ?? {});
+		this._snapshotsLoaded = false;
+
+		if (migrationSnapshots) {
+			try {
+				await this.app.vault.adapter.write(
+					this._snapshotsSidecarPath(),
+					JSON.stringify(migrationSnapshots),
+				);
+				this.settings.snapshots = [];
+				await this.saveData(this.settings); // rewrite data.json without snapshots
+				this.settings.snapshots = migrationSnapshots as any;
+				this._snapshotsLoaded = true;
+			} catch {
+				// If migration write fails, restore in-memory for this session
+				this.settings.snapshots = migrationSnapshots as any;
+				this._snapshotsLoaded = true;
+			}
+		}
+	}
+
+	/** Lazily load snapshots from sidecar file into settings.snapshots. */
+	async ensureSnapshotsLoaded(): Promise<void> {
+		if (this._snapshotsLoaded) return;
+		const path = this._snapshotsSidecarPath();
+		try {
+			const exists = await this.app.vault.adapter.exists(path);
+			if (exists) {
+				const txt = await this.app.vault.adapter.read(path);
+				this.settings.snapshots = JSON.parse(txt);
+			} else {
+				this.settings.snapshots = [];
+			}
+		} catch {
+			this.settings.snapshots = [];
+		}
+		this._snapshotsLoaded = true;
+	}
+
+	/** Persist snapshots to sidecar file (kept out of data.json for load speed). */
+	async saveSnapshots(): Promise<void> {
+		try {
+			await this.app.vault.adapter.write(
+				this._snapshotsSidecarPath(),
+				JSON.stringify(this.settings.snapshots ?? []),
+			);
+		} catch {
+			// swallow — caller will retry or surface to user
+		}
 	}
 
 	async saveSettings() {
+		// Persist snapshots separately (if loaded), then strip before writing data.json.
+		const snapshots = this.settings.snapshots;
+		if (this._snapshotsLoaded) {
+			await this.saveSnapshots();
+		}
+		// Temporarily remove snapshots field so data.json stays small
+		const hadSnapshots = this.settings.snapshots !== undefined;
+		if (hadSnapshots) this.settings.snapshots = undefined as any;
 		await this.saveData(this.settings);
+		if (hadSnapshots) this.settings.snapshots = snapshots;
 		// Notify all graph views to rebuild with updated settings
 		for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_GRAPH)) {
 			const view = asGraphView(leaf);
