@@ -4007,9 +4007,12 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		this.prevHighlightSet = curSet;
 		// Re-run overlap culling so hover-forced labels get displacement + leader lines
 		this.renderPipeline?.cullOverlappingLabels();
-		this.redrawNodeBatch();
-		this.drawEdges(); // Redraw edges with hover dimming
-		this.drawTimelineBars(); // Redraw bars with hover highlight
+		// Defer redrawNodeBatch / drawEdges / drawTimelineBars to the next
+		// render tick: applyHover used to redraw all three synchronously AND
+		// trigger another full redraw via markDirty(true), which meant 11k
+		// edges were rasterised twice per pointermove. The caller now calls
+		// markDirty() → RenderPipeline.updatePositions handles them once,
+		// with its existing edgeRedrawCounter throttle.
 		this.updateNodeInfo();
 		// EM: Sync Nodes tab hover highlight
 		this._syncNodesTabHover(effectiveHId, curSet);

@@ -686,7 +686,12 @@ export class InteractionManager {
 		if (newId !== this.host.getHighlightedNodeId()) {
 			this.host.setHighlightedNodeId(newId);
 			this.host.applyHover();
-			this.host.markDirty(true);
+			// markDirty() not markDirty(true): hover changes node alpha/color but
+			// the edge-redraw throttle in RenderPipeline.updatePositions should
+			// still apply. forceFullRedraw here caused every hover to redraw all
+			// 11k edges + run full label culling — measured 429 ms of lag per
+			// pointermove on a 2,400-node graph.
+			this.host.markDirty();
 			this.canvas.style.cursor = newId ? "pointer" : "";
 		}
 		if (this.host.hitTestSunburstArc && this.host.setSunburstHover) {
