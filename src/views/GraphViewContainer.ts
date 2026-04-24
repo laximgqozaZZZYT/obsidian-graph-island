@@ -7321,7 +7321,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			this.updatePositions(true);
 
 			// --- PHASE B (next tick): light bookkeeping ---
-			setTimeout(() => {
+			this._scheduleTimer(() => {
 				const isFirstLaunch = !localStorage.getItem(SR_GUIDE_KEY);
 				if (isFirstLaunch) localStorage.setItem(SR_GUIDE_KEY, "1");
 				this._announceA11y(
@@ -7342,7 +7342,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			}, 0);
 
 			// --- PHASE C (after B): viewport fit + road network ---
-			setTimeout(() => {
+			this._scheduleTimer(() => {
 				const wrap = this.canvasWrap;
 				{
 					const renderer = this.pixiApp?.renderer;
@@ -7371,14 +7371,14 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			}, 0);
 
 			// --- PHASE D (after C): heavy label-culling work (was the 15-s offender) ---
-			setTimeout(() => {
+			this._scheduleTimer(() => {
 				this.updateLabelsForZoom();
 				this.recalcNodeRadii();
 				this._autoOptimizeLabelOverlapOnce();
 			}, 0);
 
 			// --- PHASE E (after D): auto-focus + position persistence ---
-			setTimeout(() => {
+			this._scheduleTimer(() => {
 				this._autoFocusActiveFile();
 				this._suppressAutoFit = false;
 				this._persistAllPositions();
