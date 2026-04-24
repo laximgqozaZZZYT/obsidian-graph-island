@@ -146,6 +146,7 @@ import { asInternalWorkspace } from "../obsidian-internals";
 import { generatePhantomNodes } from "./phantom-node-generator";
 import { adjustTooltipPosition, type PanelRect } from "../utils/tooltip-position";
 import { handleShortcutKey, type KeyboardHost } from "./KeyboardHandler";
+import { computeViewportScaleFactor } from "./graph-view-helpers";
 import { groupNodesByField, collapseGroup, type GroupSpec, type GroupOptions } from "../utils/node-grouping";
 import { louvainCommunities } from "../utils/louvain";
 import { queryDataviewPages, filterNodesByDataview } from "../utils/dataview-source";
@@ -5621,12 +5622,13 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
 		const cx2 = (bbox2.minX + bbox2.maxX) / 2;
 		const cy2 = (bbox2.minY + bbox2.maxY) / 2;
-		const scaleFactor = this._computeViewportScaleFactor(
+		const scaleFactor = computeViewportScaleFactor(
 			bbox2.maxX - bbox2.minX,
 			bbox2.maxY - bbox2.minY,
 			minUtil,
 			vpArea,
 			util2,
+			avgNodeR,
 		);
 		for (const pn of this.pixiNodes.values()) {
 			pn.data.x = cx2 + (pn.data.x - cx2) * scaleFactor;
@@ -5680,27 +5682,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 				pn.data.x = cx + t * targetW;
 			});
 		}
-	}
-
-	/**
-	 * Compute the uniform scale factor via quadratic equation so that
-	 * scaled positions + constant radii meet the minUtil threshold exactly.
-	 */
-	private _computeViewportScaleFactor(
-		bboxW: number,
-		bboxH: number,
-		minUtil: number,
-		vpArea: number,
-		util: number,
-	): number {
-		const avgR = this._computeAvgNodeRadius();
-		const posSpanW = Math.max(bboxW - 2 * avgR, 1);
-		const posSpanH = Math.max(bboxH - 2 * avgR, 1);
-		const A = posSpanW * posSpanH;
-		const B = 2 * avgR * (posSpanW + posSpanH);
-		const C = 4 * avgR * avgR - minUtil * vpArea;
-		const disc = B * B - 4 * A * C;
-		return disc >= 0 ? (-B + Math.sqrt(disc)) / (2 * A) : Math.sqrt(minUtil / util); // fallback
 	}
 
 	private autoFitView(W: number, H: number) {
