@@ -43,6 +43,43 @@ file_issue() {
   if grep -lE '^status: (pending|in-progress|decomposed|undecomposable)$' "$ISSUE_DIR"/*-"$slug".md 2>/dev/null | grep -q .; then
     return 0
   fi
+  # Summary similarity check (kaizen 2026-04-25): even if slugs differ,
+  # near-identical summaries should not be re-filed (e.g. an LLM-style summary
+  # vs. a static-detector summary about the same problem).
+  local sim_winner
+  sim_winner=$(SUMMARY="$summary" python3 - <<'PY' "$ISSUE_DIR"
+import os, re, sys, glob
+issue_dir = sys.argv[1]
+new = os.environ.get('SUMMARY', '')
+def ws(t): return {w for w in re.findall(r'[a-z]{3,}', t.lower())}
+def jac(a, b): return len(a & b) / max(len(a | b), 1)
+new_ws = ws(new)
+best = (0.0, '')
+for f in glob.glob(f'{issue_dir}/*.md'):
+    try:
+        with open(f) as fh:
+            c = fh.read()
+    except Exception:
+        continue
+    st = re.search(r'^status:\s*(\S+)', c, re.MULTILINE)
+    if not st or st.group(1).strip() not in ('pending', 'in-progress', 'decomposed', 'undecomposable'):
+        continue
+    sm = re.search(r'^summary:\s*(.+)', c, re.MULTILINE)
+    if not sm:
+        continue
+    j = jac(new_ws, ws(sm.group(1).strip()))
+    if j > best[0]:
+        best = (j, sm.group(1).strip())
+# bash will compare via integer (×100) to dodge float pitfalls
+print(f"{int(best[0]*100)}|{best[1][:60]}")
+PY
+)
+  local sim_int="${sim_winner%%|*}"
+  sim_int=${sim_int//[^0-9]/}
+  sim_int=${sim_int:-0}
+  if [[ $sim_int -ge 70 ]]; then
+    return 0
+  fi
   # Cooldown: if the same slug was recently blocked (within 24h), skip re-filing
   # to avoid thrashing on permanently-difficult issues. After 24h, allow re-file
   # so the discovery loop can resurface still-broken invariants.

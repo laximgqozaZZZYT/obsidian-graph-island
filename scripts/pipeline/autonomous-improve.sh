@@ -28,6 +28,13 @@ DEBUG_RETRY_COUNT=1          # was 3 — systematic-debugging retries on gate fa
 SIMPLIFY_ENABLED=false       # was implicit true — simplify step after review findings
 KAIZEN_PENDING_THRESHOLD=0   # was 5 — only run kaizen when pending==0
 
+# ── Queue caps (kaizen 2026-04-25) ──
+# Manual triage at 38 active tasks revealed quality decay (duplicates,
+# placeholders, undecomposable items). Cap active tasks so the queue stays
+# scannable. Active = pending|in-progress|decomposed.
+MAX_TOTAL_TASKS=${MAX_TOTAL_TASKS:-50}
+export MAX_TOTAL_TASKS
+
 cd "$PROJECT_DIR" || exit 1
 
 # ── Log rotation ──
@@ -573,6 +580,13 @@ for iter in $(seq 1 "$MAX_ITERATIONS"); do
       rm -f "$DECOMPOSE_LOG"
       if [[ $DECOMPOSE_EXIT -eq 2 ]]; then
         log "ABORT: decomposition hit rate-limit — skipping rest of cycle to conserve tokens"
+        exit 0
+      fi
+      if [[ $DECOMPOSE_EXIT -eq 4 ]]; then
+        log "ABORT: task queue at cap (MAX_TOTAL_TASKS=$MAX_TOTAL_TASKS) — skipping decomposition this cycle"
+        # Roll back the attempts increment so the issue isn't penalized for a
+        # capacity-driven skip
+        sed -i "s/^decompose_attempts:.*/decompose_attempts: $CUR_ATTEMPTS/" "$ISSUE_FILE" 2>/dev/null || true
         exit 0
       fi
 

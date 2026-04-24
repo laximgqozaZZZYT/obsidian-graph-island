@@ -28,6 +28,18 @@ TASK_DIR="$PROJECT_DIR/scripts/pipeline/tasks"
 TASK_DONE_DIR="$TASK_DIR/done"
 mkdir -p "$TASK_DIR" "$TASK_DONE_DIR"
 
+# ── Queue cap (kaizen 2026-04-25) ──
+# Refuse to decompose when the active task queue is already at the cap.
+# Active = pending|in-progress|decomposed. Without this, every C5 revive
+# would keep growing the queue indefinitely.
+MAX_TOTAL_TASKS=${MAX_TOTAL_TASKS:-50}
+ACTIVE_TASKS=$(grep -lE '^status: (pending|in-progress|decomposed)$' "$TASK_DIR"/*.md 2>/dev/null | wc -l | tr -cd '0-9')
+ACTIVE_TASKS=${ACTIVE_TASKS:-0}
+if [[ $ACTIVE_TASKS -ge $MAX_TOTAL_TASKS ]]; then
+  echo "ABORT: task queue at cap ($ACTIVE_TASKS/$MAX_TOTAL_TASKS active) — decomposition deferred until queue drains"
+  exit 4
+fi
+
 # Find next available number (across issues + tasks)
 LAST_NUM=$(find "$ISSUE_DIR" "$ISSUE_DIR/done" "$TASK_DIR" "$TASK_DONE_DIR" -maxdepth 1 -name '*.md' 2>/dev/null | xargs -I{} basename {} | grep -oP '^\d+' | sort -n | tail -1)
 LAST_NUM=${LAST_NUM:-0}
@@ -138,20 +150,37 @@ UNDECOMPOSABLE_PATTERNS = (
 # Empty/placeholder summary patterns (substring match, lowercased)
 PLACEHOLDER_SUMMARY_PATTERNS = ('subtask', 'todo', 'task description', 'summary here')
 
-# Pull existing same-parent task summaries for duplicate detection (C-category fix)
+# Pull existing task summaries for duplicate detection (C-category fix)
+# - same_parent_summaries: tighter check (Jaccard 0.6) within same issue
+# - all_summaries: looser check (Jaccard 0.7) across the whole task queue,
+#   catches generic 'extract constants' / 'add tests' duplicates that span
+#   multiple parent issues.
 parent_match = re.match(r'(\d+)', parent)
 parent_num = parent_match.group(1) if parent_match else ''
-existing_summaries = []
-if parent_num:
-    for ef in glob.glob(f'{issue_dir}/*-{parent_num}-*.md'):
-        try:
-            with open(ef) as efh:
-                ec = efh.read()
-            sm = re.search(r'^summary:\s*(.+)', ec, re.MULTILINE)
-            if sm:
-                existing_summaries.append(sm.group(1).strip())
-        except Exception:
-            pass
+same_parent_summaries = []
+all_summaries = []
+def _extract_summary(path):
+    try:
+        with open(path) as fh:
+            c = fh.read()
+        sm = re.search(r'^summary:\s*(.+)', c, re.MULTILINE)
+        st = re.search(r'^status:\s*(\S+)', c, re.MULTILINE)
+        if sm:
+            status = st.group(1).strip() if st else ''
+            return sm.group(1).strip(), status
+    except Exception:
+        pass
+    return None, None
+for ef in glob.glob(f'{issue_dir}/*.md'):
+    s, status = _extract_summary(ef)
+    if not s:
+        continue
+    # Only compare against active items; done/blocked/undecomposable shouldn't block new work
+    if status not in ('pending', 'in-progress', 'decomposed'):
+        continue
+    all_summaries.append(s)
+    if parent_num and f'-{parent_num}-' in ef.split('/')[-1]:
+        same_parent_summaries.append(s)
 
 def _word_set(text):
     return {w for w in re.findall(r'[a-z]{3,}', text.lower())}
@@ -209,18 +238,27 @@ for i, block in enumerate(blocks[:3]):
     if any(p in desc_lower or p in summary_lower for p in UNDECOMPOSABLE_PATTERNS):
         print(f'  SKIPPED: block {i+1} (LLM declared undecomposable)')
         continue
-    # C-category: duplicate of an existing same-parent task (Jaccard ≥ 0.6 on word set)
+    # C-category: duplicate detection on word-set Jaccard.
+    # - 0.6 within the same parent issue (tight, since they should diverge)
+    # - 0.7 across the whole task queue (loose, since unrelated parents can
+    #   legitimately share vocabulary like 'add tests' or 'extract const')
     new_ws = _word_set(summary)
     dup_hit = None
-    for ex in existing_summaries:
+    for ex in same_parent_summaries:
         if _jaccard(new_ws, _word_set(ex)) >= 0.6:
-            dup_hit = ex
+            dup_hit = (ex, 'same-parent')
             break
-    if dup_hit:
-        print(f'  SKIPPED: block {i+1} (duplicate of existing task: \"{dup_hit[:50]}\")')
+    if dup_hit is None:
+        for ex in all_summaries:
+            if _jaccard(new_ws, _word_set(ex)) >= 0.7:
+                dup_hit = (ex, 'cross-parent')
+                break
+    if dup_hit is not None:
+        print(f'  SKIPPED: block {i+1} ({dup_hit[1]} duplicate: \"{dup_hit[0][:50]}\")')
         continue
-    # Track this summary so subsequent blocks in the same batch also see it
-    existing_summaries.append(summary)
+    # Track for in-batch self-duplicate detection
+    same_parent_summaries.append(summary)
+    all_summaries.append(summary)
 
     last_num += 1
     num = f'{last_num:03d}'
