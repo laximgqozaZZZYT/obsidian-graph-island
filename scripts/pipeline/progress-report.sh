@@ -2,6 +2,15 @@
 # Graph Island 自律パイプライン進捗レポート生成
 # 出力: /tmp/graph-island-progress.md
 # Usage: progress-report.sh [hours]   (default: 6)
+#
+# REPORT-HONESTY RULES (このレポートを LLM/人間が要約・引用するとき):
+#   * 曖昧な時間表現 (「ここ数日」「最近」「しばらく」) を使わない。
+#     このレポートには具体的日付 (git log --since=...) が入っているのでそれを引用。
+#   * 曖昧な数量表現 (「多数の」「かなりの」「著しく」) を使わない。
+#     このレポートの数値 (件数・行数・ms) をそのまま引用。
+#   * 未測定の効果見込みを断言しない。「〜ms 削減される」等は実測値のみ。
+#   * autonomous pipeline が生成したコミット (chore(auto): / chore(kaizen):) と
+#     手動コミット (feat/perf/fix) を混ぜて「パイプラインの成果」と主張しない。
 
 set -uo pipefail
 
