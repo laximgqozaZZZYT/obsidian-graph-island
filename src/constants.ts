@@ -638,3 +638,18 @@ export const GVC_ALL_PRESETS: Record<string, Record<string, unknown>> = {
 		focusConeEnabled: true,
 	},
 };
+
+// ---- localStorage keys (first-launch flags) ----
+export const GVC_ONBOARDING_KEY = "graph-island-onboarding-shown";
+export const GVC_SR_GUIDE_KEY = "gi-sr-guide-shown";
+
+// ---- Thumbnail overlay (node image previews) ----
+export const GVC_MAX_THUMBNAILS = 50;
+export const GVC_THUMBNAIL_VIEWPORT_MARGIN = 50;
+
+// ---- Density heatmap (grid-based node density visualization) ----
+export const GVC_HEATMAP_CELL_SIZE = 40;
+export const GVC_HEATMAP_GAUSSIAN_RADIUS = 3;
+
+// ---- Progressive simulation rendering (sync positions every N ticks) ----
+export const GVC_PROGRESSIVE_INTERVAL = 10;
