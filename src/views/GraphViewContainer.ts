@@ -167,6 +167,51 @@ import {
 	EVENT_COMPARE_NODES,
 	EVENT_SYNC_PANEL,
 	TOAST_SHORT_MS,
+	GVC_SAVE_DEBOUNCE_MS as SAVE_DEBOUNCE_MS,
+	GVC_ONBOARDING_HELP_DELAY_MS as ONBOARDING_HELP_DELAY_MS,
+	GVC_ONBOARDING_HINT_DELAY_MS as ONBOARDING_HINT_DELAY_MS,
+	GVC_HOVER_PREVIEW_DELAY_MS as HOVER_PREVIEW_DELAY_MS,
+	GVC_AUTOFIT_DELAY_MS as AUTOFIT_DELAY_MS,
+	GVC_ANIMATE_TO_NODE_MS as ANIMATE_TO_NODE_MS,
+	GVC_FADE_ALPHA_MS as FADE_ALPHA_MS,
+	GVC_SEARCH_PULSE_MS as SEARCH_PULSE_MS,
+	GVC_TOAST_LONG_MS as TOAST_LONG_MS,
+	GVC_FM_KEYS_CACHE_TTL_MS as FM_KEYS_CACHE_TTL_MS,
+	GVC_EXTREME_ZOOM_THRESHOLD as EXTREME_ZOOM_THRESHOLD,
+	GVC_MOBILE_NODE_CAP as MOBILE_NODE_CAP,
+	GVC_LARGE_GRAPH_LOCAL_THRESHOLD as LARGE_GRAPH_LOCAL_THRESHOLD,
+	GVC_TRANSITION_SKIP_THRESHOLD as TRANSITION_SKIP_THRESHOLD,
+	GVC_GOLDEN_RATIO_FALLBACK as GOLDEN_RATIO_FALLBACK,
+	GVC_BODY_PREVIEW_MAX_CHARS as BODY_PREVIEW_MAX_CHARS,
+	GVC_COLLISION_RATE_OK as COLLISION_RATE_OK,
+	GVC_DIMMED_NODE_ALPHA as DIMMED_NODE_ALPHA,
+	GVC_SEARCH_HALO_STROKE_WIDTH as SEARCH_HALO_STROKE_WIDTH,
+	GVC_SEARCH_HALO_STROKE_ALPHA as SEARCH_HALO_STROKE_ALPHA,
+	GVC_HOVER_TOOLTIP_BG_ALPHA as HOVER_TOOLTIP_BG_ALPHA,
+	GVC_SEARCH_PULSE_SCALE as SEARCH_PULSE_SCALE,
+	GVC_ALPHA_EPSILON as ALPHA_EPSILON,
+	GVC_ARC_ANGLE_EPSILON as ARC_ANGLE_EPSILON,
+	GVC_HEATMAP_MIN_VALUE as HEATMAP_MIN_VALUE,
+	GVC_ZOOM_TO_LABEL_RECT as ZOOM_TO_LABEL_RECT,
+	GVC_RING_FILL_ALPHA_FLOOR as RING_FILL_ALPHA_FLOOR,
+	GVC_RING_FILL_ALPHA_BASE as RING_FILL_ALPHA_BASE,
+	GVC_RING_FILL_ALPHA_DEPTH_DECAY as RING_FILL_ALPHA_DEPTH_DECAY,
+	GVC_LINK_PREVIEW_COLOR as LINK_PREVIEW_COLOR,
+	GVC_LINK_PREVIEW_DASH as LINK_PREVIEW_DASH,
+	GVC_LINK_PREVIEW_LINE_WIDTH as LINK_PREVIEW_LINE_WIDTH,
+	GVC_LINK_PREVIEW_LINE_ALPHA as LINK_PREVIEW_LINE_ALPHA,
+	GVC_LINK_PREVIEW_SNAP_LINE_WIDTH as LINK_PREVIEW_SNAP_LINE_WIDTH,
+	GVC_LINK_PREVIEW_SNAP_ALPHA as LINK_PREVIEW_SNAP_ALPHA,
+	GVC_LINK_PREVIEW_SNAP_RADIUS as LINK_PREVIEW_SNAP_RADIUS,
+	GVC_SUNBURST_FILL_ALPHA_FLOOR as SUNBURST_FILL_ALPHA_FLOOR,
+	GVC_SUNBURST_FILL_ALPHA_BASE as SUNBURST_FILL_ALPHA_BASE,
+	GVC_SUNBURST_FILL_ALPHA_DEPTH_DECAY as SUNBURST_FILL_ALPHA_DEPTH_DECAY,
+	GVC_SUNBURST_STROKE_ALPHA_FLOOR as SUNBURST_STROKE_ALPHA_FLOOR,
+	GVC_SUNBURST_STROKE_ALPHA_BASE as SUNBURST_STROKE_ALPHA_BASE,
+	GVC_SUNBURST_STROKE_ALPHA_DEPTH_DECAY as SUNBURST_STROKE_ALPHA_DEPTH_DECAY,
+	GVC_DEFAULT_CANVAS_WIDTH as DEFAULT_CANVAS_WIDTH,
+	GVC_DEFAULT_CANVAS_HEIGHT as DEFAULT_CANVAS_HEIGHT,
+	GVC_ALL_PRESETS as ALL_PRESETS,
 } from "../constants";
 import {
 	viewModeToLayout,
@@ -212,68 +257,6 @@ import {
 } from "./hover-helpers";
 
 // ---------------------------------------------------------------------------
-// File-local constants — no hardcoded magic numbers in method bodies
-// ---------------------------------------------------------------------------
-
-// ---- Timing (ms) ----
-const SAVE_DEBOUNCE_MS = 500;
-const ONBOARDING_HELP_DELAY_MS = 500;
-const ONBOARDING_HINT_DELAY_MS = 3000;
-const HOVER_PREVIEW_DELAY_MS = 800;
-const AUTOFIT_DELAY_MS = 600;
-const ANIMATE_TO_NODE_MS = 500;
-const FADE_ALPHA_MS = 300;
-const SEARCH_PULSE_MS = 300;
-
-const TOAST_LONG_MS = 5000;
-
-// ---- Cache TTL (ms) ----
-const FM_KEYS_CACHE_TTL_MS = 5000;
-
-// ---- Thresholds ----
-const EXTREME_ZOOM_THRESHOLD = 0.15;
-const MOBILE_NODE_CAP = 200;
-const LARGE_GRAPH_LOCAL_THRESHOLD = 500;
-const TRANSITION_SKIP_THRESHOLD = 500;
-// ---- Rendering constants ----
-const GOLDEN_RATIO_FALLBACK = 1.618;
-const BODY_PREVIEW_MAX_CHARS = 200;
-const COLLISION_RATE_OK = 0.05;
-const DIMMED_NODE_ALPHA = 0.12;
-const SEARCH_HALO_STROKE_WIDTH = 2;
-const SEARCH_HALO_STROKE_ALPHA = 0.85;
-const HOVER_TOOLTIP_BG_ALPHA = 0.92;
-const SEARCH_PULSE_SCALE = 1.3;
-const ALPHA_EPSILON = 0.01;
-const ARC_ANGLE_EPSILON = 0.001;
-const HEATMAP_MIN_VALUE = 0.05;
-const ZOOM_TO_LABEL_RECT = 400;
-
-// ---- Sunburst fill alpha (ring chart mode) ----
-const RING_FILL_ALPHA_FLOOR = 0.3;
-const RING_FILL_ALPHA_BASE = 0.7;
-const RING_FILL_ALPHA_DEPTH_DECAY = 0.08;
-
-// ---- Pathfinder overlay (constants + logic in pathfinder-overlay.ts) ----
-
-// ---- Link preview ----
-const LINK_PREVIEW_COLOR = 0x00cccc;
-const LINK_PREVIEW_DASH = [8, 6];
-const LINK_PREVIEW_LINE_WIDTH = 2;
-const LINK_PREVIEW_LINE_ALPHA = 0.9;
-const LINK_PREVIEW_SNAP_LINE_WIDTH = 1.5;
-const LINK_PREVIEW_SNAP_ALPHA = 0.7;
-const LINK_PREVIEW_SNAP_RADIUS = 8;
-
-// ---- Sunburst fill alpha (normal mode) ----
-const SUNBURST_FILL_ALPHA_FLOOR = 0.02;
-const SUNBURST_FILL_ALPHA_BASE = 0.1;
-const SUNBURST_FILL_ALPHA_DEPTH_DECAY = 0.015;
-const SUNBURST_STROKE_ALPHA_FLOOR = 0.15;
-const SUNBURST_STROKE_ALPHA_BASE = 0.4;
-const SUNBURST_STROKE_ALPHA_DEPTH_DECAY = 0.05;
-
-// ---------------------------------------------------------------------------
 // StatsHost — interface for future StatsRenderer extraction (Phase 0)
 // Defines the minimal GVC surface that updateGraphStats/updateLegend require.
 // Phase 1 will create StatsRenderer class consuming this interface.
@@ -308,144 +291,6 @@ export interface StatsHost {
 }
 
 export const VIEW_TYPE_GRAPH = "graph-view";
-
-/** Fallback canvas dimensions when DOM element is not yet measured */
-const DEFAULT_CANVAS_WIDTH = 600;
-const DEFAULT_CANVAS_HEIGHT = 400;
-
-/** All preset definitions — single source of truth for applyPreset, applyPresetByKey, getPresetSummary */
-const ALL_PRESETS: Record<string, Record<string, unknown>> = {
-	// Quick presets
-	simple: {
-		showLinks: true,
-		showTagEdges: false,
-		showCategoryEdges: false,
-		showSemanticEdges: false,
-		showInheritance: false,
-		showAggregation: false,
-		showSimilar: false,
-		showSibling: false,
-		showSequence: false,
-		colorEdgesByRelation: false,
-		fadeEdgesByDegree: false,
-		nodeColorMode: "category",
-		showEdgeLabels: false,
-		showArrows: false,
-	},
-	analysis: {
-		showLinks: true,
-		showTagEdges: true,
-		showCategoryEdges: true,
-		showSemanticEdges: true,
-		showInheritance: true,
-		showAggregation: true,
-		showSimilar: true,
-		showSibling: true,
-		showSequence: true,
-		colorEdgesByRelation: true,
-		fadeEdgesByDegree: true,
-		nodeColorMode: "category",
-		showEdgeLabels: false,
-		showArrows: true,
-	},
-	creative: {
-		showLinks: true,
-		showTagEdges: true,
-		showCategoryEdges: false,
-		showSemanticEdges: true,
-		showInheritance: false,
-		showAggregation: false,
-		showSimilar: false,
-		showSibling: false,
-		showSequence: false,
-		colorEdgesByRelation: true,
-		fadeEdgesByDegree: false,
-		nodeColorMode: "category",
-		tagDisplay: "enclosure",
-		showTagNodes: true,
-	},
-	"active-focus": {
-		syncWithEditor: true,
-		localGraphCenter: "__active__",
-		localGraphHops: 2,
-		focusLayout: true,
-		hoverHops: 1,
-		showArrows: true,
-		fadeEdgesByDegree: true,
-	},
-	"semantic-shapes": {
-		nodeShapeRules: [
-			{ match: "category" as const, category: "character", shape: "circle" as const },
-			{ match: "category" as const, category: "place", shape: "hexagon" as const },
-			{ match: "category" as const, category: "event", shape: "diamond" as const },
-			{ match: "category" as const, category: "concept", shape: "triangle" as const },
-			{ match: "default" as const, shape: "square" as const },
-		],
-	},
-	"full-analysis": {
-		showLinks: true,
-		showTagEdges: true,
-		showInheritance: true,
-		showAggregation: true,
-		showSimilar: true,
-		showSequence: true,
-		colorEdgesByRelation: true,
-		fadeEdgesByDegree: true,
-		showArrows: true,
-		showGraphStats: true,
-		showBridgeNodes: true,
-		showImportanceRing: true,
-		nodeColorMode: "community",
-		showEntropyOverlay: true,
-		highlightMissingNeighbors: true,
-	},
-	// Thinking modes (M1)
-	explore: {
-		syncWithEditor: true,
-		localGraphCenter: "__active__",
-		localGraphHops: 3,
-		focusLayout: true,
-		focusConeEnabled: true,
-		hoverHops: 2,
-		showGapEdges: true,
-		showSimilarSuggestions: true,
-		fadeEdgesByDegree: true,
-		showArrows: false,
-		nodeColorMode: "category",
-	},
-	analyze: {
-		syncWithEditor: false,
-		localGraphCenter: null,
-		showGraphStats: true,
-		showBridgeNodes: true,
-		showEntropyOverlay: true,
-		highlightMissingNeighbors: true,
-		nodeColorMode: "community",
-		colorEdgesByRelation: true,
-		fadeEdgesByDegree: true,
-		showArrows: true,
-		showOntologyBackbone: true,
-		showHierarchyTree: true,
-		directionalGravityRules: [{ filter: "type:inheritance", direction: "bottom", strength: 0.08 }],
-	},
-	write: {
-		syncWithEditor: true,
-		localGraphCenter: "__active__",
-		localGraphHops: 1,
-		focusLayout: true,
-		presentationMode: true,
-		hoverHops: 1,
-		showArrows: false,
-		fadeEdgesByDegree: false,
-		nodeColorMode: "category",
-		nodeSize: 25,
-		showTagEdges: false,
-		showCategoryEdges: false,
-		showSemanticEdges: false,
-		showSimilar: false,
-		focusConeEnabled: true,
-	},
-};
 
 // Re-export PixiNode so other modules can import from either location
 export type { PixiNode } from "./InteractionManager";

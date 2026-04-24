@@ -6,7 +6,7 @@ import { repositionShell } from "../layouts/concentric";
 import type { Simulation } from "d3-force";
 import { LAYOUT_CONCENTRIC } from "../constants";
 import { t } from "../i18n";
-import { asInternalApp } from "../obsidian-internals";
+import { asInternalApp, asSearchView } from "../obsidian-internals";
 
 // ---------------------------------------------------------------------------
 // PixiNode shape (mirrors the one in GraphViewContainer)
@@ -1041,8 +1041,7 @@ export class InteractionManager {
 					setTimeout(() => {
 						const searchLeaf = obsApp.workspace.getLeavesOfType("search")[0];
 						if (searchLeaf) {
-							const search = searchLeaf.view as unknown as { setQuery?: (q: string) => void };
-							if (search?.setQuery) search.setQuery(node.data.label);
+							asSearchView(searchLeaf.view).setQuery?.(node.data.label);
 						}
 					}, 300);
 				});

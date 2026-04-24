@@ -438,3 +438,203 @@ export const LABEL_PILL_PAD_Y = 3;
 export const COLLISION_ESCAPE_MARGIN = 0.15;
 /** Zoom threshold: below this worldScale the view is considered "zoomed out". */
 export const ZOOM_OUT_THRESHOLD = 0.45;
+
+// ===========================================================================
+// ---- GraphViewContainer constants ----
+// Moved out of GraphViewContainer.ts (GOD OBJECT reduction). GVC_ prefix
+// avoids naming collisions with similar constants in this file.
+// ===========================================================================
+
+// ---- Timing (ms) ----
+export const GVC_SAVE_DEBOUNCE_MS = 500;
+export const GVC_ONBOARDING_HELP_DELAY_MS = 500;
+export const GVC_ONBOARDING_HINT_DELAY_MS = 3000;
+export const GVC_HOVER_PREVIEW_DELAY_MS = 800;
+export const GVC_AUTOFIT_DELAY_MS = 600;
+export const GVC_ANIMATE_TO_NODE_MS = 500;
+export const GVC_FADE_ALPHA_MS = 300;
+export const GVC_SEARCH_PULSE_MS = 300;
+export const GVC_TOAST_LONG_MS = 5000;
+
+// ---- Cache TTL (ms) ----
+export const GVC_FM_KEYS_CACHE_TTL_MS = 5000;
+
+// ---- Thresholds ----
+export const GVC_EXTREME_ZOOM_THRESHOLD = 0.15;
+export const GVC_MOBILE_NODE_CAP = 200;
+export const GVC_LARGE_GRAPH_LOCAL_THRESHOLD = 500;
+export const GVC_TRANSITION_SKIP_THRESHOLD = 500;
+
+// ---- Rendering constants ----
+export const GVC_GOLDEN_RATIO_FALLBACK = 1.618;
+export const GVC_BODY_PREVIEW_MAX_CHARS = 200;
+export const GVC_COLLISION_RATE_OK = 0.05;
+export const GVC_DIMMED_NODE_ALPHA = 0.12;
+export const GVC_SEARCH_HALO_STROKE_WIDTH = 2;
+export const GVC_SEARCH_HALO_STROKE_ALPHA = 0.85;
+export const GVC_HOVER_TOOLTIP_BG_ALPHA = 0.92;
+export const GVC_SEARCH_PULSE_SCALE = 1.3;
+export const GVC_ALPHA_EPSILON = 0.01;
+export const GVC_ARC_ANGLE_EPSILON = 0.001;
+export const GVC_HEATMAP_MIN_VALUE = 0.05;
+export const GVC_ZOOM_TO_LABEL_RECT = 400;
+
+// ---- Sunburst fill alpha (ring chart mode) ----
+export const GVC_RING_FILL_ALPHA_FLOOR = 0.3;
+export const GVC_RING_FILL_ALPHA_BASE = 0.7;
+export const GVC_RING_FILL_ALPHA_DEPTH_DECAY = 0.08;
+
+// ---- Link preview ----
+export const GVC_LINK_PREVIEW_COLOR = 0x00cccc;
+export const GVC_LINK_PREVIEW_DASH: number[] = [8, 6];
+export const GVC_LINK_PREVIEW_LINE_WIDTH = 2;
+export const GVC_LINK_PREVIEW_LINE_ALPHA = 0.9;
+export const GVC_LINK_PREVIEW_SNAP_LINE_WIDTH = 1.5;
+export const GVC_LINK_PREVIEW_SNAP_ALPHA = 0.7;
+export const GVC_LINK_PREVIEW_SNAP_RADIUS = 8;
+
+// ---- Sunburst fill alpha (normal mode) ----
+export const GVC_SUNBURST_FILL_ALPHA_FLOOR = 0.02;
+export const GVC_SUNBURST_FILL_ALPHA_BASE = 0.1;
+export const GVC_SUNBURST_FILL_ALPHA_DEPTH_DECAY = 0.015;
+export const GVC_SUNBURST_STROKE_ALPHA_FLOOR = 0.15;
+export const GVC_SUNBURST_STROKE_ALPHA_BASE = 0.4;
+export const GVC_SUNBURST_STROKE_ALPHA_DEPTH_DECAY = 0.05;
+
+// ---- Default canvas size (fallback when DOM not yet measured) ----
+export const GVC_DEFAULT_CANVAS_WIDTH = 600;
+export const GVC_DEFAULT_CANVAS_HEIGHT = 400;
+
+// ---- All preset definitions — single source of truth for applyPreset / applyPresetByKey / getPresetSummary ----
+export const GVC_ALL_PRESETS: Record<string, Record<string, unknown>> = {
+	// Quick presets
+	simple: {
+		showLinks: true,
+		showTagEdges: false,
+		showCategoryEdges: false,
+		showSemanticEdges: false,
+		showInheritance: false,
+		showAggregation: false,
+		showSimilar: false,
+		showSibling: false,
+		showSequence: false,
+		colorEdgesByRelation: false,
+		fadeEdgesByDegree: false,
+		nodeColorMode: "category",
+		showEdgeLabels: false,
+		showArrows: false,
+	},
+	analysis: {
+		showLinks: true,
+		showTagEdges: true,
+		showCategoryEdges: true,
+		showSemanticEdges: true,
+		showInheritance: true,
+		showAggregation: true,
+		showSimilar: true,
+		showSibling: true,
+		showSequence: true,
+		colorEdgesByRelation: true,
+		fadeEdgesByDegree: true,
+		nodeColorMode: "category",
+		showEdgeLabels: false,
+		showArrows: true,
+	},
+	creative: {
+		showLinks: true,
+		showTagEdges: true,
+		showCategoryEdges: false,
+		showSemanticEdges: true,
+		showInheritance: false,
+		showAggregation: false,
+		showSimilar: false,
+		showSibling: false,
+		showSequence: false,
+		colorEdgesByRelation: true,
+		fadeEdgesByDegree: false,
+		nodeColorMode: "category",
+		tagDisplay: "enclosure",
+		showTagNodes: true,
+	},
+	"active-focus": {
+		syncWithEditor: true,
+		localGraphCenter: "__active__",
+		localGraphHops: 2,
+		focusLayout: true,
+		hoverHops: 1,
+		showArrows: true,
+		fadeEdgesByDegree: true,
+	},
+	"semantic-shapes": {
+		nodeShapeRules: [
+			{ match: "category" as const, category: "character", shape: "circle" as const },
+			{ match: "category" as const, category: "place", shape: "hexagon" as const },
+			{ match: "category" as const, category: "event", shape: "diamond" as const },
+			{ match: "category" as const, category: "concept", shape: "triangle" as const },
+			{ match: "default" as const, shape: "square" as const },
+		],
+	},
+	"full-analysis": {
+		showLinks: true,
+		showTagEdges: true,
+		showInheritance: true,
+		showAggregation: true,
+		showSimilar: true,
+		showSequence: true,
+		colorEdgesByRelation: true,
+		fadeEdgesByDegree: true,
+		showArrows: true,
+		showGraphStats: true,
+		showBridgeNodes: true,
+		showImportanceRing: true,
+		nodeColorMode: "community",
+		showEntropyOverlay: true,
+		highlightMissingNeighbors: true,
+	},
+	// Thinking modes (M1)
+	explore: {
+		syncWithEditor: true,
+		localGraphCenter: "__active__",
+		localGraphHops: 3,
+		focusLayout: true,
+		focusConeEnabled: true,
+		hoverHops: 2,
+		showGapEdges: true,
+		showSimilarSuggestions: true,
+		fadeEdgesByDegree: true,
+		showArrows: false,
+		nodeColorMode: "category",
+	},
+	analyze: {
+		syncWithEditor: false,
+		localGraphCenter: null,
+		showGraphStats: true,
+		showBridgeNodes: true,
+		showEntropyOverlay: true,
+		highlightMissingNeighbors: true,
+		nodeColorMode: "community",
+		colorEdgesByRelation: true,
+		fadeEdgesByDegree: true,
+		showArrows: true,
+		showOntologyBackbone: true,
+		showHierarchyTree: true,
+		directionalGravityRules: [{ filter: "type:inheritance", direction: "bottom", strength: 0.08 }],
+	},
+	write: {
+		syncWithEditor: true,
+		localGraphCenter: "__active__",
+		localGraphHops: 1,
+		focusLayout: true,
+		presentationMode: true,
+		hoverHops: 1,
+		showArrows: false,
+		fadeEdgesByDegree: false,
+		nodeColorMode: "category",
+		nodeSize: 25,
+		showTagEdges: false,
+		showCategoryEdges: false,
+		showSemanticEdges: false,
+		showSimilar: false,
+		focusConeEnabled: true,
+	},
+};
