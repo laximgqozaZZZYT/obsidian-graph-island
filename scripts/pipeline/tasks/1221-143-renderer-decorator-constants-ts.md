@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-24
-status: in-progress
+status: decomposed
 source: decomposed
 parent: 143-scattered-constants
 depends: none
