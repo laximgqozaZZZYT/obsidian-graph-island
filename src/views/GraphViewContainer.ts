@@ -2354,15 +2354,23 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		// Expand collapsed super node
 		if (pn.data.collapsedMembers && pn.data.id.startsWith("__super__")) {
 			const groupKey = pn.data.id.replace("__super__", "");
-			// Capture fade-in origin (the super-node's current position) and the
-			// member IDs that will spawn from it. _setupForceLayout reads this to
-			// seed member positions + initial scale, _tickFadeIn animates them out.
+			// Build the fade-in tween with staggered start times. Each member
+			// gets a deterministic per-index delay so nearby members (early
+			// indices) emerge slightly earlier than outer ones — the cluster
+			// appears to unfurl in a ripple, not pop out as a single block.
+			const members = pn.data.collapsedMembers;
+			const STAGGER_MS_PER_NODE = 1.5;
+			const MAX_STAGGER_MS = 180;
+			const stagger = new Map<string, number>();
+			for (let i = 0; i < members.length; i++) {
+				stagger.set(members[i], Math.min(i * STAGGER_MS_PER_NODE, MAX_STAGGER_MS));
+			}
 			this._fadeInTween = {
-				nodeIds: new Set(pn.data.collapsedMembers),
+				stagger,
 				originX: pn.data.x,
 				originY: pn.data.y,
 				startMs: performance.now(),
-				durationMs: 450,
+				durationMs: 550,
 			};
 			this.panel.collapsedGroups.delete(groupKey);
 			// Do NOT clear rawData — group collapse/expand only affects the last
@@ -2728,17 +2736,31 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	private _restartAlpha = 1;
 	/**
 	 * Fade-in animation state for nodes being revealed (super-node expand).
-	 * When active, listed nodes start at (originX, originY) with scale 0 / alpha 0
-	 * and interpolate up to full size over durationMs, creating an "explode outward
-	 * from the collapsed cluster" effect as the force simulation pushes them apart.
+	 *
+	 * Refined motion design (three-part choreography):
+	 *   1. Spatial: member ids map to staggerMs values so nearby members (by
+	 *      placement index) start slightly earlier, creating a ripple that
+	 *      radiates outward instead of a synchronous pop.
+	 *   2. Temporal: easeOutExpo gives a dramatic decelerating landing — nodes
+	 *      surge out of the origin then ease into their final size, mimicking
+	 *      the feel of a soft spring release rather than a linear ramp.
+	 *   3. Visual: alpha reaches 1 ahead of scale so members become fully
+	 *      opaque while still growing, avoiding ghostly half-transparent
+	 *      frames at the final size.
 	 */
 	private _fadeInTween: {
-		nodeIds: Set<string>;
+		/** member id → stagger delay in ms from startMs */
+		stagger: Map<string, number>;
 		originX: number;
 		originY: number;
 		startMs: number;
 		durationMs: number;
 	} | null = null;
+
+	/** Is fade-in currently active? Used by the simulation tick handler. */
+	isFadeInActive(): boolean {
+		return this._fadeInTween !== null;
+	}
 
 	/** Advance the fade-in tween one frame. Returns true while animating. */
 	private _tickFadeIn(): boolean {
@@ -2751,22 +2773,38 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			return false;
 		}
 
-		const elapsed = performance.now() - tw.startMs;
-		const t = Math.min(elapsed / tw.durationMs, 1);
-		// easeOutCubic: fast at start, decelerating. Feels organic without overshoot.
-		const eased = 1 - Math.pow(1 - t, 3);
-		// Alpha reaches 1 slightly faster than scale, so nodes are fully visible
-		// as they grow into place rather than being transparent at final size.
-		const alpha = Math.min(1, t * 1.6);
+		const now = performance.now();
+		let anyRunning = false;
 
-		for (const id of tw.nodeIds) {
+		for (const [id, staggerMs] of tw.stagger) {
 			const pn = this.pixiNodes.get(id);
 			if (!pn) continue;
+
+			const localElapsed = now - tw.startMs - staggerMs;
+			if (localElapsed < 0) {
+				// Still waiting for this member's stagger offset: hold invisible.
+				pn.gfx.scale.set(0);
+				pn.gfx.alpha = 0;
+				anyRunning = true;
+				continue;
+			}
+			const t = Math.min(localElapsed / tw.durationMs, 1);
+			// easeOutExpo: sharp initial growth that eases into final size.
+			//   t=0.10 → 0.50,  t=0.25 → 0.82,  t=0.50 → 0.97,  t=1.00 → 1.00
+			// Much more "arrival"-flavoured than easeOutCubic; nodes feel like
+			// they're landing rather than just moving.
+			const eased = t === 1 ? 1 : 1 - Math.pow(2, -10 * t);
+			// Alpha ramp slightly ahead of scale so opacity lands by the time
+			// nodes are ~70% grown — no transparent-at-final-size artifacts.
+			const alpha = Math.min(1, t * 1.8);
+
 			pn.gfx.scale.set(eased);
 			pn.gfx.alpha = alpha;
+
+			if (t < 1) anyRunning = true;
 		}
 
-		if (t >= 1) {
+		if (!anyRunning) {
 			this._fadeInFinish();
 			return false;
 		}
@@ -2776,7 +2814,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	private _fadeInFinish(): void {
 		const tw = this._fadeInTween;
 		if (!tw) return;
-		for (const id of tw.nodeIds) {
+		for (const id of tw.stagger.keys()) {
 			const pn = this.pixiNodes.get(id);
 			if (!pn) continue;
 			pn.gfx.scale.set(1);
@@ -7116,13 +7154,24 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		const maxReasonableCoord = Math.max(W, H) * 5;
 
 		const fade = this._fadeInTween;
+		// Golden-angle spiral placement for fade-in members. Instead of dumping
+		// all members on the super-node's exact coordinate (where the collision
+		// force then violently scatters them in random directions), we seed
+		// them on a tight Fermat spiral so the opening frame already has a
+		// pleasing radial composition and the physics only has to refine it.
+		const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5)); // ~137.508°
+		const FADE_RING_BASE = 22;   // world-unit radius for the innermost member
+		const FADE_RING_STEP = 2.4;  // radial growth per member
+		let fadeIdx = 0;
 		for (const n of gd.nodes) {
-			// Fade-in case: member nodes revealed by a super-node expand start at
-			// the super-node's position (with a tiny jitter so the collision force
-			// has distinct directions to push them outward).
-			if (fade && fade.nodeIds.has(n.id)) {
-				n.x = fade.originX + (Math.random() - 0.5) * 8;
-				n.y = fade.originY + (Math.random() - 0.5) * 8;
+			if (fade && fade.stagger.has(n.id)) {
+				const r = FADE_RING_BASE + Math.sqrt(fadeIdx) * FADE_RING_STEP * 3;
+				const theta = fadeIdx * GOLDEN_ANGLE;
+				n.x = fade.originX + Math.cos(theta) * r;
+				n.y = fade.originY + Math.sin(theta) * r;
+				n.vx = Math.cos(theta) * 0.8;  // tiny outward nudge
+				n.vy = Math.sin(theta) * 0.8;
+				fadeIdx++;
 				continue;
 			}
 			// Use saved positions from previous layout as starting positions,
@@ -7176,7 +7225,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		// super-node origin rather than popping into existence at full size.
 		// _tickFadeIn (driven by renderTick) scales them back up over durationMs.
 		if (fade) {
-			for (const id of fade.nodeIds) {
+			for (const id of fade.stagger.keys()) {
 				const pn = this.pixiNodes.get(id);
 				if (!pn) continue;
 				pn.gfx.scale.set(0);
@@ -7217,11 +7266,16 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		if (this.worldContainer) this.worldContainer.visible = true;
 
 		// Progressive rendering: sync node positions every N ticks for live preview.
-		// Only move sprites — heavy operations (edges, enclosures, autoFit) are
-		// deferred to the "end" event to avoid cache corruption and layout interference.
+		// DURING a fade-in animation, sync every tick (16 ms) rather than every
+		// PROGRESSIVE_INTERVAL (~160 ms) — the visible stutter otherwise breaks
+		// the smooth reveal. Outside of fade-in the coarser cadence still
+		// applies, so steady-state simulation cost is unchanged.
+		// Heavy operations (edges, enclosures, autoFit) are still deferred to
+		// the "end" event to avoid cache corruption.
 		this.simulation.on("tick", () => {
 			tickCount++;
-			if (tickCount === 1 || tickCount % PROGRESSIVE_INTERVAL === 0) {
+			const fadeActive = this.isFadeInActive();
+			if (fadeActive || tickCount === 1 || tickCount % PROGRESSIVE_INTERVAL === 0) {
 				for (const pn of this.pixiNodes.values()) {
 					pn.gfx.x = pn.data.x;
 					pn.gfx.y = pn.data.y;
