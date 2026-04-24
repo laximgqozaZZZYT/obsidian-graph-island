@@ -299,15 +299,15 @@ Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>" 2>/dev/nul
     ahead=$(git rev-list --count "$BASE_BRANCH".."$WORKTREE_BRANCH" 2>/dev/null || echo 0)
   fi
   if [[ "$ahead" -gt 0 ]]; then
-    # GitHub needs the PR base branch to exist on origin. If our local
-    # base (e.g. fix/autofit-suppress-order) has never been pushed,
-    # gh pr create errors with "Base ref must be a branch". Push it now
-    # if missing so the PR can be opened. This is a no-op when the
-    # branch is already on origin.
-    if ! git ls-remote --exit-code --heads origin "$BASE_BRANCH" >/dev/null 2>&1; then
-      log "Base branch $BASE_BRANCH not on origin — pushing..."
-      git push -u origin "$BASE_BRANCH" --no-verify 2>&1 | tail -3 | while IFS= read -r l; do log "  base-push: $l"; done || log "  base-push failed; PR may fail"
-    fi
+    # Sync origin/$BASE_BRANCH with local so the PR diff contains ONLY what
+    # this cycle added. Without this, the PR shows every local commit that
+    # happened since the last time origin/$BASE_BRANCH was pushed (e.g.
+    # unrelated perf fixes, chores), inflating the review surface.
+    # A fast-forward push succeeds silently; if origin has diverged we just
+    # log the failure and proceed — the PR will still open, just with extra
+    # history visible to the reviewer.
+    log "Syncing origin/$BASE_BRANCH with local (fast-forward, so PR diff stays clean)..."
+    git push origin "$BASE_BRANCH" --no-verify 2>&1 | tail -3 | while IFS= read -r l; do log "  base-sync: $l"; done || log "  base-sync failed (non-fast-forward?); PR diff may include unrelated history"
     log "Pushing $WORKTREE_BRANCH ($ahead commits ahead of $BASE_BRANCH)..."
     if git push -u origin "$WORKTREE_BRANCH" --no-verify 2>&1 | tail -3 | while IFS= read -r l; do log "  push: $l"; done; then
       local draft_flag=""
