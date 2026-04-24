@@ -7072,13 +7072,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		this.computeSortRanks();
 
 		let tickCount = 0;
-		// Build simulation in suspended state. We restart it with full alpha
-		// once all deferred node sprites are created, so the d3-force rAF loop
-		// and the node-creation setTimeout loop never compete for frames.
-		// onAllPixiNodesCreated() (defined below) handles the restart.
 		this.simulation = this.layoutController.createForceSimulation(gd.nodes, gd.edges, cx, cy);
-		this.simulation.alpha(0).stop();
-		this._pendingSimulationRestart = true;
 
 		// Apply directional gravity rules from settings + panel + node rules
 		this.applyNodeRulesForce();
@@ -7088,6 +7082,16 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
 		// Apply cluster arrangement force if configured
 		this.applyClusterForce();
+
+		// Suspend simulation after force-setup so it does not tick while the
+		// deferred-batch sprite creator is still running. (applyClusterForce +
+		// applyNodeRulesForce internally call sim.restart(), which would undo
+		// an earlier .stop() — we must stop AFTER those have run.)
+		// onAllPixiNodesCreated() restarts it with full alpha once all sprites exist.
+		if (this.simulation) {
+			this.simulation.alpha(0).stop();
+			this._pendingSimulationRestart = true;
+		}
 
 		// Show world immediately so users see progressive layout forming.
 		if (this.worldContainer) this.worldContainer.visible = true;
