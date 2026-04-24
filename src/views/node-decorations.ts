@@ -15,6 +15,18 @@ import { getNodeShape, drawShapeAt } from "../utils/node-shapes";
 import { hslToHex } from "../utils/graph-helpers";
 import { screenToWorld, hashStringToHue, type RenderHost } from "./RenderPipeline";
 
+// TODO(NODE_DECO): BOOKMARK_STAR_MIN_RADIUS = 4  // ブックマーク星の最小半径床 (renderBookmarkStars)
+// TODO(NODE_DECO): BOOKMARK_STAR_SPIKES = 5  // ブックマーク星の角数 (renderBookmarkStars)
+// TODO(NODE_DECO): BOOKMARK_STAR_INNER_RATIO = 0.4  // ブックマーク星の内/外半径比 (renderBookmarkStars)
+// TODO(NODE_DECO): MISSING_NEIGHBOR_RING_LINE_WIDTH = 2  // 欠落隣接リングの線幅 (renderMissingNeighborRings)
+// TODO(NODE_DECO): MISSING_NEIGHBOR_DASH_SEGMENTS = 10  // 欠落隣接リングの破線セグメント数 (renderMissingNeighborRings)
+// TODO(NODE_DECO): MISSING_NEIGHBOR_RADIUS_PAD = 4  // 欠落隣接リングの半径パディング (renderMissingNeighborRings)
+// TODO(NODE_DECO): TAG_BADGE_MAX_COUNT = 4  // タグバッジ最大表示数 (renderTagBadges)
+// TODO(NODE_DECO): RECENCY_DOT_RADIUS = 3  // 新鮮度マーカードット半径 (renderRecencyMarkers)
+// TODO(NODE_DECO): MULTI_SELECT_RING_WIDTH = 2.5  // マルチ選択リング線幅 (renderMultiSelectRings)
+// TODO(NODE_DECO): MULTI_SELECT_RING_PAD = 5  // マルチ選択リング半径パディング (renderMultiSelectRings)
+// TODO(NODE_DECO): GAP_EDGE_DASH_LEN = 6  // ギャップエッジ破線長 (renderGapEdges)
+
 // ---------------------------------------------------------------------------
 // Constants (moved from RenderPipeline.ts)
 // ---------------------------------------------------------------------------
