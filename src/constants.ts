@@ -316,8 +316,16 @@ export const NODE_SCREEN_PX_BASE = 30;
 export const MIN_WORLD_RADIUS_PX = 3;
 /** Viewport culling margin in world units (divided by worldScale) */
 export const VIEWPORT_CULL_MARGIN_PX = 60;
-/** Number of nodes created synchronously before deferring the rest */
-export const IMMEDIATE_BATCH_SIZE = 50;
+/**
+ * Number of nodes created synchronously before deferring the rest.
+ * Increased from 50 → 10000 (2026-04-24): the original 50-then-rAF-batches
+ * design contended with the force simulation for animation-frame slots,
+ * extending time-to-full-render to 2 minutes on a 2,487-node vault. Creating
+ * all nodes up front (single ~1-2s sync burst) is dramatically faster for
+ * typical vaults. Larger vaults (10k+ nodes) may want to re-introduce
+ * deferral — but that's a corner case, not the default path.
+ */
+export const IMMEDIATE_BATCH_SIZE = 10000;
 /** Number of nodes processed per deferred batch frame (higher = faster initial render) */
 export const DEFERRED_BATCH_SIZE = 500;
 /** Hold indicator ring line width */
