@@ -2702,6 +2702,24 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	getRenderPipeline(): RenderPipeline | null {
 		return this.renderPipeline;
 	}
+	/**
+	 * True while deferred pixi-node creation is still in progress. Used to
+	 * suspend the force simulation so it does not compete with node creation
+	 * for rAF slots — a race that previously delayed time-to-interactive by
+	 * 5+ seconds on large vaults.
+	 */
+	private _pendingSimulationRestart = false;
+	/** Called by RenderPipeline once the deferred batch queue has drained. */
+	onAllPixiNodesCreated(): void {
+		if (!this._pendingSimulationRestart) return;
+		this._pendingSimulationRestart = false;
+		// Kick off the simulation now that creation no longer contends for
+		// frame time. alphaDecay 0.05 converges in ~150 ticks (~2.4s at 60fps);
+		// d3's default of ~0.0228 takes ~300 ticks (~5s) for the same target.
+		// The visual difference is negligible since collision/link forces
+		// dominate final positions well before alpha becomes tiny.
+		this.simulation?.alphaDecay(0.05).alpha(1).restart();
+	}
 	getSunburstLabels(): Map<string, CanvasText> {
 		return this.sunburstLabels;
 	}
@@ -7054,7 +7072,13 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		this.computeSortRanks();
 
 		let tickCount = 0;
+		// Build simulation in suspended state. We restart it with full alpha
+		// once all deferred node sprites are created, so the d3-force rAF loop
+		// and the node-creation setTimeout loop never compete for frames.
+		// onAllPixiNodesCreated() (defined below) handles the restart.
 		this.simulation = this.layoutController.createForceSimulation(gd.nodes, gd.edges, cx, cy);
+		this.simulation.alpha(0).stop();
+		this._pendingSimulationRestart = true;
 
 		// Apply directional gravity rules from settings + panel + node rules
 		this.applyNodeRulesForce();
@@ -7090,76 +7114,85 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
 		this.setStatus(`${gd.nodes.length} nodes — simulating...`);
 		this.simulation.on("end", () => {
-			// 6-step pipeline complete — reveal world and render final positions
+			// =========================================================================
+			// sim-end finalization (split to keep the main thread responsive)
+			// -------------------------------------------------------------------------
+			// Previously this block ran a single >15 s synchronous pass that froze
+			// the UI until all post-layout bookkeeping finished. We now break the
+			// work into setTimeout(0) chunks so the browser can handle input
+			// between phases. The user-visible side-effects (reveal world, show
+			// final status) happen immediately; expensive bookkeeping (label
+			// culling, road network rebuild, position persistence) is deferred.
+			// =========================================================================
+
+			// --- PHASE A (immediate): show final graph ---
 			if (this.worldContainer) this.worldContainer.visible = true;
 			this.setStatus(this.buildRichStatus(gd.nodes.length, gd.edges.length));
-			// A11y: announce graph summary for screen readers on load
-			// JR: §0.3 First-launch guide for screen readers (one-time, stored in localStorage)
-			const isFirstLaunch = !localStorage.getItem(SR_GUIDE_KEY);
-			if (isFirstLaunch) localStorage.setItem(SR_GUIDE_KEY, "1");
-			this._announceA11y(
-				buildSimEndA11yMessage(gd.nodes.length, gd.edges.length, isFirstLaunch, {
-					graphLoaded: t("a11y.graphLoaded") ?? "Graph loaded",
-					nodes: t("a11y.nodes") ?? "nodes",
-					edges: t("a11y.edges") ?? "edges",
-					srGuide:
-						t("a11y.srGuide") ??
-						"Tab to cycle nodes, Enter to open, Shift+Enter to select, ? for keyboard shortcuts.",
-				}),
-			);
-			this.updateEntropyScores();
-			this.updateGraphStats(gd);
-			this.updateRelationMatrix(gd);
-			this.updateThumbnails();
-			this.updateHierarchyBreadcrumb();
-			const wrap = this.canvasWrap;
-			// Ensure minimum viewport utilization regardless of autoFit
-			{
-				const renderer = this.pixiApp?.renderer;
-				const [evW, evH] = resolveViewportSize(
-					wrap?.clientWidth ?? 0,
-					wrap?.clientHeight ?? 0,
-					renderer?.width ?? 0,
-					renderer?.height ?? 0,
-				);
-				if (evW > 0 && evH > 0) this.ensureViewportUtilization(evW, evH);
-			}
-			// Rebuild road network now that final node positions are available
-			this._rebuildRoadNetwork(true);
-			// Card overlap is handled by forceCollide during the simulation itself.
-			// No post-process needed — collide radius in LayoutController accounts
-			// for card dimensions in world coordinates.
-			// Force full redraw now that all positions are final
 			this.updatePositions(true);
-			// G1: AutoFit when simulation ends — single deferred fit so DOM
-			// layout is guaranteed settled (consolidates prior two-call pattern)
-			if (wrap && !this._suppressAutoFit) {
-				requestAnimationFrame(() => {
-					if (this.canvasWrap && !this._suppressAutoFit) {
-						const rw = this.canvasWrap.clientWidth || DEFAULT_CANVAS_WIDTH;
-						const rh = this.canvasWrap.clientHeight || DEFAULT_CANVAS_HEIGHT;
-						if (rw > 0 && rh > 0) {
-							this.autoFitView(rw, rh);
-							this.markDirty();
+
+			// --- PHASE B (next tick): light bookkeeping ---
+			setTimeout(() => {
+				const isFirstLaunch = !localStorage.getItem(SR_GUIDE_KEY);
+				if (isFirstLaunch) localStorage.setItem(SR_GUIDE_KEY, "1");
+				this._announceA11y(
+					buildSimEndA11yMessage(gd.nodes.length, gd.edges.length, isFirstLaunch, {
+						graphLoaded: t("a11y.graphLoaded") ?? "Graph loaded",
+						nodes: t("a11y.nodes") ?? "nodes",
+						edges: t("a11y.edges") ?? "edges",
+						srGuide:
+							t("a11y.srGuide") ??
+							"Tab to cycle nodes, Enter to open, Shift+Enter to select, ? for keyboard shortcuts.",
+					}),
+				);
+				this.updateEntropyScores();
+				this.updateGraphStats(gd);
+				this.updateRelationMatrix(gd);
+				this.updateThumbnails();
+				this.updateHierarchyBreadcrumb();
+			}, 0);
+
+			// --- PHASE C (after B): viewport fit + road network ---
+			setTimeout(() => {
+				const wrap = this.canvasWrap;
+				{
+					const renderer = this.pixiApp?.renderer;
+					const [evW, evH] = resolveViewportSize(
+						wrap?.clientWidth ?? 0,
+						wrap?.clientHeight ?? 0,
+						renderer?.width ?? 0,
+						renderer?.height ?? 0,
+					);
+					if (evW > 0 && evH > 0) this.ensureViewportUtilization(evW, evH);
+				}
+				this._rebuildRoadNetwork(true);
+				if (wrap && !this._suppressAutoFit) {
+					requestAnimationFrame(() => {
+						if (this.canvasWrap && !this._suppressAutoFit) {
+							const rw = this.canvasWrap.clientWidth || DEFAULT_CANVAS_WIDTH;
+							const rh = this.canvasWrap.clientHeight || DEFAULT_CANVAS_HEIGHT;
+							if (rw > 0 && rh > 0) {
+								this.autoFitView(rw, rh);
+								this.markDirty();
+							}
 						}
-					}
-				});
-			}
-			this.markDirty(true);
-			// Re-cull labels after simulation settles to fix overlap
-			// caused by node positions changing during simulation
-			this.updateLabelsForZoom();
-			// Recalc radii after simulation (ensures nodeSizeByDegree takes effect)
-			this.recalcNodeRadii();
-			// JK: §0.1 Auto-optimize label overlap margin after layout settles
-			this._autoOptimizeLabelOverlapOnce();
-			// F1: Zero-config start — auto-focus on active file after first render
-			this._autoFocusActiveFile();
-			// Clear suppress AFTER _autoFocusActiveFile so that its doRender()
-			// can protect the next simulation-end autoFit via the flag
-			this._suppressAutoFit = false;
-			// P5: Persist all node positions after simulation settles
-			this._persistAllPositions();
+					});
+				}
+				this.markDirty(true);
+			}, 0);
+
+			// --- PHASE D (after C): heavy label-culling work (was the 15-s offender) ---
+			setTimeout(() => {
+				this.updateLabelsForZoom();
+				this.recalcNodeRadii();
+				this._autoOptimizeLabelOverlapOnce();
+			}, 0);
+
+			// --- PHASE E (after D): auto-focus + position persistence ---
+			setTimeout(() => {
+				this._autoFocusActiveFile();
+				this._suppressAutoFit = false;
+				this._persistAllPositions();
+			}, 0);
 		});
 
 		this.updateLegend();

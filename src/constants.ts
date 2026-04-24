@@ -318,16 +318,28 @@ export const MIN_WORLD_RADIUS_PX = 3;
 export const VIEWPORT_CULL_MARGIN_PX = 60;
 /**
  * Number of nodes created synchronously before deferring the rest.
- * Increased from 50 → 10000 (2026-04-24): the original 50-then-rAF-batches
- * design contended with the force simulation for animation-frame slots,
- * extending time-to-full-render to 2 minutes on a 2,487-node vault. Creating
- * all nodes up front (single ~1-2s sync burst) is dramatically faster for
- * typical vaults. Larger vaults (10k+ nodes) may want to re-introduce
- * deferral — but that's a corner case, not the default path.
+ *
+ * Tuned to 50 for best input responsiveness during initial render. The
+ * remaining nodes are chunked via setTimeout (see DEFERRED_BATCH_SIZE +
+ * deferred scheduler in RenderPipeline). Force simulation is held back
+ * until ALL nodes are created (see onAllPixiNodesCreated), so deferred
+ * batches and the d3-force timer never contend for the same rAF slots.
+ *
+ * History:
+ * - Original 50 with rAF-scheduled deferral caused a 127-second full-render
+ *   on 2400-node vaults because d3-force (rAF) and batch processor (rAF)
+ *   both wanted every frame.
+ * - Raising to 10000 made it sync-all-at-once but blocked the main thread
+ *   for 15+ seconds, leaving the UI completely unresponsive.
+ * - Current setup: 50 immediate + setTimeout deferral + simulation-hold
+ *   keeps each sync chunk ~120ms or less and yields to input between.
  */
-export const IMMEDIATE_BATCH_SIZE = 10000;
-/** Number of nodes processed per deferred batch frame (higher = faster initial render) */
-export const DEFERRED_BATCH_SIZE = 500;
+export const IMMEDIATE_BATCH_SIZE = 50;
+/**
+ * Number of nodes processed per deferred batch. Smaller values yield to
+ * input events more often, trading throughput for responsiveness.
+ */
+export const DEFERRED_BATCH_SIZE = 50;
 /** Hold indicator ring line width */
 export const HOLD_RING_LINE_WIDTH = 2;
 /** Hold indicator ring padding beyond node radius */

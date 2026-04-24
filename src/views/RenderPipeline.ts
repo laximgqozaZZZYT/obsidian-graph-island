@@ -230,6 +230,13 @@ export interface RenderHost {
 	getWorldScale(): number;
 	/** HR: Re-evaluate labels after zoom change (LOD + cull) */
 	updateLabelsForZoom?(): void;
+	/**
+	 * Optional callback fired when the progressive node-creation queue drains
+	 * (all deferred batches have finished creating sprites). Used by the host
+	 * to kick off expensive post-creation work (e.g. force simulation restart)
+	 * without contending with in-flight sprite creation.
+	 */
+	onAllPixiNodesCreated?(): void;
 	/** IK: High contrast mode active */
 	isHighContrastMode?(): boolean;
 	/** Get the batch graphics layer for non-highlighted node circles */
@@ -1333,6 +1340,7 @@ export class RenderPipeline {
 			this.scheduleDeferredBatch();
 		} else {
 			this.cullOverlappingLabels();
+			this.host.onAllPixiNodesCreated?.();
 		}
 	}
 
@@ -1517,29 +1525,35 @@ export class RenderPipeline {
 		for (const n of batch) {
 			this.createSinglePixiNode(n, this.pendingNodeR, this.pendingNodeColor, world);
 		}
-		this.markDirty(true);
 
 		if (this.pendingNodes.length > 0) {
+			// Defer rendering until the batch queue drains — calling markDirty(true)
+			// per batch would trigger a full 100-200ms re-render each time,
+			// extending total node-creation from ~1s to 20+ seconds on large vaults.
 			this.scheduleDeferredBatch();
 		} else {
 			this.pendingNodeR = null;
 			this.pendingNodeColor = null;
 			this.cullOverlappingLabels();
+			this.markDirty(true); // single full redraw when all nodes are in
+			this.host.onAllPixiNodesCreated?.();
 		}
 	};
 
 	private scheduleDeferredBatch() {
 		if (this.deferredBatchId !== null) return;
-		// Use requestAnimationFrame to yield to the renderer between batches,
-		// keeping the UI responsive during progressive node creation.
-		this.deferredBatchId = requestAnimationFrame(this.processDeferredBatch) as unknown as ReturnType<
-			typeof setTimeout
-		>;
+		// Use setTimeout(0) rather than requestAnimationFrame: d3-force's timer
+		// also runs on rAF, so both compete for each 16ms frame slot. On a
+		// 2,400-node graph that contention stretched full population from an
+		// expected ~2s to >2 minutes. setTimeout(0) runs as a macrotask between
+		// rAF ticks, breaking the contention and also yielding to input events
+		// between batches.
+		this.deferredBatchId = setTimeout(this.processDeferredBatch, 0) as unknown as ReturnType<typeof setTimeout>;
 	}
 
 	cancelDeferredBatch() {
 		if (this.deferredBatchId !== null) {
-			cancelAnimationFrame(this.deferredBatchId as unknown as number);
+			clearTimeout(this.deferredBatchId as unknown as ReturnType<typeof setTimeout>);
 			this.deferredBatchId = null;
 		}
 		this.pendingNodes = [];
