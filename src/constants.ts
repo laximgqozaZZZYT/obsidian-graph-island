@@ -692,3 +692,36 @@ export const GVC_HEATMAP_GAUSSIAN_RADIUS = 3;
 
 // ---- Progressive simulation rendering (sync positions every N ticks) ----
 export const GVC_PROGRESSIVE_INTERVAL = 10;
+
+// ===========================================================================
+// ---- Pathfinder overlay ----
+// Drawing constants for src/views/pathfinder-overlay.ts (shortest-path
+// visualisation). PATHFINDER_ prefix avoids collisions with edge/LOD
+// constants above. Values mirror the existing local definitions in
+// pathfinder-overlay.ts; subtask 2 will replace those with imports.
+// ===========================================================================
+
+/** Teal cyan (hex int) — primary path stroke color (0x00ced1 = DarkTurquoise) */
+export const PATHFINDER_COLOR = 0x00ced1;
+/** CSS form of PATHFINDER_COLOR for DOM label styling */
+export const PATHFINDER_COLOR_CSS = "#00CED1";
+/** Pulse angular speed per frame (rad/frame) for alpha sine wave */
+export const PATHFINDER_PULSE_SPEED = 0.06;
+/** Pulse alpha amplitude (±) added to base alphas each frame */
+export const PATHFINDER_PULSE_AMPLITUDE = 0.1;
+/** Base alpha for the outer glow stroke (before pulse) */
+export const PATHFINDER_GLOW_ALPHA_BASE = 0.45;
+/** Base alpha for the inner solid stroke (before pulse) */
+export const PATHFINDER_SOLID_ALPHA_BASE = 0.85;
+/** Line width (px) for the outer glow stroke */
+export const PATHFINDER_GLOW_STROKE_WIDTH = 8;
+/** Line width (px) for the inner solid stroke */
+export const PATHFINDER_SOLID_STROKE_WIDTH = 3;
+/** Radius (px) of the small dot drawn on each path node */
+export const PATHFINDER_DOT_RADIUS = 5;
+/** Font size (px) for the "N hops" label */
+export const PATHFINDER_LABEL_FONT_SIZE = 11;
+/** Horizontal offset (px) of the label from the midpoint of the middle segment */
+export const PATHFINDER_LABEL_OFFSET_X = 6;
+/** Vertical offset (px) of the label from the midpoint of the middle segment */
+export const PATHFINDER_LABEL_OFFSET_Y = -14;
