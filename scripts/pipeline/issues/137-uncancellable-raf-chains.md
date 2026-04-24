@@ -1,7 +1,7 @@
 ---
 priority: high
 reported: 2026-04-16
-status: blocked
+status: pending
 source: kaizen
 summary: panToNode/_animateToNode/_fadeNodeAlphaのrAFチェーンがキャンセル不可能 — view破棄後も実行継続
 ---

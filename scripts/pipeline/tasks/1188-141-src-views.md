@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-24
-status: blocked
+status: pending
 source: decomposed
 parent: 141-coverage-drop
 depends: none

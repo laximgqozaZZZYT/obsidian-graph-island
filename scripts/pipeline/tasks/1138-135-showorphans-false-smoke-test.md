@@ -1,7 +1,7 @@
 ---
 priority: high
 reported: 2026-04-19
-status: blocked
+status: pending
 source: decomposed
 parent: 135-e2e-smoke-fail
 depends: none

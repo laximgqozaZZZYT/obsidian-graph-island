@@ -1,7 +1,7 @@
 ---
 priority: skip
 reported: 2026-04-24
-status: blocked
+status: pending
 source: decomposed
 parent: 131-stale-worktrees
 depends: none

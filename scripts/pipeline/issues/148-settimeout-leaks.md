@@ -1,8 +1,7 @@
 ---
 priority: high
 reported: 2026-04-24
-status: blocked
-decompose_attempts: 3
+status: pending
 source: auto-discovered
 summary: setTimeout 36個 vs clearTimeout 21個 — 15個が未クリア
 ---

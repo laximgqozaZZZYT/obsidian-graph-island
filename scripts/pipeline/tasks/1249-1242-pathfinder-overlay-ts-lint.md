@@ -1,7 +1,7 @@
 ---
 priority: high
 reported: 2026-04-25
-status: blocked
+status: pending
 source: decomposed
 parent: 1242-1237-pathfinder-overlay-ts-lint-test
 depends: none

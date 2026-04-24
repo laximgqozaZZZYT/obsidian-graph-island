@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-19
-status: blocked
+status: pending
 source: auto-discovered
 summary: 7個の巨大関数 (120行以上) が存在
 ---

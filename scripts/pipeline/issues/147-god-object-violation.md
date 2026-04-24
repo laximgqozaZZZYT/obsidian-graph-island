@@ -1,8 +1,7 @@
 ---
 priority: high
 reported: 2026-04-24
-status: blocked
-decompose_attempts: 3
+status: pending
 source: auto-discovered
 summary: God Object が上限超過
 ---
