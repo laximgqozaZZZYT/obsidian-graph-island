@@ -1,7 +1,7 @@
 ---
 priority: high
 reported: 2026-04-24
-status: pending
+status: in-progress
 source: decomposed
 parent: 1222-143-graphviewcontainer-constants-ts-god-obje
 depends: subtask-1
