@@ -4,6 +4,7 @@ import {
 	estimateGroupRadius,
 	getSpacing,
 	computeEffectiveColumnSpacing,
+	partitionNodes,
 } from "../../src/layouts/cluster-force";
 import type { GraphNode } from "../../src/types";
 
@@ -106,5 +107,103 @@ describe("computeEffectiveColumnSpacing", () => {
 		]);
 		// (100 - 0) / (3 - 1) = 50
 		expect(computeEffectiveColumnSpacing(offsets, 10)).toBe(50);
+	});
+});
+
+describe("partitionNodes", () => {
+	const degrees = new Map<string, number>([
+		["a", 0],
+		["b", 2],
+		["c", 4],
+		["d", 11],
+	]);
+
+	it("returns empty map for empty nodes regardless of groupBy mode", () => {
+		expect(partitionNodes([], "backlinks", degrees).size).toBe(0);
+		expect(partitionNodes([], "none", degrees).size).toBe(0);
+		expect(partitionNodes([], "category", degrees).size).toBe(0);
+	});
+
+	it("groupBy='backlinks' buckets nodes by degree via backlinkBucket", () => {
+		const nodes = [makeNode("a"), makeNode("b"), makeNode("c"), makeNode("d")];
+		const groups = partitionNodes(nodes, "backlinks", degrees);
+		// a:0 → "0", b:2 → "1-2", c:4 → "3-5", d:11 → "11+"
+		expect(groups.get("0")?.map((n) => n.id)).toEqual(["a"]);
+		expect(groups.get("1-2")?.map((n) => n.id)).toEqual(["b"]);
+		expect(groups.get("3-5")?.map((n) => n.id)).toEqual(["c"]);
+		expect(groups.get("11+")?.map((n) => n.id)).toEqual(["d"]);
+	});
+
+	it("groupBy='backlinks' treats missing degrees as 0", () => {
+		const nodes = [makeNode("z")];
+		const groups = partitionNodes(nodes, "backlinks", new Map());
+		expect(groups.get("0")?.map((n) => n.id)).toEqual(["z"]);
+	});
+
+	it("groupBy='node_type' places isTag nodes under 'tag' and file nodes under their category", () => {
+		const nodes = [
+			makeNode("t1", { isTag: true, category: "ignored" }),
+			makeNode("f1", { category: "Fiction" }),
+			makeNode("f2", { category: "NonFiction" }),
+		];
+		const groups = partitionNodes(nodes, "node_type", degrees);
+		expect(groups.get("tag")?.map((n) => n.id)).toEqual(["t1"]);
+		expect(groups.get("Fiction")?.map((n) => n.id)).toEqual(["f1"]);
+		expect(groups.get("NonFiction")?.map((n) => n.id)).toEqual(["f2"]);
+	});
+
+	it("groupBy='node_type' falls back to 'file' for non-tag nodes without a category", () => {
+		const nodes = [makeNode("a"), makeNode("b")];
+		const groups = partitionNodes(nodes, "node_type", degrees);
+		expect(groups.size).toBe(1);
+		expect(groups.get("file")?.map((n) => n.id)).toEqual(["a", "b"]);
+	});
+
+	it("groupBy='none' collapses all nodes into single '__all__' bucket", () => {
+		const nodes = [makeNode("a"), makeNode("b"), makeNode("c")];
+		const groups = partitionNodes(nodes, "none", degrees);
+		expect(groups.size).toBe(1);
+		expect(groups.get("__all__")?.map((n) => n.id)).toEqual(["a", "b", "c"]);
+	});
+
+	it("groupBy=arbitrary field uses getNodeFieldValues[0]; missing values fall under '__no_<field>__'", () => {
+		const nodes = [
+			makeNode("with-folder", { filePath: "folderA/note.md" }),
+			makeNode("no-folder"),
+			makeNode("also-A", { filePath: "folderA/other.md" }),
+		];
+		const groups = partitionNodes(nodes, "folder", degrees);
+		expect(groups.get("folderA")?.map((n) => n.id)).toEqual(["with-folder", "also-A"]);
+		expect(groups.get("__no_folder__")?.map((n) => n.id)).toEqual(["no-folder"]);
+	});
+
+	it("groupBy supports ':?' suffix (partial-query syntax) and strips it before field lookup", () => {
+		const nodes = [makeNode("n1", { category: "X" }), makeNode("n2", { category: "Y" })];
+		const withoutSuffix = partitionNodes(nodes, "category", degrees);
+		const withSuffix = partitionNodes(nodes, "category:?", degrees);
+		// Both produce identical buckets — ":?" is stripped before field resolution
+		expect([...withSuffix.keys()].sort()).toEqual([...withoutSuffix.keys()].sort());
+		expect(withSuffix.get("X")?.map((n) => n.id)).toEqual(["n1"]);
+		expect(withSuffix.get("Y")?.map((n) => n.id)).toEqual(["n2"]);
+	});
+
+	it("preserves insertion order within each group (stable partition)", () => {
+		const nodes = [makeNode("a"), makeNode("b"), makeNode("c")];
+		const groups = partitionNodes(nodes, "none", degrees);
+		expect(groups.get("__all__")?.map((n) => n.id)).toEqual(["a", "b", "c"]);
+	});
+
+	it("every input node lands in exactly one group (no drops, no duplicates)", () => {
+		const nodes = [
+			makeNode("a"),
+			makeNode("b", { category: "Cat" }),
+			makeNode("c", { isTag: true }),
+			makeNode("d", { category: "Cat" }),
+		];
+		const groups = partitionNodes(nodes, "node_type", degrees);
+		const total = [...groups.values()].reduce((sum, arr) => sum + arr.length, 0);
+		expect(total).toBe(nodes.length);
+		const allIds = [...groups.values()].flat().map((n) => n.id);
+		expect(new Set(allIds).size).toBe(nodes.length);
 	});
 });
