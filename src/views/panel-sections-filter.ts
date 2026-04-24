@@ -13,29 +13,17 @@ import { addSlider, addToggle, addSelect, addTextInput } from "./panel-widgets";
 import type { PanelState, PanelCallbacks, PanelContext } from "./PanelBuilder";
 import { ensureRT, buildSection } from "./PanelBuilder";
 import {
-	applyCardPreset,
 	ensureHoverHighlightTypes,
-	normalizeCardFields,
 	normalizeDefinitionField,
-	normalizeDonutBreakdownField,
 	removeBookmark,
-	removeViewport,
-	shouldShowApplyEgoButton,
-	shouldShowCableSubSettings,
 	shouldShowCardSubSettings,
 	shouldShowClusterLabelDetail,
 	shouldShowDonutSubSettings,
 	shouldShowFocusLayout,
-	shouldShowHierarchyBreadcrumb,
-	shouldShowHierarchyTree,
 	shouldShowImportanceMetric,
-	shouldShowMultiSelectSection,
 	shouldShowOntologyBackbone,
 	shouldShowRecencySlider,
-	shouldShowRelationColorSection,
-	shouldShowRoadSubSettings,
 	shouldShowThumbnailToggle,
-	shouldShowViewportList,
 } from "./panel-sections-filter-logic";
 
 // ---------------------------------------------------------------------------
