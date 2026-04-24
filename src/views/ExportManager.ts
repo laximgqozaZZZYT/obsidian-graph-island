@@ -17,6 +17,7 @@ import { showToast } from "../utils/toast";
 import { t } from "../i18n";
 import type { IApp } from "./canvas2d/interfaces";
 import { TOAST_SHORT_MS } from "../constants";
+import { asInternalVault } from "../obsidian-internals";
 
 // ---------------------------------------------------------------------------
 // Named constants (CLAUDE.md: no hardcoded magic numbers)
@@ -30,7 +31,7 @@ const MERMAID_NODE_CAP = 200;
 export interface ExportHost {
 	readonly app: App;
 	readonly pixiApp: IApp | null;
-	readonly pixiNodes: Map<string, { data: { id: string; label?: string } }>;
+	readonly pixiNodes: Map<string, { data: GraphNode }>;
 	readonly adj: Map<string, Set<string>> | null;
 	readonly graphEdges: GraphEdge[] | null;
 	readonly panel: { hoverHops?: number };
@@ -62,7 +63,7 @@ export function exportSubgraph(host: ExportHost, nodeId: string): void {
 	const nodes = [...host.pixiNodes.values()].map((pn) => pn.data);
 	const edges = host.graphEdges;
 	const hops = host.panel.hoverHops || 2;
-	const sub = collectSubgraph(host.adj, nodeId, hops, nodes as GraphNode[], edges);
+	const sub = collectSubgraph(host.adj, nodeId, hops, nodes, edges);
 	const json = exportSubgraphJSON(sub);
 
 	// Download as file
@@ -190,10 +191,7 @@ export async function embedGraphInNote(host: ExportHost): Promise<void> {
 		const filename = `graph-island-${ts}.png`;
 
 		// Respect Obsidian's attachment folder setting (internal Vault API not in public types)
-		const vault = host.app.vault as unknown as {
-			getAvailablePath?: (base: string, ext: string) => string;
-			config?: { attachmentFolderPath?: string };
-		};
+		const vault = asInternalVault(host.app.vault);
 		const attachPath = vault.getAvailablePath
 			? vault.getAvailablePath(
 					(vault.config?.attachmentFolderPath || "") + "/" + filename.replace(".png", ""),

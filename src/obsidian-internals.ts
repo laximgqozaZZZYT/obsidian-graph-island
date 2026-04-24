@@ -4,7 +4,7 @@
  *
  * Using explicit interfaces instead of `as any` for better type safety.
  */
-import type { App, Vault, Workspace, WorkspaceLeaf } from "obsidian";
+import type { App, Vault, View, Workspace, WorkspaceLeaf } from "obsidian";
 
 // ---------------------------------------------------------------------------
 // Obsidian internal App extensions
@@ -94,6 +94,21 @@ export function asInternalApp(app: App): ObsidianAppInternal {
 /** Cast Workspace to internal variant for custom events. */
 export function asInternalWorkspace(workspace: Workspace): ObsidianWorkspaceInternal {
 	return workspace as unknown as ObsidianWorkspaceInternal;
+}
+
+/** Cast Vault to internal variant for attachment-path resolution. */
+export function asInternalVault(vault: Vault): ObsidianVaultInternal {
+	return vault as unknown as ObsidianVaultInternal;
+}
+
+/** Obsidian search view with optional `setQuery` method. */
+export interface ObsidianSearchView {
+	setQuery?: (q: string) => void;
+}
+
+/** Access a leaf's view as an Obsidian search view (internal API, not in public types). */
+export function asSearchView(view: View): ObsidianSearchView {
+	return view as unknown as ObsidianSearchView;
 }
 
 /** Cast window to Obsidian-augmented window. */
