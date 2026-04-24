@@ -1,7 +1,7 @@
 ---
 priority: high
 reported: 2026-04-24
-status: pending
+status: in-progress
 source: decomposed
 parent: 1237-1234-pathfinder-overlay-ts-pathfinder-import
 depends: subtask-2-impl
