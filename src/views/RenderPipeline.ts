@@ -415,6 +415,18 @@ export class RenderPipeline {
 	private needsFullRedraw = false;
 	private _transformOnlyDirty = false;
 	private idleFrames = 0;
+
+	/**
+	 * Progressive fade-in state for nodes created via the deferred batch path.
+	 * Each new sprite starts at scale=0/alpha=0 and is registered here with
+	 * its creation timestamp; tickProgressiveFadeIn() interpolates to full
+	 * visibility over ~250 ms using easeOutCubic. The natural per-sprite
+	 * creation time spread (3-5 ms between nodes, 16-50 ms between batches)
+	 * gives the graph a soft "sprinkle-in" look rather than a single
+	 * end-of-batch pop. Null when no progressive fade is active.
+	 */
+	private _progressiveFade: Map<string, number> | null = null;
+	private static readonly PROGRESSIVE_FADE_DURATION_MS = 260;
 	private _tickerBound = false;
 	private edgeRedrawCounter = 0;
 	// HR: Track zoom for label re-evaluation on zoom change
@@ -513,6 +525,15 @@ export class RenderPipeline {
 		const transitioning = this.host.tickLayoutTransition();
 		if (transitioning) {
 			this.needsRedraw = true;
+			this.idleFrames = 0;
+		}
+
+		// Progressive fade-in runs on the cheap transform-only path: scales
+		// + alpha change but the scene graph otherwise stays the same, so
+		// we don't want to trigger a full updatePositions every frame.
+		const progressive = this.tickProgressiveFadeIn();
+		if (progressive) {
+			this._transformOnlyDirty = true;
 			this.idleFrames = 0;
 		}
 
@@ -1315,6 +1336,15 @@ export class RenderPipeline {
 	 * remaining nodes are pushed onto a stack and processed in idle frames.
 	 */
 	createPixiNodes(nodes: GraphNode[], nodeR: (n: GraphNode) => number, nodeColor: (n: GraphNode) => number) {
+		// Activate progressive fade-in only for large initial loads (> 500
+		// nodes). Smaller populates (group expand, filter changes) rely on
+		// GraphViewContainer._fadeInTween for their own ripple animation —
+		// running both would fight each other for the same sprite.scale.
+		if (nodes.length > 500) {
+			this._progressiveFade = new Map();
+		} else {
+			this._progressiveFade = null;
+		}
 		const pixiNodes = this.host.getPixiNodes();
 		// Clean up leader lines, tag labels, and sub-labels before clearing
 		for (const pn of pixiNodes.values()) {
@@ -1439,12 +1469,57 @@ export class RenderPipeline {
 
 		if (!this._skipNodeRendering) world.addChild(container);
 
+		// Progressive fade-in: each new sprite starts invisible and tween'd
+		// up by tickProgressiveFadeIn (hooked into renderTick). Creation-time
+		// stagger gives a natural trickle effect across the 2-second populate
+		// window without us having to manage per-node delays.
+		if (this._progressiveFade) {
+			container.scale.set(0);
+			container.alpha = 0;
+			this._progressiveFade.set(n.id, performance.now());
+		}
+
 		this.host.getPixiNodes().set(n.id, {
 			data: n, gfx: container, circle, label, tagLabel, subLabels,
 			hoverLabel: null, leaderLine: null, radius: r, color,
 			held: false, sortRank: -1, priorityScore: -1,
 			minShowZoom: 1.0, labelWasVisible: false, hoverForcedLabel: false,
 		});
+	}
+
+	/**
+	 * Advance the progressive fade-in one frame. Called from renderTick every
+	 * tick while _progressiveFade has entries. Each sprite uses easeOutCubic
+	 * over PROGRESSIVE_FADE_DURATION_MS; completed sprites are removed from
+	 * the map and when the map drains we nil it out so the hot path skips
+	 * the Map lookup entirely.
+	 */
+	private tickProgressiveFadeIn(): boolean {
+		const fade = this._progressiveFade;
+		if (!fade || fade.size === 0) return false;
+		const now = performance.now();
+		const dur = RenderPipeline.PROGRESSIVE_FADE_DURATION_MS;
+		const pixiNodes = this.host.getPixiNodes();
+		// Iterate via snapshot so we can delete inside the loop
+		for (const [id, startMs] of fade) {
+			const pn = pixiNodes.get(id);
+			if (!pn) { fade.delete(id); continue; }
+			const t = Math.min((now - startMs) / dur, 1);
+			const eased = 1 - Math.pow(1 - t, 3);
+			const alpha = Math.min(1, t * 1.4);
+			pn.gfx.scale.set(eased);
+			pn.gfx.alpha = alpha;
+			if (t >= 1) {
+				pn.gfx.scale.set(1);
+				pn.gfx.alpha = 1;
+				fade.delete(id);
+			}
+		}
+		if (fade.size === 0) {
+			this._progressiveFade = null;
+			return false;
+		}
+		return true;
 	}
 
 	private _drawSuperNodeCircle(circle: CanvasGraphics, color: number, r: number) {
@@ -1576,9 +1651,15 @@ export class RenderPipeline {
 		}
 
 		if (this.pendingNodes.length > 0) {
-			// Defer rendering until the batch queue drains — calling markDirty(true)
-			// per batch would trigger a full 100-200ms re-render each time,
-			// extending total node-creation from ~1s to 20+ seconds on large vaults.
+			// Present the canvas so newly-created sprites become visible and
+			// the progressive fade-in animation has something to animate each
+			// frame. This is the cheap transform-only repaint (no scene
+			// rebuild) — calling markDirty(true) per batch used to trigger
+			// a full 100-200 ms re-render each time, bloating total
+			// populate to 20+ seconds.
+			this._transformOnlyDirty = true;
+			this.idleFrames = 0;
+			this.wakeRenderLoop();
 			this.scheduleDeferredBatch();
 		} else {
 			this.pendingNodeR = null;
