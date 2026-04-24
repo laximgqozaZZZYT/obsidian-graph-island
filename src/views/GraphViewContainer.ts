@@ -5435,6 +5435,17 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		this._updateAnnotationPositions();
 	}
 
+	/**
+	 * Fast-path dirty signal for pan/zoom: world transform changed, scene
+	 * graph is unchanged. Skips the expensive updatePositions pipeline.
+	 * See RenderPipeline.markTransformDirty for details.
+	 */
+	markTransformDirty(): void {
+		this._viewportDirty = true;
+		this.renderPipeline?.markTransformDirty();
+		this._updateAnnotationPositions();
+	}
+
 	private startRenderLoop() {
 		this.renderPipeline?.startRenderLoop();
 	}

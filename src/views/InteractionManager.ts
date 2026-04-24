@@ -53,6 +53,8 @@ export interface InteractionHost {
 	hitTestNode(wx: number, wy: number): PixiNode | null;
 	/** Mark the render loop as needing a redraw */
 	markDirty(forceFullRedraw?: boolean): void;
+	/** Transform-only (pan/zoom) dirty signal — skips scene rebuild. */
+	markTransformDirty(): void;
 	/** Apply hover highlight based on current highlightedNodeId */
 	applyHover(): void;
 	/** Get/set the currently highlighted (hovered) node ID */
@@ -263,7 +265,10 @@ const LASSO_FILL_ALPHA = 0.06;
 /** Minimum lasso points to form a polygon */
 const LASSO_MIN_POINTS = 5;
 /** Smooth zoom lerp factor per frame (0–1; higher = snappier) */
-const SMOOTH_ZOOM_LERP = 0.25;
+// Higher LERP converges in fewer frames. 0.25 took ~24 rAFs per wheel
+// (~400 ms); 0.4 finishes in ~10 rAFs (~160 ms) with the same "eased"
+// feel because wheel-zoom is a discrete gesture, not a continuous drag.
+const SMOOTH_ZOOM_LERP = 0.4;
 /** Smooth zoom convergence threshold — stop animating below this */
 const SMOOTH_ZOOM_EPSILON = 0.001;
 
@@ -434,7 +439,10 @@ export class InteractionManager {
 	}
 
 	private afterZoomStep(s: number) {
-		this.host.markDirty();
+		// Transform-only: zoom changes world.scale but leaves the scene graph
+		// untouched. Label re-culling at the new zoom is debounced below and
+		// runs at end-of-gesture, not per-frame.
+		this.host.markTransformDirty();
 		clearTimeout(this._zoomCullTimer);
 		this._zoomCullTimer = window.setTimeout(() => {
 			this.host.updateLabelsForZoom?.();
@@ -577,7 +585,8 @@ export class InteractionManager {
 		} else if (this.isPanning) {
 			this.world.x = this.worldStart.x + (mx - this.panStart.x);
 			this.world.y = this.worldStart.y + (my - this.panStart.y);
-			this.host.markDirty();
+			// Transform-only: pan moves world.x/y, scene graph unchanged.
+			this.host.markTransformDirty();
 		} else {
 			this._moveHover(e, app, mx, my);
 		}

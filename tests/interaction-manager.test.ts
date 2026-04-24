@@ -196,7 +196,7 @@ describe("InteractionManager", () => {
 		// Mock InteractionHost with all required methods
 		mockHost = {
 			hitTestNode: vi.fn(() => null),
-			markDirty: vi.fn(),
+			markDirty: vi.fn(), markTransformDirty: vi.fn(),
 			applyHover: vi.fn(),
 			getHighlightedNodeId: vi.fn(() => null),
 			setHighlightedNodeId: vi.fn(),
@@ -412,7 +412,7 @@ describe("InteractionHost interface", () => {
 
 		const mockHost: InteractionHost = {
 			hitTestNode: () => null,
-			markDirty: () => {},
+			markDirty: () => {}, markTransformDirty: () => {},
 			applyHover: () => {},
 			getHighlightedNodeId: () => null,
 			setHighlightedNodeId: () => {},
@@ -447,7 +447,7 @@ describe("InteractionHost interface", () => {
 	it("should support optional methods", () => {
 		const mockHost: InteractionHost = {
 			hitTestNode: () => null,
-			markDirty: () => {},
+			markDirty: () => {}, markTransformDirty: () => {},
 			applyHover: () => {},
 			getHighlightedNodeId: () => null,
 			setHighlightedNodeId: () => {},
@@ -761,7 +761,7 @@ describe("InteractionManager event handlers", () => {
 
 		mockHost = {
 			hitTestNode: vi.fn(() => null),
-			markDirty: vi.fn(),
+			markDirty: vi.fn(), markTransformDirty: vi.fn(),
 			applyHover: vi.fn(),
 			getHighlightedNodeId: vi.fn(() => null),
 			setHighlightedNodeId: vi.fn(),
@@ -805,7 +805,8 @@ describe("InteractionManager event handlers", () => {
 		(interactionManager as any).handleWheel(wheelEvent);
 		// Smooth zoom defers work to rAF — manually run the tick
 		(interactionManager as any).smoothZoomTick();
-		expect(mockHost.markDirty).toHaveBeenCalled();
+		// Zoom now uses the transform-only fast path (scene graph unchanged)
+		expect(mockHost.markTransformDirty).toHaveBeenCalled();
 		expect(mockHost.updateZoomIndicator).toHaveBeenCalled();
 	});
 
@@ -947,7 +948,7 @@ describe("InteractionManager node interaction helpers", () => {
 
 		mockHost = {
 			hitTestNode: vi.fn(() => null),
-			markDirty: vi.fn(),
+			markDirty: vi.fn(), markTransformDirty: vi.fn(),
 			applyHover: vi.fn(),
 			getHighlightedNodeId: vi.fn(() => null),
 			setHighlightedNodeId: vi.fn(),

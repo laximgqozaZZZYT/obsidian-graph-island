@@ -413,6 +413,7 @@ export class RenderPipeline {
 	// Render loop state
 	private needsRedraw = true;
 	private needsFullRedraw = false;
+	private _transformOnlyDirty = false;
 	private idleFrames = 0;
 	private _tickerBound = false;
 	private edgeRedrawCounter = 0;
@@ -489,6 +490,21 @@ export class RenderPipeline {
 		this.wakeRenderLoop();
 	}
 
+	/**
+	 * Lightweight dirty signal for pan/zoom: only the world transform
+	 * (world.x/y/scale) has changed; node data, graphics commands, and edge
+	 * paths are all unchanged. Skips the entire updatePositions pipeline
+	 * (syncGfx, rebuildSpatialGrid, redrawNodeBatch, drawEdges, ...) and
+	 * just asks the canvas renderer to repaint the existing scene at the
+	 * new transform. This is the single biggest pan/zoom speedup since
+	 * each full updatePositions costs 30-70ms on a 2,400-node graph.
+	 */
+	markTransformDirty(): void {
+		this._transformOnlyDirty = true;
+		this.idleFrames = 0;
+		this.wakeRenderLoop();
+	}
+
 	// =========================================================================
 	// Render loop
 	// =========================================================================
@@ -506,6 +522,14 @@ export class RenderPipeline {
 			this.lastFrameMs = Math.round((performance.now() - t0) * 10) / 10;
 			this.needsRedraw = false;
 			this.needsFullRedraw = false;
+			this._transformOnlyDirty = false;
+			this.idleFrames = 0;
+		} else if (this._transformOnlyDirty) {
+			// Pan/zoom fast path: world transform changed but scene graph
+			// is unchanged. Skip updatePositions entirely and just ask the
+			// canvas renderer to repaint at the new transform.
+			this.host.getPixiApp()?.markNeedsRender();
+			this._transformOnlyDirty = false;
 			this.idleFrames = 0;
 		} else {
 			this.idleFrames++;
