@@ -1,7 +1,7 @@
 ---
 priority: high
 reported: 2026-04-25
-status: in-progress
+status: blocked
 source: decomposed
 parent: 148-settimeout-leaks
 depends: subtask-1
