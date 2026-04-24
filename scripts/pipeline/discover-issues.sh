@@ -37,9 +37,10 @@ file_issue() {
   local description="$4"
   local criteria="$5"
 
-  # Skip if same slug is currently active (pending / in-progress / decomposed).
-  # NOTE: blocked is NOT a skip reason — see cooldown below.
-  if grep -lE '^status: (pending|in-progress|decomposed)$' "$ISSUE_DIR"/*-"$slug".md 2>/dev/null | grep -q .; then
+  # Skip if same slug is currently active (pending / in-progress / decomposed)
+  # OR permanently retired as undecomposable (no point re-filing what we already
+  # know we cannot break down). Blocked is NOT a skip reason — see cooldown.
+  if grep -lE '^status: (pending|in-progress|decomposed|undecomposable)$' "$ISSUE_DIR"/*-"$slug".md 2>/dev/null | grep -q .; then
     return 0
   fi
   # Cooldown: if the same slug was recently blocked (within 24h), skip re-filing
@@ -331,18 +332,13 @@ print(result.stdout.strip() or '0')
 fi
 
 # ============================================================
-# 13. STALE WORKTREES — abandoned parallel sessions
+# 13. STALE WORKTREES — REMOVED (D-category fix)
 # ============================================================
-STALE_WT=$(git worktree list 2>/dev/null | grep -c "autonomous-worktrees" || echo "0")
-STALE_WT=${STALE_WT//[^0-9]/}
-STALE_WT=${STALE_WT:-0}
-if [[ $STALE_WT -gt 2 ]]; then
-  file_issue "stale-worktrees" "low" \
-    "${STALE_WT}個の放置されたworktree" \
-    "自律セッションのworktreeがクリーンアップされずに残っている。ディスク容量を消費。" \
-    "- [ ] git worktree prune で不要worktreeを削除"
-  ISSUES_FOUND=$((ISSUES_FOUND + 1))
-fi
+# Was: filed `stale-worktrees` issues for `git worktree prune` one-shots.
+# Pipeline cycles can't usefully implement a one-liner shell command, so this
+# became Muda — issues piled up and got blocked. Worktree cleanup belongs in
+# the cron-side hygiene path (see scripts/pipeline/autonomous-improve.sh
+# cleanup trap), not the issue queue.
 
 # ============================================================
 # 14. TEST-TO-CODE RATIO — undertested areas

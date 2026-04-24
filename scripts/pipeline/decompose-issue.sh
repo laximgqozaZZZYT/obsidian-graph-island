@@ -119,6 +119,7 @@ content = sys.stdin.read()
 blocks = re.split(r'SUBTASK\s+\d+', content)
 blocks = [b.strip() for b in blocks if b.strip()]
 
+import glob
 issue_dir = '$TASK_DIR'
 parent = '$ISSUE_NAME'
 last_num = $LAST_NUM
@@ -128,6 +129,37 @@ ERROR_PATTERNS = (\"you've hit your limit\", 'rate limit', 'quota exceeded')
 META_PATTERNS = ('git mv ', 'status: done', 'status: pending',
                  'frontmatter status', 'move to done',
                  '原子操作', 'ステータス変更', 'status を')
+# LLM self-declared 'cannot decompose' patterns — issue should go to undecomposable, not produce a task
+UNDECOMPOSABLE_PATTERNS = (
+    'not decomposable', 'cannot be decomposed', 'undecomposable',
+    'is not decomposable', '分解できない', '分解不可', '分解不能',
+    'not a decomposable', 'this issue is not',
+)
+# Empty/placeholder summary patterns (substring match, lowercased)
+PLACEHOLDER_SUMMARY_PATTERNS = ('subtask', 'todo', 'task description', 'summary here')
+
+# Pull existing same-parent task summaries for duplicate detection (C-category fix)
+parent_match = re.match(r'(\d+)', parent)
+parent_num = parent_match.group(1) if parent_match else ''
+existing_summaries = []
+if parent_num:
+    for ef in glob.glob(f'{issue_dir}/*-{parent_num}-*.md'):
+        try:
+            with open(ef) as efh:
+                ec = efh.read()
+            sm = re.search(r'^summary:\s*(.+)', ec, re.MULTILINE)
+            if sm:
+                existing_summaries.append(sm.group(1).strip())
+        except Exception:
+            pass
+
+def _word_set(text):
+    return {w for w in re.findall(r'[a-z]{3,}', text.lower())}
+
+def _jaccard(a, b):
+    if not a or not b:
+        return 0.0
+    return len(a & b) / len(a | b)
 
 for i, block in enumerate(blocks[:3]):
     # Extract fields
@@ -165,9 +197,30 @@ for i, block in enumerate(blocks[:3]):
     if any(p in desc_lower for p in ERROR_PATTERNS):
         print(f'  SKIPPED: block {i+1} (error pattern in description)')
         continue
-    if summary.strip().lower() in ('subtask', 'task', ''):
-        print(f'  SKIPPED: block {i+1} (no meaningful summary)')
+    # A-category: empty / placeholder summary (substring match, not just exact)
+    if len(summary.strip()) < 20:
+        print(f'  SKIPPED: block {i+1} (summary too short: \"{summary[:30]}\")')
         continue
+    if any(p in summary_lower for p in PLACEHOLDER_SUMMARY_PATTERNS):
+        if not any(c.isascii() and c.isalpha() for c in summary.replace('subtask','').replace('task','').replace('todo','')):
+            print(f'  SKIPPED: block {i+1} (placeholder summary: \"{summary[:30]}\")')
+            continue
+    # B-category: LLM self-declared undecomposable
+    if any(p in desc_lower or p in summary_lower for p in UNDECOMPOSABLE_PATTERNS):
+        print(f'  SKIPPED: block {i+1} (LLM declared undecomposable)')
+        continue
+    # C-category: duplicate of an existing same-parent task (Jaccard ≥ 0.6 on word set)
+    new_ws = _word_set(summary)
+    dup_hit = None
+    for ex in existing_summaries:
+        if _jaccard(new_ws, _word_set(ex)) >= 0.6:
+            dup_hit = ex
+            break
+    if dup_hit:
+        print(f'  SKIPPED: block {i+1} (duplicate of existing task: \"{dup_hit[:50]}\")')
+        continue
+    # Track this summary so subsequent blocks in the same batch also see it
+    existing_summaries.append(summary)
 
     last_num += 1
     num = f'{last_num:03d}'
@@ -201,11 +254,26 @@ summary: {summary}
 echo "$PY_OUT"
 
 CREATED_COUNT=$(echo "$PY_OUT" | grep -c '^  CREATED:')
+SKIPPED_COUNT=$(echo "$PY_OUT" | grep -c '^  SKIPPED:')
+UNDEC_HIT=$(echo "$PY_OUT" | grep -c 'LLM declared undecomposable\|placeholder summary\|summary too short')
+
 if [[ "$CREATED_COUNT" -eq 0 ]]; then
-  echo "ERROR: no valid subtasks created — leaving parent status unchanged"
+  # If LLM produced only placeholder/undecomposable/duplicate output, mark issue
+  # as undecomposable so future cycles stop wasting tokens on it.
+  if [[ "$SKIPPED_COUNT" -gt 0 && "$UNDEC_HIT" -gt 0 ]]; then
+    echo "ERROR: all subtasks rejected as placeholder/undecomposable — marking issue undecomposable"
+    sed -i 's/^status: pending$/status: undecomposable/' "$ISSUE_FILE" 2>/dev/null
+    sed -i 's/^status: decomposed$/status: undecomposable/' "$ISSUE_FILE" 2>/dev/null
+    (cd "$PROJECT_DIR" && git add scripts/pipeline/issues/ && \
+      git commit -m "chore: mark $ISSUE_NAME undecomposable (LLM produced no actionable subtasks)
+
+Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>" --no-verify 2>/dev/null) || true
+  else
+    echo "ERROR: no valid subtasks created — leaving parent status unchanged"
+  fi
   exit 3
 fi
-echo "  Total: $CREATED_COUNT subtasks created"
+echo "  Total: $CREATED_COUNT subtasks created (skipped: $SKIPPED_COUNT)"
 
 # Mark parent issue as decomposed (only after confirming subtasks were written)
 sed -i 's/status: pending/status: decomposed/' "$ISSUE_FILE" 2>/dev/null
