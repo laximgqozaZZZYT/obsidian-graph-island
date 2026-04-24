@@ -1,7 +1,7 @@
 ---
 priority: high
 reported: 2026-04-24
-status: pending
+status: blocked
 source: decomposed
 parent: 1239-1235-node-decorations-ts-node-deco
 depends: none

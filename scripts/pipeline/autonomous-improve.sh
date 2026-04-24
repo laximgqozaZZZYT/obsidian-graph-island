@@ -140,12 +140,20 @@ echo $$ > "$LOCK_DIR/$SESSION_ID.pid"
 log "Active sessions: $ACTIVE_COUNT/$MAX_SESSIONS — proceeding"
 
 # ── Handle orphaned in-progress items (issues + tasks) ──
-# Issues: carry over with attempt history
-# Tasks: auto-subdivide into smaller tasks via decompose-issue.sh
+# FIX A (2026-04-25): timed-out tasks are no longer re-SUBDIVIDEd. Re-decompose
+# was the root cause of chain explosion: task 1172-... was SUBDIVIDEd 22 times,
+# generating 765 descendants under a single ROOT issue. Timed-out tasks now
+# go straight to `blocked` and the cycle moves on.
+#
+# FIX B (2026-04-25): Issues track `decompose_attempts:` in frontmatter and are
+# blocked after MAX_ISSUE_ATTEMPTS=3 failed rounds. Previously issue
+# `144-coverage-drop` was picked 86 times in 24h — each time tasks/ drained,
+# the issue got re-decomposed, always failed, and re-entered the queue.
 ISSUE_DIR="$PROJECT_DIR/scripts/pipeline/issues"
 TASK_DIR="$PROJECT_DIR/scripts/pipeline/tasks"
 TASK_DONE_DIR="$TASK_DIR/done"
 mkdir -p "$TASK_DIR" "$TASK_DONE_DIR"
+MAX_ISSUE_ATTEMPTS=3
 
 NOW=$(date +%s)
 for dir in "$ISSUE_DIR" "$TASK_DIR"; do
@@ -158,28 +166,12 @@ for dir in "$ISSUE_DIR" "$TASK_DIR"; do
 
     FNAME=$(basename "$f")
     if [[ "$dir" == "$TASK_DIR" ]]; then
-      # Task timed out → subdivide, with guards against explosion:
-      # 1. Max depth 1 (parent→child only, no grandchildren)
-      # 2. Max 10 total tasks per parent issue
-      DEPTH=$(echo "$FNAME" | grep -o "subtask" | wc -l)
-      PARENT_NUM=$(echo "$FNAME" | grep -oP '^\d+-\K\d+' | head -1)
-      SIBLING_COUNT=$(find "$TASK_DIR" "$TASK_DONE_DIR" -maxdepth 1 -name "*-${PARENT_NUM:-xxx}-*" 2>/dev/null | wc -l)
-      if [[ $DEPTH -lt 1 && $SIBLING_COUNT -lt 10 ]]; then
-        log "SUBDIVIDE: $FNAME timed out (${FILE_AGE}s, depth=$DEPTH)"
-        if ! bash "$PROJECT_DIR/scripts/pipeline/decompose-issue.sh" "$f" 2>&1 | while IFS= read -r line; do log "  $line"; done; then
-          # Subdivision failed (rate limit, etc) → reset to pending instead of leaving in-progress
-          log "SUBDIVIDE FAILED: $FNAME — resetting to pending"
-          sed -i 's/status: in-progress/status: pending/' "$f"
-          sed -i 's/status: decomposed/status: pending/' "$f"
-        fi
-      else
-        # Max depth reached → mark as blocked, don't subdivide further
-        log "BLOCKED: $FNAME at max subdivision depth ($DEPTH) — needs manual attention"
-        sed -i 's/status: in-progress/status: blocked/' "$f"
-      fi
-      (cd "$PROJECT_DIR" && git add scripts/pipeline/ && git commit -m "chore: handle timed-out task $FNAME" --no-verify 2>/dev/null) || true
+      # FIX A: Timed-out task → straight to blocked. No re-SUBDIVIDE.
+      log "BLOCKED: $FNAME timed out after ${FILE_AGE}s (no re-SUBDIVIDE)"
+      sed -i 's/status: in-progress/status: blocked/' "$f"
+      (cd "$PROJECT_DIR" && git add scripts/pipeline/ && git commit -m "chore: block timed-out task $FNAME" --no-verify 2>/dev/null) || true
     else
-      # Issue timed out → carry over with attempt history
+      # Issue timed out → increment attempt counter, or block if exhausted.
       ORPHANED=false
       if [[ -z "$(find "$LOCK_DIR" -maxdepth 1 -name '*.pid' 2>/dev/null | head -1)" ]]; then
         ORPHANED=true
@@ -188,11 +180,17 @@ for dir in "$ISSUE_DIR" "$TASK_DIR"; do
       fi
       if [[ "$ORPHANED" == true ]]; then
         FNAME=$(basename "$f")
-        ATTEMPT_COUNT=$(grep -c "^### Attempt " "$f" 2>/dev/null; true)
-        ATTEMPT_COUNT=${ATTEMPT_COUNT:-0}
-        NEXT_ATTEMPT=$((ATTEMPT_COUNT + 1))
+        # FIX B: count prior attempts from frontmatter (decompose_attempts)
+        DECOMPOSE_ATTEMPTS=$(grep -oP '^decompose_attempts:\s*\K[0-9]+' "$f" 2>/dev/null | head -1)
+        DECOMPOSE_ATTEMPTS=${DECOMPOSE_ATTEMPTS:-0}
+        if [[ "$DECOMPOSE_ATTEMPTS" -ge "$MAX_ISSUE_ATTEMPTS" ]]; then
+          log "BLOCKED: $FNAME — $DECOMPOSE_ATTEMPTS decompose attempts exhausted (max $MAX_ISSUE_ATTEMPTS)"
+          sed -i 's/status: in-progress/status: blocked/' "$f"
+          (cd "$PROJECT_DIR" && git add "$f" && git commit -m "chore: block exhausted issue $FNAME ($DECOMPOSE_ATTEMPTS attempts)" --no-verify 2>/dev/null) || true
+          continue
+        fi
+        NEXT_ATTEMPT=$((DECOMPOSE_ATTEMPTS + 1))
 
-        # Find relevant session log entries
         SLUG="${FNAME%.md}"
         LAST_SESSION_LOG=$(grep -l "$SLUG" /tmp/graph-island-improve-results/*.json 2>/dev/null | xargs ls -t 2>/dev/null | head -1)
         SESSION_SUMMARY=""
@@ -202,7 +200,14 @@ for dir in "$ISSUE_DIR" "$TASK_DIR"; do
           SESSION_SUMMARY="session=$LAST_SID, commits=$LAST_COMMITS"
         fi
 
-        # Append attempt record to issue file
+        # Upsert decompose_attempts in frontmatter
+        if grep -q '^decompose_attempts:' "$f"; then
+          sed -i "s/^decompose_attempts:.*/decompose_attempts: $NEXT_ATTEMPT/" "$f"
+        else
+          # insert after status: line in frontmatter
+          sed -i "/^status:/a decompose_attempts: $NEXT_ATTEMPT" "$f"
+        fi
+
         cat >> "$f" << ATTEMPT_EOF
 
 ### Attempt $NEXT_ATTEMPT ($(date -Iseconds))
@@ -212,9 +217,8 @@ for dir in "$ISSUE_DIR" "$TASK_DIR"; do
 - **Continue from where the last session left off. Do not repeat already-attempted approaches.**
 ATTEMPT_EOF
 
-        # Reset to pending so it gets picked up again
         sed -i 's/status: in-progress/status: pending/' "$f"
-        log "CARRYOVER: $FNAME → pending (attempt $NEXT_ATTEMPT, age: ${FILE_AGE}s)"
+        log "CARRYOVER: $FNAME → pending (attempt $NEXT_ATTEMPT/$MAX_ISSUE_ATTEMPTS, age: ${FILE_AGE}s)"
         (cd "$PROJECT_DIR" && git add "$f" && git commit -m "chore: carryover stale issue $FNAME (attempt $NEXT_ATTEMPT)" --no-verify 2>/dev/null) || true
       fi
     fi
@@ -489,11 +493,20 @@ for iter in $(seq 1 "$MAX_ITERATIONS"); do
     (cd "$PROJECT_DIR" && git add scripts/pipeline/tasks/ && git commit -m "chore: start task $ISSUE_NAME" --no-verify 2>/dev/null) || true
   else
     # Step 2: Check issues/ for pending issues → decompose into tasks
+    # FIX B: skip issues that have already been decomposed MAX_ISSUE_ATTEMPTS
+    # times without producing a merge-candidate PR. Without this, an issue
+    # that fails to complete after decomposition gets re-picked and
+    # re-decomposed every time tasks/ drains (observed: 86 re-picks of
+    # 144-coverage-drop in 24h).
     ISSUE_FILE=""
     if [[ -d "$ISSUE_DIR" ]]; then
       for prio in critical high medium low; do
         ISSUE_FILE=$(grep -rl "priority: $prio" "$ISSUE_DIR"/*.md 2>/dev/null | while read f; do
           grep -q "status: pending" "$f" || continue
+          # Skip if attempts exhausted
+          a=$(grep -oP '^decompose_attempts:\s*\K[0-9]+' "$f" 2>/dev/null | head -1)
+          a=${a:-0}
+          if [[ "$a" -ge "$MAX_ISSUE_ATTEMPTS" ]]; then continue; fi
           echo "$f" && break
         done)
         [[ -n "$ISSUE_FILE" ]] && break
@@ -502,7 +515,18 @@ for iter in $(seq 1 "$MAX_ITERATIONS"); do
 
     if [[ -n "$ISSUE_FILE" ]]; then
       ISSUE_NAME=$(basename "$ISSUE_FILE")
-      log "ISSUE: $ISSUE_NAME — decomposing into tasks..."
+      # FIX B: increment decompose_attempts at pick time (not just on carryover)
+      # so each decompose invocation counts even if it later succeeds in
+      # starting a task but the downstream implementation fails.
+      CUR_ATTEMPTS=$(grep -oP '^decompose_attempts:\s*\K[0-9]+' "$ISSUE_FILE" 2>/dev/null | head -1)
+      CUR_ATTEMPTS=${CUR_ATTEMPTS:-0}
+      NEW_ATTEMPTS=$((CUR_ATTEMPTS + 1))
+      if grep -q '^decompose_attempts:' "$ISSUE_FILE"; then
+        sed -i "s/^decompose_attempts:.*/decompose_attempts: $NEW_ATTEMPTS/" "$ISSUE_FILE"
+      else
+        sed -i "/^status:/a decompose_attempts: $NEW_ATTEMPTS" "$ISSUE_FILE"
+      fi
+      log "ISSUE: $ISSUE_NAME — decomposing into tasks (attempt $NEW_ATTEMPTS/$MAX_ISSUE_ATTEMPTS)..."
       DECOMPOSE_LOG=$(mktemp)
       bash "$PROJECT_DIR/scripts/pipeline/decompose-issue.sh" "$ISSUE_FILE" >"$DECOMPOSE_LOG" 2>&1
       DECOMPOSE_EXIT=$?

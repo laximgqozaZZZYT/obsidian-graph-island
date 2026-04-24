@@ -1,7 +1,7 @@
 ---
 priority: high
 reported: 2026-04-25
-status: pending
+status: blocked
 source: decomposed
 parent: 1241-1237-pathfinder-overlay-ts-pathfinder-import
 depends: subtask-1

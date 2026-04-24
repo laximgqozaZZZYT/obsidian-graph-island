@@ -1,7 +1,7 @@
 ---
 priority: high
 reported: 2026-04-25
-status: pending
+status: blocked
 source: decomposed
 parent: 1240-1236-src-constants-ts-pathfinder-12
 depends: none

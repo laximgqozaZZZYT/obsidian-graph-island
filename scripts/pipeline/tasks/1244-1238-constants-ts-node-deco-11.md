@@ -1,7 +1,7 @@
 ---
 priority: high
 reported: 2026-04-24
-status: in-progress
+status: blocked
 source: decomposed
 parent: 1238-1235-constants-ts-node-deco-11
 depends: subtask-1
