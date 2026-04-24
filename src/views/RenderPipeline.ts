@@ -1325,8 +1325,16 @@ export class RenderPipeline {
 		// Sort by degree descending — high-degree nodes render first (most important)
 		const sorted = [...nodes].sort((a, b) => (degrees.get(b.id) || 0) - (degrees.get(a.id) || 0));
 
-		// Immediate batch: create enough nodes for an initial visible graph
-		const IMMEDIATE_BATCH = Math.min(IMMEDIATE_BATCH_SIZE, sorted.length);
+		// Immediate batch: create enough nodes for an initial visible graph.
+		// For small graphs (e.g. a group-expand revealing ~100 members) it is
+		// faster to build all sprites synchronously than to pay deferred-batch
+		// scheduling overhead — the per-batch setTimeout round-trip costs
+		// several frames of idle time per chunk.
+		const SYNC_ALL_THRESHOLD = 500;
+		const IMMEDIATE_BATCH =
+			sorted.length <= SYNC_ALL_THRESHOLD
+				? sorted.length
+				: Math.min(IMMEDIATE_BATCH_SIZE, sorted.length);
 		const world = this.host.getWorldContainer()!;
 
 		for (let i = 0; i < IMMEDIATE_BATCH; i++) {
