@@ -37,6 +37,7 @@ import {
 } from "./coord-panel";
 import { TAG_DISPLAY_ENCLOSURE, TAG_DISPLAY_NODE } from "../constants";
 import { asInternalApp, asObsidianWindow } from "../obsidian-internals";
+import type { ManagedTimers } from "../utils/managed-timers";
 import { isSectionVisible } from "../utils/view-mode-sections";
 import type { PanelSectionId } from "../utils/view-mode-sections";
 import {
@@ -605,6 +606,8 @@ export interface PanelContext {
 	hasInheritanceEdges?: boolean;
 	/** Plugin directory path relative to vault (e.g. ".obsidian/plugins/graph-island") */
 	pluginDir?: string;
+	/** Shared timer manager for auto-cleanup on view teardown */
+	timers: ManagedTimers;
 }
 
 export function buildPanel(panelEl: HTMLElement, panel: PanelState, ctx: PanelContext, cb: PanelCallbacks): void {
