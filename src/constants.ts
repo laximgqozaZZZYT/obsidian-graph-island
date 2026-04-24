@@ -478,6 +478,34 @@ export const COLLISION_ESCAPE_MARGIN = 0.15;
 /** Zoom threshold: below this worldScale the view is considered "zoomed out". */
 export const ZOOM_OUT_THRESHOLD = 0.45;
 
+// ---- Node decorations (node-decorations.ts) ----
+// Static (non-zoom/non-LOD) rendering parameters for overlay markers drawn
+// by the decoration passes: bookmark stars, missing-neighbor rings, tag
+// badges, recency markers, bridge/articulation rings, multi-select rings,
+// hierarchy tree lines, and ontology backbone.
+/** Pass 6 — bookmark star fill alpha */
+export const NODE_DECO_BOOKMARK_STAR_FILL_ALPHA = 0.9;
+/** Pass 7 — missing-neighbor ring line width */
+export const NODE_DECO_MISSING_RING_LINE_WIDTH = 2;
+/** Pass 7 — missing-neighbor ring dashed segment count */
+export const NODE_DECO_MISSING_RING_DASH_SEGMENTS = 10;
+/** Pass 8 — tag badge cap (extra tags collapse into overflow indicator) */
+export const NODE_DECO_TAG_BADGE_MAX_COUNT = 4;
+/** Pass 10 — recency marker dot radius (world units) */
+export const NODE_DECO_RECENCY_DOT_RADIUS = 3;
+/** Pass 10 — age (in days) at which recency marker fully fades */
+export const NODE_DECO_RECENCY_OLD_THRESHOLD_DAYS = 90;
+/** Pass 11 — bridge-node gold ring stroke alpha */
+export const NODE_DECO_BRIDGE_RING_ALPHA = 0.8;
+/** Pass 12 — articulation-point warning ring stroke alpha */
+export const NODE_DECO_ARTICULATION_RING_ALPHA = 0.7;
+/** Pass 14 — multi-select cyan ring line width */
+export const NODE_DECO_MULTI_SELECT_RING_WIDTH = 2.5;
+/** Pass 15 — hierarchy tree overlay edge line width */
+export const NODE_DECO_HIERARCHY_EDGE_WIDTH = 2.5;
+/** Pass 16 — ontology backbone line width */
+export const NODE_DECO_ONTOLOGY_BACKBONE_WIDTH = 4;
+
 // ===========================================================================
 // ---- GraphViewContainer constants ----
 // Moved out of GraphViewContainer.ts (GOD OBJECT reduction). GVC_ prefix
