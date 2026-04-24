@@ -1336,11 +1336,18 @@ export class RenderPipeline {
 
 		const degrees = this.host.getDegrees();
 
-		// Create labels for ALL nodes (threshold = 0). Visibility is controlled
-		// by LabelManager LOD culling, not by skipping label creation.
-		// This ensures every node CAN show its label when zoomed in.
+		// LABEL-LAZY: during the initial sprite populate we only create labels
+		// for a high-degree subset (top ~15% by degree). The rest are filled in
+		// by enrichLabelsDeferred() after the layout settles. Creating a
+		// Canvas text + measureText call for each of 2,400 nodes was dominant
+		// in first-load profiling (~3 ms/node × 40 batches ≈ 4-5 s of pure
+		// label work, most of which was then hidden by the overlap culler).
+		//
+		// Nodes that get interacted with before enrichment (hover, focus) fall
+		// back to lazy label creation in LabelManager — no functional loss.
 		const degValues = nodes.map((n) => degrees.get(n.id) || 0).sort((a, b) => b - a);
-		this.pendingLabelThreshold = 0;
+		const topIdx = Math.max(0, Math.floor(degValues.length * 0.15) - 1);
+		this.pendingLabelThreshold = Math.max(2, degValues[topIdx] ?? 2);
 
 		// Cache maxDeg once — avoids O(n²) recomputation inside createSinglePixiNode
 		this._cachedMaxDeg = degValues.length > 0 ? degValues[0] : 1;
@@ -1579,8 +1586,61 @@ export class RenderPipeline {
 			this.cullOverlappingLabels();
 			this.markDirty(true); // single full redraw when all nodes are in
 			this.host.onAllPixiNodesCreated?.();
+			// Kick the label-enrichment pass after the simulation has had a
+			// chance to settle. 2.5 s is long enough for a typical large-
+			// graph force simulation to reach alphaMin; if the user hovers
+			// a labelless node before then, LabelManager's hoverForcedLabel
+			// path still works via null-label-tolerant checks.
+			setTimeout(() => this.enrichLabelsDeferred(), 2500);
 		}
 	};
+
+	/**
+	 * Fill in labels for nodes that were skipped during the initial sprite
+	 * populate (createPixiNodes uses a high pendingLabelThreshold to cut
+	 * first-load time). Runs as a setTimeout-scheduled chunked pass so UI
+	 * stays responsive while the remaining ~80% of labels are created in
+	 * the background. No-op if all nodes already have labels.
+	 */
+	private _enrichmentCancelId: ReturnType<typeof setTimeout> | null = null;
+	private enrichLabelsDeferred(): void {
+		if (this._enrichmentCancelId !== null) {
+			clearTimeout(this._enrichmentCancelId);
+			this._enrichmentCancelId = null;
+		}
+		const pixiNodes = this.host.getPixiNodes();
+		const todo: Array<string> = [];
+		for (const [id, pn] of pixiNodes) if (!pn.label) todo.push(id);
+		if (todo.length === 0) return;
+
+		this.pendingLabelThreshold = 0; // enrichment pass wants everything
+		const rt = this.getCachedRT();
+		const ENRICH_BATCH = 80;
+
+		const processNext = () => {
+			this._enrichmentCancelId = null;
+			const batch = todo.splice(0, ENRICH_BATCH);
+			for (const id of batch) {
+				const pn = pixiNodes.get(id);
+				if (!pn || pn.label) continue;
+				const deg = this.host.getDegrees().get(pn.data.id) || 0;
+				const isSuperNode = !!(pn.data.collapsedMembers && pn.data.collapsedMembers.length > 0);
+				pn.label = this._createNodeLabel(pn.data, rt, isSuperNode, pn.color, deg, pn.radius);
+				pn.gfx.addChild(pn.label);
+				if (rt.tagLabelShow && pn.data.tags && pn.data.tags.length > 0 && !isSuperNode && !pn.tagLabel) {
+					pn.tagLabel = this._createTagLabel(pn.data, rt, pn.radius);
+					pn.gfx.addChild(pn.tagLabel);
+				}
+			}
+			if (todo.length > 0) {
+				this._enrichmentCancelId = setTimeout(processNext, 0);
+			} else {
+				this.cullOverlappingLabels();
+				this.markDirty(true);
+			}
+		};
+		this._enrichmentCancelId = setTimeout(processNext, 0);
+	}
 
 	private scheduleDeferredBatch() {
 		if (this.deferredBatchId !== null) return;
