@@ -225,6 +225,37 @@ ATTEMPT_EOF
   done
 done
 
+# ── FIX C5 (2026-04-25): revive stuck `decomposed` issues ──
+# When a child task fails, status goes to `blocked`, but the parent issue
+# stays `decomposed` forever. If ALL children of an issue are blocked/done
+# (= no live child to drive progress) AND decompose_attempts < MAX, revert
+# the issue to `pending` so a later cycle can re-decompose it into a new
+# task set with different scoping. If attempts are already exhausted, mark
+# the issue `blocked` so it stops wasting queue scans.
+for f in "$ISSUE_DIR"/*.md; do
+  [[ -f "$f" ]] || continue
+  grep -q "^status: decomposed" "$f" 2>/dev/null || continue
+  FNAME=$(basename "$f")
+  ISSUE_NUM=$(echo "$FNAME" | grep -oP '^\d+')
+  [[ -n "$ISSUE_NUM" ]] || continue
+  # Count live (pending or in-progress) child tasks under this issue.
+  ALIVE=$(find "$TASK_DIR" -maxdepth 1 -name "*-${ISSUE_NUM}-*.md" 2>/dev/null \
+    | xargs -r grep -lE '^status: (pending|in-progress)' 2>/dev/null | wc -l)
+  [[ "$ALIVE" -gt 0 ]] && continue  # still has live children; leave alone
+  # All children are blocked or done. Check attempt counter.
+  ATTEMPTS=$(grep -oP '^decompose_attempts:\s*\K[0-9]+' "$f" 2>/dev/null | head -1)
+  ATTEMPTS=${ATTEMPTS:-0}
+  if [[ "$ATTEMPTS" -ge "$MAX_ISSUE_ATTEMPTS" ]]; then
+    log "BLOCKED: $FNAME — no live children & $ATTEMPTS attempts exhausted"
+    sed -i 's/^status: decomposed/status: blocked/' "$f"
+    (cd "$PROJECT_DIR" && git add "$f" && git commit -m "chore: block exhausted issue $FNAME ($ATTEMPTS attempts)" --no-verify 2>/dev/null) || true
+  else
+    log "REVIVE: $FNAME — no live children, reverting decomposed→pending (attempts=$ATTEMPTS/$MAX_ISSUE_ATTEMPTS)"
+    sed -i 's/^status: decomposed/status: pending/' "$f"
+    (cd "$PROJECT_DIR" && git add "$f" && git commit -m "chore: revive stuck issue $FNAME (all children blocked, attempts=$ATTEMPTS)" --no-verify 2>/dev/null) || true
+  fi
+done
+
 # ── Ensure main is clean for worktree creation ──
 cd "$PROJECT_DIR" || exit 1
 if [[ -n "$(git status --porcelain)" ]]; then
