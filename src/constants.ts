@@ -108,6 +108,25 @@ export const SHAPE_FILL_DIAMOND = "diamond" as const;
 export const SHAPE_FILL_CIRCLE = "circle" as const;
 
 // ---------------------------------------------------------------------------
+// Layout constants
+// Numeric parameters shared across src/layouts/*.ts. Prefix: LAYOUT_
+// (Prefixes TIMELINE_/TREE_/SUNBURST_ used where layout-specific.)
+// ---------------------------------------------------------------------------
+
+/** Gap fraction of range used for positioning nodes with missing values */
+export const LAYOUT_MISSING_VALUE_GAP_FRACTION = 0.15;
+/** Number of sample points for grid expression evaluation */
+export const LAYOUT_GRID_EXPR_SAMPLES = 20;
+/** BFS fallback depth when node has no assigned depth */
+export const LAYOUT_BFS_FALLBACK_DEPTH = 999;
+/** Precision factor for deduplicating grid line positions */
+export const LAYOUT_GRID_DEDUP_PRECISION = 1000;
+/** Threshold for treating a normalized value as an integer in label formatting */
+export const LAYOUT_FORMAT_INTEGER_THRESHOLD = 0.01;
+/** Golden angle in radians (used for phyllotaxis / sunflower patterns) */
+export const LAYOUT_GOLDEN_ANGLE = 2.3999632297286535;
+
+// ---------------------------------------------------------------------------
 // Custom workspace event names
 // ---------------------------------------------------------------------------
 export const EVENT_HOVER_NODE = "graph-island:hover-node" as const;
@@ -638,3 +657,18 @@ export const GVC_ALL_PRESETS: Record<string, Record<string, unknown>> = {
 		focusConeEnabled: true,
 	},
 };
+
+// ---- localStorage keys (first-launch flags) ----
+export const GVC_ONBOARDING_KEY = "graph-island-onboarding-shown";
+export const GVC_SR_GUIDE_KEY = "gi-sr-guide-shown";
+
+// ---- Thumbnail overlay (node image previews) ----
+export const GVC_MAX_THUMBNAILS = 50;
+export const GVC_THUMBNAIL_VIEWPORT_MARGIN = 50;
+
+// ---- Density heatmap (grid-based node density visualization) ----
+export const GVC_HEATMAP_CELL_SIZE = 40;
+export const GVC_HEATMAP_GAUSSIAN_RADIUS = 3;
+
+// ---- Progressive simulation rendering (sync positions every N ticks) ----
+export const GVC_PROGRESSIVE_INTERVAL = 10;

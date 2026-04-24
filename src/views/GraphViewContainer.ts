@@ -212,6 +212,13 @@ import {
 	GVC_DEFAULT_CANVAS_WIDTH as DEFAULT_CANVAS_WIDTH,
 	GVC_DEFAULT_CANVAS_HEIGHT as DEFAULT_CANVAS_HEIGHT,
 	GVC_ALL_PRESETS as ALL_PRESETS,
+	GVC_ONBOARDING_KEY as ONBOARDING_KEY,
+	GVC_SR_GUIDE_KEY as SR_GUIDE_KEY,
+	GVC_MAX_THUMBNAILS as MAX_THUMBNAILS,
+	GVC_THUMBNAIL_VIEWPORT_MARGIN as THUMBNAIL_VIEWPORT_MARGIN,
+	GVC_HEATMAP_CELL_SIZE as HEATMAP_CELL_SIZE,
+	GVC_HEATMAP_GAUSSIAN_RADIUS as HEATMAP_GAUSSIAN_RADIUS,
+	GVC_PROGRESSIVE_INTERVAL as PROGRESSIVE_INTERVAL,
 } from "../constants";
 import {
 	viewModeToLayout,
@@ -775,7 +782,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		this.doRender();
 
 		// Onboarding: show help overlay on first launch
-		const ONBOARDING_KEY = "graph-island-onboarding-shown";
 		if (!localStorage.getItem(ONBOARDING_KEY)) {
 			localStorage.setItem(ONBOARDING_KEY, "1");
 			this._scheduleTimer(() => this._toggleHelpOverlay(), ONBOARDING_HELP_DELAY_MS);
@@ -6234,8 +6240,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		const wrap = this.canvasWrap;
 		const vw = wrap?.clientWidth ?? 800;
 		const vh = wrap?.clientHeight ?? 600;
-		const MAX_THUMBNAILS = 50;
-		const MARGIN = 50;
 
 		layer.empty();
 
@@ -6248,7 +6252,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
 			const sx = pn.data.x * scaleX + offsetX;
 			const sy = pn.data.y * scaleY + offsetY;
-			if (!isNodeOnScreen(sx, sy, vw, vh, MARGIN)) continue;
+			if (!isNodeOnScreen(sx, sy, vw, vh, THUMBNAIL_VIEWPORT_MARGIN)) continue;
 
 			const img = this._getOrLoadThumbnail(id, imgPath);
 			if (!img) continue;
@@ -6434,10 +6438,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		const cw = this.canvasWrap?.clientWidth ?? DEFAULT_CANVAS_WIDTH;
 		const ch = this.canvasWrap?.clientHeight ?? DEFAULT_CANVAS_HEIGHT;
 
-		const CELL = 40;
-		const cols = Math.ceil(cw / CELL);
-		const rows = Math.ceil(ch / CELL);
-		const grid = this._accumulateDensityGrid(cols, rows, CELL, wx, wy, ws);
+		const cols = Math.ceil(cw / HEATMAP_CELL_SIZE);
+		const rows = Math.ceil(ch / HEATMAP_CELL_SIZE);
+		const grid = this._accumulateDensityGrid(cols, rows, HEATMAP_CELL_SIZE, wx, wy, ws);
 
 		let maxD = 0;
 		for (let i = 0; i < grid.length; i++) {
@@ -6453,7 +6456,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 				const h = (1 - v) * 240;
 				const a = v * 0.25;
 				ctx.fillStyle = `hsla(${h}, 80%, 50%, ${a})`;
-				ctx.fillRect(c * CELL, r * CELL, CELL, CELL);
+				ctx.fillRect(c * HEATMAP_CELL_SIZE, r * HEATMAP_CELL_SIZE, HEATMAP_CELL_SIZE, HEATMAP_CELL_SIZE);
 			}
 		}
 	}
@@ -6468,7 +6471,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		ws: number,
 	): Float32Array {
 		const grid = new Float32Array(cols * rows);
-		const RADIUS = 3;
 		for (const [, pn] of this.pixiNodes) {
 			const gfx = (pn as unknown as { graphics?: CanvasContainer }).graphics ?? pn.gfx;
 			if (!gfx || !gfx.visible) continue;
@@ -6476,12 +6478,12 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			const sy = gfx.y * ws + wy;
 			const ci = Math.floor(sx / cell);
 			const ri = Math.floor(sy / cell);
-			for (let dr = -RADIUS; dr <= RADIUS; dr++) {
-				for (let dc = -RADIUS; dc <= RADIUS; dc++) {
+			for (let dr = -HEATMAP_GAUSSIAN_RADIUS; dr <= HEATMAP_GAUSSIAN_RADIUS; dr++) {
+				for (let dc = -HEATMAP_GAUSSIAN_RADIUS; dc <= HEATMAP_GAUSSIAN_RADIUS; dc++) {
 					const r = ri + dr;
 					const c = ci + dc;
 					if (r < 0 || r >= rows || c < 0 || c >= cols) continue;
-					grid[r * cols + c] += Math.exp(-(dr * dr + dc * dc) / (RADIUS * 0.8));
+					grid[r * cols + c] += Math.exp(-(dr * dr + dc * dc) / (HEATMAP_GAUSSIAN_RADIUS * 0.8));
 				}
 			}
 		}
@@ -7061,8 +7063,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		// Progressive rendering: sync node positions every N ticks for live preview.
 		// Only move sprites — heavy operations (edges, enclosures, autoFit) are
 		// deferred to the "end" event to avoid cache corruption and layout interference.
-		const PROGRESSIVE_INTERVAL = 10;
-
 		this.simulation.on("tick", () => {
 			tickCount++;
 			if (tickCount === 1 || tickCount % PROGRESSIVE_INTERVAL === 0) {
@@ -7087,7 +7087,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			this.setStatus(this.buildRichStatus(gd.nodes.length, gd.edges.length));
 			// A11y: announce graph summary for screen readers on load
 			// JR: §0.3 First-launch guide for screen readers (one-time, stored in localStorage)
-			const SR_GUIDE_KEY = "gi-sr-guide-shown";
 			const isFirstLaunch = !localStorage.getItem(SR_GUIDE_KEY);
 			if (isFirstLaunch) localStorage.setItem(SR_GUIDE_KEY, "1");
 			this._announceA11y(

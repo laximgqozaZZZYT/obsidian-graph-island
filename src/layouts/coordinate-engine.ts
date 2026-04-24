@@ -55,6 +55,12 @@ import {
 	SHAPE_FILL_DIAMOND,
 	SHAPE_FILL_CIRCLE,
 	GUIDE_TYPE_COORDINATE,
+	LAYOUT_MISSING_VALUE_GAP_FRACTION,
+	LAYOUT_GRID_EXPR_SAMPLES,
+	LAYOUT_BFS_FALLBACK_DEPTH,
+	LAYOUT_GRID_DEDUP_PRECISION,
+	LAYOUT_FORMAT_INTEGER_THRESHOLD,
+	LAYOUT_GOLDEN_ANGLE,
 } from "../constants";
 
 // ---------------------------------------------------------------------------
@@ -114,23 +120,6 @@ export interface CoordinateGuide {
 }
 
 // ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
-
-/** Gap fraction of range used for positioning nodes with missing values */
-const MISSING_VALUE_GAP_FRACTION = 0.15;
-/** Number of sample points for grid expression evaluation */
-const GRID_EXPR_SAMPLES = 20;
-/** BFS fallback depth when node has no assigned depth */
-const BFS_FALLBACK_DEPTH = 999;
-/** Precision factor for deduplicating grid line positions */
-const GRID_DEDUP_PRECISION = 1000;
-/** Threshold for treating a normalized value as an integer in label formatting */
-const FORMAT_INTEGER_THRESHOLD = 0.01;
-/** Golden angle in radians (used for phyllotaxis / sunflower patterns) */
-const GOLDEN_ANGLE = 2.3999632297286535;
-
-// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
@@ -158,7 +147,7 @@ function assignNumericWithMissingAtEnd(rawValues: { id: string; raw: string }[],
 			const max = Math.max(...withValue.map((wv) => wv.val));
 			const min = Math.min(...withValue.map((wv) => wv.val));
 			const range = max - min || 1;
-			const gap = range * MISSING_VALUE_GAP_FRACTION;
+			const gap = range * LAYOUT_MISSING_VALUE_GAP_FRACTION;
 			for (const id of missing) {
 				result.set(id, max + gap);
 			}
@@ -350,7 +339,7 @@ function assignSiblingRank(members: GraphNode[], ctx: CoordinateContext, result:
 	const depth = bfsFromHighestDegree(members, ctx);
 	const byDepth = new Map<number, string[]>();
 	for (const m of members) {
-		const d = depth.get(m.id) ?? BFS_FALLBACK_DEPTH;
+		const d = depth.get(m.id) ?? LAYOUT_BFS_FALLBACK_DEPTH;
 		pushToMapArray(byDepth, d, m.id);
 	}
 	for (const [, ids] of byDepth) {
@@ -690,7 +679,7 @@ export function applyTransform(
 
 		case TRANSFORM_GOLDEN: {
 			for (const [id, v] of rawValues) {
-				result.set(id, v * GOLDEN_ANGLE);
+				result.set(id, v * LAYOUT_GOLDEN_ANGLE);
 			}
 			break;
 		}
@@ -1051,7 +1040,7 @@ function resolveExpressionGridPositions(
 			}
 		}
 		// Generate positions: evaluate expr for t in [0, 1] with 20 sample points
-		const samples = GRID_EXPR_SAMPLES;
+		const samples = LAYOUT_GRID_EXPR_SAMPLES;
 		for (let i = 0; i <= samples; i++) {
 			const t = i / samples;
 			const val = evalExpr(ast, {
@@ -1065,7 +1054,7 @@ function resolveExpressionGridPositions(
 		}
 		// Deduplicate and sort
 		linePositions = [
-			...new Set(linePositions.map((v) => Math.round(v * GRID_DEDUP_PRECISION) / GRID_DEDUP_PRECISION)),
+			...new Set(linePositions.map((v) => Math.round(v * LAYOUT_GRID_DEDUP_PRECISION) / LAYOUT_GRID_DEDUP_PRECISION)),
 		].sort((a, b) => a - b);
 	} catch (_e) {
 		// Invalid expr — fall back to configurable divisions
@@ -1331,7 +1320,7 @@ function collectCategoryPositions(
 export function formatGridValue(v: number, spacing: number): string {
 	if (spacing > 0) {
 		const normalized = v / spacing;
-		if (Math.abs(normalized - Math.round(normalized)) < FORMAT_INTEGER_THRESHOLD) {
+		if (Math.abs(normalized - Math.round(normalized)) < LAYOUT_FORMAT_INTEGER_THRESHOLD) {
 			return String(Math.round(normalized));
 		}
 	}
@@ -1470,13 +1459,13 @@ function diamondFill(n: number, sp: number): Point2D[] {
 
 /**
  * Sunflower / golden-angle packing:
- * r = sp * sqrt(i), angle = i * GOLDEN_ANGLE, convert to (x,y).
+ * r = sp * sqrt(i), angle = i * LAYOUT_GOLDEN_ANGLE, convert to (x,y).
  */
 function circleFill(n: number, sp: number): Point2D[] {
 	const pts: Point2D[] = [];
 	for (let i = 0; i < n; i++) {
 		const r = sp * Math.sqrt(i);
-		const angle = i * GOLDEN_ANGLE;
+		const angle = i * LAYOUT_GOLDEN_ANGLE;
 		pts.push({ x: r * Math.cos(angle), y: r * Math.sin(angle) });
 	}
 	return pts;
