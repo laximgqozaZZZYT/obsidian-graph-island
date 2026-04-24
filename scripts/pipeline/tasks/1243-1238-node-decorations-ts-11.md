@@ -1,7 +1,7 @@
 ---
 priority: high
 reported: 2026-04-24
-status: pending
+status: in-progress
 source: decomposed
 parent: 1238-1235-constants-ts-node-deco-11
 depends: none
