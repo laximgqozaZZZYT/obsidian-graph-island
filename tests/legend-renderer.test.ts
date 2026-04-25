@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { renderLegend, type LegendHost, type LegendPanel } from "../src/views/LegendRenderer";
 import { createMockEl, findEl, findAllEl } from "./helpers/mock-dom";
+import { t } from "../src/i18n";
 
 // ---------------------------------------------------------------------------
 // Mock factory helpers
@@ -133,8 +134,12 @@ describe("renderLegend", () => {
 		renderLegend(el as any, makePanel({ nodeColorMode: "community" }), host);
 
 		const labels = findAllEl(el, ".gi-legend-label");
+		// Locale-aware filter: implementation uses t("legend.communityLabel"),
+		// which renders "Community N (M)" in en or "コミュニティ N (M)" in ja.
+		// Match by the leading word from the active locale's template.
+		const communityPrefix = t("legend.communityLabel").split(" ")[0];
+		const commLabels = labels.filter((l) => l.text?.startsWith(communityPrefix));
 		// Community 1 (3 members) should come before Community 0 (2 members)
-		const commLabels = labels.filter((l) => l.text?.startsWith("Community"));
 		expect(commLabels.length).toBe(2);
 		expect(commLabels[0].text).toContain("(3)");
 		expect(commLabels[1].text).toContain("(2)");
