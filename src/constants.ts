@@ -478,6 +478,35 @@ export const COLLISION_ESCAPE_MARGIN = 0.15;
 /** Zoom threshold: below this worldScale the view is considered "zoomed out". */
 export const ZOOM_OUT_THRESHOLD = 0.45;
 
+// ---------------------------------------------------------------------------
+// ---- Renderer decorations ----
+// Node decoration overlay parameters used by src/views/node-decorations.ts.
+// Prefix: NODE_DECO_
+// ---------------------------------------------------------------------------
+
+/** Maximum number of tag badges drawn around a node circumference (Pass 8) */
+export const NODE_DECO_BADGE_MAX_COUNT = 4;
+/** Minimum tag badge radius in screen pixels before scaling to world space (Pass 8) */
+export const NODE_DECO_BADGE_RADIUS_PX = 3;
+/** Tag badge padding factor (multiplied by badge radius) (Pass 8) */
+export const NODE_DECO_BADGE_PAD_FACTOR = 0.7;
+/** Number of star spikes on the bookmark overlay (Pass 6) */
+export const NODE_DECO_BOOKMARK_SPIKES = 5;
+/** Bookmark star inner-to-outer radius ratio (Pass 6) */
+export const NODE_DECO_BOOKMARK_INNER_FACTOR = 0.4;
+/** Bookmark star offset from node center as a fraction of node radius (Pass 6) */
+export const NODE_DECO_BOOKMARK_OFFSET_FACTOR = 0.7;
+/** Recency marker dot radius in pixels (Pass 10) */
+export const NODE_DECO_RECENCY_DOT_RADIUS = 3;
+/** Days-since-modified threshold beyond which the "old file" overlay is drawn (Pass 10) */
+export const NODE_DECO_RECENCY_OLD_DAYS = 90;
+/** Multi-select ring stroke width (Pass 14) */
+export const NODE_DECO_MULTISELECT_RING_WIDTH = 2.5;
+/** Gap edge dash segment length in pixels (Pass 17) */
+export const NODE_DECO_GAP_DASH_LEN = 6;
+/** Gap edge inter-dash gap length in pixels (Pass 17) */
+export const NODE_DECO_GAP_GAP_LEN = 4;
+
 // ===========================================================================
 // ---- GraphViewContainer constants ----
 // Moved out of GraphViewContainer.ts (GOD OBJECT reduction). GVC_ prefix
