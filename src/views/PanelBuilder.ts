@@ -25,6 +25,7 @@ import type {
 import { setIcon } from "obsidian";
 import type { App } from "obsidian";
 import { t, tHelp } from "../i18n";
+import type { ManagedTimers } from "../utils/managed-timers";
 import type { ShapeRule } from "../utils/node-shapes";
 import { exportPreset, exportPresetDiff, importPreset, applyPreset, type PresetMigrationInfo } from "../utils/presets";
 import { showToast } from "../utils/toast";
@@ -605,6 +606,8 @@ export interface PanelContext {
 	hasInheritanceEdges?: boolean;
 	/** Plugin directory path relative to vault (e.g. ".obsidian/plugins/graph-island") */
 	pluginDir?: string;
+	/** Shared timer registry — auto-cleared on view close to prevent leaks */
+	timers: ManagedTimers;
 }
 
 export function buildPanel(panelEl: HTMLElement, panel: PanelState, ctx: PanelContext, cb: PanelCallbacks): void {
@@ -834,7 +837,7 @@ export function buildPanel(panelEl: HTMLElement, panel: PanelState, ctx: PanelCo
 	});
 	searchBar.addEventListener("blur", () => {
 		// 少し遅延させてクリックイベントが先に処理されるようにする
-		setTimeout(() => {
+		ctx.timers.setTimeout(() => {
 			historyDropdown.style.display = "none";
 			searchBar.setAttribute("aria-expanded", "false");
 		}, 150);
@@ -1324,7 +1327,7 @@ function _buildSettingsActionButtons(
 		try {
 			await navigator.clipboard.writeText(json);
 			exportBtn.textContent = t("preset.exported");
-			setTimeout(() => {
+			ctx.timers.setTimeout(() => {
 				exportBtn.textContent = t("preset.export");
 			}, 2000);
 		} catch (_e) {
@@ -1340,7 +1343,7 @@ function _buildSettingsActionButtons(
 		try {
 			await navigator.clipboard.writeText(json);
 			diffExportBtn.textContent = t("preset.exported");
-			setTimeout(() => {
+			ctx.timers.setTimeout(() => {
 				diffExportBtn.textContent = t("preset.exportDiff");
 			}, 2000);
 		} catch (_e) {

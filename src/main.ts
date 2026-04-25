@@ -6,6 +6,7 @@ import { NodeComparisonView, VIEW_TYPE_NODE_COMPARE } from "./views/NodeComparis
 import { EVENT_COMPARE_NODES } from "./constants";
 import { DEFAULT_SETTINGS, type GraphViewsSettings } from "./types";
 import { detectTagRelations } from "./utils/tag-relation-presets";
+import { ManagedTimers } from "./utils/managed-timers";
 import { t } from "./i18n";
 import { showToast } from "./utils/toast";
 import { asInternalWorkspace, asGraphView, type GraphViewInternal } from "./obsidian-internals";
@@ -13,6 +14,7 @@ import { asInternalWorkspace, asGraphView, type GraphViewInternal } from "./obsi
 export default class GraphViewsPlugin extends Plugin {
 	settings: GraphViewsSettings = DEFAULT_SETTINGS;
 	private _snapshotsLoaded = false;
+	private timers = new ManagedTimers();
 
 	async onload() {
 		await this.loadSettings();
@@ -235,7 +237,9 @@ export default class GraphViewsPlugin extends Plugin {
 		return null;
 	}
 
-	onunload() {}
+	onunload() {
+		this.timers.clearAll();
+	}
 
 	// Snapshots live in a sidecar file (data-snapshots.json) to keep data.json
 	// small and loadSettings() fast. Without this separation, data.json grows
@@ -368,7 +372,7 @@ export default class GraphViewsPlugin extends Plugin {
 		});
 		this.app.workspace.revealLeaf(leaf);
 		// Configure the new view after creation
-		setTimeout(() => {
+		this.timers.setTimeout(() => {
 			const view = asGraphView(leaf);
 			if (view?.panel) {
 				view.panel.subgraphNodeIds = [...nodeIds];
