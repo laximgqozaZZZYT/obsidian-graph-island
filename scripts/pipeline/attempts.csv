@@ -1,1 +1,31 @@
 issue_id,task_id,attempt_no,timestamp,status_before,session_summary,note
+104-type-assertions,,1,2026-04-13T17:05:01+09:00,timed out after 1h,,"### Attempt 1 (2026-04-13T17:05:01+09:00)
+- Status: timed out after 1h
+- session=unknown, commits=0
+- Previous session could not complete this issue within max turns.
+- **Continue from where the last session left off. Do not repeat already-attempted approaches.**"
+116-scattered-constants,,1,2026-04-13T17:05:01+09:00,timed out after 1h,,"### Attempt 1 (2026-04-13T17:05:01+09:00)
+- Status: timed out after 1h
+- session=unknown, commits=0
+- Previous session could not complete this issue within max turns.
+- **Continue from where the last session left off. Do not repeat already-attempted approaches.**"
+116-scattered-constants,,2,2026-04-15T21:45:02+09:00,timed out after 1h,,"### Attempt 2 (2026-04-15T21:45:02+09:00)
+- Status: timed out after 1h
+- session=unknown, commits=0
+- Previous session could not complete this issue within max turns.
+- **Continue from where the last session left off. Do not repeat already-attempted approaches.**"
+118-giant-functions,,1,2026-04-13T17:05:02+09:00,timed out after 1h,,"### Attempt 1 (2026-04-13T17:05:02+09:00)
+- Status: timed out after 1h
+- session=unknown, commits=0
+- Previous session could not complete this issue within max turns.
+- **Continue from where the last session left off. Do not repeat already-attempted approaches.**"
+119-i18n-hardcoded-strings,,1,2026-04-13T17:05:02+09:00,timed out after 1h,,"### Attempt 1 (2026-04-13T17:05:02+09:00)
+- Status: timed out after 1h
+- session=unknown, commits=0
+- Previous session could not complete this issue within max turns.
+- **Continue from where the last session left off. Do not repeat already-attempted approaches.**"
+130-type-assertions,,1,2026-04-15T21:45:02+09:00,timed out after 1h,,"### Attempt 1 (2026-04-15T21:45:02+09:00)
+- Status: timed out after 1h
+- session=unknown, commits=0
+- Previous session could not complete this issue within max turns.
+- **Continue from where the last session left off. Do not repeat already-attempted approaches.**"
