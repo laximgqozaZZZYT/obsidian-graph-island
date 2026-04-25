@@ -491,6 +491,11 @@ export const DEFAULT_PANEL: Readonly<PanelState> = Object.freeze(createDefaultPa
 // ---------------------------------------------------------------------------
 // Callbacks — operations the panel requests from the main view
 // ---------------------------------------------------------------------------
+
+/** Schedule a one-shot timeout that the host tracks and clears on view close.
+ *  Use instead of bare setTimeout in panel UI to avoid leaks across view close. */
+export type ScheduleTimeoutFn = (fn: () => void, ms: number) => ReturnType<typeof setTimeout>;
+
 export interface PanelCallbacks {
 	doRender(): void;
 	/** Like doRender but does NOT rebuild the panel DOM (keeps editors open) */
@@ -570,6 +575,9 @@ export interface PanelCallbacks {
 	clearHoverTooltips(): void;
 	/** Switch to a different visualization mode (graph/sunburst/timeline/tree) */
 	setViewMode(mode: ViewMode): void;
+	/** Schedule a tracked one-shot timeout (auto-cleared on view close).
+	 *  Use this instead of bare setTimeout for any deferred panel UI work. */
+	scheduleTimeout: ScheduleTimeoutFn;
 }
 
 // ---------------------------------------------------------------------------

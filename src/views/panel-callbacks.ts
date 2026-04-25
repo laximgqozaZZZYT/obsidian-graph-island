@@ -67,6 +67,9 @@ export interface PanelCallbackHost {
 	_deleteTemplate(name: string): void;
 	_similarCache: { clear(): void };
 	_zoomBaseNodeSize: number | null;
+	/** Schedule a one-shot timer auto-tracked on the host's pending-timer set
+	 *  and cleared on view close. Returns the underlying setTimeout handle. */
+	_scheduleTimer(cb: () => void, ms: number): ReturnType<typeof setTimeout>;
 
 	// State
 	skipPanelRebuildCount: number;
@@ -310,5 +313,6 @@ export function buildPanelCallbacks(host: PanelCallbackHost): PanelCallbacks {
 		..._buildRenderCallbacks(host),
 		..._buildDataCallbacks(host),
 		..._buildNavigationCallbacks(host),
+		scheduleTimeout: (fn: () => void, ms: number) => host._scheduleTimer(fn, ms),
 	} as PanelCallbacks;
 }
