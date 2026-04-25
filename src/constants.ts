@@ -740,3 +740,285 @@ export const GVC_HEATMAP_GAUSSIAN_RADIUS = 3;
 
 // ---- Progressive simulation rendering (sync positions every N ticks) ----
 export const GVC_PROGRESSIVE_INTERVAL = 10;
+
+// ===========================================================================
+// === VIEW (Misc) ===
+// View-specific constants consolidated from per-file declarations.
+// Includes: pathfinder overlay, interaction manager, minimap, diff overlay,
+// card renderer, snapshot/auto-snap, layout transitions, exports, etc.
+// ===========================================================================
+
+// ---- View types (Obsidian leaf type identifiers) ----
+export const VIEW_TYPE_GRAPH = "graph-view";
+export const VIEW_TYPE_NODE_COMPARE = "graph-node-compare";
+export const VIEW_TYPE_NODE_DETAIL = "graph-node-detail";
+
+// ---- Pathfinder overlay (pathfinder-overlay.ts) ----
+export const PATHFINDER_COLOR = 0x00ced1;
+export const PATHFINDER_COLOR_CSS = "#00CED1";
+export const PATHFINDER_PULSE_SPEED = 0.06;
+export const PATHFINDER_PULSE_AMPLITUDE = 0.1;
+export const PATHFINDER_GLOW_ALPHA_BASE = 0.45;
+export const PATHFINDER_SOLID_ALPHA_BASE = 0.85;
+export const PATHFINDER_GLOW_STROKE_WIDTH = 8;
+export const PATHFINDER_SOLID_STROKE_WIDTH = 3;
+export const PATHFINDER_DOT_RADIUS = 5;
+export const PATHFINDER_LABEL_FONT_SIZE = 11;
+export const PATHFINDER_LABEL_OFFSET_X = 6;
+export const PATHFINDER_LABEL_OFFSET_Y = -14;
+
+// ---- Interaction manager: zoom (InteractionManager.ts) ----
+/** Scale multiplier per wheel tick (zoom in / zoom out) */
+export const ZOOM_IN_FACTOR = 1.1;
+export const ZOOM_OUT_FACTOR = 0.9;
+/** Minimum/maximum scale clamp for wheel zoom */
+export const ZOOM_SCALE_MIN = 0.02;
+export const ZOOM_SCALE_MAX = 10;
+
+// ---- Interaction manager: drag/marquee/lasso (InteractionManager.ts) ----
+/** d3 simulation alphaTarget when dragging a node */
+export const DRAG_ALPHA_TARGET = 0.3;
+/** Minimum marquee rectangle size (px) to trigger zoom */
+export const MARQUEE_MIN_SIZE_PX = 10;
+/** Debounce delay (ms) for zoom-dependent layout recalculation */
+export const ZOOM_LAYOUT_DEBOUNCE_MS = 400;
+/** Minimum relative zoom change to trigger layout recalculation */
+export const ZOOM_LAYOUT_DELTA_THRESHOLD = 0.2;
+export const MARQUEE_STROKE_WIDTH = 1.5;
+export const MARQUEE_STROKE_ALPHA = 0.9;
+export const MARQUEE_FILL_ALPHA = 0.08;
+export const LASSO_STROKE_WIDTH = 2;
+export const LASSO_STROKE_ALPHA = 0.9;
+export const LASSO_FILL_ALPHA = 0.06;
+/** Minimum lasso points to form a polygon */
+export const LASSO_MIN_POINTS = 5;
+/** Smooth zoom lerp factor per frame (0–1; higher = snappier) */
+export const SMOOTH_ZOOM_LERP = 0.4;
+/** Smooth zoom convergence threshold — stop animating below this */
+export const SMOOTH_ZOOM_EPSILON = 0.001;
+
+// ---- Inertia pan (inertia-pan.ts) ----
+export const FRICTION = 0.92;
+export const MIN_VELOCITY = 0.5;
+export const HISTORY_WINDOW_MS = 100;
+
+// ---- Minimap (Minimap.ts) ----
+export const MINIMAP_WIDTH = 180;
+export const MINIMAP_HEIGHT = 120;
+/** World bounds padding for node extent calculation */
+export const MINIMAP_BOUNDS_PAD = 50;
+/** Dot radius scale threshold — large graphs (>2000 nodes) */
+export const MINIMAP_LARGE_GRAPH_THRESHOLD = 2000;
+/** Dot radius scale threshold — medium graphs (>500 nodes) */
+export const MINIMAP_MEDIUM_GRAPH_THRESHOLD = 500;
+export const MINIMAP_DOT_SCALE_LARGE = 0.6;
+export const MINIMAP_DOT_SCALE_MEDIUM = 0.8;
+export const MINIMAP_VIEWPORT_LINE_WIDTH = 1.5;
+export const MINIMAP_VIEWPORT_MIN_SIZE = 2;
+
+// ---- DiffOverlay (DiffOverlay.ts) — snapshot diff visual overlay ----
+export const ADDED_COLOR = "#22c55e";
+export const REMOVED_COLOR = "#9ca3af";
+export const REMOVED_ALPHA = 0.3;
+export const CHANGED_COLOR = "#eab308";
+export const REMOVED_EDGE_COLOR = "#ef4444";
+export const RING_LINE_WIDTH = 2;
+export const GHOST_RADIUS = 6;
+export const GHOST_SPACING = 24;
+export const GHOST_FONT_SIZE = 9;
+export const GHOST_MARGIN = 40;
+export const STATUS_BG = "rgba(0,0,0,0.6)";
+export const STATUS_TEXT_COLOR = "#ffffff";
+export const STATUS_FONT_SIZE = 12;
+export const STATUS_PADDING = 8;
+
+// ---- Card renderer module-level (card-renderer.ts) ----
+export const CARD_FONT_FAMILY = "-apple-system, BlinkMacSystemFont, sans-serif";
+/** Maximum counter-scale factor for card mode (prevents enormous cards at extreme zoom-out) */
+export const CARD_SCALE_CAP = 8;
+export const CARD_ICON = {
+	SIZE_RATIO: 0.55,
+	FOLD_RATIO: 0.28,
+	OUTLINE_ALPHA: 0.7,
+	FILL_ALPHA: 0.25,
+	FOLD_ALPHA: 0.15,
+} as const;
+export const PLAIN_CARD = {
+	TITLE_FONT_MIN: 3,
+	BODY_FONT_MIN: 2,
+	PAD: 4,
+	BODY_LINE_HEIGHT: 1.4,
+} as const;
+/** Semantic-zoom full card font sizes (tier 4 = name + definition + preview) */
+export const FULL_CARD_FONT_BASE = 10;
+export const FULL_CARD_FONT_MIN = 7;
+/** Line height multiplier for card text (vertical spacing between lines) */
+export const CARD_LINE_HEIGHT = 1.3;
+/** Ratio of sub-field font to header font in semantic-zoom cards */
+export const CARD_SUB_FONT_RATIO = 0.85;
+// Semantic-zoom compact card font sizes (tier 3 = compact labels)
+export const COMPACT_CARD_FONT_MIN = 6;
+export const COMPACT_CARD_FONT_BASE = 9;
+
+// ---- Static layout compute (layout-compute.ts) — timeline tunables ----
+export const TIMELINE_STEP_WIDTH_MIN = 8;
+export const TIMELINE_CANVAS_MARGIN = 120;
+export const TIMELINE_LANE_HEIGHT_MIN = 20;
+export const TIMELINE_LANE_DIVISIONS = 20;
+export const TIMELINE_BAR_HEIGHT_RATIO = 0.3;
+export const TIMELINE_BAR_HEIGHT_MIN = 4;
+export const TIMELINE_START_OFFSET = 60;
+export const TIMELINE_BAR_MAX_WIDTH_FACTOR = 3;
+export const TIMELINE_BAR_MAX_WIDTH_MIN = 30;
+export const TIMELINE_BAR_WIDTH_MIN = 10;
+
+// ---- Export orchestrator (views/export/ExportOrchestrator.ts) ----
+export const DEFAULT_SVG_WIDTH = 1920;
+export const DEFAULT_SVG_HEIGHT = 1080;
+export const DEFAULT_SVG_BACKGROUND = "#1e1e2e";
+export const DEFAULT_SVG_NODE_RADIUS = 5;
+export const DEFAULT_SVG_EDGE_ALPHA = 0.4;
+export const DEFAULT_PNG_SCALE = 1;
+export const MIN_CANVAS_DIMENSION = 1;
+export const JSON_INDENT_SPACES = 2;
+
+// ---- Auto-snapshots (SnapshotManager.ts / snapshot/GraphSnapshot.ts) ----
+export const AUTO_SNAP_PREFIX = "[auto] ";
+export const AUTO_SNAP_MAX = 10;
+
+// ---- Layout transitions (LayoutTransition.ts) ----
+export const TRANSITION_DURATION_MS = 600;
+export const TRANSITION_DURATION_LARGE_MS = 300;
+export const LARGE_GRAPH_THRESHOLD = 1000;
+
+// ---- Matrix renderer (matrix-renderer.ts) ----
+export const MATRIX_MAX_NODES = 50;
+export const MATRIX_CELL_SIZE_DIVISOR = 16;
+
+// ---- Export manager / orchestrator (ExportManager.ts, export-orchestrator.ts) ----
+export const TOAST_MEDIUM_MS = 3000;
+export const MERMAID_NODE_CAP = 200;
+export const FILENAME_PREFIX = "graph-island";
+
+// ---- Keyboard handler (KeyboardHandler.ts) ----
+export const PAN_STEP = 50;
+export const HOVER_HOPS_MAX = 10;
+
+// ---- Animation controller / canvas internals ----
+export const ALPHA_EPSILON = 0.001;
+export const RGBA_CACHE_MAX = 512;
+
+// ---- Edge layer rendering (EdgeRenderer.ts) ----
+export const EDGE_LAYER_ORDER: readonly (string | undefined)[] = [
+	"has-tag",
+	"tag",
+	"category",
+	"semantic",
+	"sibling",
+	"link",
+	"sequence",
+	"inheritance",
+	"aggregation",
+	undefined,
+];
+export const LAYER_ALPHA_MULTIPLIERS: readonly number[] = [
+	0.6, // has-tag
+	0.7, // tag
+	0.7, // category
+	0.7, // semantic
+	0.8, // sibling
+	0.85, // link
+	1.0, // sequence
+	1.0, // inheritance
+	1.0, // aggregation
+	0.85, // unknown
+];
+export const LAYER_WIDTH_OFFSETS: readonly number[] = [
+	0, // has-tag
+	0, // tag
+	0, // category
+	0, // semantic
+	0.5, // sibling
+	0.5, // link
+	1.0, // sequence
+	1.0, // inheritance
+	1.0, // aggregation
+	0, // unknown
+];
+
+// ---- Donut/sunburst renderer (donut-renderer.ts) ----
+export const RING_STROKE_DARKEN = 0.4;
+export const RING_STROKE_ALPHA = 0.5;
+export const SUNBURST_SEGMENT_ARC_DEG = 30;
+
+// ---- Render pipeline utils (render-pipeline-utils.ts) ----
+export const ZONE_ANCHOR_COS_POSITIVE = 0.3;
+export const ZONE_ANCHOR_COS_NEGATIVE = -0.3;
+
+// ---- WebGL (webgl/*) ----
+export const VERTEX_SHADER_SRC = `
+attribute vec2 a_pos;
+attribute vec4 a_col;
+uniform vec2 u_res;
+uniform vec2 u_translate;
+uniform vec2 u_scale;
+varying vec4 v_col;
+void main() {
+    vec2 world = a_pos * u_scale + u_translate;
+    vec2 clip = (world / u_res) * 2.0 - 1.0;
+    gl_Position = vec4(clip.x, -clip.y, 0.0, 1.0);
+    v_col = a_col;
+}
+`;
+export const FRAGMENT_SHADER_SRC = `
+precision mediump float;
+varying vec4 v_col;
+void main() {
+    gl_FragColor = v_col;
+}
+`;
+export const DOT_GRID_VERTEX_SRC = `
+attribute vec2 a_pos;
+varying vec2 v_world;
+uniform vec2 u_res;
+void main() {
+    v_world = a_pos;
+    vec2 clip = (a_pos / u_res) * 2.0 - 1.0;
+    gl_Position = vec4(clip.x, -clip.y, 0.0, 1.0);
+}
+`;
+export const DOT_GRID_FRAGMENT_SRC = `
+precision mediump float;
+varying vec2 v_world;
+uniform vec2 u_translate;
+uniform vec2 u_scale;
+uniform float u_grid_size;
+uniform float u_dot_radius;
+uniform vec4 u_dot_color;
+void main() {
+    vec2 world_pos = (v_world - u_translate) / u_scale;
+    vec2 cell = mod(world_pos, u_grid_size);
+    vec2 d = cell - u_grid_size * 0.5;
+    float dist = length(d);
+    float alpha = smoothstep(u_dot_radius + 1.0, u_dot_radius - 1.0, dist);
+    gl_FragColor = vec4(u_dot_color.rgb, u_dot_color.a * alpha);
+}
+`;
+export const CORNER_SEGMENTS = 8;
+export const FLOATS_PER_VERTEX = 6;
+
+// ---- Parsers / utils miscellanea ----
+/** metadata-parser.ts: initial scatter range for nodes without persisted positions */
+export const INITIAL_SCATTER_X = 800;
+export const INITIAL_SCATTER_Y = 600;
+/** metadata-parser.ts: cap on similarity edges produced from shared-tag co-occurrence */
+export const SHARED_EDGE_CAP = 1500;
+/** spatial-grid.ts: default cell size + FNV hashing constants */
+export const SPATIAL_GRID_DEFAULT_CELL_SIZE = 200;
+export const SPATIAL_GRID_HASH_PRIME = 73856093;
+/** snapshot.ts: FNV-1a 32-bit hash constants */
+export const FNV_OFFSET = 0x811c9dc5;
+export const FNV_PRIME = 0x01000193;
+/** tag-relation-presets.ts: cooccurrence + tag count thresholds */
+export const MIN_COOCCURRENCE_RATIO = 0.6;
+export const MIN_TAG_COUNT = 2;
