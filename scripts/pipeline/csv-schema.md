@@ -24,15 +24,17 @@ Notes:
 | 1 | `id` | string | yes (PK) | `<num>-<slug>`, e.g. `133-type-assertions`. Unique forever; never re-used. |
 | 2 | `priority` | enum | yes | one of `critical|high|medium|low|skip` |
 | 3 | `reported` | date | yes | `YYYY-MM-DD` (ISO date) |
-| 4 | `status` | enum | yes | one of `pending|in-progress|decomposed|blocked|undecomposable|done` |
-| 5 | `source` | enum | yes | one of `auto-discovered|kaizen|e2e-patrol|user|decomposed` |
-| 6 | `parent` | string \| `none` | yes | FK to `issues.id` or `none`. Issues are usually `none`. |
-| 7 | `depends` | string \| `none` | yes | Free-form dependency hint (e.g. `subtask-1`) or `none` |
-| 8 | `summary` | string | yes | Single line, no `\n`, RFC4180-quoted if needed |
-| 9 | `decompose_attempts` | int | yes (default `0`) | Times the issue has been picked for decomposition |
-| 10 | `description_path` | string | yes | Relative path from repo root, e.g. `scripts/pipeline/descriptions/133-type-assertions.md` |
-| 11 | `created_at` | ISO-8601 datetime | yes | First-seen time, `YYYY-MM-DDTHH:MM:SS+09:00` |
-| 12 | `updated_at` | ISO-8601 datetime | yes | Last-modified time |
+| 4 | `completed` | date | no | `YYYY-MM-DD` if status went to done — preserved verbatim from legacy md |
+| 5 | `status` | enum | yes | one of `pending|in-progress|decomposed|blocked|undecomposable|done|cancelled|superseded` |
+| 6 | `source` | enum | yes | one of `auto-discovered|kaizen|e2e-patrol|user|decomposed|manual` |
+| 7 | `parent` | string \| `none` | yes | FK to `issues.id` or `none`. Issues are usually `none`. |
+| 8 | `depends` | string \| `none` | yes | Free-form dependency hint (e.g. `subtask-1`) or `none` |
+| 9 | `superseded_by` | string | no | id of the row that replaces this one when status=superseded |
+| 10 | `summary` | string | yes | Single line, no `\n`, RFC4180-quoted if needed |
+| 11 | `decompose_attempts` | int | yes (default `0`) | Times the issue has been picked for decomposition |
+| 12 | `description_path` | string | yes | Relative path from repo root, e.g. `scripts/pipeline/descriptions/133-type-assertions.md` |
+| 13 | `created_at` | ISO-8601 datetime | yes | First-seen time, `YYYY-MM-DDTHH:MM:SS+09:00` |
+| 14 | `updated_at` | ISO-8601 datetime | yes | Last-modified time |
 
 ## tasks.csv columns
 
@@ -41,15 +43,17 @@ Notes:
 | 1 | `id` | string | yes (PK) | `<num>-<parent_num>-<slug>`, e.g. `1138-135-showorphans-false-smoke-test` |
 | 2 | `priority` | enum | yes | same as issues |
 | 3 | `reported` | date | yes |  |
-| 4 | `status` | enum | yes | one of `pending|in-progress|blocked|done` (tasks have no `decomposed`/`undecomposable`) |
-| 5 | `source` | enum | yes | one of `decomposed|user` |
-| 6 | `parent` | string | yes | FK to `issues.id`, NOT NULL |
-| 7 | `depends` | string \| `none` | yes |  |
-| 8 | `summary` | string | yes |  |
-| 9 | `attempt_count` | int | yes (default `0`) | Number of `### Attempt` records (mirrored to attempts.csv) |
-| 10 | `description_path` | string | yes |  |
-| 11 | `created_at` | ISO-8601 | yes |  |
-| 12 | `updated_at` | ISO-8601 | yes |  |
+| 4 | `completed` | date | no | as in issues |
+| 5 | `status` | enum | yes | one of `pending|in-progress|decomposed|blocked|undecomposable|done|cancelled|superseded` |
+| 6 | `source` | enum | yes | one of `decomposed|user|manual` |
+| 7 | `parent` | string | yes | FK to `issues.id` OR `tasks.id` (sub-decompose chains are legal), NOT NULL |
+| 8 | `depends` | string \| `none` | yes |  |
+| 9 | `superseded_by` | string | no | as in issues |
+| 10 | `summary` | string | yes |  |
+| 11 | `attempt_count` | int | yes (default `0`) | Number of `### Attempt` records (mirrored to attempts.csv) |
+| 12 | `description_path` | string | yes |  |
+| 13 | `created_at` | ISO-8601 | yes |  |
+| 14 | `updated_at` | ISO-8601 | yes |  |
 
 ## attempts.csv columns
 
@@ -93,7 +97,7 @@ Notes:
 
 ## Foreign-key validity
 
-- `tasks.parent` MUST reference an existing `issues.id`.
+- `tasks.parent` MUST reference an existing `issues.id` or `tasks.id`.
 - `attempts.issue_id` XOR `attempts.task_id` (exactly one populated).
 - The helper provides `csv_validate <kind>` to enforce these in CI.
 

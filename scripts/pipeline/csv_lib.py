@@ -52,14 +52,14 @@ PIPELINE_DIR = REPO_ROOT / "scripts" / "pipeline"
 DESCRIPTIONS_DIR = PIPELINE_DIR / "descriptions"
 
 ISSUE_COLUMNS = [
-    "id", "priority", "reported", "status", "source", "parent", "depends",
-    "summary", "decompose_attempts", "description_path",
-    "created_at", "updated_at",
+    "id", "priority", "reported", "completed", "status", "source", "parent",
+    "depends", "superseded_by", "summary", "decompose_attempts",
+    "description_path", "created_at", "updated_at",
 ]
 TASK_COLUMNS = [
-    "id", "priority", "reported", "status", "source", "parent", "depends",
-    "summary", "attempt_count", "description_path",
-    "created_at", "updated_at",
+    "id", "priority", "reported", "completed", "status", "source", "parent",
+    "depends", "superseded_by", "summary", "attempt_count",
+    "description_path", "created_at", "updated_at",
 ]
 ATTEMPT_COLUMNS = [
     "issue_id", "task_id", "attempt_no", "timestamp",
@@ -67,12 +67,20 @@ ATTEMPT_COLUMNS = [
 ]
 
 VALID_PRIORITIES = {"critical", "high", "medium", "low", "skip"}
+# Statuses observed in 1604 legacy md files (some appear only in done dir):
+# pending / in-progress = active. decomposed = subtasks generated.
+# blocked = exhausted attempts. undecomposable = LLM gave up.
+# done = success. cancelled = manually closed. superseded = replaced by later
+# work without completion.
 VALID_ISSUE_STATUSES = {"pending", "in-progress", "decomposed", "blocked",
-                        "undecomposable", "done"}
-VALID_TASK_STATUSES = {"pending", "in-progress", "blocked", "done"}
+                        "undecomposable", "done", "cancelled", "superseded"}
+VALID_TASK_STATUSES = {"pending", "in-progress", "decomposed", "blocked",
+                       "undecomposable", "done", "cancelled", "superseded"}
+# source = how the row was created. Legacy md uses these spellings; new
+# rows should pick from the active set.
 VALID_ISSUE_SOURCES = {"auto-discovered", "kaizen", "e2e-patrol", "user",
-                       "decomposed"}
-VALID_TASK_SOURCES = {"decomposed", "user"}
+                       "decomposed", "manual"}
+VALID_TASK_SOURCES = {"decomposed", "user", "manual"}
 
 ACTIVE_ISSUE_STATUSES = {"pending", "in-progress", "decomposed"}
 ACTIVE_TASK_STATUSES = {"pending", "in-progress"}
@@ -291,8 +299,9 @@ def cmd_to_prompt_text(kind: str, row_id: str) -> str:
     row = _find_row(rows, row_id)
     if row is None:
         return ""
-    fm_keys = ["priority", "reported", "status", "source", "parent",
-               "depends", "summary", spec.attempts_field]
+    fm_keys = ["priority", "reported", "completed", "status", "source",
+               "parent", "depends", "superseded_by", "summary",
+               spec.attempts_field]
     lines = ["---"]
     for k in fm_keys:
         v = row.get(k, "")
@@ -475,15 +484,20 @@ def cmd_validate(kind: str) -> list[str]:
                     errors.append(
                         f"line {i}: description_path missing {desc_rel}")
     if spec.name == "tasks":
-        # FK: tasks.parent → issues.id
+        # FK: tasks.parent must reference issues.id OR tasks.id.
+        # Tasks-as-parents are legal (e.g. a sub-decompose chain like
+        # task 1149 -> task 1154 -> task 1167) and appear naturally in
+        # the legacy data set.
         issues_spec = _kind("issues")
         _, issue_rows = _read_rows(issues_spec)
-        issue_ids = {r["id"] for r in issue_rows}
+        valid_parents = {r["id"] for r in issue_rows} | \
+                        {r["id"] for r in rows}
         for i, r in enumerate(rows, start=2):
             p = r.get("parent", "")
-            if p and p != "none" and p not in issue_ids:
+            if p and p != "none" and p not in valid_parents:
                 errors.append(
-                    f"line {i}: parent {p!r} not found in issues.csv")
+                    f"line {i}: parent {p!r} not found "
+                    f"in issues.csv or tasks.csv")
     if spec.name == "attempts":
         for i, r in enumerate(rows, start=2):
             iss, tsk = r.get("issue_id", ""), r.get("task_id", "")
