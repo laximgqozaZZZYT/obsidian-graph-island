@@ -485,6 +485,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	// Orbit auto-rotation animation
 	private orbitAnimId: number | null = null;
 	private orbitLastTime = 0;
+	// Pan/animate-to-node rAF id (cancellable on view close)
+	private _panRafId: number | null = null;
 
 	// Hover diff tracking
 	private prevHighlightSet: Set<string> = new Set();
@@ -1685,6 +1687,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		clearTimeout(this._doRenderDebounceTimer);
 		if (this._saveTimer) clearTimeout(this._saveTimer);
 		cancelAnimationFrame(this._zoomAnimId);
+		if (this._panRafId !== null) { cancelAnimationFrame(this._panRafId); this._panRafId = null; }
 		for (const id of this._pendingTimers) clearTimeout(id);
 		this._pendingTimers.clear();
 		// C1: Clear hover preview
@@ -7916,16 +7919,18 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		const startY = world.y;
 		const duration = 200;
 		const startTime = performance.now();
+		if (this._panRafId !== null) cancelAnimationFrame(this._panRafId);
 		const animate = (now: number) => {
+			if (this.worldContainer !== world) { this._panRafId = null; return; }
 			const elapsed = now - startTime;
 			const t = Math.min(elapsed / duration, 1);
 			const ease = 1 - (1 - t) * (1 - t); // ease-out quadratic
 			world.x = startX + (targetX - startX) * ease;
 			world.y = startY + (targetY - startY) * ease;
 			this.markDirty();
-			if (t < 1) requestAnimationFrame(animate);
+			this._panRafId = t < 1 ? requestAnimationFrame(animate) : null;
 		};
-		requestAnimationFrame(animate);
+		this._panRafId = requestAnimationFrame(animate);
 	}
 
 	/** Pan to node and zoom to a comfortable level (animated).
@@ -8122,7 +8127,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		const targetY = wrap.clientHeight / 2 - pn.data.y * world.scale.y;
 		const startTime = performance.now();
 
+		if (this._panRafId !== null) cancelAnimationFrame(this._panRafId);
 		const animate = (now: number) => {
+			if (this.worldContainer !== world) { this._panRafId = null; return; }
 			const elapsed = now - startTime;
 			const t = Math.min(1, elapsed / durationMs);
 			const ease = t * (2 - t); // ease-out quadratic
@@ -8130,13 +8137,14 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			world!.y = startY + (targetY - startY) * ease;
 			this.markDirty();
 			if (t < 1) {
-				requestAnimationFrame(animate);
+				this._panRafId = requestAnimationFrame(animate);
 			} else {
+				this._panRafId = null;
 				this.setHighlightedNodeId(nodeId);
 				this.applyHover();
 			}
 		};
-		requestAnimationFrame(animate);
+		this._panRafId = requestAnimationFrame(animate);
 	}
 
 	// V1: Smooth fade animation for search filter transitions
