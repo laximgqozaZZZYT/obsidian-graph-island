@@ -150,7 +150,7 @@ id,priority,reported,completed,status,source,parent,depends,superseded_by,summar
 129-stale-worktrees,low,2026-04-13,,done,auto-discovered,,,,4個の放置されたworktree,,scripts/pipeline/descriptions/129-stale-worktrees.md,2026-04-13T17:26:39+09:00,2026-04-15T21:31:06+09:00
 130-type-assertions,low,2026-04-13,,done,auto-discovered,,,,212個の型アサーション (as T) — 型安全性リスク,,scripts/pipeline/descriptions/130-type-assertions.md,2026-04-15T22:52:05+09:00,2026-04-15T22:52:05+09:00
 132-e2e-smoke-fail,high,2026-04-15,,done,e2e-patrol,,,,E2E smoke test failure — 1 failed,,scripts/pipeline/descriptions/132-e2e-smoke-fail.md,2026-04-15T23:22:06+09:00,2026-04-15T23:22:06+09:00
-135-e2e-smoke-fail,high,2026-04-16,,done,e2e-patrol,,,,E2E smoke test failure — 1 failed,,scripts/pipeline/descriptions/135-e2e-smoke-fail.md,2026-04-19T09:40:15+09:00,2026-04-19T09:40:15+09:00
+135-e2e-smoke-fail,high,2026-04-16,,done,e2e-patrol,,,,E2E smoke test failure — 1 failed,,scripts/pipeline/descriptions/135-e2e-smoke-fail.md,2026-04-19T09:40:15+09:00,2026-04-26T00:25:02+09:00
 135-onclose-timer-leak,high,2026-04-16,,done,kaizen,,,,onClose()で_saveTimerと_zoomAnimIdが未クリア — view破棄後にコールバック実行,,scripts/pipeline/descriptions/135-onclose-timer-leak.md,2026-04-19T10:02:29+09:00,2026-04-19T10:02:29+09:00
 136-expansion-keydown-leak,high,2026-04-16,,done,kaizen,,,,_showNodeExpansionがdocumentのkeydownリスナーを蓄積 — ESCが誤ったハンドラを削除,,scripts/pipeline/descriptions/136-expansion-keydown-leak.md,2026-04-19T09:59:47+09:00,2026-04-19T09:59:47+09:00
 138-perf-usability-overhaul,critical,2026-04-17,,done,,,,,パフォーマンス改善+操作性向上 — E2Eテストで問題点を洗い出し修正せよ,,scripts/pipeline/descriptions/138-perf-usability-overhaul.md,2026-04-17T21:18:33+09:00,2026-04-17T21:18:33+09:00
