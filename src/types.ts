@@ -1146,6 +1146,15 @@ export interface RenderThresholds {
 	 *  After semantic-zoom filtering, labels are sorted by degree and capped.
 	 *  Hovered nodes and their BFS neighbours bypass this limit. */
 	labelMaxVisible?: number;
+	/** visual-report の labelReadability 50 達成のための priority 上位ラベル下限
+	 *  (0 = 無効, default 20). 極端ズームアウト時 (zoom < labelHardHideZoom) にのみ
+	 *  適用され、未表示 candidate を priority 降順で点灯させて最低本数を保証する。 */
+	labelMinVisibleFloor?: number;
+	/** Zoom threshold below which extreme-zoom-out safeguards activate (default 0.1).
+	 *  Currently used as the gate for `labelMinVisibleFloor`. At zoom < this value,
+	 *  the priority-floor logic re-enables hidden candidates to keep the screen
+	 *  legible. Above this zoom, behavior is unchanged. */
+	labelHardHideZoom?: number;
 	/** Label density multiplier for zoom-based cap (default 1.0).
 	 *  Higher values show more labels at zoom-out, lower values show fewer.
 	 *  Range: 0.2 – 3.0. Applied as multiplier to the zoom-based label cap. */
@@ -1603,6 +1612,8 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
 	labelDegreePctTier2: 0.1,
 	labelDegreePctTier3: 0.3,
 	labelMaxVisible: 0,
+	labelMinVisibleFloor: 20,
+	labelHardHideZoom: 0.1,
 	labelDensity: 1.0,
 	labelInitialsZoom: 0.005, // effectively disabled — always show text, not initials
 	labelTruncateZoom: 0.01, // effectively disabled — always show full label
