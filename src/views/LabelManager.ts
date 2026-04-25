@@ -506,9 +506,12 @@ export class LabelManager {
 		degrees: Map<string, number>,
 		baseOpacity: number,
 	): void {
+		const zoom = this.host.getWorldScale();
+		const isZoomedOut = zoom < (rt.labelZoomedOutThreshold ?? 0.2);
+		const minNonSuper = isZoomedOut ? (rt.labelMinNonSuperZoomedOut ?? 20) : (rt.labelMinNonSuper ?? 5);
 		const eligibleNonSuper = candidates.filter((c) => !c.isSuper).length;
 		const eligibleSuper = candidates.filter((c) => c.isSuper).length;
-		const targetRegulars = Math.max(rt.labelMinNonSuper ?? 5, Math.ceil(eligibleSuper * 0.5));
+		const targetRegulars = Math.max(minNonSuper, Math.ceil(eligibleSuper * 0.5));
 		if (eligibleNonSuper >= targetRegulars) return;
 		const needed = targetRegulars - eligibleNonSuper;
 		const hiddenNonSupers: { pn: PixiNode; deg: number }[] = [];

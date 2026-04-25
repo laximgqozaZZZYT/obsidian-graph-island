@@ -1083,6 +1083,15 @@ export interface RenderThresholds {
 	 *  Default: 5. Set to 0 to disable. */
 	labelMinNonSuper?: number;
 
+	/** Zoom-aware override of `labelMinNonSuper` for extreme zoom-out.
+	 *  When current world zoom is below `labelZoomedOutThreshold`, this value is used
+	 *  in place of `labelMinNonSuper` so more regular labels survive promotion at low
+	 *  zoom (where individual nodes are otherwise unreadable). Default: 20. */
+	labelMinNonSuperZoomedOut?: number;
+	/** Zoom threshold below which `labelMinNonSuperZoomedOut` takes effect.
+	 *  Default: 0.2. */
+	labelZoomedOutThreshold?: number;
+
 	/** Maximum effective label width in screen pixels for the overlap AABB check (default 200).
 	 *  At extreme zoom-out the counter-scaled world AABB becomes enormous, causing excessive
 	 *  culling. This cap converts the AABB back to at most N screen pixels wide before
@@ -1579,6 +1588,8 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
 	labelLeaderLineWidth: 1.2,
 	labelLeaderLineAlwaysThreshold: 2.0,
 	labelMinNonSuper: 40,
+	labelMinNonSuperZoomedOut: 20,
+	labelZoomedOutThreshold: 0.2,
 	labelOverlapMaxScreenW: 500,
 	labelOverlapMaxScreenH: 150,
 	labelMinPlaced: 3,
