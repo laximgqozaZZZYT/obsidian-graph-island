@@ -15,6 +15,18 @@ import { getNodeShape, drawShapeAt } from "../utils/node-shapes";
 import { hslToHex } from "../utils/graph-helpers";
 import { screenToWorld, hashStringToHue, type RenderHost } from "./RenderPipeline";
 
+// TODO(NODE_DECO): BOOKMARK_STAR_SPIKES = 5  // ブックマーク星のスパイク数
+// TODO(NODE_DECO): BOOKMARK_STAR_INNER_RATIO = 0.4  // ブックマーク星の内半径比
+// TODO(NODE_DECO): MISSING_NEIGHBOR_DASH_SEGMENTS = 10  // 欠損隣接リング破線セグメント数
+// TODO(NODE_DECO): MISSING_NEIGHBOR_GAP_FRACTION = 0.35  // 欠損隣接リング破線ギャップ率
+// TODO(NODE_DECO): MISSING_NEIGHBOR_RADIUS_PAD = 4  // 欠損隣接リング半径パディング
+// TODO(NODE_DECO): TAG_BADGE_MAX_COUNT = 4  // タグバッジ最大表示数
+// TODO(NODE_DECO): TAG_BADGE_MIN_SCREEN_PX = 3  // タグバッジ最小スクリーンピクセル
+// TODO(NODE_DECO): RECENCY_OLD_THRESHOLD_DAYS = 90  // 古さ判定の閾値 (日数)
+// TODO(NODE_DECO): RECENCY_DOT_RADIUS_PX = 3  // 最近マーカーのドット半径
+// TODO(NODE_DECO): MULTI_SELECT_RING_WIDTH = 2.5  // マルチ選択リングの線幅
+// TODO(NODE_DECO): MULTI_SELECT_RING_PAD = 5  // マルチ選択リングの半径パディング
+
 // ---------------------------------------------------------------------------
 // Constants (moved from RenderPipeline.ts)
 // ---------------------------------------------------------------------------
