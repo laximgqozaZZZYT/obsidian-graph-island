@@ -39,7 +39,7 @@ export MAX_TOTAL_TASKS
 # When true, the script reads/writes pipeline state via scripts/pipeline/
 # csv-helpers.sh (issues.csv / tasks.csv / descriptions/<id>.md) instead of
 # per-file md frontmatter. Default false until Phase 3 flips it on.
-USE_CSV=${USE_CSV:-false}
+USE_CSV=${USE_CSV:-true}
 export USE_CSV
 if [[ "$USE_CSV" == "true" ]]; then
   # shellcheck source=/dev/null

@@ -21,7 +21,7 @@ fi
 
 # CSV migration feature flag (Phase 2-D). When true, the argument is
 # treated as an issue id; the body is read from descriptions/<id>.md.
-USE_CSV=${USE_CSV:-false}
+USE_CSV=${USE_CSV:-true}
 
 ARG="$1"
 if [[ "$USE_CSV" == "true" ]]; then

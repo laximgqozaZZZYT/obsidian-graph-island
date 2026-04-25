@@ -26,7 +26,7 @@ VERIFY_SCRIPT="$SCRIPT_DIR/verify-issue-done.sh"
 
 # CSV migration feature flag (Phase 2-D). In CSV mode, reconcile flips
 # the status column instead of git-mving md files between dirs.
-USE_CSV=${USE_CSV:-false}
+USE_CSV=${USE_CSV:-true}
 if [[ "$USE_CSV" == "true" ]]; then
   # shellcheck source=/dev/null
   . "$SCRIPT_DIR/csv-helpers.sh"

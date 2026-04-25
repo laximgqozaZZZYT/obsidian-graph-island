@@ -30,7 +30,7 @@ mkdir -p "$TASK_DIR" "$TASK_DONE_DIR"
 # CSV migration feature flag (Phase 2-B). When true, the script reads the
 # parent issue from issues.csv (via csv-helpers.sh) and writes new tasks
 # into tasks.csv + descriptions/<id>.md instead of per-file md.
-USE_CSV=${USE_CSV:-false}
+USE_CSV=${USE_CSV:-true}
 if [[ "$USE_CSV" == "true" ]]; then
   # shellcheck source=/dev/null
   . "$PROJECT_DIR/scripts/pipeline/csv-helpers.sh"

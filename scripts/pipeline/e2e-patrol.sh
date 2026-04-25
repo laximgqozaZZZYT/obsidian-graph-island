@@ -22,7 +22,7 @@ DESCRIPTIONS_DIR="$PROJECT_DIR/scripts/pipeline/descriptions"
 # CSV migration feature flag (Phase 2-A). When true, file_issue() inserts
 # a row into issues.csv + writes descriptions/<id>.md instead of creating
 # a per-file md.
-USE_CSV=${USE_CSV:-false}
+USE_CSV=${USE_CSV:-true}
 if [[ "$USE_CSV" == "true" ]]; then
   # shellcheck source=/dev/null
   . "$PROJECT_DIR/scripts/pipeline/csv-helpers.sh"

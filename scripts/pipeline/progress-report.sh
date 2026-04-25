@@ -78,7 +78,7 @@ PENDING=0; INPROG=0; DONE=0; UNKNOWN=0
 
 # CSV migration feature flag (Phase 2-D). When true, count rows from
 # issues.csv instead of scanning issues/*.md.
-USE_CSV=${USE_CSV:-false}
+USE_CSV=${USE_CSV:-true}
 if [[ "$USE_CSV" == "true" ]]; then
   # shellcheck source=/dev/null
   . "$(dirname "$0")/csv-helpers.sh"
