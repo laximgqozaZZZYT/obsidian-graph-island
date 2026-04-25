@@ -73,44 +73,17 @@ fi
 # ─────────────────────────────────────────────
 # Issue キュー
 # ─────────────────────────────────────────────
-ISSUE_DIR="scripts/pipeline/issues"
-PENDING=0; INPROG=0; DONE=0; UNKNOWN=0
+# shellcheck source=/dev/null
+. "$(dirname "$0")/csv-helpers.sh"
 
-# CSV migration feature flag (Phase 2-D). When true, count rows from
-# issues.csv instead of scanning issues/*.md.
-USE_CSV=${USE_CSV:-true}
-if [[ "$USE_CSV" == "true" ]]; then
-  # shellcheck source=/dev/null
-  . "$(dirname "$0")/csv-helpers.sh"
-fi
+PENDING=$(csv_select_by_status issues pending 2>/dev/null | wc -l | tr -cd '0-9')
+INPROG=$(csv_select_by_status issues in-progress 2>/dev/null | wc -l | tr -cd '0-9')
+DONE=$(csv_select_by_status issues done 2>/dev/null | wc -l | tr -cd '0-9')
+UNKNOWN=0
+PENDING=${PENDING:-0}; INPROG=${INPROG:-0}; DONE=${DONE:-0}
 
-if [[ "$USE_CSV" == "true" ]]; then
-  PENDING=$(csv_select_by_status issues pending 2>/dev/null | wc -l | tr -cd '0-9')
-  INPROG=$(csv_select_by_status issues in-progress 2>/dev/null | wc -l | tr -cd '0-9')
-  DONE=$(csv_select_by_status issues done 2>/dev/null | wc -l | tr -cd '0-9')
-  PENDING=${PENDING:-0}; INPROG=${INPROG:-0}; DONE=${DONE:-0}
-elif [[ -d "$ISSUE_DIR" ]]; then
-  # glob を nullglob で空ループ安全に
-  shopt -s nullglob
-  for f in "$ISSUE_DIR"/*.md; do
-    status=$(grep -oP '^status:\s*\K\S+' "$f" 2>/dev/null || echo "pending")
-    case "$status" in
-      in-progress) INPROG=$(( INPROG + 1 )) ;;
-      done)        DONE=$(( DONE + 1 )) ;;
-      pending)     PENDING=$(( PENDING + 1 )) ;;
-      *)           UNKNOWN=$(( UNKNOWN + 1 )) ;;
-    esac
-  done
-  # done/ サブディレクトリ内のアーカイブ分も DONE に加算
-  DONE=$(( DONE + $(find "$ISSUE_DIR/done" -maxdepth 1 -name '*.md' 2>/dev/null | wc -l) ))
-  shopt -u nullglob
-fi
-
-RECENT_DONE=""
-if [[ "$USE_CSV" == "true" ]]; then
-  # Pull the 5 most-recently-updated done rows via Python (csv_lib reads
-  # the same updated_at column populated by all writes).
-  RECENT_DONE=$(python3 - <<'PY' 2>/dev/null
+# Pull the 5 most-recently-updated done rows (issues.csv is the truth).
+RECENT_DONE=$(python3 - <<'PY' 2>/dev/null
 import csv, os, sys
 PIPELINE = os.path.join(os.environ.get('PROJECT_DIR', os.getcwd()),
                         'scripts', 'pipeline')
@@ -124,14 +97,6 @@ for r in rows[:5]:
     print(f"- {r.get('id','')}: {r.get('summary','')}")
 PY
 )
-elif [[ -d "$ISSUE_DIR/done" ]]; then
-  while IFS= read -r f; do
-    [[ -f "$f" ]] || continue
-    base=$(basename "$f" .md)
-    summary=$(grep -oP '^summary:\s*\K.+' "$f" 2>/dev/null | head -1 || echo "")
-    RECENT_DONE+="- ${base}: ${summary}"$'\n'
-  done < <(find "$ISSUE_DIR/done" -maxdepth 1 -name '*.md' -printf '%T@\t%p\n' 2>/dev/null | sort -rn | head -5 | cut -f2-)
-fi
 
 # ─────────────────────────────────────────────
 # カバレッジしきい値推移
