@@ -14,70 +14,41 @@ export PATH="/home/ubuntu/.local/bin:/home/ubuntu/.nvm/versions/node/v22.18.0/bi
 export HOME="/home/ubuntu"
 
 PROJECT_DIR="/home/ubuntu/obsidian-plugins/obsidian-graph-island"
-ISSUE_FILE="${1:-}"
+ARG="${1:-}"
 
-if [[ -z "$ISSUE_FILE" ]]; then
-  echo "Usage: $0 <issue-file.md | issue-id>"
+if [[ -z "$ARG" ]]; then
+  echo "Usage: $0 <issue-id>"
   exit 1
 fi
 
-ISSUE_DIR="$PROJECT_DIR/scripts/pipeline/issues"
-TASK_DIR="$PROJECT_DIR/scripts/pipeline/tasks"
-TASK_DONE_DIR="$TASK_DIR/done"
 DESCRIPTIONS_DIR="$PROJECT_DIR/scripts/pipeline/descriptions"
-mkdir -p "$TASK_DIR" "$TASK_DONE_DIR"
 
-# CSV migration feature flag (Phase 2-B). When true, the script reads the
-# parent issue from issues.csv (via csv-helpers.sh) and writes new tasks
-# into tasks.csv + descriptions/<id>.md instead of per-file md.
-USE_CSV=${USE_CSV:-true}
-if [[ "$USE_CSV" == "true" ]]; then
-  # shellcheck source=/dev/null
-  . "$PROJECT_DIR/scripts/pipeline/csv-helpers.sh"
-  mkdir -p "$DESCRIPTIONS_DIR"
-fi
+# shellcheck source=/dev/null
+. "$PROJECT_DIR/scripts/pipeline/csv-helpers.sh"
+mkdir -p "$DESCRIPTIONS_DIR"
 
-# Resolve ISSUE_NAME and ISSUE_CONTENT for both modes.
-#   md mode: $1 is a path like scripts/pipeline/issues/147-god-object.md
-#   csv mode: $1 is either a path (legacy callers) or a bare id like
-#             "147-god-object". Both are accepted; we always strip
-#             directory and `.md` suffix to get the id.
-ISSUE_NAME=$(basename "$ISSUE_FILE" .md)
-if [[ "$USE_CSV" == "true" ]]; then
-  ISSUE_CONTENT=$(csv_to_prompt_text issues "$ISSUE_NAME" 2>/dev/null)
-  if [[ -z "$ISSUE_CONTENT" ]]; then
-    echo "ERROR: issues.csv has no row for id=$ISSUE_NAME"
-    exit 1
-  fi
-else
-  if [[ ! -f "$ISSUE_FILE" ]]; then
-    echo "ERROR: $ISSUE_FILE not found (USE_CSV=false expects an md path)"
-    exit 1
-  fi
-  ISSUE_CONTENT=$(cat "$ISSUE_FILE")
+# Argument is treated as an issue id (basename + .md stripped, so a
+# path is also accepted for legacy callers).
+ISSUE_NAME=$(basename "$ARG" .md)
+ISSUE_CONTENT=$(csv_to_prompt_text issues "$ISSUE_NAME" 2>/dev/null)
+if [[ -z "$ISSUE_CONTENT" ]]; then
+  echo "ERROR: issues.csv has no row for id=$ISSUE_NAME"
+  exit 1
 fi
 
 # ── Queue cap (kaizen 2026-04-25) ──
-# Refuse to decompose when the active task queue is already at the cap.
-# Active = pending|in-progress|decomposed. Without this, every C5 revive
-# would keep growing the queue indefinitely.
+# Refuse to decompose when the active task queue is at the cap.
+# Active = pending|in-progress (csv_count_active definition).
 MAX_TOTAL_TASKS=${MAX_TOTAL_TASKS:-50}
-if [[ "$USE_CSV" == "true" ]]; then
-  ACTIVE_TASKS=$(csv_count_active tasks 2>/dev/null | tr -cd '0-9')
-else
-  ACTIVE_TASKS=$(grep -lE '^status: (pending|in-progress|decomposed)$' "$TASK_DIR"/*.md 2>/dev/null | wc -l | tr -cd '0-9')
-fi
+ACTIVE_TASKS=$(csv_count_active tasks 2>/dev/null | tr -cd '0-9')
 ACTIVE_TASKS=${ACTIVE_TASKS:-0}
 if [[ $ACTIVE_TASKS -ge $MAX_TOTAL_TASKS ]]; then
   echo "ABORT: task queue at cap ($ACTIVE_TASKS/$MAX_TOTAL_TASKS active) — decomposition deferred until queue drains"
   exit 4
 fi
 
-# Find next available number (across issues + tasks)
-LAST_NUM=$(find "$ISSUE_DIR" "$ISSUE_DIR/done" "$TASK_DIR" "$TASK_DONE_DIR" -maxdepth 1 -name '*.md' 2>/dev/null | xargs -I{} basename {} | grep -oP '^\d+' | sort -n | tail -1)
-LAST_NUM=${LAST_NUM:-0}
-LAST_NUM=$(echo "$LAST_NUM" | sed 's/^0*//')
-LAST_NUM=${LAST_NUM:-0}
+# Find next available numeric prefix via csv_lib.
+LAST_NUM=$(($(csv_next_id_num) - 1))
 
 echo "=== Decomposing: $ISSUE_NAME ==="
 
