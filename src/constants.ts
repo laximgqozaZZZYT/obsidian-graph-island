@@ -692,3 +692,35 @@ export const GVC_HEATMAP_GAUSSIAN_RADIUS = 3;
 
 // ---- Progressive simulation rendering (sync positions every N ticks) ----
 export const GVC_PROGRESSIVE_INTERVAL = 10;
+
+// ===========================================================================
+// ---- Pathfinder overlay ----
+// Drawing constants for the shortest-path visualisation rendered in
+// src/views/pathfinder-overlay.ts. Centralised here so multiple renderers /
+// tests can share the same values without reaching into the overlay module.
+// ===========================================================================
+
+/** Cyan trunk color used for the path lines / dots (DarkTurquoise). */
+export const PATHFINDER_COLOR = 0x00ced1;
+/** CSS hex form of PATHFINDER_COLOR for DOM-side label color. */
+export const PATHFINDER_COLOR_CSS = "#00CED1";
+/** Angular speed of the alpha pulse (radians per frame). */
+export const PATHFINDER_PULSE_SPEED = 0.06;
+/** Peak amplitude added to the base alpha during the pulse. */
+export const PATHFINDER_PULSE_AMPLITUDE = 0.1;
+/** Base alpha of the soft outer glow stroke. */
+export const PATHFINDER_GLOW_ALPHA_BASE = 0.45;
+/** Base alpha of the inner solid stroke. */
+export const PATHFINDER_SOLID_ALPHA_BASE = 0.85;
+/** Outer glow stroke width in screen pixels. */
+export const PATHFINDER_GLOW_STROKE_WIDTH = 8;
+/** Inner solid stroke width in screen pixels. */
+export const PATHFINDER_SOLID_STROKE_WIDTH = 3;
+/** Radius of the path-marker dots drawn at each waypoint (px). */
+export const PATHFINDER_DOT_RADIUS = 5;
+/** Font size of the "N hops" label rendered along the path (px). */
+export const PATHFINDER_LABEL_FONT_SIZE = 11;
+/** Horizontal offset from the midpoint segment for the hop count label (px). */
+export const PATHFINDER_LABEL_OFFSET_X = 6;
+/** Vertical offset from the midpoint segment for the hop count label (px). */
+export const PATHFINDER_LABEL_OFFSET_Y = -14;
