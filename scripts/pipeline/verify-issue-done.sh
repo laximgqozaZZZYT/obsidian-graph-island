@@ -15,18 +15,36 @@
 set -euo pipefail
 
 if [[ $# -lt 1 ]]; then
-  echo "Usage: $0 <issue-file>" >&2
+  echo "Usage: $0 <issue-file | issue-id>" >&2
   exit 2
 fi
 
-ISSUE_FILE="$1"
-if [[ ! -f "$ISSUE_FILE" ]]; then
-  echo "Issue file not found: $ISSUE_FILE" >&2
-  exit 2
-fi
+# CSV migration feature flag (Phase 2-D). When true, the argument is
+# treated as an issue id; the body is read from descriptions/<id>.md.
+USE_CSV=${USE_CSV:-false}
 
-# Resolve absolute path before chdir so relative args keep working.
-ISSUE_FILE="$(cd "$(dirname "$ISSUE_FILE")" && pwd)/$(basename "$ISSUE_FILE")"
+ARG="$1"
+if [[ "$USE_CSV" == "true" ]]; then
+  PROJECT_DIR="$(git rev-parse --show-toplevel 2>/dev/null)"
+  if [[ -z "$PROJECT_DIR" ]]; then
+    echo "ERROR: not in a git repo" >&2
+    exit 2
+  fi
+  ID="$(basename "$ARG" .md)"
+  DESC_PATH="$PROJECT_DIR/scripts/pipeline/descriptions/${ID}.md"
+  if [[ ! -f "$DESC_PATH" ]]; then
+    echo "Description file not found: $DESC_PATH" >&2
+    exit 2
+  fi
+  ISSUE_FILE="$DESC_PATH"
+else
+  ISSUE_FILE="$ARG"
+  if [[ ! -f "$ISSUE_FILE" ]]; then
+    echo "Issue file not found: $ISSUE_FILE" >&2
+    exit 2
+  fi
+  ISSUE_FILE="$(cd "$(dirname "$ISSUE_FILE")" && pwd)/$(basename "$ISSUE_FILE")"
+fi
 
 cd "$(git rev-parse --show-toplevel)"
 

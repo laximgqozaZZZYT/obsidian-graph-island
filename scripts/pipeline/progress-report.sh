@@ -75,7 +75,21 @@ fi
 # ─────────────────────────────────────────────
 ISSUE_DIR="scripts/pipeline/issues"
 PENDING=0; INPROG=0; DONE=0; UNKNOWN=0
-if [[ -d "$ISSUE_DIR" ]]; then
+
+# CSV migration feature flag (Phase 2-D). When true, count rows from
+# issues.csv instead of scanning issues/*.md.
+USE_CSV=${USE_CSV:-false}
+if [[ "$USE_CSV" == "true" ]]; then
+  # shellcheck source=/dev/null
+  . "$(dirname "$0")/csv-helpers.sh"
+fi
+
+if [[ "$USE_CSV" == "true" ]]; then
+  PENDING=$(csv_select_by_status issues pending 2>/dev/null | wc -l | tr -cd '0-9')
+  INPROG=$(csv_select_by_status issues in-progress 2>/dev/null | wc -l | tr -cd '0-9')
+  DONE=$(csv_select_by_status issues done 2>/dev/null | wc -l | tr -cd '0-9')
+  PENDING=${PENDING:-0}; INPROG=${INPROG:-0}; DONE=${DONE:-0}
+elif [[ -d "$ISSUE_DIR" ]]; then
   # glob を nullglob で空ループ安全に
   shopt -s nullglob
   for f in "$ISSUE_DIR"/*.md; do
@@ -93,7 +107,24 @@ if [[ -d "$ISSUE_DIR" ]]; then
 fi
 
 RECENT_DONE=""
-if [[ -d "$ISSUE_DIR/done" ]]; then
+if [[ "$USE_CSV" == "true" ]]; then
+  # Pull the 5 most-recently-updated done rows via Python (csv_lib reads
+  # the same updated_at column populated by all writes).
+  RECENT_DONE=$(python3 - <<'PY' 2>/dev/null
+import csv, os, sys
+PIPELINE = os.path.join(os.environ.get('PROJECT_DIR', os.getcwd()),
+                        'scripts', 'pipeline')
+path = os.path.join(PIPELINE, 'issues.csv')
+if not os.path.exists(path):
+    sys.exit(0)
+with open(path, encoding='utf-8', newline='') as f:
+    rows = [r for r in csv.DictReader(f) if r.get('status') == 'done']
+rows.sort(key=lambda r: r.get('updated_at', ''), reverse=True)
+for r in rows[:5]:
+    print(f"- {r.get('id','')}: {r.get('summary','')}")
+PY
+)
+elif [[ -d "$ISSUE_DIR/done" ]]; then
   while IFS= read -r f; do
     [[ -f "$f" ]] || continue
     base=$(basename "$f" .md)
