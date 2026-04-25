@@ -35,6 +35,17 @@ KAIZEN_PENDING_THRESHOLD=0   # was 5 — only run kaizen when pending==0
 MAX_TOTAL_TASKS=${MAX_TOTAL_TASKS:-50}
 export MAX_TOTAL_TASKS
 
+# ── CSV migration feature flag (Phase 2-C) ──
+# When true, the script reads/writes pipeline state via scripts/pipeline/
+# csv-helpers.sh (issues.csv / tasks.csv / descriptions/<id>.md) instead of
+# per-file md frontmatter. Default false until Phase 3 flips it on.
+USE_CSV=${USE_CSV:-false}
+export USE_CSV
+if [[ "$USE_CSV" == "true" ]]; then
+  # shellcheck source=/dev/null
+  . "$PROJECT_DIR/scripts/pipeline/csv-helpers.sh"
+fi
+
 cd "$PROJECT_DIR" || exit 1
 
 # ── Log rotation ──
@@ -163,6 +174,57 @@ mkdir -p "$TASK_DIR" "$TASK_DONE_DIR"
 MAX_ISSUE_ATTEMPTS=3
 
 NOW=$(date +%s)
+# CSV-mode timed-out scan: walk both kinds via CSV instead of glob+stat.
+# Uses updated_at as the age proxy (file mtime equivalent). Active rows
+# whose updated_at is older than 600s + status=in-progress are timed out.
+if [[ "$USE_CSV" == "true" ]]; then
+  for kind in tasks issues; do
+    for ID in $(csv_select_by_status "$kind" in-progress 2>/dev/null); do
+      UPDATED=$(csv_get_field "$kind" "$ID" updated_at 2>/dev/null)
+      [[ -n "$UPDATED" ]] || continue
+      UPDATED_EPOCH=$(date -d "$UPDATED" +%s 2>/dev/null || echo "$NOW")
+      FILE_AGE=$(( NOW - UPDATED_EPOCH ))
+      [[ $FILE_AGE -gt 600 ]] || continue
+
+      if [[ "$kind" == "tasks" ]]; then
+        # FIX A: Timed-out task → straight to blocked. No re-SUBDIVIDE.
+        log "BLOCKED: $ID timed out after ${FILE_AGE}s (no re-SUBDIVIDE) [csv]"
+        csv_set_status tasks "$ID" blocked 2>/dev/null || true
+        (cd "$PROJECT_DIR" && git add scripts/pipeline/ && \
+          git commit -m "chore: block timed-out task $ID" --no-verify 2>/dev/null) || true
+      else
+        # Issue timed out → bump decompose_attempts, or block if exhausted.
+        ORPHANED=false
+        if [[ -z "$(find "$LOCK_DIR" -maxdepth 1 -name '*.pid' 2>/dev/null | head -1)" ]]; then
+          ORPHANED=true
+        elif [[ $FILE_AGE -gt 600 ]]; then
+          ORPHANED=true
+        fi
+        if [[ "$ORPHANED" == true ]]; then
+          DECOMPOSE_ATTEMPTS=$(csv_get_field issues "$ID" decompose_attempts 2>/dev/null)
+          DECOMPOSE_ATTEMPTS=${DECOMPOSE_ATTEMPTS:-0}
+          if [[ "$DECOMPOSE_ATTEMPTS" -ge "$MAX_ISSUE_ATTEMPTS" ]]; then
+            log "BLOCKED: $ID — $DECOMPOSE_ATTEMPTS attempts exhausted (max $MAX_ISSUE_ATTEMPTS) [csv]"
+            csv_set_status issues "$ID" blocked 2>/dev/null || true
+            (cd "$PROJECT_DIR" && git add scripts/pipeline/ && \
+              git commit -m "chore: block exhausted issue $ID ($DECOMPOSE_ATTEMPTS attempts)" --no-verify 2>/dev/null) || true
+            continue
+          fi
+          NEXT_ATTEMPT=$((DECOMPOSE_ATTEMPTS + 1))
+          csv_set_field issues "$ID" decompose_attempts "$NEXT_ATTEMPT" 2>/dev/null || true
+          # Append to attempts.csv for traceability
+          csv_append_attempt issues "$ID" \
+            "Continue from where the last session left off. Do not repeat already-attempted approaches." \
+            "timed out after 1h" >/dev/null 2>&1 || true
+          csv_set_status issues "$ID" pending 2>/dev/null || true
+          log "CARRYOVER: $ID → pending (attempt $NEXT_ATTEMPT/$MAX_ISSUE_ATTEMPTS, age: ${FILE_AGE}s) [csv]"
+          (cd "$PROJECT_DIR" && git add scripts/pipeline/ && \
+            git commit -m "chore: carryover stale issue $ID (attempt $NEXT_ATTEMPT)" --no-verify 2>/dev/null) || true
+        fi
+      fi
+    done
+  done
+else
 for dir in "$ISSUE_DIR" "$TASK_DIR"; do
   [[ -d "$dir" ]] || continue
   for f in "$dir"/*.md; do
@@ -231,6 +293,7 @@ ATTEMPT_EOF
     fi
   done
 done
+fi  # end USE_CSV branch for orphan detection
 
 # ── FIX C5 (2026-04-25): revive stuck `decomposed` issues ──
 # When a child task fails, status goes to `blocked`, but the parent issue
@@ -239,6 +302,34 @@ done
 # the issue to `pending` so a later cycle can re-decompose it into a new
 # task set with different scoping. If attempts are already exhausted, mark
 # the issue `blocked` so it stops wasting queue scans.
+if [[ "$USE_CSV" == "true" ]]; then
+  for ID in $(csv_select_by_status issues decomposed 2>/dev/null); do
+    ISSUE_NUM=$(echo "$ID" | grep -oP '^\d+')
+    [[ -n "$ISSUE_NUM" ]] || continue
+    # Count live child tasks via CSV (parent FK match by id-prefix or parent col)
+    ALIVE=0
+    for CHILD_ID in $(csv_select_by_parent tasks "$ID" 2>/dev/null); do
+      CST=$(csv_get_status tasks "$CHILD_ID" 2>/dev/null)
+      if [[ "$CST" == "pending" || "$CST" == "in-progress" ]]; then
+        ALIVE=$((ALIVE + 1))
+      fi
+    done
+    [[ "$ALIVE" -gt 0 ]] && continue
+    ATTEMPTS=$(csv_get_field issues "$ID" decompose_attempts 2>/dev/null)
+    ATTEMPTS=${ATTEMPTS:-0}
+    if [[ "$ATTEMPTS" -ge "$MAX_ISSUE_ATTEMPTS" ]]; then
+      log "BLOCKED: $ID — no live children & $ATTEMPTS attempts exhausted [csv]"
+      csv_set_status issues "$ID" blocked 2>/dev/null || true
+      (cd "$PROJECT_DIR" && git add scripts/pipeline/ && \
+        git commit -m "chore: block exhausted issue $ID ($ATTEMPTS attempts)" --no-verify 2>/dev/null) || true
+    else
+      log "REVIVE: $ID — no live children, decomposed→pending (attempts=$ATTEMPTS/$MAX_ISSUE_ATTEMPTS) [csv]"
+      csv_set_status issues "$ID" pending 2>/dev/null || true
+      (cd "$PROJECT_DIR" && git add scripts/pipeline/ && \
+        git commit -m "chore: revive stuck issue $ID (all children blocked, attempts=$ATTEMPTS)" --no-verify 2>/dev/null) || true
+    fi
+  done
+else
 for f in "$ISSUE_DIR"/*.md; do
   [[ -f "$f" ]] || continue
   grep -q "^status: decomposed" "$f" 2>/dev/null || continue
@@ -262,6 +353,7 @@ for f in "$ISSUE_DIR"/*.md; do
     (cd "$PROJECT_DIR" && git add "$f" && git commit -m "chore: revive stuck issue $FNAME (all children blocked, attempts=$ATTEMPTS)" --no-verify 2>/dev/null) || true
   fi
 done
+fi  # end USE_CSV branch for C5 sweep
 
 # ── Ensure main is clean for worktree creation ──
 cd "$PROJECT_DIR" || exit 1
@@ -392,7 +484,11 @@ bash "$PROJECT_DIR/scripts/pipeline/discover-issues.sh" 2>&1 | tail -5 | while I
 HOUR=${HOUR:-$(date +%-H)}
 if [[ $((HOUR % 4)) -eq 0 ]]; then
   # Count only TRUE pending issues — blocked/decomposed shouldn't lock the discovery loop
-  PENDING_COUNT=$(grep -lE '^status: pending$' "$PROJECT_DIR"/scripts/pipeline/issues/*.md 2>/dev/null | wc -l | tr -cd '0-9')
+  if [[ "$USE_CSV" == "true" ]]; then
+    PENDING_COUNT=$(csv_select_pending issues 2>/dev/null | wc -l | tr -cd '0-9')
+  else
+    PENDING_COUNT=$(grep -lE '^status: pending$' "$PROJECT_DIR"/scripts/pipeline/issues/*.md 2>/dev/null | wc -l | tr -cd '0-9')
+  fi
   PENDING_COUNT=${PENDING_COUNT:-0}
   if [[ $PENDING_COUNT -le $KAIZEN_PENDING_THRESHOLD ]]; then
     log "Running /kaizen issue discovery (hour=$HOUR, pending=$PENDING_COUNT)..."
@@ -507,36 +603,60 @@ for iter in $(seq 1 "$MAX_ITERATIONS"); do
 
   # Step 1: Check tasks/ for pending work (already decomposed, ready to implement)
   ISSUE_FILE=""
-  if [[ -d "$TASK_DIR" ]]; then
+  ISSUE_ID=""  # CSV mode uses an id (no .md); md mode uses a path. Track separately.
+  if [[ "$USE_CSV" == "true" ]]; then
     for prio in critical high medium low; do
-      ISSUE_FILE=$(grep -rl "priority: $prio" "$TASK_DIR"/*.md 2>/dev/null | while read f; do
-        grep -q "status: pending" "$f" || continue
-        echo "$f" && break
-      done)
-      [[ -n "$ISSUE_FILE" ]] && break
+      ISSUE_ID=$(csv_select_pending tasks "$prio" 2>/dev/null | head -1)
+      [[ -n "$ISSUE_ID" ]] && break
     done
+  else
+    if [[ -d "$TASK_DIR" ]]; then
+      for prio in critical high medium low; do
+        ISSUE_FILE=$(grep -rl "priority: $prio" "$TASK_DIR"/*.md 2>/dev/null | while read f; do
+          grep -q "status: pending" "$f" || continue
+          echo "$f" && break
+        done)
+        [[ -n "$ISSUE_FILE" ]] && break
+      done
+    fi
   fi
 
-  if [[ -n "$ISSUE_FILE" ]]; then
-    # Task exhaustion: 同じタスクで 2回連続 0-commit なら blocked 化して飛ばす
-    # grep -c outputs the match count on success; on no-match it exits 1 with
-    # the count still "0", so we can't use `|| echo 0` (that produces "0\n0"
-    # and the subsequent arithmetic breaks). Suppress stderr and normalize to
-    # first-line digits only.
-    ATTEMPT_COUNT=$(grep -c "^### Attempt " "$ISSUE_FILE" 2>/dev/null | head -1 | tr -cd '0-9')
-    ATTEMPT_COUNT=${ATTEMPT_COUNT:-0}
+  if [[ -n "$ISSUE_FILE" || -n "$ISSUE_ID" ]]; then
+    if [[ "$USE_CSV" == "true" ]]; then
+      ATTEMPT_COUNT=$(csv_get_field tasks "$ISSUE_ID" attempt_count 2>/dev/null)
+      ATTEMPT_COUNT=${ATTEMPT_COUNT:-0}
+    else
+      ATTEMPT_COUNT=$(grep -c "^### Attempt " "$ISSUE_FILE" 2>/dev/null | head -1 | tr -cd '0-9')
+      ATTEMPT_COUNT=${ATTEMPT_COUNT:-0}
+    fi
     if [[ "$ATTEMPT_COUNT" -ge 2 ]]; then
-      log "BLOCKED: $(basename "$ISSUE_FILE") exhausted ($ATTEMPT_COUNT attempts, 0 commits) — marking blocked"
-      sed -i 's/status: pending/status: blocked/; s/status: in-progress/status: blocked/' "$ISSUE_FILE" 2>/dev/null || true
-      (cd "$PROJECT_DIR" && git add scripts/pipeline/tasks/ && git commit -m "chore: block exhausted task $(basename "$ISSUE_FILE")" --no-verify 2>/dev/null) || true
+      if [[ "$USE_CSV" == "true" ]]; then
+        log "BLOCKED: $ISSUE_ID exhausted ($ATTEMPT_COUNT attempts, 0 commits) — marking blocked [csv]"
+        csv_set_status tasks "$ISSUE_ID" blocked 2>/dev/null || true
+        (cd "$PROJECT_DIR" && git add scripts/pipeline/ && \
+          git commit -m "chore: block exhausted task $ISSUE_ID" --no-verify 2>/dev/null) || true
+      else
+        log "BLOCKED: $(basename "$ISSUE_FILE") exhausted ($ATTEMPT_COUNT attempts, 0 commits) — marking blocked"
+        sed -i 's/status: pending/status: blocked/; s/status: in-progress/status: blocked/' "$ISSUE_FILE" 2>/dev/null || true
+        (cd "$PROJECT_DIR" && git add scripts/pipeline/tasks/ && git commit -m "chore: block exhausted task $(basename "$ISSUE_FILE")" --no-verify 2>/dev/null) || true
+      fi
       exit 0
     fi
     FOCUS="task"
-    ISSUE_CONTENT=$(cat "$ISSUE_FILE")
-    ISSUE_NAME=$(basename "$ISSUE_FILE")
-    log "TASK: $ISSUE_NAME (attempt $((ATTEMPT_COUNT + 1)))"
-    sed -i 's/status: pending/status: in-progress/' "$ISSUE_FILE" 2>/dev/null || true
-    (cd "$PROJECT_DIR" && git add scripts/pipeline/tasks/ && git commit -m "chore: start task $ISSUE_NAME" --no-verify 2>/dev/null) || true
+    if [[ "$USE_CSV" == "true" ]]; then
+      ISSUE_NAME="$ISSUE_ID"
+      ISSUE_CONTENT=$(csv_to_prompt_text tasks "$ISSUE_ID")
+      log "TASK: $ISSUE_NAME (attempt $((ATTEMPT_COUNT + 1))) [csv]"
+      csv_set_status tasks "$ISSUE_ID" in-progress 2>/dev/null || true
+      (cd "$PROJECT_DIR" && git add scripts/pipeline/ && \
+        git commit -m "chore: start task $ISSUE_NAME" --no-verify 2>/dev/null) || true
+    else
+      ISSUE_CONTENT=$(cat "$ISSUE_FILE")
+      ISSUE_NAME=$(basename "$ISSUE_FILE")
+      log "TASK: $ISSUE_NAME (attempt $((ATTEMPT_COUNT + 1)))"
+      sed -i 's/status: pending/status: in-progress/' "$ISSUE_FILE" 2>/dev/null || true
+      (cd "$PROJECT_DIR" && git add scripts/pipeline/tasks/ && git commit -m "chore: start task $ISSUE_NAME" --no-verify 2>/dev/null) || true
+    fi
   else
     # Step 2: Check issues/ for pending issues → decompose into tasks
     # FIX B: skip issues that have already been decomposed MAX_ISSUE_ATTEMPTS
@@ -545,36 +665,58 @@ for iter in $(seq 1 "$MAX_ITERATIONS"); do
     # re-decomposed every time tasks/ drains (observed: 86 re-picks of
     # 144-coverage-drop in 24h).
     ISSUE_FILE=""
-    if [[ -d "$ISSUE_DIR" ]]; then
+    ISSUE_ID=""
+    if [[ "$USE_CSV" == "true" ]]; then
       for prio in critical high medium low; do
-        ISSUE_FILE=$(grep -rl "priority: $prio" "$ISSUE_DIR"/*.md 2>/dev/null | while read f; do
-          grep -q "status: pending" "$f" || continue
-          # Skip if attempts exhausted
-          a=$(grep -oP '^decompose_attempts:\s*\K[0-9]+' "$f" 2>/dev/null | head -1)
+        for cand in $(csv_select_pending issues "$prio" 2>/dev/null); do
+          a=$(csv_get_field issues "$cand" decompose_attempts 2>/dev/null)
           a=${a:-0}
-          if [[ "$a" -ge "$MAX_ISSUE_ATTEMPTS" ]]; then continue; fi
-          echo "$f" && break
-        done)
-        [[ -n "$ISSUE_FILE" ]] && break
+          [[ "$a" -ge "$MAX_ISSUE_ATTEMPTS" ]] && continue
+          ISSUE_ID="$cand"
+          break
+        done
+        [[ -n "$ISSUE_ID" ]] && break
       done
+    else
+      if [[ -d "$ISSUE_DIR" ]]; then
+        for prio in critical high medium low; do
+          ISSUE_FILE=$(grep -rl "priority: $prio" "$ISSUE_DIR"/*.md 2>/dev/null | while read f; do
+            grep -q "status: pending" "$f" || continue
+            a=$(grep -oP '^decompose_attempts:\s*\K[0-9]+' "$f" 2>/dev/null | head -1)
+            a=${a:-0}
+            if [[ "$a" -ge "$MAX_ISSUE_ATTEMPTS" ]]; then continue; fi
+            echo "$f" && break
+          done)
+          [[ -n "$ISSUE_FILE" ]] && break
+        done
+      fi
     fi
 
-    if [[ -n "$ISSUE_FILE" ]]; then
-      ISSUE_NAME=$(basename "$ISSUE_FILE")
-      # FIX B: increment decompose_attempts at pick time (not just on carryover)
-      # so each decompose invocation counts even if it later succeeds in
-      # starting a task but the downstream implementation fails.
-      CUR_ATTEMPTS=$(grep -oP '^decompose_attempts:\s*\K[0-9]+' "$ISSUE_FILE" 2>/dev/null | head -1)
-      CUR_ATTEMPTS=${CUR_ATTEMPTS:-0}
-      NEW_ATTEMPTS=$((CUR_ATTEMPTS + 1))
-      if grep -q '^decompose_attempts:' "$ISSUE_FILE"; then
-        sed -i "s/^decompose_attempts:.*/decompose_attempts: $NEW_ATTEMPTS/" "$ISSUE_FILE"
+    if [[ -n "$ISSUE_FILE" || -n "$ISSUE_ID" ]]; then
+      if [[ "$USE_CSV" == "true" ]]; then
+        ISSUE_NAME="$ISSUE_ID"
+        CUR_ATTEMPTS=$(csv_get_field issues "$ISSUE_ID" decompose_attempts 2>/dev/null)
+        CUR_ATTEMPTS=${CUR_ATTEMPTS:-0}
+        NEW_ATTEMPTS=$(csv_increment_attempts issues "$ISSUE_ID" 2>/dev/null)
+        log "ISSUE: $ISSUE_NAME — decomposing (attempt $NEW_ATTEMPTS/$MAX_ISSUE_ATTEMPTS) [csv]"
       else
-        sed -i "/^status:/a decompose_attempts: $NEW_ATTEMPTS" "$ISSUE_FILE"
+        ISSUE_NAME=$(basename "$ISSUE_FILE")
+        CUR_ATTEMPTS=$(grep -oP '^decompose_attempts:\s*\K[0-9]+' "$ISSUE_FILE" 2>/dev/null | head -1)
+        CUR_ATTEMPTS=${CUR_ATTEMPTS:-0}
+        NEW_ATTEMPTS=$((CUR_ATTEMPTS + 1))
+        if grep -q '^decompose_attempts:' "$ISSUE_FILE"; then
+          sed -i "s/^decompose_attempts:.*/decompose_attempts: $NEW_ATTEMPTS/" "$ISSUE_FILE"
+        else
+          sed -i "/^status:/a decompose_attempts: $NEW_ATTEMPTS" "$ISSUE_FILE"
+        fi
+        log "ISSUE: $ISSUE_NAME — decomposing into tasks (attempt $NEW_ATTEMPTS/$MAX_ISSUE_ATTEMPTS)..."
       fi
-      log "ISSUE: $ISSUE_NAME — decomposing into tasks (attempt $NEW_ATTEMPTS/$MAX_ISSUE_ATTEMPTS)..."
       DECOMPOSE_LOG=$(mktemp)
-      bash "$PROJECT_DIR/scripts/pipeline/decompose-issue.sh" "$ISSUE_FILE" >"$DECOMPOSE_LOG" 2>&1
+      if [[ "$USE_CSV" == "true" ]]; then
+        USE_CSV=true bash "$PROJECT_DIR/scripts/pipeline/decompose-issue.sh" "$ISSUE_NAME" >"$DECOMPOSE_LOG" 2>&1
+      else
+        bash "$PROJECT_DIR/scripts/pipeline/decompose-issue.sh" "$ISSUE_FILE" >"$DECOMPOSE_LOG" 2>&1
+      fi
       DECOMPOSE_EXIT=$?
       while IFS= read -r line; do log "  decompose: $line"; done < "$DECOMPOSE_LOG"
       rm -f "$DECOMPOSE_LOG"
@@ -584,26 +726,43 @@ for iter in $(seq 1 "$MAX_ITERATIONS"); do
       fi
       if [[ $DECOMPOSE_EXIT -eq 4 ]]; then
         log "ABORT: task queue at cap (MAX_TOTAL_TASKS=$MAX_TOTAL_TASKS) — skipping decomposition this cycle"
-        # Roll back the attempts increment so the issue isn't penalized for a
-        # capacity-driven skip
-        sed -i "s/^decompose_attempts:.*/decompose_attempts: $CUR_ATTEMPTS/" "$ISSUE_FILE" 2>/dev/null || true
+        # Roll back the attempts increment so the issue isn't penalized
+        if [[ "$USE_CSV" == "true" ]]; then
+          csv_set_field issues "$ISSUE_NAME" decompose_attempts "$CUR_ATTEMPTS" 2>/dev/null || true
+        else
+          sed -i "s/^decompose_attempts:.*/decompose_attempts: $CUR_ATTEMPTS/" "$ISSUE_FILE" 2>/dev/null || true
+        fi
         exit 0
       fi
 
       # Pick first task from newly created tasks
       ISSUE_FILE=""
-      for prio in critical high medium low; do
-        ISSUE_FILE=$(grep -rl "status: pending" "$TASK_DIR"/*.md 2>/dev/null | head -1)
-        [[ -n "$ISSUE_FILE" ]] && break
-      done
+      ISSUE_ID=""
+      if [[ "$USE_CSV" == "true" ]]; then
+        ISSUE_ID=$(csv_select_pending tasks 2>/dev/null | head -1)
+      else
+        for prio in critical high medium low; do
+          ISSUE_FILE=$(grep -rl "status: pending" "$TASK_DIR"/*.md 2>/dev/null | head -1)
+          [[ -n "$ISSUE_FILE" ]] && break
+        done
+      fi
 
-      if [[ -n "$ISSUE_FILE" ]]; then
+      if [[ -n "$ISSUE_FILE" || -n "$ISSUE_ID" ]]; then
         FOCUS="task"
-        ISSUE_CONTENT=$(cat "$ISSUE_FILE")
-        ISSUE_NAME=$(basename "$ISSUE_FILE")
-        log "FIRST TASK: $ISSUE_NAME"
-        sed -i 's/status: pending/status: in-progress/' "$ISSUE_FILE" 2>/dev/null || true
-        (cd "$PROJECT_DIR" && git add scripts/pipeline/tasks/ && git commit -m "chore: start task $ISSUE_NAME" --no-verify 2>/dev/null) || true
+        if [[ "$USE_CSV" == "true" ]]; then
+          ISSUE_NAME="$ISSUE_ID"
+          ISSUE_CONTENT=$(csv_to_prompt_text tasks "$ISSUE_ID")
+          log "FIRST TASK: $ISSUE_NAME [csv]"
+          csv_set_status tasks "$ISSUE_ID" in-progress 2>/dev/null || true
+          (cd "$PROJECT_DIR" && git add scripts/pipeline/ && \
+            git commit -m "chore: start task $ISSUE_NAME" --no-verify 2>/dev/null) || true
+        else
+          ISSUE_CONTENT=$(cat "$ISSUE_FILE")
+          ISSUE_NAME=$(basename "$ISSUE_FILE")
+          log "FIRST TASK: $ISSUE_NAME"
+          sed -i 's/status: pending/status: in-progress/' "$ISSUE_FILE" 2>/dev/null || true
+          (cd "$PROJECT_DIR" && git add scripts/pipeline/tasks/ && git commit -m "chore: start task $ISSUE_NAME" --no-verify 2>/dev/null) || true
+        fi
       else
         log "WARN: decomposition produced no tasks, falling back to auto-focus"
         HOUR=$(date +%-H)
@@ -844,42 +1003,75 @@ COMMITMSG
   fi
 
   # ── Mark task/issue as done (if applicable) ──
-  if [[ ("$FOCUS" == "task" || "$FOCUS" == "auto-issue") && -n "$ISSUE_FILE" && $TOTAL_COMMITS -gt 0 ]]; then
-    ISSUE_NAME=$(basename "$ISSUE_FILE")
-
-    if [[ "$ISSUE_FILE" == *"/tasks/"* ]]; then
-      # Task completed → move to tasks/done/
-      sed -i 's/status: in-progress/status: done/' "$ISSUE_FILE" 2>/dev/null
-      mv "$ISSUE_FILE" "$TASK_DONE_DIR/$ISSUE_NAME" 2>/dev/null
-      log "Task $ISSUE_NAME done"
-
-      # Check if all sibling tasks for parent issue are done
-      PARENT=$(grep -oP 'parent: \K.*' "$TASK_DONE_DIR/$ISSUE_NAME" 2>/dev/null || echo "")
-      if [[ -n "$PARENT" ]]; then
-        REMAINING=$(find "$TASK_DIR" -maxdepth 1 -name '*.md' 2>/dev/null | xargs grep -l "parent: $PARENT" 2>/dev/null | while read f; do
-          grep -q "status: pending\|status: in-progress" "$f" && echo "$f"
-        done | wc -l)
-        if [[ $REMAINING -eq 0 ]]; then
-          PARENT_FILE=$(ls "$ISSUE_DIR/$PARENT.md" "$ISSUE_DIR/done/$PARENT.md" 2>/dev/null | head -1)
-          if [[ -n "$PARENT_FILE" ]]; then
-            sed -i 's/status: decomposed/status: done/' "$PARENT_FILE" 2>/dev/null
-            mv "$PARENT_FILE" "$ISSUE_DIR/done/" 2>/dev/null
-            log "Parent issue $PARENT → done (all tasks complete)"
+  if [[ ("$FOCUS" == "task" || "$FOCUS" == "auto-issue") && $TOTAL_COMMITS -gt 0 ]]; then
+    if [[ "$USE_CSV" == "true" && -n "$ISSUE_NAME" ]]; then
+      # CSV mode: id-based status flip + parent rollup. No file moves.
+      # Determine kind: tasks if id matches in tasks.csv, else issues.
+      KIND="issues"
+      if [[ -n "$(csv_get_field tasks "$ISSUE_NAME" id 2>/dev/null)" ]]; then
+        KIND="tasks"
+      fi
+      csv_archive "$KIND" "$ISSUE_NAME" 2>/dev/null || true
+      log "$KIND $ISSUE_NAME → done [csv]"
+      if [[ "$KIND" == "tasks" ]]; then
+        PARENT=$(csv_get_field tasks "$ISSUE_NAME" parent 2>/dev/null)
+        if [[ -n "$PARENT" && "$PARENT" != "none" ]]; then
+          REMAINING=0
+          for SIB in $(csv_select_by_parent tasks "$PARENT" 2>/dev/null); do
+            SST=$(csv_get_status tasks "$SIB" 2>/dev/null)
+            if [[ "$SST" == "pending" || "$SST" == "in-progress" ]]; then
+              REMAINING=$((REMAINING + 1))
+            fi
+          done
+          if [[ $REMAINING -eq 0 ]]; then
+            csv_archive issues "$PARENT" 2>/dev/null || true
+            log "Parent issue $PARENT → done (all tasks complete) [csv]"
+          else
+            log "Task done. Parent $PARENT: $REMAINING tasks remaining [csv]"
           fi
-        else
-          log "Task done. Parent $PARENT: $REMAINING tasks remaining"
         fi
       fi
-    else
-      # Issue completed directly (auto-discovered)
-      sed -i 's/status: in-progress/status: done/' "$ISSUE_FILE" 2>/dev/null
-      mv "$ISSUE_FILE" "$ISSUE_DIR/done/$ISSUE_NAME" 2>/dev/null
-      log "Issue $ISSUE_NAME done"
-    fi
+      (cd "$PROJECT_DIR" && git add scripts/pipeline/ && \
+        git commit -m "chore: done $ISSUE_NAME" --no-verify 2>/dev/null) || true
+      ISSUE_NAME=""
+      ISSUE_FILE=""
+    elif [[ -n "$ISSUE_FILE" ]]; then
+      ISSUE_NAME=$(basename "$ISSUE_FILE")
 
-    (cd "$PROJECT_DIR" && git add scripts/pipeline/issues/ scripts/pipeline/tasks/ && \
-      git commit -m "chore: done $ISSUE_NAME" --no-verify 2>/dev/null) || true
-    ISSUE_FILE=""
+      if [[ "$ISSUE_FILE" == *"/tasks/"* ]]; then
+        # Task completed → move to tasks/done/
+        sed -i 's/status: in-progress/status: done/' "$ISSUE_FILE" 2>/dev/null
+        mv "$ISSUE_FILE" "$TASK_DONE_DIR/$ISSUE_NAME" 2>/dev/null
+        log "Task $ISSUE_NAME done"
+
+        # Check if all sibling tasks for parent issue are done
+        PARENT=$(grep -oP 'parent: \K.*' "$TASK_DONE_DIR/$ISSUE_NAME" 2>/dev/null || echo "")
+        if [[ -n "$PARENT" ]]; then
+          REMAINING=$(find "$TASK_DIR" -maxdepth 1 -name '*.md' 2>/dev/null | xargs grep -l "parent: $PARENT" 2>/dev/null | while read f; do
+            grep -q "status: pending\|status: in-progress" "$f" && echo "$f"
+          done | wc -l)
+          if [[ $REMAINING -eq 0 ]]; then
+            PARENT_FILE=$(ls "$ISSUE_DIR/$PARENT.md" "$ISSUE_DIR/done/$PARENT.md" 2>/dev/null | head -1)
+            if [[ -n "$PARENT_FILE" ]]; then
+              sed -i 's/status: decomposed/status: done/' "$PARENT_FILE" 2>/dev/null
+              mv "$PARENT_FILE" "$ISSUE_DIR/done/" 2>/dev/null
+              log "Parent issue $PARENT → done (all tasks complete)"
+            fi
+          else
+            log "Task done. Parent $PARENT: $REMAINING tasks remaining"
+          fi
+        fi
+      else
+        # Issue completed directly (auto-discovered)
+        sed -i 's/status: in-progress/status: done/' "$ISSUE_FILE" 2>/dev/null
+        mv "$ISSUE_FILE" "$ISSUE_DIR/done/$ISSUE_NAME" 2>/dev/null
+        log "Issue $ISSUE_NAME done"
+      fi
+
+      (cd "$PROJECT_DIR" && git add scripts/pipeline/issues/ scripts/pipeline/tasks/ && \
+        git commit -m "chore: done $ISSUE_NAME" --no-verify 2>/dev/null) || true
+      ISSUE_FILE=""
+    fi
   fi
 
   # ── RATCHET if applicable ──
