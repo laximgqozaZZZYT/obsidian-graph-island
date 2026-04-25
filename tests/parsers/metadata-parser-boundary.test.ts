@@ -6,6 +6,9 @@ import {
 	classifyRelation,
 	snapshotMeta,
 	collectAllTags,
+	extractBodyInfo,
+	simpleHash,
+	applyMonochromeFallback,
 } from "../../src/parsers/metadata-parser";
 import type { GraphViewsSettings, OntologyConfig, GraphNode } from "../../src/types";
 import { DEFAULT_ONTOLOGY } from "../../src/types";
@@ -287,5 +290,88 @@ describe("classifyRelation / collectAllTags — boundary", () => {
 		const tags = collectAllTags(nodes);
 		expect(tags.has("/x")).toBe(true);
 		expect(tags.has("")).toBe(true);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// extractBodyInfo — YAML frontmatter and length boundaries
+// ---------------------------------------------------------------------------
+
+describe("extractBodyInfo — YAML and length boundaries", () => {
+	it("returns content as-is when no YAML frontmatter is present", () => {
+		const r = extractBodyInfo("Plain body text only.", 100);
+		expect(r.preview).toBe("Plain body text only.");
+		expect(r.length).toBe("Plain body text only.".length);
+	});
+
+	it("does NOT strip when opening '---' has no closing match (treats whole as body)", () => {
+		// indexOf("---", 3) returns -1 → endIdx > 0 fails → body unchanged.
+		// The leading "---" stays, but heading-prefix regex strips a "## " line prefix.
+		const r = extractBodyInfo("---\nstray frontmatter without close\n## heading", 200);
+		// "---" preserved; "## heading" → "heading" (heading prefix stripped per line)
+		expect(r.preview).toContain("---");
+		expect(r.preview).toContain("stray frontmatter without close");
+		expect(r.preview).toContain("heading");
+		expect(r.preview).not.toContain("## heading");
+	});
+
+	it("does not append ellipsis when body length is at or below maxLen", () => {
+		const exact = "abcde";
+		const r = extractBodyInfo(exact, 5);
+		expect(r.preview).toBe("abcde");
+		expect(r.length).toBe(5);
+		expect(r.preview.endsWith("…")).toBe(false);
+	});
+
+	it("appends ellipsis when body exceeds maxLen and reports full length", () => {
+		const long = "x".repeat(150);
+		const r = extractBodyInfo(long, 100);
+		expect(r.preview).toHaveLength(101); // 100 chars + "…"
+		expect(r.preview.endsWith("…")).toBe(true);
+		expect(r.length).toBe(150);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// simpleHash + applyMonochromeFallback — palette-fallback edge cases
+// ---------------------------------------------------------------------------
+
+describe("simpleHash / applyMonochromeFallback — boundary", () => {
+	it("simpleHash is deterministic and non-negative for empty / long inputs", () => {
+		expect(simpleHash("")).toBeGreaterThanOrEqual(0);
+		expect(simpleHash("abc")).toBe(simpleHash("abc"));
+		// Different inputs yield different hashes (overwhelmingly likely with djb2)
+		expect(simpleHash("a")).not.toBe(simpleHash("b"));
+		// Very long string: still finite, non-negative integer
+		const long = "z".repeat(10_000);
+		const h = simpleHash(long);
+		expect(Number.isInteger(h)).toBe(true);
+		expect(h).toBeGreaterThanOrEqual(0);
+	});
+
+	it("applyMonochromeFallback returns original fn when nodes < 5 (skips check)", () => {
+		const nodes = [{ id: "a" }, { id: "b" }];
+		const orig = () => 0xff0000; // would be monochrome
+		const fn = applyMonochromeFallback(nodes, orig, [0x111111, 0x222222]);
+		expect(fn).toBe(orig);
+	});
+
+	it("applyMonochromeFallback returns original fn when palette is empty (avoids div-by-zero)", () => {
+		const nodes = [{ id: "a" }, { id: "b" }, { id: "c" }, { id: "d" }, { id: "e" }];
+		const orig = () => 0xff0000;
+		const fn = applyMonochromeFallback(nodes, orig, []);
+		expect(fn).toBe(orig);
+	});
+
+	it("applyMonochromeFallback swaps to hash-based fn when 5+ nodes share one color", () => {
+		const nodes = [{ id: "a" }, { id: "b" }, { id: "c" }, { id: "d" }, { id: "e" }];
+		const palette = [0x111111, 0x222222, 0x333333];
+		const fn = applyMonochromeFallback(nodes, () => 0xff0000, palette);
+		// Each node gets a palette entry derived from its hash → must be one of the palette colors
+		for (const n of nodes) {
+			expect(palette).toContain(fn(n));
+		}
+		// Determinism: same id → same color
+		expect(fn({ id: "a" })).toBe(fn({ id: "a" }));
 	});
 });
