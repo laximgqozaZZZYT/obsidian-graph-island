@@ -16,7 +16,18 @@ export HOME="/home/ubuntu"
 PROJECT_DIR="/home/ubuntu/obsidian-plugins/obsidian-graph-island"
 LOCK_FILE="/tmp/graph-island-e2e-patrol.lock"
 ISSUE_DIR="$PROJECT_DIR/scripts/pipeline/issues"
+DESCRIPTIONS_DIR="$PROJECT_DIR/scripts/pipeline/descriptions"
 # STATE_FILE removed — all 3 suites run every tick, no rotation needed
+
+# CSV migration feature flag (Phase 2-A). When true, file_issue() inserts
+# a row into issues.csv + writes descriptions/<id>.md instead of creating
+# a per-file md.
+USE_CSV=${USE_CSV:-false}
+if [[ "$USE_CSV" == "true" ]]; then
+  # shellcheck source=/dev/null
+  . "$PROJECT_DIR/scripts/pipeline/csv-helpers.sh"
+  mkdir -p "$DESCRIPTIONS_DIR"
+fi
 
 cd "$PROJECT_DIR" || exit 1
 
@@ -47,6 +58,17 @@ log "=== E2E Patrol START ==="
 
 file_issue() {
   local slug="$1" prio="$2" summary="$3" desc="$4" criteria="$5"
+  if [[ "$USE_CSV" == "true" ]]; then
+    _file_issue_csv "$slug" "$prio" "$summary" "$desc" "$criteria"
+  else
+    _file_issue_md  "$slug" "$prio" "$summary" "$desc" "$criteria"
+  fi
+}
+
+# Legacy md path — same minimal dedup (any file containing the slug)
+# the patrol always used. Kept as fallback while USE_CSV is off.
+_file_issue_md() {
+  local slug="$1" prio="$2" summary="$3" desc="$4" criteria="$5"
   [[ -n "$(find "$ISSUE_DIR" -maxdepth 1 -name "*${slug}*" 2>/dev/null | head -1)" ]] && return 0
   local last_num=$(find "$ISSUE_DIR" "$ISSUE_DIR/done" -maxdepth 1 -name '*.md' 2>/dev/null | xargs -I{} basename {} | grep -oP '^\d+' | sort -n | tail -1)
   last_num=$(echo "${last_num:-0}" | sed 's/^0*//'); last_num=${last_num:-0}
@@ -66,6 +88,53 @@ $criteria
 EOF
   log "FILED: ${num}-${slug}.md"
   (cd "$PROJECT_DIR" && git add scripts/pipeline/issues/ && git commit -m "chore(e2e-patrol): filed ${num}-${slug}" --no-verify 2>/dev/null) || true
+}
+
+# CSV path — uses the same active-slug skip and Jaccard rules as
+# discover-issues.sh so e2e-patrol can't recreate near-duplicate rows.
+_file_issue_csv() {
+  local slug="$1" prio="$2" summary="$3" desc="$4" criteria="$5"
+
+  # Skip if any active row already covers this slug
+  if csv_select_active_by_slug issues "$slug" 2>/dev/null | grep -q .; then
+    return 0
+  fi
+
+  # Skip if a near-duplicate summary is already active (different slug)
+  local sim_out sim_int
+  sim_out=$(csv_max_summary_jaccard issues "$summary" 2>/dev/null || echo "0|")
+  sim_int="${sim_out%%|*}"
+  sim_int=${sim_int//[^0-9]/}
+  sim_int=${sim_int:-0}
+  if [[ $sim_int -ge 70 ]]; then
+    return 0
+  fi
+
+  local next_num new_id desc_rel desc_path
+  next_num=$(csv_next_id_num)
+  new_id=$(printf "%03d-%s" "$next_num" "$slug")
+  desc_rel="scripts/pipeline/descriptions/${new_id}.md"
+  desc_path="$PROJECT_DIR/$desc_rel"
+  cat > "$desc_path" << DESC_EOF
+## Description
+$desc
+
+## Acceptance criteria
+$criteria
+DESC_EOF
+
+  csv_insert issues "$new_id" \
+    "priority=$prio" \
+    "source=e2e-patrol" \
+    "parent=none" \
+    "depends=none" \
+    "summary=$summary" \
+    "status=pending" \
+    "description_path=$desc_rel"
+
+  log "FILED: ${new_id} [csv]"
+  (cd "$PROJECT_DIR" && git add scripts/pipeline/issues.csv "$desc_rel" \
+    && git commit -m "chore(e2e-patrol): filed ${new_id}" --no-verify 2>/dev/null) || true
 }
 
 # ── 1. Smoke tests ──

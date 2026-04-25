@@ -292,6 +292,91 @@ def cmd_count_active(kind: str) -> int:
     return sum(1 for r in rows if r.get("status") in spec.active_statuses)
 
 
+def cmd_next_id_num() -> int:
+    """Next monotonically-increasing numeric prefix usable for a new id.
+
+    The pipeline shares one number space between issues and tasks
+    (legacy invariant — 147 cannot be both an issue and a task id).
+    Returns max(existing) + 1, or 1 if both files are empty.
+    """
+    issues_spec = _kind("issues")
+    tasks_spec = _kind("tasks")
+    _, ir = _read_rows(issues_spec)
+    _, tr = _read_rows(tasks_spec)
+    nums: list[int] = []
+    for r in ir + tr:
+        m = re.match(r"(\d+)", r.get("id", ""))
+        if m:
+            nums.append(int(m.group(1)))
+    return (max(nums) + 1) if nums else 1
+
+
+def cmd_select_active_by_slug(kind: str, slug: str) -> list[str]:
+    """Find rows whose id ends with `-<slug>` and whose status is active.
+
+    Matches both top-level issues (`<num>-<slug>`) and tasks
+    (`<num>-<parent_num>-<slug>`). Used by discovery scripts to detect
+    that the same kaizen-detected problem is already filed.
+    """
+    spec = _kind(kind)
+    _, rows = _read_rows(spec)
+    suffix = "-" + slug
+    out: list[str] = []
+    for r in rows:
+        rid = r.get("id", "")
+        if not rid.endswith(suffix):
+            continue
+        if r.get("status") in {"pending", "in-progress", "decomposed",
+                                "undecomposable"}:
+            out.append(rid)
+    return out
+
+
+def cmd_select_blocked_by_slug(kind: str, slug: str) -> list[str]:
+    """Find rows whose id ends with `-<slug>` and whose status is `blocked`.
+    Used by the cooldown check in discover-issues.sh."""
+    spec = _kind(kind)
+    _, rows = _read_rows(spec)
+    suffix = "-" + slug
+    out: list[str] = []
+    for r in rows:
+        rid = r.get("id", "")
+        if rid.endswith(suffix) and r.get("status") == "blocked":
+            out.append(rid)
+    return out
+
+
+def cmd_max_summary_jaccard(kind: str, summary: str) -> tuple[int, str]:
+    """Return the highest Jaccard similarity (×100, integer) between the
+    given summary and any active row's summary in `kind`. Used by
+    discover-issues.sh to dedupe near-duplicates with different slugs."""
+    spec = _kind(kind)
+    _, rows = _read_rows(spec)
+
+    def ws(t: str) -> set[str]:
+        return {w for w in re.findall(r"[a-z]{3,}", t.lower())}
+
+    new_ws = ws(summary)
+    best_score = 0
+    best_summary = ""
+    for r in rows:
+        if r.get("status") not in {"pending", "in-progress",
+                                    "decomposed", "undecomposable"}:
+            continue
+        s = r.get("summary", "")
+        if not s:
+            continue
+        existing_ws = ws(s)
+        if not new_ws or not existing_ws:
+            continue
+        j = len(new_ws & existing_ws) / len(new_ws | existing_ws)
+        score = int(j * 100)
+        if score > best_score:
+            best_score = score
+            best_summary = s[:60]
+    return best_score, best_summary
+
+
 def cmd_to_prompt_text(kind: str, row_id: str) -> str:
     """Reproduce a legacy-md-like view: frontmatter + description body."""
     spec = _kind(kind)
@@ -536,6 +621,15 @@ def main(argv: list[str]) -> int:
             _print_lines(cmd_select_by_status(args[0], args[1]))
         elif sub == "count_active":
             print(cmd_count_active(args[0]))
+        elif sub == "next_id_num":
+            print(cmd_next_id_num())
+        elif sub == "select_active_by_slug":
+            _print_lines(cmd_select_active_by_slug(args[0], args[1]))
+        elif sub == "select_blocked_by_slug":
+            _print_lines(cmd_select_blocked_by_slug(args[0], args[1]))
+        elif sub == "max_summary_jaccard":
+            score, winner = cmd_max_summary_jaccard(args[0], args[1])
+            print(f"{score}|{winner}")
         elif sub == "to_prompt_text":
             sys.stdout.write(cmd_to_prompt_text(args[0], args[1]))
         elif sub == "export_md":

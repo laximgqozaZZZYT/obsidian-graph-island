@@ -107,6 +107,82 @@ else
   fail "csv_validate"
 fi
 
+# ── 3. Phase 2-A helpers (next_id_num / select_*_by_slug / jaccard) ──
+echo "== Phase 2-A helpers =="
+
+# Reset sandbox state by re-creating the helpers
+csv_insert issues "020-perf-regression" \
+    "priority=high" "source=auto-discovered" "parent=none" "depends=none" \
+    "summary=performance regression detected — render time 2x slower" \
+    "status=pending" \
+    "description_path=scripts/pipeline/descriptions/020-perf-regression.md" \
+    >/dev/null 2>&1
+echo "## Description\nbody" > "$SANDBOX/scripts/pipeline/descriptions/020-perf-regression.md"
+
+# next_id_num after inserts of 010-* and 020-*
+next_n=$(csv_next_id_num)
+if [[ "$next_n" == "21" ]]; then
+  pass "csv_next_id_num after 010 + 020 → 21"
+else
+  fail "csv_next_id_num (got: $next_n, expected 21)"
+fi
+
+# select_active_by_slug — should find 020-perf-regression
+hit=$(csv_select_active_by_slug issues perf-regression)
+if [[ "$hit" == "020-perf-regression" ]]; then
+  pass "csv_select_active_by_slug finds active row"
+else
+  fail "csv_select_active_by_slug (got: '$hit')"
+fi
+
+# select_active_by_slug — slug does not exist → empty
+none_hit=$(csv_select_active_by_slug issues nonexistent-slug)
+if [[ -z "$none_hit" ]]; then
+  pass "csv_select_active_by_slug empty for unknown slug"
+else
+  fail "csv_select_active_by_slug should be empty (got: '$none_hit')"
+fi
+
+# select_active_by_slug — archived (010-smoke is done) → not active
+archive_hit=$(csv_select_active_by_slug issues smoke)
+if [[ -z "$archive_hit" ]]; then
+  pass "csv_select_active_by_slug skips archived (done) row"
+else
+  fail "csv_select_active_by_slug should skip done (got: '$archive_hit')"
+fi
+
+# max_summary_jaccard — exact match → 100
+jac_out=$(csv_max_summary_jaccard issues "performance regression detected — render time 2x slower")
+score=${jac_out%%|*}
+if [[ "$score" == "100" ]]; then
+  pass "csv_max_summary_jaccard exact match → 100"
+else
+  fail "csv_max_summary_jaccard exact (got: $score)"
+fi
+
+# max_summary_jaccard — disjoint → 0
+jac_out2=$(csv_max_summary_jaccard issues "completely unrelated topic xyz qrt")
+score2=${jac_out2%%|*}
+if [[ "$score2" -lt 30 ]]; then
+  pass "csv_max_summary_jaccard disjoint → low score ($score2)"
+else
+  fail "csv_max_summary_jaccard disjoint (got: $score2)"
+fi
+
+# select_blocked_by_slug — blocked status row
+csv_insert issues "030-blocked-feature" \
+    "priority=low" "source=auto-discovered" "parent=none" "depends=none" \
+    "summary=stuck feature" "status=blocked" \
+    "description_path=scripts/pipeline/descriptions/030-blocked-feature.md" \
+    >/dev/null 2>&1
+echo "body" > "$SANDBOX/scripts/pipeline/descriptions/030-blocked-feature.md"
+blocked_hit=$(csv_select_blocked_by_slug issues blocked-feature)
+if [[ "$blocked_hit" == "030-blocked-feature" ]]; then
+  pass "csv_select_blocked_by_slug"
+else
+  fail "csv_select_blocked_by_slug (got: '$blocked_hit')"
+fi
+
 # ── Summary ─────────────────────────────────────────────────
 echo
 if [[ $failures -eq 0 ]]; then

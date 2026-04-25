@@ -25,12 +25,35 @@ export HOME="/home/ubuntu"
 PROJECT_DIR="/home/ubuntu/obsidian-plugins/obsidian-graph-island"
 ISSUE_DIR="$PROJECT_DIR/scripts/pipeline/issues"
 DONE_DIR="$ISSUE_DIR/done"
+DESCRIPTIONS_DIR="$PROJECT_DIR/scripts/pipeline/descriptions"
+
+# CSV migration feature flag (Phase 2-A)
+USE_CSV=${USE_CSV:-false}
+if [[ "$USE_CSV" == "true" ]]; then
+  # shellcheck source=/dev/null
+  . "$PROJECT_DIR/scripts/pipeline/csv-helpers.sh"
+  mkdir -p "$DESCRIPTIONS_DIR"
+fi
 
 cd "$PROJECT_DIR" || exit 1
 mkdir -p "$ISSUE_DIR" "$DONE_DIR"
 
 # ── Helper: create issue if not already filed ──
+# Dispatches to either the legacy md path (USE_CSV=false) or the
+# CSV path (USE_CSV=true). Both implementations preserve the same
+# duplicate-detection semantics (active slug, summary Jaccard ≥0.7,
+# 24h cooldown for blocked).
 file_issue() {
+  local slug="$1" priority="$2" summary="$3" description="$4" criteria="$5"
+  if [[ "$USE_CSV" == "true" ]]; then
+    _file_issue_csv "$slug" "$priority" "$summary" "$description" "$criteria"
+  else
+    _file_issue_md  "$slug" "$priority" "$summary" "$description" "$criteria"
+  fi
+}
+
+# Legacy md implementation (untouched logic, just extracted).
+_file_issue_md() {
   local slug="$1"
   local priority="$2"
   local summary="$3"
@@ -38,14 +61,11 @@ file_issue() {
   local criteria="$5"
 
   # Skip if same slug is currently active (pending / in-progress / decomposed)
-  # OR permanently retired as undecomposable (no point re-filing what we already
-  # know we cannot break down). Blocked is NOT a skip reason — see cooldown.
+  # OR permanently retired as undecomposable.
   if grep -lE '^status: (pending|in-progress|decomposed|undecomposable)$' "$ISSUE_DIR"/*-"$slug".md 2>/dev/null | grep -q .; then
     return 0
   fi
-  # Summary similarity check (kaizen 2026-04-25): even if slugs differ,
-  # near-identical summaries should not be re-filed (e.g. an LLM-style summary
-  # vs. a static-detector summary about the same problem).
+  # Summary similarity check (kaizen 2026-04-25)
   local sim_winner
   sim_winner=$(SUMMARY="$summary" python3 - <<'PY' "$ISSUE_DIR"
 import os, re, sys, glob
@@ -70,7 +90,6 @@ for f in glob.glob(f'{issue_dir}/*.md'):
     j = jac(new_ws, ws(sm.group(1).strip()))
     if j > best[0]:
         best = (j, sm.group(1).strip())
-# bash will compare via integer (×100) to dodge float pitfalls
 print(f"{int(best[0]*100)}|{best[1][:60]}")
 PY
 )
@@ -80,9 +99,7 @@ PY
   if [[ $sim_int -ge 70 ]]; then
     return 0
   fi
-  # Cooldown: if the same slug was recently blocked (within 24h), skip re-filing
-  # to avoid thrashing on permanently-difficult issues. After 24h, allow re-file
-  # so the discovery loop can resurface still-broken invariants.
+  # 24h cooldown for blocked
   local cooldown_sec=86400
   local now_epoch
   now_epoch=$(date +%s)
@@ -93,9 +110,7 @@ PY
       return 0
     fi
   done
-  # Stagnation check: compare summary with the latest done issue of same slug.
-  # If the summary is identical, no progress was made → don't re-file.
-  # If it differs (e.g., "122個" → "112個"), progress happened → re-file to continue.
+  # Stagnation check against done dir
   local latest_done
   latest_done=$(ls -t "$DONE_DIR"/*-"$slug".md 2>/dev/null | head -1)
   if [[ -n "$latest_done" ]]; then
@@ -110,7 +125,6 @@ PY
   local last_num
   last_num=$(ls "$ISSUE_DIR"/*.md "$DONE_DIR"/*.md 2>/dev/null | xargs -I{} basename {} | grep -oP '^\d+' | sort -n | tail -1)
   last_num=${last_num:-0}
-  # Strip leading zeros safely
   last_num=$(echo "$last_num" | sed 's/^0*//' )
   last_num=${last_num:-0}
   local next_num=$(printf "%03d" $((last_num + 1)))
@@ -132,6 +146,76 @@ $criteria
 ISSUE_EOF
 
   echo "FILED: ${next_num}-${slug}.md ($priority)"
+}
+
+# CSV implementation (Phase 2-A). Reads/writes csv state via csv-helpers.sh.
+# Equivalent dedup semantics:
+#   1. Skip if same slug currently active (status pending|in-progress|
+#      decomposed|undecomposable).
+#   2. Skip if any active row's summary has Jaccard ≥0.7 vs the new summary.
+#   3. Skip if same slug was blocked within 24h (cooldown).
+#   4. Otherwise insert a new row + write descriptions/<id>.md.
+_file_issue_csv() {
+  local slug="$1"
+  local priority="$2"
+  local summary="$3"
+  local description="$4"
+  local criteria="$5"
+
+  # 1. active slug skip
+  if csv_select_active_by_slug issues "$slug" 2>/dev/null | grep -q .; then
+    return 0
+  fi
+
+  # 2. summary Jaccard check
+  local sim_out sim_int
+  sim_out=$(csv_max_summary_jaccard issues "$summary" 2>/dev/null || echo "0|")
+  sim_int="${sim_out%%|*}"
+  sim_int=${sim_int//[^0-9]/}
+  sim_int=${sim_int:-0}
+  if [[ $sim_int -ge 70 ]]; then
+    return 0
+  fi
+
+  # 3. 24h cooldown for same-slug blocked
+  local cooldown_sec=86400
+  local now_epoch
+  now_epoch=$(date +%s)
+  local bid updated_at updated_epoch
+  for bid in $(csv_select_blocked_by_slug issues "$slug" 2>/dev/null); do
+    updated_at=$(csv_get_field issues "$bid" updated_at 2>/dev/null)
+    if [[ -n "$updated_at" ]]; then
+      updated_epoch=$(date -d "$updated_at" +%s 2>/dev/null || echo 0)
+      if (( now_epoch - updated_epoch < cooldown_sec )); then
+        return 0
+      fi
+    fi
+  done
+
+  # 4. insert
+  local next_num new_id desc_path desc_rel
+  next_num=$(csv_next_id_num)
+  new_id=$(printf "%03d-%s" "$next_num" "$slug")
+  desc_rel="scripts/pipeline/descriptions/${new_id}.md"
+  desc_path="$PROJECT_DIR/$desc_rel"
+  cat > "$desc_path" << DESC_EOF
+## Description
+$description
+
+## Acceptance criteria
+$criteria
+DESC_EOF
+
+  csv_insert issues "$new_id" \
+    "priority=$priority" \
+    "source=auto-discovered" \
+    "parent=none" \
+    "depends=none" \
+    "summary=$summary" \
+    "status=pending" \
+    "description_path=$desc_rel"
+
+  echo "FILED: ${new_id} ($priority) [csv]"
 }
 
 ISSUES_FOUND=0
@@ -539,8 +623,16 @@ fi
 # ============================================================
 if [[ $ISSUES_FOUND -gt 0 ]]; then
   cd "$PROJECT_DIR" 2>/dev/null || true
-  git add scripts/pipeline/issues/*.md 2>/dev/null || true
-  git commit -m "chore(kaizen): report $ISSUES_FOUND quality issues ($(ls scripts/pipeline/issues/*.md 2>/dev/null | xargs -I{} basename {} .md | grep -oP '^\d+' | sort -n | tail -"$ISSUES_FOUND" | paste -sd, -))" --no-verify 2>/dev/null || true
+  if [[ "$USE_CSV" == "true" ]]; then
+    # CSV path: stage issues.csv + any new descriptions/<id>.md
+    git add scripts/pipeline/issues.csv \
+            scripts/pipeline/descriptions/ 2>/dev/null || true
+    git commit -m "chore(kaizen): report $ISSUES_FOUND quality issues [csv]" \
+      --no-verify 2>/dev/null || true
+  else
+    git add scripts/pipeline/issues/*.md 2>/dev/null || true
+    git commit -m "chore(kaizen): report $ISSUES_FOUND quality issues ($(ls scripts/pipeline/issues/*.md 2>/dev/null | xargs -I{} basename {} .md | grep -oP '^\d+' | sort -n | tail -"$ISSUES_FOUND" | paste -sd, -))" --no-verify 2>/dev/null || true
+  fi
 fi
 
 # ============================================================

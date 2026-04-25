@@ -51,6 +51,27 @@ csv_select_by_status() { _csv_run select_by_status "$1" "$2"; }
 #   Counts pending + in-progress (+ decomposed for issues).
 csv_count_active()     { _csv_run count_active "$1"; }
 
+# csv_next_id_num
+#   Next monotonically-increasing numeric prefix shared between issues
+#   and tasks (the legacy invariant — same number is never reused).
+csv_next_id_num()      { _csv_run next_id_num; }
+
+# csv_select_active_by_slug <kind> <slug>
+#   Prints ids whose id ends with `-<slug>` and whose status is active
+#   (pending|in-progress|decomposed|undecomposable). Used by discovery
+#   scripts to skip re-filing problems that already have a live row.
+csv_select_active_by_slug() { _csv_run select_active_by_slug "$1" "$2"; }
+
+# csv_select_blocked_by_slug <kind> <slug>
+#   Prints ids whose id ends with `-<slug>` and whose status is `blocked`.
+#   Used by the 24h cooldown check in file_issue().
+csv_select_blocked_by_slug() { _csv_run select_blocked_by_slug "$1" "$2"; }
+
+# csv_max_summary_jaccard <kind> <summary>
+#   Outputs `<score>|<best_match_summary>` where score is the Jaccard
+#   word-set similarity (×100, integer) against the closest active row.
+csv_max_summary_jaccard() { _csv_run max_summary_jaccard "$1" "$2"; }
+
 # csv_to_prompt_text <kind> <id>
 #   Renders a frontmatter+description string equivalent to the legacy md.
 #   Used as Claude prompt input.
