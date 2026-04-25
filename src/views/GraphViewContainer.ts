@@ -609,6 +609,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	private _doRenderDebounceTimer = 0;
 	/** Animation frame ID for zoom animations (prevents competing animations) */
 	private _zoomAnimId = 0;
+	private _panRafId: number | null = null; // pan/animate-to-node rAF — cancellable on view close
 	private _lastDoRenderTime = 0;
 
 	/** Tracked one-shot timers — cleared on close to prevent leaks */
@@ -1685,6 +1686,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		clearTimeout(this._doRenderDebounceTimer);
 		if (this._saveTimer) clearTimeout(this._saveTimer);
 		cancelAnimationFrame(this._zoomAnimId);
+		if (this._panRafId !== null) cancelAnimationFrame(this._panRafId);
 		for (const id of this._pendingTimers) clearTimeout(id);
 		this._pendingTimers.clear();
 		// C1: Clear hover preview
@@ -7901,7 +7903,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
 		const targetX = wrap.clientWidth / 2 - pn.data.x * world.scale.x;
 		const targetY = wrap.clientHeight / 2 - pn.data.y * world.scale.y;
-
 		// Skip animation: reduced motion or Canvas2D backend
 		const prefersReduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 		if (prefersReduced || !this.pixiApp?.supportsAnimation) {
@@ -7910,22 +7911,21 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			this.markDirty(true);
 			return;
 		}
-
-		// Animated pan (200ms ease-out)
-		const startX = world.x;
-		const startY = world.y;
-		const duration = 200;
-		const startTime = performance.now();
+		// Animated pan (200ms ease-out) — cancel any in-flight pan first
+		if (this._panRafId !== null) cancelAnimationFrame(this._panRafId);
+		const startX = world.x, startY = world.y;
+		const duration = 200, startTime = performance.now();
 		const animate = (now: number) => {
+			if (!this.worldContainer) { this._panRafId = null; return; }
 			const elapsed = now - startTime;
 			const t = Math.min(elapsed / duration, 1);
 			const ease = 1 - (1 - t) * (1 - t); // ease-out quadratic
 			world.x = startX + (targetX - startX) * ease;
 			world.y = startY + (targetY - startY) * ease;
 			this.markDirty();
-			if (t < 1) requestAnimationFrame(animate);
+			this._panRafId = t < 1 ? requestAnimationFrame(animate) : null;
 		};
-		requestAnimationFrame(animate);
+		this._panRafId = requestAnimationFrame(animate);
 	}
 
 	/** Pan to node and zoom to a comfortable level (animated).
@@ -8115,14 +8115,12 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		const world = this.worldContainer;
 		const wrap = this.canvasWrap;
 		if (!world || !wrap) return;
-
-		const startX = world.x;
-		const startY = world.y;
+		const startX = world.x, startY = world.y;
 		const targetX = wrap.clientWidth / 2 - pn.data.x * world.scale.x;
 		const targetY = wrap.clientHeight / 2 - pn.data.y * world.scale.y;
 		const startTime = performance.now();
-
 		const animate = (now: number) => {
+			if (!this.worldContainer) { this._panRafId = null; return; }
 			const elapsed = now - startTime;
 			const t = Math.min(1, elapsed / durationMs);
 			const ease = t * (2 - t); // ease-out quadratic
@@ -8130,13 +8128,15 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			world!.y = startY + (targetY - startY) * ease;
 			this.markDirty();
 			if (t < 1) {
-				requestAnimationFrame(animate);
+				this._panRafId = requestAnimationFrame(animate);
 			} else {
+				this._panRafId = null;
 				this.setHighlightedNodeId(nodeId);
 				this.applyHover();
 			}
 		};
-		requestAnimationFrame(animate);
+		if (this._panRafId !== null) cancelAnimationFrame(this._panRafId);
+		this._panRafId = requestAnimationFrame(animate);
 	}
 
 	// V1: Smooth fade animation for search filter transitions
