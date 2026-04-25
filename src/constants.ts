@@ -107,11 +107,13 @@ export const SHAPE_FILL_SQUARE = "square" as const;
 export const SHAPE_FILL_DIAMOND = "diamond" as const;
 export const SHAPE_FILL_CIRCLE = "circle" as const;
 
-// ---------------------------------------------------------------------------
-// Layout constants
+// ===========================================================================
+// === LAYOUT ===
 // Numeric parameters shared across src/layouts/*.ts. Prefix: LAYOUT_
-// (Prefixes TIMELINE_/TREE_/SUNBURST_ used where layout-specific.)
-// ---------------------------------------------------------------------------
+// (Prefixes TIMELINE_/TREE_/SUNBURST_/EGO_SECTOR_/CLUSTER_ used where
+//  layout-specific.) Consolidated from per-file `const` declarations to keep
+//  the canonical values in a single location.
+// ===========================================================================
 
 /** Gap fraction of range used for positioning nodes with missing values */
 export const LAYOUT_MISSING_VALUE_GAP_FRACTION = 0.15;
@@ -125,6 +127,52 @@ export const LAYOUT_GRID_DEDUP_PRECISION = 1000;
 export const LAYOUT_FORMAT_INTEGER_THRESHOLD = 0.01;
 /** Golden angle in radians (used for phyllotaxis / sunflower patterns) */
 export const LAYOUT_GOLDEN_ANGLE = 2.3999632297286535;
+
+// ---- Timeline layout (src/layouts/timeline.ts) ----
+/** Default horizontal step between consecutive time columns (px) */
+export const TIMELINE_DEFAULT_STEP_WIDTH = 120;
+/** Default vertical lane height between rows (px) */
+export const TIMELINE_DEFAULT_LANE_HEIGHT = 28;
+/** Default origin X for timeline placement (px) */
+export const TIMELINE_DEFAULT_START_X = 60;
+/** Default origin Y for timeline placement (px) */
+export const TIMELINE_DEFAULT_START_Y = 60;
+/** Default vertical spacing between stacked nodes within a lane (px) */
+export const TIMELINE_DEFAULT_STACK_SPACING = 20;
+/** Maximum desired number of timeline columns before auto-shrinking stepWidth */
+export const TIMELINE_MAX_DESIRED_COLS = 40;
+/** Floor for auto-shrunk stepWidth (px) */
+export const TIMELINE_MIN_STEP_WIDTH = 1;
+/** Horizontal spacing factor for untimed (parking-lot) nodes, applied to stepWidth */
+export const TIMELINE_UNTIMED_NODE_SPACING_FACTOR = 0.6;
+
+// ---- Tree layout (src/layouts/tree.ts) ----
+/** Default vertical spacing between tree levels (px) */
+export const TREE_DEFAULT_LEVEL_HEIGHT = 80;
+/** Default horizontal spacing per node (px) */
+export const TREE_DEFAULT_NODE_WIDTH = 60;
+/** Default extra spacing when grouping by category (px) */
+export const TREE_DEFAULT_CATEGORY_GAP = 40;
+/** Default vertical gap between separate trees (px) */
+export const TREE_DEFAULT_TREE_GAP = 80;
+/** Minimum fan-out per node (controls tree depth vs breadth) */
+export const TREE_MIN_FANOUT = 3;
+
+// ---- Sunburst layout (src/layouts/sunburst.ts) ----
+/** Minimum coverage fraction to use the provided hierarchy (vs fallback) */
+export const SUNBURST_COVERAGE_THRESHOLD = 0.5;
+/** Radius fraction for placing unmatched nodes on the outermost ring */
+export const SUNBURST_UNMATCHED_RADIUS_FACTOR = 0.95;
+
+// ---- Ego sector layout (src/layouts/ego-sector.ts) ----
+/** Default ring radius for ego sector placement (px) */
+export const EGO_SECTOR_RING_RADIUS = 150;
+
+// ---- Cluster force / label estimate (src/layouts/cluster-force.ts) ----
+/** Pill padding for super nodes (matches RenderPipeline createSinglePixiNode). */
+export const CLUSTER_LABEL_PAD_X_SUPER = 10;
+/** Pill padding for regular nodes. */
+export const CLUSTER_LABEL_PAD_X_REGULAR = 8;
 
 // ---------------------------------------------------------------------------
 // Custom workspace event names

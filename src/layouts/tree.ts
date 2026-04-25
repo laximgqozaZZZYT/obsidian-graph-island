@@ -1,22 +1,15 @@
 import type { GraphData, TreeLayoutOptions } from "../types";
 import { computeInDegree } from "../analysis/graph-analysis";
-import { EDGE_TYPE_INHERITANCE, EDGE_TYPE_AGGREGATION } from "../constants";
+import {
+	EDGE_TYPE_INHERITANCE,
+	EDGE_TYPE_AGGREGATION,
+	TREE_DEFAULT_LEVEL_HEIGHT,
+	TREE_DEFAULT_NODE_WIDTH,
+	TREE_DEFAULT_CATEGORY_GAP,
+	TREE_DEFAULT_TREE_GAP,
+	TREE_MIN_FANOUT,
+} from "../constants";
 import { pushToMapArray } from "../utils/map-helpers";
-
-// ---------------------------------------------------------------------------
-// Constants — default layout parameters
-// ---------------------------------------------------------------------------
-
-/** Default vertical spacing between tree levels (px) */
-const DEFAULT_LEVEL_HEIGHT = 80;
-/** Default horizontal spacing per node (px) */
-const DEFAULT_NODE_WIDTH = 60;
-/** Default extra spacing when grouping by category (px) */
-const DEFAULT_CATEGORY_GAP = 40;
-/** Default vertical gap between separate trees (px) */
-const DEFAULT_TREE_GAP = 80;
-/** Minimum fan-out per node (controls tree depth vs breadth) */
-const MIN_FANOUT = 3;
 
 export function applyTreeLayout(graph: GraphData, options?: TreeLayoutOptions): GraphData {
 	if (graph.nodes.length === 0) {
@@ -26,11 +19,11 @@ export function applyTreeLayout(graph: GraphData, options?: TreeLayoutOptions): 
 	const {
 		startX = 0,
 		startY = 0,
-		levelHeight = DEFAULT_LEVEL_HEIGHT,
-		nodeWidth = DEFAULT_NODE_WIDTH,
+		levelHeight = TREE_DEFAULT_LEVEL_HEIGHT,
+		nodeWidth = TREE_DEFAULT_NODE_WIDTH,
 		groupByCategory = false,
-		categoryGap = DEFAULT_CATEGORY_GAP,
-		treeGap = DEFAULT_TREE_GAP,
+		categoryGap = TREE_DEFAULT_CATEGORY_GAP,
+		treeGap = TREE_DEFAULT_TREE_GAP,
 	} = options ?? {};
 
 	const nodesMap = new Map(graph.nodes.map((n) => [n.id, { ...n }]));
@@ -168,7 +161,7 @@ function _layoutTreeComponent(
 ) {
 	const nodeSet = new Set(nodeIds);
 	const rootId = _pickTreeRoot(nodeIds, nodeSet, options, structuralChildren, directed, inDegrees);
-	const maxFanOut = Math.max(MIN_FANOUT, Math.ceil(Math.pow(nodeIds.length, 0.25)));
+	const maxFanOut = Math.max(TREE_MIN_FANOUT, Math.ceil(Math.pow(nodeIds.length, 0.25)));
 
 	const levels = new Map<string, number>();
 	const visited = new Set<string>();

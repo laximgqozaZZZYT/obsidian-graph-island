@@ -9,20 +9,18 @@
 // ---------------------------------------------------------------------------
 
 import type { GraphData, GraphNode, GraphEdge } from "../types";
-import { EDGE_TYPE_SEQUENCE } from "../constants";
+import {
+	EDGE_TYPE_SEQUENCE,
+	TIMELINE_DEFAULT_STEP_WIDTH,
+	TIMELINE_DEFAULT_LANE_HEIGHT,
+	TIMELINE_DEFAULT_START_X,
+	TIMELINE_DEFAULT_START_Y,
+	TIMELINE_DEFAULT_STACK_SPACING,
+	TIMELINE_MAX_DESIRED_COLS,
+	TIMELINE_MIN_STEP_WIDTH,
+	TIMELINE_UNTIMED_NODE_SPACING_FACTOR,
+} from "../constants";
 import { pushToMapArray } from "../utils/map-helpers";
-
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
-const DEFAULT_STEP_WIDTH = 120;
-const DEFAULT_LANE_HEIGHT = 28;
-const DEFAULT_START_X = 60;
-const DEFAULT_START_Y = 60;
-const DEFAULT_STACK_SPACING = 20;
-const MAX_DESIRED_COLS = 40;
-const MIN_STEP_WIDTH = 1;
-const UNTIMED_NODE_SPACING_FACTOR = 0.6;
 
 // ---------------------------------------------------------------------------
 // Types
@@ -210,11 +208,11 @@ export function applyTimelineLayout(graph: GraphData, options: TimelineLayoutOpt
 	const {
 		timeKey,
 		timeComparator = defaultTimeComparator,
-		stepWidth = DEFAULT_STEP_WIDTH,
-		laneHeight = DEFAULT_LANE_HEIGHT,
-		startX = DEFAULT_START_X,
-		startY = DEFAULT_START_Y,
-		stackSpacing = DEFAULT_STACK_SPACING,
+		stepWidth = TIMELINE_DEFAULT_STEP_WIDTH,
+		laneHeight = TIMELINE_DEFAULT_LANE_HEIGHT,
+		startX = TIMELINE_DEFAULT_START_X,
+		startY = TIMELINE_DEFAULT_START_Y,
+		stackSpacing = TIMELINE_DEFAULT_STACK_SPACING,
 		getNodeProperty,
 	} = options;
 
@@ -234,8 +232,8 @@ export function applyTimelineLayout(graph: GraphData, options: TimelineLayoutOpt
 	// 2. Sorted unique time values + step width
 	const uniqueTimes = [...new Set(nodeTimeValues.values())];
 	const effectiveStepWidth =
-		uniqueTimes.length > MAX_DESIRED_COLS
-			? Math.max(MIN_STEP_WIDTH, Math.round((MAX_DESIRED_COLS * stepWidth) / uniqueTimes.length))
+		uniqueTimes.length > TIMELINE_MAX_DESIRED_COLS
+			? Math.max(TIMELINE_MIN_STEP_WIDTH, Math.round((TIMELINE_MAX_DESIRED_COLS * stepWidth) / uniqueTimes.length))
 			: stepWidth;
 	uniqueTimes.sort(timeComparator);
 	const timeIndexMap = new Map<string, number>();
@@ -386,7 +384,7 @@ function placeUntimedNodes(
 		const cols = Math.max(1, Math.ceil(Math.sqrt(untimedNodes.length)));
 		untimedNodes.forEach((n, i) => {
 			positioned.set(n.id, {
-				x: untimedX + (i % cols) * (cfg.stepWidth * UNTIMED_NODE_SPACING_FACTOR),
+				x: untimedX + (i % cols) * (cfg.stepWidth * TIMELINE_UNTIMED_NODE_SPACING_FACTOR),
 				y: cfg.startY + Math.floor(i / cols) * cfg.laneHeight,
 			});
 		});
