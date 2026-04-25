@@ -1,5 +1,5 @@
 id,priority,reported,completed,status,source,parent,depends,superseded_by,summary,decompose_attempts,description_path,created_at,updated_at
-133-type-assertions,low,2026-04-15,,pending,auto-discovered,,,,213個の型アサーション (as T) — 型安全性リスク,,scripts/pipeline/descriptions/133-type-assertions.md,2026-04-15T22:53:33+09:00,2026-04-25T08:14:11+09:00
+133-type-assertions,low,2026-04-15,,done,auto-discovered,,,,213個の型アサーション (as T) — 型安全性リスク,,scripts/pipeline/descriptions/133-type-assertions.md,2026-04-15T22:53:33+09:00,2026-04-26T00:44:05+09:00
 134-dead-exports,medium,2026-04-15,,pending,auto-discovered,,,,57個のdead exports (使われていないpublic API),,scripts/pipeline/descriptions/134-dead-exports.md,2026-04-15T23:14:38+09:00,2026-04-25T08:14:11+09:00
 137-uncancellable-raf-chains,high,2026-04-16,,done,kaizen,,,,panToNode/_animateToNode/_fadeNodeAlphaのrAFチェーンがキャンセル不可能 — view破棄後も実行継続,,scripts/pipeline/descriptions/137-uncancellable-raf-chains.md,2026-04-16T00:10:25+09:00,2026-04-26T00:32:31+09:00
 139-e2e-smoke-fail,high,2026-04-19,,pending,e2e-patrol,,,,E2E smoke test failure — 1 failed,,scripts/pipeline/descriptions/139-e2e-smoke-fail.md,2026-04-19T10:17:34+09:00,2026-04-25T08:14:11+09:00
