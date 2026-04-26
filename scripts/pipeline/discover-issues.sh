@@ -372,7 +372,28 @@ fi
 # ============================================================
 # 16. HARDCODED STRINGS — i18n gaps (t() 未使用)
 # ============================================================
-I18N_GAPS=$(grep -rn "setText(\|\.textContent\s*=" src/ --include="*.ts" 2>/dev/null | grep -v "t(\|tHelp(\|\.test\.\|__mocks__" | wc -l || echo "0")
+# 2026-04-26 (#1331 fix): the previous regex counted *every* setText / textContent
+# call without filtering out non-translatable assignments. That made the metric
+# spuriously stay above threshold even when no real user-facing English literal
+# existed — leading to the same issue being refiled cycle after cycle.
+#
+# A "real" hardcoded string is a quoted ASCII literal of 3+ alphabetic chars
+# being written verbatim into the DOM. The filters below drop:
+#   - style.textContent / styleEl.textContent  (CSS injection, never translated)
+#   - String(...)                              (number coercion)
+#   - = ""                                     (clearing)
+#   - = identifier                             (variable, no quotes)
+#   - = "\uXXXX"                               (single Unicode glyph: ✓✗×▼▶ etc)
+#   - i18n-migration-notes.ts                  (intentional comments)
+I18N_GAPS=$(grep -rnE 'setText\(|\.textContent\s*=' src/ --include='*.ts' 2>/dev/null \
+  | grep -v 't(\|tHelp(\|\.test\.\|__mocks__\|i18n-migration-notes' \
+  | grep -vE '(styleEl|style)\.textContent\s*=' \
+  | grep -vE '=\s*String\(' \
+  | grep -vE '=\s*"";' \
+  | grep -vE '=\s*"\\u[0-9A-Fa-f]{4}( ?\\u[0-9A-Fa-f]{4})*\s*";' \
+  | grep -vE '=\s*"[ ]*\\u[0-9A-Fa-f]{4}[ ]*";' \
+  | grep -P '=\s*["\x27][A-Za-z][A-Za-z ]{2,}' \
+  | wc -l || echo "0")
 I18N_GAPS=${I18N_GAPS//[^0-9]/}; I18N_GAPS=${I18N_GAPS:-0}
 if [[ $I18N_GAPS -gt 10 ]]; then
   file_issue "i18n-hardcoded-strings" "medium" \
