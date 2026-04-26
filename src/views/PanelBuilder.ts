@@ -23,6 +23,7 @@ import type {
 	RenderThresholds,
 } from "../types";
 import { setIcon } from "obsidian";
+import { setSymbolText, setUserDataText } from "./dom-helpers";
 import type { App } from "obsidian";
 import { t, tHelp } from "../i18n";
 import type { ManagedTimers } from "../utils/managed-timers";
@@ -639,7 +640,7 @@ export function buildPanel(panelEl: HTMLElement, panel: PanelState, ctx: PanelCo
 		},
 	});
 	const searchClearBtn = searchWrapper.createEl("span", { cls: "gi-search-clear" });
-	searchClearBtn.textContent = "\u00d7";
+	setSymbolText(searchClearBtn, "\u00d7");
 	searchClearBtn.style.display = panel.searchQuery ? "flex" : "none";
 
 	// IO: Search hit count badge — shows "filtered/total nodes"
@@ -649,7 +650,7 @@ export function buildPanel(panelEl: HTMLElement, panel: PanelState, ctx: PanelCo
 	});
 	searchCountBadge.style.cssText = "font-size:10px;color:var(--text-muted);margin-right:4px;display:none;";
 	if (panel.searchQuery && ctx.nodeCount > 0) {
-		searchCountBadge.textContent = `${ctx.pixiNodes.size}/${ctx.nodeCount}`;
+		setUserDataText(searchCountBadge, `${ctx.pixiNodes.size}/${ctx.nodeCount}`);
 		searchCountBadge.style.display = "";
 	}
 	searchBar.value = panel.searchQuery;
@@ -762,7 +763,7 @@ export function buildPanel(panelEl: HTMLElement, panel: PanelState, ctx: PanelCo
 		// History section
 		for (const query of filtered) {
 			const item = historyDropdown.createDiv({ cls: "gi-search-history-item", attr: { role: "option" } });
-			item.textContent = query;
+			setUserDataText(item, query);
 			item.addEventListener("mousedown", (e) => {
 				e.preventDefault();
 				searchBar.value = query;
@@ -822,7 +823,7 @@ export function buildPanel(panelEl: HTMLElement, panel: PanelState, ctx: PanelCo
 				requestAnimationFrame(() => {
 					const filtered = ctx.pixiNodes.size;
 					if (q) {
-						searchCountBadge.textContent = `${filtered}/${ctx.nodeCount}`;
+						setUserDataText(searchCountBadge, `${filtered}/${ctx.nodeCount}`);
 						searchCountBadge.style.display = "";
 					} else {
 						searchCountBadge.style.display = "none";
@@ -944,7 +945,7 @@ export function buildPanel(panelEl: HTMLElement, panel: PanelState, ctx: PanelCo
 		attr: { "aria-label": t("settingsFilter.placeholder") },
 	});
 	const settingsFilterClearBtn = settingsFilterWrapper.createEl("span", { cls: "gi-search-clear" });
-	settingsFilterClearBtn.textContent = "\u00d7";
+	setSymbolText(settingsFilterClearBtn, "\u00d7");
 	settingsFilterClearBtn.style.display = "none";
 
 	for (const def of TAB_DEFS) {
@@ -1548,7 +1549,7 @@ export function buildSection(
 				cls: "gi-help-popup",
 				attr: { role: "tooltip", "aria-label": t("help.ariaLabel") },
 			});
-			popup.textContent = helpText;
+			setUserDataText(popup, helpText);
 		});
 	}
 

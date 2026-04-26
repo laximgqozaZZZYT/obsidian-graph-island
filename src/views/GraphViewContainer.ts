@@ -1,5 +1,6 @@
 import { ItemView, WorkspaceLeaf, Platform, TFile, FileView, setIcon, Notice, type ViewStateResult } from "obsidian";
 import { CanvasContainer, CanvasGraphics, CanvasText } from "./canvas2d";
+import { setSymbolText, setUserDataText } from "./dom-helpers";
 import { drawArcLine, drawArcPath, createSunburstArcLabel } from "./arc-drawing";
 import {
 	extractFrontmatterImage,
@@ -1613,7 +1614,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			cls: "gi-annotation-delete",
 			attr: { "aria-label": t("annotation.delete"), title: t("annotation.delete") },
 		});
-		deleteBtn.textContent = "\u00d7";
+		setSymbolText(deleteBtn, "\u00d7");
 		deleteBtn.addEventListener("click", () => {
 			const idx = this.panel.annotations.indexOf(ann);
 			if (idx >= 0) this.panel.annotations.splice(idx, 1);
@@ -2140,7 +2141,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 				const rt = this.panel.renderThresholds ?? {};
 				if (rt.showFpsMonitor) {
 					this.fpsEl.style.display = "";
-					this.fpsEl.textContent = `${this.renderPipeline.currentFps} fps · ${this.renderPipeline.lastFrameMs}ms`;
+					setUserDataText(this.fpsEl, `${this.renderPipeline.currentFps} fps · ${this.renderPipeline.lastFrameMs}ms`);
 				} else {
 					this.fpsEl.style.display = "none";
 				}
@@ -2251,7 +2252,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		const el = canvasArea.createDiv({ cls: "gi-hover-preview" });
 		el.style.left = `${sx + 15}px`;
 		el.style.top = `${sy - 10}px`;
-		el.textContent = lines.slice(0, 120) + (lines.length > 120 ? "..." : "");
+		setUserDataText(el, lines.slice(0, 120) + (lines.length > 120 ? "..." : ""));
 		this._hoverPreviewEl = el;
 	}
 
@@ -2575,7 +2576,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 					text += ` · ${top.map(([f]) => f.replace(/^classic-/, "")).join(", ")}`;
 				}
 			}
-			this.densityCulledBadgeEl.textContent = text;
+			setUserDataText(this.densityCulledBadgeEl, text);
 			this.densityCulledBadgeEl.style.display = "";
 		} else {
 			this.densityCulledBadgeEl.style.display = "none";
@@ -3071,9 +3072,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 				.cachedRead(tf)
 				.then((content) => {
 					const stripped = content.replace(/^---[\s\S]*?---\n?/, "").trim();
-					bodyEl.textContent =
+					setUserDataText(bodyEl,
 						stripped.slice(0, BODY_PREVIEW_MAX_CHARS) +
-						(stripped.length > BODY_PREVIEW_MAX_CHARS ? "..." : "");
+						(stripped.length > BODY_PREVIEW_MAX_CHARS ? "..." : ""));
 				})
 				.catch(() => {
 					bodyEl.textContent = t("hover.couldNotRead");
@@ -4093,7 +4094,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         border:1px solid var(--background-modifier-border, #444);
         box-shadow:0 2px 8px rgba(0,0,0,0.3);
       `;
-			tip.textContent = `→ ${clusterName}\n${displayNames.join("\n")}${extra}`;
+			setUserDataText(tip, `→ ${clusterName}\n${displayNames.join("\n")}${extra}`);
 			canvasArea.appendChild(tip);
 			this._offScreenTooltips.push(tip);
 		}
@@ -5971,7 +5972,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			mChar = labelModeChar(s, rt.labelModeOverride, rt.labelInitialsZoom, rt.labelTruncateZoom);
 			labelInfo = buildLabelInfo(vis, mChar);
 		}
-		this.zoomIndicatorEl.textContent = pct + labelInfo;
+		setUserDataText(this.zoomIndicatorEl, pct + labelInfo);
 		this.zoomIndicatorEl.title = buildZoomTooltip(modeDescription(mChar));
 		const culled = parseCulledCount(
 			this.densityCulledBadgeEl?.style.display !== "none",
@@ -6300,7 +6301,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	// =========================================================================
 	private setStatus(t: string) {
 		if (!this.statusEl) return;
-		this.statusEl.textContent = t;
+		setUserDataText(this.statusEl, t);
 		// Restart CSS fade-out animation so the status is visible on each update
 		this.statusEl.style.animation = "none";
 		// Force reflow to reset the animation
@@ -7762,9 +7763,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	private _announceA11y(msg: string) {
 		if (!this._ariaLiveEl) return;
 		// Toggle text to force re-announcement even if same content
-		this._ariaLiveEl.textContent = "";
+		setUserDataText(this._ariaLiveEl, "");
 		requestAnimationFrame(() => {
-			if (this._ariaLiveEl) this._ariaLiveEl.textContent = msg;
+			if (this._ariaLiveEl) setUserDataText(this._ariaLiveEl, msg);
 		});
 	}
 
@@ -8530,7 +8531,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			});
 		}
 		if (this._sunburstTooltipEl) {
-			this._sunburstTooltipEl.textContent = lines.join("\n");
+			setUserDataText(this._sunburstTooltipEl, lines.join("\n"));
 			this._sunburstTooltipEl.style.display = "";
 		}
 	}
