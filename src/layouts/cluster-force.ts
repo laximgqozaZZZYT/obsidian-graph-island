@@ -2353,7 +2353,7 @@ function applyGroupRule(
  *
  * A trailing `":?"` on `groupBy` is stripped before field lookup (partial-query syntax).
  */
-export function partitionNodes(nodes: GraphNode[], groupBy: string, degrees: Map<string, number>): Map<string, GraphNode[]> {
+function partitionNodes(nodes: GraphNode[], groupBy: string, degrees: Map<string, number>): Map<string, GraphNode[]> {
 	const groups = new Map<string, GraphNode[]>();
 
 	const field = groupBy.endsWith(":?") ? groupBy.slice(0, -2) : groupBy;
