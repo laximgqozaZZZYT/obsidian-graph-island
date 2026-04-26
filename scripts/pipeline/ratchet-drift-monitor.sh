@@ -37,66 +37,78 @@ report_relaxation() {
   echo "RELAXATION  $date  $commit  $file  $metric: $prev → $new  ($direction)"
 }
 
+# Reading commit lists with `mapfile + for` instead of `git log | while`.
+# The piped form puts the loop body in a subshell whose stdout connects
+# back to the pipe — so any `echo` / `python3 print` inside the loop is
+# swallowed and never reaches the terminal. mapfile collects the list
+# first, then the for-loop runs in the parent shell with normal stdout.
+
 # ------------------------------------------------------------
 # Coverage thresholds (vitest.config.ts) — DECREASE = relaxation
 # ------------------------------------------------------------
 echo ""
 echo "-- vitest.config.ts coverage thresholds --"
-git log --since="$SINCE" --pretty=format:'%H|%aI' -- vitest.config.ts 2>/dev/null \
-  | while IFS='|' read -r sha date; do
-      [[ -z "$sha" ]] && continue
-      parent=$(git rev-parse "${sha}^" 2>/dev/null) || continue
-      for metric in statements branches functions lines; do
-        prev=$(git show "${parent}:vitest.config.ts" 2>/dev/null \
-          | awk '/thresholds:/,/\}/' | grep "$metric:" | grep -oP '[0-9]+\.[0-9]+' | head -1)
-        new=$(git show "${sha}:vitest.config.ts" 2>/dev/null \
-          | awk '/thresholds:/,/\}/' | grep "$metric:" | grep -oP '[0-9]+\.[0-9]+' | head -1)
-        [[ -z "$prev" || -z "$new" ]] && continue
-        # decrease = relaxation
-        if awk -v p="$prev" -v n="$new" 'BEGIN{ exit !(n+0 < p+0) }'; then
-          report_relaxation "vitest.config.ts" "${sha:0:8}" "$date" "$metric" "$prev" "$new" "decrease"
-        fi
-      done
-    done
+mapfile -t vitest_commits < <(git log --since="$SINCE" --pretty=format:'%H|%aI' -- vitest.config.ts 2>/dev/null)
+for line in "${vitest_commits[@]}"; do
+  [[ -z "$line" ]] && continue
+  sha="${line%%|*}"
+  date="${line#*|}"
+  parent=$(git rev-parse "${sha}^" 2>/dev/null) || continue
+  for metric in statements branches functions lines; do
+    prev=$(git show "${parent}:vitest.config.ts" 2>/dev/null \
+      | awk '/thresholds:/,/\}/' | grep "$metric:" | grep -oP '[0-9]+\.[0-9]+' | head -1)
+    new=$(git show "${sha}:vitest.config.ts" 2>/dev/null \
+      | awk '/thresholds:/,/\}/' | grep "$metric:" | grep -oP '[0-9]+\.[0-9]+' | head -1)
+    [[ -z "$prev" || -z "$new" ]] && continue
+    if awk -v p="$prev" -v n="$new" 'BEGIN{ exit !(n+0 < p+0) }'; then
+      report_relaxation "vitest.config.ts" "${sha:0:8}" "$date" "$metric" "$prev" "$new" "decrease"
+    fi
+  done
+done
 
 # ------------------------------------------------------------
 # God-object limits (CLAUDE.md) — INCREASE = relaxation
 # ------------------------------------------------------------
 echo ""
 echo "-- CLAUDE.md god-object Max Allowed --"
-git log --since="$SINCE" --pretty=format:'%H|%aI' -- CLAUDE.md 2>/dev/null \
-  | while IFS='|' read -r sha date; do
-      [[ -z "$sha" ]] && continue
-      parent=$(git rev-parse "${sha}^" 2>/dev/null) || continue
-      # Extract limits from CLAUDE.md table for prev and new
-      python3 - <<PY
+mapfile -t claude_commits < <(git log --since="$SINCE" --pretty=format:'%H|%aI' -- CLAUDE.md 2>/dev/null)
+for line in "${claude_commits[@]}"; do
+  [[ -z "$line" ]] && continue
+  sha="${line%%|*}"
+  date="${line#*|}"
+  parent=$(git rev-parse "${sha}^" 2>/dev/null) || continue
+  python3 - "$parent" "$sha" "$date" <<'PY'
 import subprocess, re, sys
 
+parent_rev, sha, date = sys.argv[1:]
+
 def limits(rev):
-    out = subprocess.run(["git","show",f"{rev}:CLAUDE.md"], capture_output=True, text=True)
+    out = subprocess.run(["git", "show", f"{rev}:CLAUDE.md"],
+                         capture_output=True, text=True)
     if out.returncode != 0:
         return {}
     res = {}
     in_block = False
     for line in out.stdout.splitlines():
         if "GOD OBJECT Policy" in line:
-            in_block = True; continue
+            in_block = True
+            continue
         if in_block and line.startswith("## "):
             in_block = False
         if in_block:
-            m = re.match(r"\| \`(src/.+?\.ts)\` \| \d+ \| (\d+) \|", line)
+            m = re.match(r"\| `(src/.+?\.ts)` \| \d+ \| (\d+) \|", line)
             if m:
                 res[m.group(1)] = int(m.group(2))
     return res
 
-prev = limits("$parent")
-new  = limits("$sha")
+prev = limits(parent_rev)
+new = limits(sha)
 for f, n in new.items():
     p = prev.get(f, n)
     if n > p:
-        print(f"RELAXATION  $date  ${sha[:8]}  CLAUDE.md  {f} Max: {p} → {n}  (increase)")
+        print(f"RELAXATION  {date}  {sha[:8]}  CLAUDE.md  {f} Max: {p} → {n}  (increase)")
 PY
-    done
+done
 
 echo ""
 echo "Done."
