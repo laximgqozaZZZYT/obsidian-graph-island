@@ -84,6 +84,13 @@ import {
 	renderOntologyBackbone,
 	renderGapEdges,
 } from "./node-decorations";
+import {
+	collectLabelRects,
+	fadeOutLabel,
+	runDensityCulling,
+	tryDisplaceForceShow,
+} from "./render-pipeline-helpers/cull-pipeline";
+import type { CullLabelRect } from "./render-pipeline-helpers/cull-pipeline";
 
 // ---------------------------------------------------------------------------
 // Shared render context type for node rendering methods
@@ -1831,7 +1838,15 @@ export class RenderPipeline {
 		const pixiNodes = this.host.getPixiNodes();
 		const degrees = this.host.getDegrees();
 
-		const rects = this._collectLabelRects(pixiNodes, degrees, zoom, rt.labelOverlapMaxScreenW, rt.labelOverlapMaxScreenH);
+		const rects = collectLabelRects(
+			pixiNodes,
+			degrees,
+			zoom,
+			this.host.getCanvasDimensions(),
+			this.host.getWorldContainer(),
+			rt.labelOverlapMaxScreenW,
+			rt.labelOverlapMaxScreenH,
+		);
 		const grid = new SpatialHashGrid<CullLabelRect>(OVERLAP_GRID_CELL_SIZE, margin);
 
 		this._reserveDomExclusionZones(grid);
@@ -1859,10 +1874,13 @@ export class RenderPipeline {
 			if (!grid.checkOverlap(r)) { placed.push(r); grid.insert(r); continue; }
 			const found = this._tryDisplaceLabel(r, zoom, rt.labelMaxDisplacementRatio, grid, drawLeader, llWidth, llAlpha);
 			if (found) { placed.push(found); grid.insert(found); }
-			else { this._fadeOutLabel(r.label, rt.labelFadeRate); }
+			else { fadeOutLabel(r.label, rt.labelFadeRate); }
 		}
 
-		this._runDensityCulling(rt, placed, zoom);
+		const densityMinDist = computeDensityMinDist(
+			rt.labelDensityMinScreenDist, rt.labelDensityMaxDist, zoom, rt.labelDensityZoomThreshold,
+		);
+		runDensityCulling(rt, placed, densityMinDist, fadeOutLabel);
 
 		this._guaranteePlacementFloor(rt, rects, placed, grid, zoom, margin, rt.labelMinNonSuper, drawLeader, llWidth, llAlpha);
 		this._drawCounterScaleLeaderLines(rt, placed, zoom, drawLeader, llWidth, llAlpha);
@@ -1874,11 +1892,6 @@ export class RenderPipeline {
 			totalLabels: rects.length, visibleLabels: totalVisible,
 			culledLabels: densityCulled, collisionRate: rects.length > 0 ? densityCulled / rects.length : 0,
 		};
-	}
-
-	private _fadeOutLabel(label: CanvasText, fadeRate?: number) {
-		label.alpha = Math.max(0, (label.alpha ?? 1) - (fadeRate ?? 0.15));
-		if (label.alpha <= 0.05) label.visible = false;
 	}
 
 	private _reserveDomExclusionZones(grid: SpatialHashGrid<CullLabelRect>) {
@@ -1913,42 +1926,6 @@ export class RenderPipeline {
 				label: null as unknown as CanvasText, pn: null as unknown as PixiNode, degree: 500, isSuper: false,
 			});
 		}
-	}
-
-	private _runDensityCulling(rt: Required<RenderThresholds>, placed: CullLabelRect[], zoom: number) {
-		if (placed.length <= 10) return;
-		const densityMinDist = computeDensityMinDist(
-			rt.labelDensityMinScreenDist, rt.labelDensityMaxDist, zoom, rt.labelDensityZoomThreshold,
-		);
-		const densityMinDist2 = densityMinDist * densityMinDist;
-		placed.sort((a, b) =>
-			b.pn.priorityScore + (b.pn.hoverForcedLabel ? 80 : 0)
-			- (a.pn.priorityScore + (a.pn.hoverForcedLabel ? 80 : 0)),
-		);
-		const kept: CullLabelRect[] = [];
-		const bucketSize = Math.max(densityMinDist, 50);
-		const densityGrid = new Map<string, { cx: number; cy: number }[]>();
-		for (const r of placed) {
-			const cx = r.x + r.w / 2;
-			const cy = r.y + r.h / 2;
-			if (this._isDensityTooClose(cx, cy, bucketSize, densityMinDist2, densityGrid)) {
-				this._fadeOutLabel(r.label, rt.labelFadeRate);
-			} else {
-				kept.push(r);
-				const key = `${Math.floor(cx / bucketSize)},${Math.floor(cy / bucketSize)}`;
-				const arr = densityGrid.get(key);
-				if (arr) arr.push({ cx, cy }); else densityGrid.set(key, [{ cx, cy }]);
-			}
-		}
-		placed.length = 0;
-		placed.push(...kept);
-	}
-
-	private _isDensityTooClose(
-		cx: number, cy: number, bucketSize: number, minDist2: number,
-		grid: Map<string, { cx: number; cy: number }[]>,
-	): boolean {
-		return isDensityTooClose(cx, cy, bucketSize, minDist2, grid);
 	}
 
 	/** §0.1 Quality stats from last cullOverlappingLabels run */
@@ -2457,20 +2434,4 @@ export class RenderPipeline {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Types used by cullOverlappingLabels sub-methods
-// ---------------------------------------------------------------------------
-
-/** Screen-space label bounding rect for overlap culling */
-interface CullLabelRect {
-	pn: PixiNode;
-	label: CanvasText;
-	x: number;
-	y: number;
-	w: number;
-	h: number;
-	degree: number;
-	isSuper: boolean;
-}
-
-// CullOverlapGrid interface removed — using SpatialHashGrid<CullLabelRect> directly
+// CullLabelRect / CullOverlapGrid moved to render-pipeline-helpers/cull-pipeline.ts
