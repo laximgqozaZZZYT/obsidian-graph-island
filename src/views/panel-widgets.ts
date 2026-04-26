@@ -1,5 +1,6 @@
 import { setIcon } from "obsidian";
 import { t } from "../i18n";
+import type { ManagedTimers } from "../utils/managed-timers";
 import type { PanelCallbacks, PanelContext, PanelState, GroupByRule } from "./PanelBuilder";
 import type {
 	SortKey,
