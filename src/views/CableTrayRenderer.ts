@@ -30,11 +30,8 @@ import {
 	WEIGHT_THICKNESS_FACTOR,
 } from "./EdgeRenderer";
 
-// Re-export types / interfaces consumed by EdgeRenderer drawing code
+// Types / interfaces consumed by EdgeRenderer drawing code
 // ---------------------------------------------------------------------------
-
-/** 引込口の方向 */
-export type { BBoxFace };
 
 /** 引き込み口: 各グループに1つ、接続先グループ方向の平均ベクトルで配置 */
 export interface GroupPort {

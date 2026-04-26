@@ -28,7 +28,7 @@ import type { TextStyle } from "../canvas2d/CanvasText";
 // WebGLApp options
 // ---------------------------------------------------------------------------
 
-export interface WebGLAppOptions {
+interface WebGLAppOptions {
 	width: number;
 	height: number;
 	backgroundColor?: number;

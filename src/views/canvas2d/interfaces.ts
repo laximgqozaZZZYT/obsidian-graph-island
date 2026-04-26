@@ -19,7 +19,7 @@ export interface ITicker {
 // Scale helper (shared by IContainer and IText)
 // ---------------------------------------------------------------------------
 
-export interface IScale {
+interface IScale {
 	x: number;
 	y: number;
 	set(v: number): void;
@@ -29,7 +29,7 @@ export interface IScale {
 // IChild — union of all display-object interfaces
 // ---------------------------------------------------------------------------
 
-export type IChild = IContainer | IGraphics | IText;
+type IChild = IContainer | IGraphics | IText;
 
 // ---------------------------------------------------------------------------
 // IContainer
@@ -109,7 +109,7 @@ export interface IGraphics {
 // IText
 // ---------------------------------------------------------------------------
 
-export interface IAnchor {
+interface IAnchor {
 	x: number;
 	y: number;
 	set(ax: number, ay: number): void;
