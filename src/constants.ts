@@ -478,6 +478,37 @@ export const COLLISION_ESCAPE_MARGIN = 0.15;
 /** Zoom threshold: below this worldScale the view is considered "zoomed out". */
 export const ZOOM_OUT_THRESHOLD = 0.45;
 
+// ---- Renderer decorations ----
+// Pathfinder overlay (shortest-path visualisation drawn over the graph).
+// Defined here so the values are discoverable alongside other render constants
+// rather than buried inside views/pathfinder-overlay.ts. Re-exported from
+// pathfinder-overlay.ts for backward-compatible import paths.
+
+/** Hex color for pathfinder strokes/dots (PIXI numeric form, dark turquoise) */
+export const PATHFINDER_COLOR = 0x00ced1;
+/** CSS color string for pathfinder labels (matches PATHFINDER_COLOR) */
+export const PATHFINDER_COLOR_CSS = "#00CED1";
+/** Sine pulse angular speed per frame for the pathfinder breathing effect */
+export const PATHFINDER_PULSE_SPEED = 0.06;
+/** Pulse alpha amplitude added to the glow/solid base alphas */
+export const PATHFINDER_PULSE_AMPLITUDE = 0.1;
+/** Base alpha for the glow stroke layer (pre-pulse) */
+export const PATHFINDER_GLOW_ALPHA_BASE = 0.45;
+/** Base alpha for the solid stroke layer (pre-pulse) */
+export const PATHFINDER_SOLID_ALPHA_BASE = 0.85;
+/** Glow stroke width (px) — thick outer layer for the breathing halo */
+export const PATHFINDER_GLOW_STROKE_WIDTH = 8;
+/** Solid stroke width (px) — crisp inner line on top of the glow */
+export const PATHFINDER_SOLID_STROKE_WIDTH = 3;
+/** Radius (px) of the dot drawn at each path node */
+export const PATHFINDER_DOT_RADIUS = 5;
+/** Font size (px) for the "N hops" label at the path midpoint */
+export const PATHFINDER_LABEL_FONT_SIZE = 11;
+/** Horizontal label offset (px) from the midpoint segment center */
+export const PATHFINDER_LABEL_OFFSET_X = 6;
+/** Vertical label offset (px) — negative = above the segment */
+export const PATHFINDER_LABEL_OFFSET_Y = -14;
+
 // ===========================================================================
 // ---- GraphViewContainer constants ----
 // Moved out of GraphViewContainer.ts (GOD OBJECT reduction). GVC_ prefix
