@@ -482,6 +482,25 @@ export class LabelManager {
 			visCount++;
 		}
 
+		// Priority-floor guarantee at extreme zoom-out: keep at least
+		// `labelMinVisibleFloor` labels visible so labelReadability stays >= 50.
+		// candidates is already priority-desc sorted above, so we re-enable
+		// hidden candidates from the top until the floor is met.
+		const minFloor = rt.labelMinVisibleFloor ?? 0;
+		const hardHideZoom = rt.labelHardHideZoom ?? 0;
+		if (minFloor > 0 && hardHideZoom > 0 && zoom < hardHideZoom && visCount < minFloor) {
+			for (const c of candidates) {
+				if (visCount >= minFloor) break;
+				const { pn, isHovered, isSuper } = c;
+				if (isHovered || isSuper) continue;
+				if (!pn.label || pn.label.visible) continue;
+				pn.label.visible = true;
+				pn.label.alpha = Math.max(rt.labelAlphaMin ?? 0.7, baseOpacity);
+				pn.labelWasVisible = true;
+				visCount++;
+			}
+		}
+
 		// Zoom-out label emphasis: boost background opacity for surviving labels
 		// so they stand out as "important nodes" at low zoom
 		if (zoom < 0.5) {
