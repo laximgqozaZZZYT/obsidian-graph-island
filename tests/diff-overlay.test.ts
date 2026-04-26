@@ -7,6 +7,7 @@ import {
 	formatSnapshotDate,
 	buildTimelineEntries,
 } from "../src/views/DiffOverlay";
+import { t } from "../src/i18n";
 import type { SnapshotDiff } from "../src/types";
 
 // ---------------------------------------------------------------------------
@@ -281,7 +282,10 @@ describe("buildDiffList", () => {
 		);
 
 		const all = collectAll(container);
-		const nameEl = all.find((e) => e.textContent === "Diff: my-snap");
+		// Locale-aware: use the same i18n template the implementation uses
+		// (en: "Diff: my-snap", ja: "差分: my-snap").
+		const expected = t("diff.title").replace("{name}", "my-snap");
+		const nameEl = all.find((e) => e.textContent === expected);
 		expect(nameEl).toBeDefined();
 	});
 
@@ -300,7 +304,8 @@ describe("buildDiffList", () => {
 		const all = collectAll(container);
 		const closeBtn = all.find((e) => e.textContent === "\u00d7");
 		expect(closeBtn).toBeDefined();
-		expect(closeBtn!.attrs["aria-label"]).toBe("Close diff list");
+		// Locale-aware aria-label expectation (en: "Close diff list", ja: "差分リストを閉じる")
+		expect(closeBtn!.attrs["aria-label"]).toBe(t("a11y.closeDiffList"));
 
 		// Simulate click
 		closeBtn!.listeners.click?.[0]?.();

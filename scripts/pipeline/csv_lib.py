@@ -573,11 +573,18 @@ def cmd_validate(kind: str) -> list[str]:
         # Tasks-as-parents are legal (e.g. a sub-decompose chain like
         # task 1149 -> task 1154 -> task 1167) and appear naturally in
         # the legacy data set.
+        # FK is only enforced for ACTIVE rows. Archived rows
+        # (done/blocked/cancelled/superseded/undecomposable) may have
+        # orphan parents because their parent was manually deleted long
+        # ago — that is historical record, not a current invariant.
         issues_spec = _kind("issues")
         _, issue_rows = _read_rows(issues_spec)
         valid_parents = {r["id"] for r in issue_rows} | \
                         {r["id"] for r in rows}
+        active_check = {"pending", "in-progress", "decomposed"}
         for i, r in enumerate(rows, start=2):
+            if r.get("status") not in active_check:
+                continue
             p = r.get("parent", "")
             if p and p != "none" and p not in valid_parents:
                 errors.append(

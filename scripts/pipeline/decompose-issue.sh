@@ -14,70 +14,41 @@ export PATH="/home/ubuntu/.local/bin:/home/ubuntu/.nvm/versions/node/v22.18.0/bi
 export HOME="/home/ubuntu"
 
 PROJECT_DIR="/home/ubuntu/obsidian-plugins/obsidian-graph-island"
-ISSUE_FILE="${1:-}"
+ARG="${1:-}"
 
-if [[ -z "$ISSUE_FILE" ]]; then
-  echo "Usage: $0 <issue-file.md | issue-id>"
+if [[ -z "$ARG" ]]; then
+  echo "Usage: $0 <issue-id>"
   exit 1
 fi
 
-ISSUE_DIR="$PROJECT_DIR/scripts/pipeline/issues"
-TASK_DIR="$PROJECT_DIR/scripts/pipeline/tasks"
-TASK_DONE_DIR="$TASK_DIR/done"
 DESCRIPTIONS_DIR="$PROJECT_DIR/scripts/pipeline/descriptions"
-mkdir -p "$TASK_DIR" "$TASK_DONE_DIR"
 
-# CSV migration feature flag (Phase 2-B). When true, the script reads the
-# parent issue from issues.csv (via csv-helpers.sh) and writes new tasks
-# into tasks.csv + descriptions/<id>.md instead of per-file md.
-USE_CSV=${USE_CSV:-true}
-if [[ "$USE_CSV" == "true" ]]; then
-  # shellcheck source=/dev/null
-  . "$PROJECT_DIR/scripts/pipeline/csv-helpers.sh"
-  mkdir -p "$DESCRIPTIONS_DIR"
-fi
+# shellcheck source=/dev/null
+. "$PROJECT_DIR/scripts/pipeline/csv-helpers.sh"
+mkdir -p "$DESCRIPTIONS_DIR"
 
-# Resolve ISSUE_NAME and ISSUE_CONTENT for both modes.
-#   md mode: $1 is a path like scripts/pipeline/issues/147-god-object.md
-#   csv mode: $1 is either a path (legacy callers) or a bare id like
-#             "147-god-object". Both are accepted; we always strip
-#             directory and `.md` suffix to get the id.
-ISSUE_NAME=$(basename "$ISSUE_FILE" .md)
-if [[ "$USE_CSV" == "true" ]]; then
-  ISSUE_CONTENT=$(csv_to_prompt_text issues "$ISSUE_NAME" 2>/dev/null)
-  if [[ -z "$ISSUE_CONTENT" ]]; then
-    echo "ERROR: issues.csv has no row for id=$ISSUE_NAME"
-    exit 1
-  fi
-else
-  if [[ ! -f "$ISSUE_FILE" ]]; then
-    echo "ERROR: $ISSUE_FILE not found (USE_CSV=false expects an md path)"
-    exit 1
-  fi
-  ISSUE_CONTENT=$(cat "$ISSUE_FILE")
+# Argument is treated as an issue id (basename + .md stripped, so a
+# path is also accepted for legacy callers).
+ISSUE_NAME=$(basename "$ARG" .md)
+ISSUE_CONTENT=$(csv_to_prompt_text issues "$ISSUE_NAME" 2>/dev/null)
+if [[ -z "$ISSUE_CONTENT" ]]; then
+  echo "ERROR: issues.csv has no row for id=$ISSUE_NAME"
+  exit 1
 fi
 
 # ── Queue cap (kaizen 2026-04-25) ──
-# Refuse to decompose when the active task queue is already at the cap.
-# Active = pending|in-progress|decomposed. Without this, every C5 revive
-# would keep growing the queue indefinitely.
+# Refuse to decompose when the active task queue is at the cap.
+# Active = pending|in-progress (csv_count_active definition).
 MAX_TOTAL_TASKS=${MAX_TOTAL_TASKS:-50}
-if [[ "$USE_CSV" == "true" ]]; then
-  ACTIVE_TASKS=$(csv_count_active tasks 2>/dev/null | tr -cd '0-9')
-else
-  ACTIVE_TASKS=$(grep -lE '^status: (pending|in-progress|decomposed)$' "$TASK_DIR"/*.md 2>/dev/null | wc -l | tr -cd '0-9')
-fi
+ACTIVE_TASKS=$(csv_count_active tasks 2>/dev/null | tr -cd '0-9')
 ACTIVE_TASKS=${ACTIVE_TASKS:-0}
 if [[ $ACTIVE_TASKS -ge $MAX_TOTAL_TASKS ]]; then
   echo "ABORT: task queue at cap ($ACTIVE_TASKS/$MAX_TOTAL_TASKS active) — decomposition deferred until queue drains"
   exit 4
 fi
 
-# Find next available number (across issues + tasks)
-LAST_NUM=$(find "$ISSUE_DIR" "$ISSUE_DIR/done" "$TASK_DIR" "$TASK_DONE_DIR" -maxdepth 1 -name '*.md' 2>/dev/null | xargs -I{} basename {} | grep -oP '^\d+' | sort -n | tail -1)
-LAST_NUM=${LAST_NUM:-0}
-LAST_NUM=$(echo "$LAST_NUM" | sed 's/^0*//')
-LAST_NUM=${LAST_NUM:-0}
+# Find next available numeric prefix via csv_lib.
+LAST_NUM=$(($(csv_next_id_num) - 1))
 
 echo "=== Decomposing: $ISSUE_NAME ==="
 
@@ -155,9 +126,9 @@ if [[ ${#RESULT} -lt 100 ]]; then
   exit 2
 fi
 
-# Parse subtasks from result and create issue files
-PY_OUT=$(USE_CSV="$USE_CSV" PROJECT_DIR="$PROJECT_DIR" \
-  echo "$RESULT" | USE_CSV="$USE_CSV" PROJECT_DIR="$PROJECT_DIR" python3 -c "
+# Parse subtasks from result and write rows into tasks.csv
+PY_OUT=$(PROJECT_DIR="$PROJECT_DIR" \
+  echo "$RESULT" | PROJECT_DIR="$PROJECT_DIR" python3 -c "
 import sys, re, os
 
 content = sys.stdin.read()
@@ -165,18 +136,12 @@ content = sys.stdin.read()
 blocks = re.split(r'SUBTASK\s+\d+', content)
 blocks = [b.strip() for b in blocks if b.strip()]
 
-import glob
-USE_CSV = os.environ.get('USE_CSV', 'false') == 'true'
 PROJECT_DIR = os.environ.get('PROJECT_DIR', '')
-issue_dir = '$TASK_DIR'
 parent = '$ISSUE_NAME'
 last_num = $LAST_NUM
 
-# Lazy-import csv_lib only when needed
-csv_lib = None
-if USE_CSV:
-    sys.path.insert(0, f'{PROJECT_DIR}/scripts/pipeline')
-    import csv_lib  # noqa: E402
+sys.path.insert(0, f'{PROJECT_DIR}/scripts/pipeline')
+import csv_lib  # noqa: E402
 
 ERROR_PATTERNS = (\"you've hit your limit\", 'rate limit', 'quota exceeded')
 META_PATTERNS = ('git mv ', 'status: done', 'status: pending',
@@ -189,51 +154,28 @@ UNDECOMPOSABLE_PATTERNS = (
 )
 PLACEHOLDER_SUMMARY_PATTERNS = ('subtask', 'todo', 'task description', 'summary here')
 
-# Pull existing task summaries for duplicate detection (C-category fix).
+# Pull existing task summaries for duplicate detection.
 # Two scopes: same-parent (Jaccard ≥0.6) and cross-parent (Jaccard ≥0.7).
 parent_match = re.match(r'(\d+)', parent)
 parent_num = parent_match.group(1) if parent_match else ''
 same_parent_summaries = []
 all_summaries = []
 
-if USE_CSV:
-    # Read all task rows once; filter to active + match parent.
-    _, task_rows = csv_lib._read_rows(csv_lib._kind('tasks'))
-    for r in task_rows:
-        s = r.get('summary', '').strip()
-        st = r.get('status', '')
-        if not s:
-            continue
-        if st not in ('pending', 'in-progress', 'decomposed'):
-            continue
-        all_summaries.append(s)
-        # tasks ids look like '<num>-<parent_num>-<slug>'; check parent col too
-        if parent_num:
-            rid = r.get('id', '')
-            row_parent = r.get('parent', '')
-            if f'-{parent_num}-' in rid or row_parent == parent:
-                same_parent_summaries.append(s)
-else:
-    def _extract_summary(path):
-        try:
-            with open(path) as fh:
-                c = fh.read()
-            sm = re.search(r'^summary:\s*(.+)', c, re.MULTILINE)
-            st = re.search(r'^status:\s*(\S+)', c, re.MULTILINE)
-            if sm:
-                status = st.group(1).strip() if st else ''
-                return sm.group(1).strip(), status
-        except Exception:
-            pass
-        return None, None
-    for ef in glob.glob(f'{issue_dir}/*.md'):
-        s, status = _extract_summary(ef)
-        if not s:
-            continue
-        if status not in ('pending', 'in-progress', 'decomposed'):
-            continue
-        all_summaries.append(s)
-        if parent_num and f'-{parent_num}-' in ef.split('/')[-1]:
+# Read all task rows once; filter to active + match parent.
+_, task_rows = csv_lib._read_rows(csv_lib._kind('tasks'))
+for r in task_rows:
+    s = r.get('summary', '').strip()
+    st = r.get('status', '')
+    if not s:
+        continue
+    if st not in ('pending', 'in-progress', 'decomposed'):
+        continue
+    all_summaries.append(s)
+    # tasks ids look like '<num>-<parent_num>-<slug>'; check parent col too
+    if parent_num:
+        rid = r.get('id', '')
+        row_parent = r.get('parent', '')
+        if f'-{parent_num}-' in rid or row_parent == parent:
             same_parent_summaries.append(s)
 
 def _word_set(text):
@@ -329,40 +271,24 @@ for i, block in enumerate(blocks[:3]):
         f'- [ ] CLAUDE.md のルールに違反しないこと\\n'
     ).replace('\\n', chr(10))
 
-    if USE_CSV:
-        desc_rel = f'scripts/pipeline/descriptions/{new_id}.md'
-        desc_abs = f'{PROJECT_DIR}/{desc_rel}'
-        with open(desc_abs, 'w', encoding='utf-8') as f:
-            f.write(body)
-        try:
-            csv_lib.cmd_insert('tasks', new_id, {
-                'priority': priority,
-                'source': 'decomposed',
-                'parent': parent,
-                'depends': depends,
-                'summary': summary,
-                'status': 'pending',
-                'description_path': desc_rel,
-            })
-        except Exception as e:
-            print(f'  ERROR: csv_insert failed for {new_id}: {e}')
-            continue
-        print(f'  CREATED: {new_id} [csv]')
-    else:
-        filename = f'{new_id}.md'
-        with open(f'{issue_dir}/{filename}', 'w') as f:
-            f.write(f'''---
-priority: {priority}
-reported: $(date +%Y-%m-%d)
-status: pending
-source: decomposed
-parent: {parent}
-depends: {depends}
-summary: {summary}
----
-
-{body}''')
-        print(f'  CREATED: {filename}')
+    desc_rel = f'scripts/pipeline/descriptions/{new_id}.md'
+    desc_abs = f'{PROJECT_DIR}/{desc_rel}'
+    with open(desc_abs, 'w', encoding='utf-8') as f:
+        f.write(body)
+    try:
+        csv_lib.cmd_insert('tasks', new_id, {
+            'priority': priority,
+            'source': 'decomposed',
+            'parent': parent,
+            'depends': depends,
+            'summary': summary,
+            'status': 'pending',
+            'description_path': desc_rel,
+        })
+    except Exception as e:
+        print(f'  ERROR: csv_insert failed for {new_id}: {e}')
+        continue
+    print(f'  CREATED: {new_id}')
 " 2>/dev/null)
 echo "$PY_OUT"
 
@@ -375,20 +301,11 @@ if [[ "$CREATED_COUNT" -eq 0 ]]; then
   # as undecomposable so future cycles stop wasting tokens on it.
   if [[ "$SKIPPED_COUNT" -gt 0 && "$UNDEC_HIT" -gt 0 ]]; then
     echo "ERROR: all subtasks rejected as placeholder/undecomposable — marking issue undecomposable"
-    if [[ "$USE_CSV" == "true" ]]; then
-      csv_set_status issues "$ISSUE_NAME" undecomposable 2>/dev/null || true
-      (cd "$PROJECT_DIR" && git add scripts/pipeline/issues.csv && \
-        git commit -m "chore: mark $ISSUE_NAME undecomposable (LLM produced no actionable subtasks)
+    csv_set_status issues "$ISSUE_NAME" undecomposable 2>/dev/null || true
+    (cd "$PROJECT_DIR" && git add scripts/pipeline/issues.csv && \
+      git commit -m "chore: mark $ISSUE_NAME undecomposable (LLM produced no actionable subtasks)
 
 Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>" --no-verify 2>/dev/null) || true
-    else
-      sed -i 's/^status: pending$/status: undecomposable/' "$ISSUE_FILE" 2>/dev/null
-      sed -i 's/^status: decomposed$/status: undecomposable/' "$ISSUE_FILE" 2>/dev/null
-      (cd "$PROJECT_DIR" && git add scripts/pipeline/issues/ && \
-        git commit -m "chore: mark $ISSUE_NAME undecomposable (LLM produced no actionable subtasks)
-
-Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>" --no-verify 2>/dev/null) || true
-    fi
   else
     echo "ERROR: no valid subtasks created — leaving parent status unchanged"
   fi
@@ -396,25 +313,16 @@ Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>" --no-verif
 fi
 echo "  Total: $CREATED_COUNT subtasks created (skipped: $SKIPPED_COUNT)"
 
-# Mark parent issue as decomposed (only after confirming subtasks were written)
-if [[ "$USE_CSV" == "true" ]]; then
-  cur_status=$(csv_get_status issues "$ISSUE_NAME" 2>/dev/null || echo "")
-  if [[ "$cur_status" == "pending" || "$cur_status" == "in-progress" ]]; then
-    csv_set_status issues "$ISSUE_NAME" decomposed 2>/dev/null || true
-  fi
-  (cd "$PROJECT_DIR" && \
-    git add scripts/pipeline/issues.csv scripts/pipeline/tasks.csv \
-            scripts/pipeline/descriptions/ && \
-    git commit -m "chore: decompose $ISSUE_NAME into tasks [csv]
-
-Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>" --no-verify 2>/dev/null) || true
-else
-  sed -i 's/status: pending/status: decomposed/' "$ISSUE_FILE" 2>/dev/null
-  sed -i 's/status: in-progress/status: decomposed/' "$ISSUE_FILE" 2>/dev/null
-  (cd "$PROJECT_DIR" && git add scripts/pipeline/issues/ scripts/pipeline/tasks/ && \
-    git commit -m "chore: decompose $ISSUE_NAME into tasks
-
-Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>" --no-verify 2>/dev/null) || true
+# Mark parent issue as decomposed (only after confirming subtasks were written).
+cur_status=$(csv_get_status issues "$ISSUE_NAME" 2>/dev/null || echo "")
+if [[ "$cur_status" == "pending" || "$cur_status" == "in-progress" ]]; then
+  csv_set_status issues "$ISSUE_NAME" decomposed 2>/dev/null || true
 fi
+(cd "$PROJECT_DIR" && \
+  git add scripts/pipeline/issues.csv scripts/pipeline/tasks.csv \
+          scripts/pipeline/descriptions/ && \
+  git commit -m "chore: decompose $ISSUE_NAME into tasks
+
+Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>" --no-verify 2>/dev/null) || true
 
 echo "=== Decomposition complete ==="

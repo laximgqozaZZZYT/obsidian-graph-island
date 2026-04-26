@@ -15,19 +15,12 @@ export HOME="/home/ubuntu"
 
 PROJECT_DIR="/home/ubuntu/obsidian-plugins/obsidian-graph-island"
 LOCK_FILE="/tmp/graph-island-e2e-patrol.lock"
-ISSUE_DIR="$PROJECT_DIR/scripts/pipeline/issues"
 DESCRIPTIONS_DIR="$PROJECT_DIR/scripts/pipeline/descriptions"
 # STATE_FILE removed — all 3 suites run every tick, no rotation needed
 
-# CSV migration feature flag (Phase 2-A). When true, file_issue() inserts
-# a row into issues.csv + writes descriptions/<id>.md instead of creating
-# a per-file md.
-USE_CSV=${USE_CSV:-true}
-if [[ "$USE_CSV" == "true" ]]; then
-  # shellcheck source=/dev/null
-  . "$PROJECT_DIR/scripts/pipeline/csv-helpers.sh"
-  mkdir -p "$DESCRIPTIONS_DIR"
-fi
+# shellcheck source=/dev/null
+. "$PROJECT_DIR/scripts/pipeline/csv-helpers.sh"
+mkdir -p "$DESCRIPTIONS_DIR"
 
 cd "$PROJECT_DIR" || exit 1
 
@@ -57,42 +50,6 @@ LOG_PREFIX="e2e-patrol" bash "$PROJECT_DIR/scripts/pipeline/ensure-cdp.sh" || {
 log "=== E2E Patrol START ==="
 
 file_issue() {
-  local slug="$1" prio="$2" summary="$3" desc="$4" criteria="$5"
-  if [[ "$USE_CSV" == "true" ]]; then
-    _file_issue_csv "$slug" "$prio" "$summary" "$desc" "$criteria"
-  else
-    _file_issue_md  "$slug" "$prio" "$summary" "$desc" "$criteria"
-  fi
-}
-
-# Legacy md path — same minimal dedup (any file containing the slug)
-# the patrol always used. Kept as fallback while USE_CSV is off.
-_file_issue_md() {
-  local slug="$1" prio="$2" summary="$3" desc="$4" criteria="$5"
-  [[ -n "$(find "$ISSUE_DIR" -maxdepth 1 -name "*${slug}*" 2>/dev/null | head -1)" ]] && return 0
-  local last_num=$(find "$ISSUE_DIR" "$ISSUE_DIR/done" -maxdepth 1 -name '*.md' 2>/dev/null | xargs -I{} basename {} | grep -oP '^\d+' | sort -n | tail -1)
-  last_num=$(echo "${last_num:-0}" | sed 's/^0*//'); last_num=${last_num:-0}
-  local num=$(printf "%03d" $((last_num + 1)))
-  cat > "$ISSUE_DIR/${num}-${slug}.md" << EOF
----
-priority: $prio
-reported: $(date +%Y-%m-%d)
-status: pending
-source: e2e-patrol
-summary: $summary
----
-## Description
-$desc
-## Acceptance criteria
-$criteria
-EOF
-  log "FILED: ${num}-${slug}.md"
-  (cd "$PROJECT_DIR" && git add scripts/pipeline/issues/ && git commit -m "chore(e2e-patrol): filed ${num}-${slug}" --no-verify 2>/dev/null) || true
-}
-
-# CSV path — uses the same active-slug skip and Jaccard rules as
-# discover-issues.sh so e2e-patrol can't recreate near-duplicate rows.
-_file_issue_csv() {
   local slug="$1" prio="$2" summary="$3" desc="$4" criteria="$5"
 
   # Skip if any active row already covers this slug
