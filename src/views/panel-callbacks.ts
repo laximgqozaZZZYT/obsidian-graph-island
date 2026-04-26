@@ -94,6 +94,7 @@ export interface PanelCallbackHost {
 // ---------------------------------------------------------------------------
 
 function _buildRenderCallbacks(host: PanelCallbackHost): Partial<PanelCallbacks> {
+	let markDirtyRenderTimer: ReturnType<typeof setTimeout> | null = null;
 	return {
 		doRender: () => {
 			host.doRender();
@@ -110,7 +111,9 @@ function _buildRenderCallbacks(host: PanelCallbackHost): Partial<PanelCallbacks>
 			invalidateBundleCache(host.edgeCache);
 			host.markDirty(true);
 			host.requestSave();
-			setTimeout(() => {
+			if (markDirtyRenderTimer !== null) clearTimeout(markDirtyRenderTimer);
+			markDirtyRenderTimer = setTimeout(() => {
+				markDirtyRenderTimer = null;
 				host.renderPipeline?.forceRender();
 			}, 100);
 		},

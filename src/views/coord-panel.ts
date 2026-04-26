@@ -400,6 +400,7 @@ export function buildExprLibrary(body: HTMLElement, panel: PanelState, cb: Panel
 		const nameEl = item.createEl("span", { cls: "gi-expr-library-name", text: entry.name });
 		item.createEl("span", { cls: "gi-expr-library-desc", text: entry.desc });
 
+		let highlightTimer: ReturnType<typeof setTimeout> | null = null;
 		item.addEventListener("click", () => {
 			// Apply the preset to panel
 			const base = getOrCreateCoordLayout(panel);
@@ -423,7 +424,9 @@ export function buildExprLibrary(body: HTMLElement, panel: PanelState, cb: Panel
 
 			// Brief highlight
 			nameEl.style.color = "var(--text-success, #4f4)";
-			setTimeout(() => {
+			if (highlightTimer !== null) clearTimeout(highlightTimer);
+			highlightTimer = setTimeout(() => {
+				highlightTimer = null;
 				nameEl.style.color = "";
 			}, 600);
 		});
@@ -435,13 +438,16 @@ export function buildExprLibrary(body: HTMLElement, panel: PanelState, cb: Panel
 		cls: "gi-auto-optimize-btn",
 		text: t("coord.autoOptimize"),
 	});
+	let optResetTimer: ReturnType<typeof setTimeout> | null = null;
 	optBtn.addEventListener("click", () => {
 		optBtn.disabled = true;
 		optBtn.textContent = t("coord.autoOptimizeRunning");
 		cb.autoOptimize();
 		const rt = mergeRenderThresholds(panel.renderThresholds);
 		const waitMs = rt.autoOptMaxPasses * 1500 + 500;
-		setTimeout(() => {
+		if (optResetTimer !== null) clearTimeout(optResetTimer);
+		optResetTimer = setTimeout(() => {
+			optResetTimer = null;
 			optBtn.disabled = false;
 			optBtn.textContent = t("coord.autoOptimize");
 		}, waitMs);
