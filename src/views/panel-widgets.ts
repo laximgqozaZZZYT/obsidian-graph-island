@@ -14,6 +14,7 @@ import type {
 import { DEFAULT_COLORS } from "../types";
 import { EDGE_TYPE_INHERITANCE } from "../constants";
 import { parseQueryExpr, serializeExpr } from "../utils/query-expr";
+import { setNumericText, setUserDataText } from "./dom-helpers";
 
 export function updateSliderProgress(el: HTMLInputElement) {
 	const min = parseFloat(el.min) || 0;
@@ -71,7 +72,7 @@ export function buildDualRangeSlider(
 			lo = hi;
 			hi = tmp;
 		}
-		rangeLabel.textContent = `${lo}% – ${hi}%`;
+		setUserDataText(rangeLabel, `${lo}% – ${hi}%`);
 		updateSliderProgress(minInput);
 		updateSliderProgress(maxInput);
 		onChange(lo / 100, hi / 100);
@@ -104,13 +105,13 @@ export function addSlider(
 	updateSliderProgress(input);
 	input.addEventListener("input", () => {
 		const v = parseFloat(input.value);
-		valueSpan.textContent = String(v);
+		setNumericText(valueSpan, v);
 		updateSliderProgress(input);
 		onChange(v);
 	});
 	input.addEventListener("dblclick", () => {
 		input.value = String(initial);
-		valueSpan.textContent = String(initial);
+		setNumericText(valueSpan, initial);
 		updateSliderProgress(input);
 		onChange(initial);
 	});
@@ -289,7 +290,7 @@ export function renderOntologyRule(
 
 	// Relation dropdown
 	const relBtn = row.createEl("button", { cls: "gi-ont-rel-btn" });
-	relBtn.textContent = rule.relation;
+	setUserDataText(relBtn, rule.relation);
 	relBtn.addEventListener("click", () => {
 		// Cycle through options or show popup
 		const popup = row.querySelector(".gi-ont-rel-popup");
@@ -305,7 +306,7 @@ export function renderOntologyRule(
 			});
 			item.addEventListener("click", () => {
 				rule.relation = opt.value;
-				relBtn.textContent = opt.label;
+				setUserDataText(relBtn, opt.label);
 				menu.remove();
 				save();
 				rerender(); // Update reverse input disabled state for bidirectional relations
@@ -1195,7 +1196,7 @@ function _rebuildSearchDropdown(
 	for (let i = 0; i < ids.length; i++) {
 		const id = ids[i];
 		const item = dropdownEl.createDiv({ cls: "gi-search-result-item" });
-		item.textContent = id;
+		setUserDataText(item, id);
 		item.addEventListener("click", () => {
 			cb.jumpToNode(id);
 			dismiss();
@@ -1713,7 +1714,7 @@ function _buildRuleForceSliders(row2: HTMLElement, rule: NodeRule, cb: PanelCall
 	cgLabel.addClass("gi-slider-label");
 	cgSlider.addEventListener("input", () => {
 		rule.centerGravity = parseFloat(cgSlider.value);
-		cgLabel.textContent = cgSlider.value;
+		setNumericText(cgLabel, cgSlider.value);
 		updateSliderProgress(cgSlider);
 		cb.applyNodeRules();
 		cb.restartSimulation(0.3);
@@ -1735,7 +1736,7 @@ function _buildRuleForceSliders(row2: HTMLElement, rule: NodeRule, cb: PanelCall
 	rmLabel.addClass("gi-slider-label");
 	rmSlider.addEventListener("input", () => {
 		rule.repelMultiplier = parseFloat(rmSlider.value);
-		rmLabel.textContent = rmSlider.value;
+		setNumericText(rmLabel, rmSlider.value);
 		updateSliderProgress(rmSlider);
 		cb.applyNodeRules();
 		cb.restartSimulation(0.3);
@@ -1798,7 +1799,7 @@ export function renderNodeRuleList(container: HTMLElement, panel: PanelState, ct
 		spacingLabel.addClass("gi-slider-label");
 		spacingSlider.addEventListener("input", () => {
 			rule.spacingMultiplier = parseFloat(spacingSlider.value);
-			spacingLabel.textContent = spacingSlider.value;
+			setNumericText(spacingLabel, spacingSlider.value);
 			updateSliderProgress(spacingSlider);
 			cb.applyNodeRules();
 			cb.restartSimulation(0.3);
