@@ -477,15 +477,7 @@ describe("applyGroupLabelPlacements", () => {
 	it("hides stale labels not present in current placements (viewMode cleanup)", () => {
 		const container = new CanvasContainer();
 		const labels = new Map<string, CanvasText>();
-		applyGroupLabelPlacements(
-			[makePlacement("old")],
-			new Set(["old"]),
-			labels,
-			container,
-			1,
-			1,
-			null,
-		);
+		applyGroupLabelPlacements([makePlacement("old")], new Set(["old"]), labels, container, 1, 1, null);
 		expect(labels.get("old")!.visible).toBe(true);
 
 		// Next frame (e.g. after viewMode switch) — "old" is no longer in placements
@@ -507,15 +499,7 @@ describe("applyGroupLabelPlacements", () => {
 	it("applies aggregate-mode padding/stroke when isAggregateMode is true", () => {
 		const container = new CanvasContainer();
 		const labels = new Map<string, CanvasText>();
-		applyGroupLabelPlacements(
-			[makePlacement("agg", true)],
-			new Set(["agg"]),
-			labels,
-			container,
-			0.1,
-			1,
-			null,
-		);
+		applyGroupLabelPlacements([makePlacement("agg", true)], new Set(["agg"]), labels, container, 0.1, 1, null);
 		const lbl = labels.get("agg")!;
 		// Aggregate-mode padding differs from normal mode
 		expect(lbl.bgPadX).toBe(16); // GROUP_LABEL_PAD_X_AGGREGATE
@@ -526,15 +510,7 @@ describe("applyGroupLabelPlacements", () => {
 	it("applies hovered background color when key matches hoveredGroupLabel", () => {
 		const container = new CanvasContainer();
 		const labels = new Map<string, CanvasText>();
-		applyGroupLabelPlacements(
-			[makePlacement("h")],
-			new Set(["h"]),
-			labels,
-			container,
-			1,
-			1,
-			"h",
-		);
+		applyGroupLabelPlacements([makePlacement("h")], new Set(["h"]), labels, container, 1, 1, "h");
 		const lbl = labels.get("h")!;
 		expect(lbl.bgColor).toBe(0x4a4a8e); // GROUP_LABEL_BG_COLOR_HOVERED
 		expect(lbl.bgAlpha).toBe(0.95); // GROUP_LABEL_BG_ALPHA_HOVERED
@@ -614,13 +590,7 @@ describe("drawAggregateGroups", () => {
 		const gfx = new CanvasGraphics();
 		const container = new CanvasContainer();
 		const labels: CanvasText[] = [];
-		drawAggregateGroups(
-			[{ folder: "en", cx: 0, cy: 0, radius: 50, nodeCount: 3 }],
-			gfx,
-			container,
-			labels,
-			0.1,
-		);
+		drawAggregateGroups([{ folder: "en", cx: 0, cy: 0, radius: 50, nodeCount: 3 }], gfx, container, labels, 0.1);
 		const first = labels[0];
 		const childCountBefore = container.children.length;
 
@@ -654,13 +624,7 @@ describe("drawAggregateGroups", () => {
 		expect(labels.length).toBe(2);
 		expect(labels[1].visible).toBe(true);
 
-		drawAggregateGroups(
-			[{ folder: "a", cx: 0, cy: 0, radius: 50, nodeCount: 3 }],
-			gfx,
-			container,
-			labels,
-			0.1,
-		);
+		drawAggregateGroups([{ folder: "a", cx: 0, cy: 0, radius: 50, nodeCount: 3 }], gfx, container, labels, 0.1);
 		// Pool size retained, but extra slot hidden
 		expect(labels.length).toBe(2);
 		expect(labels[1].visible).toBe(false);

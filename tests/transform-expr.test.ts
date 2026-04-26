@@ -546,9 +546,7 @@ describe("transform-expr coverage fill", () => {
 			const withDefault = parseTransformExpr("ROSE(index)");
 			expect(withBadKey).not.toBeNull();
 			expect(withDefault).not.toBeNull();
-			expect((withBadKey!.transform as any).params.k).toBe(
-				(withDefault!.transform as any).params.k,
-			);
+			expect((withBadKey!.transform as any).params.k).toBe((withDefault!.transform as any).params.k);
 		});
 
 		it("random:notanumber uses fallback seed 42", () => {

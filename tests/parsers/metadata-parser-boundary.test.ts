@@ -209,16 +209,11 @@ describe("buildGraphFromVault — tag hierarchy", () => {
 		const app = mkFakeApp([{ path: "A.md", frontmatter: { tags: ["entity/character/hero"] } }]);
 		const g = buildGraphFromVault(app, mkSettings({ ontology }));
 		const tagIds = new Set(g.nodes.filter((n) => n.isTag).map((n) => n.id));
-		expect(tagIds).toEqual(
-			new Set(["tag:entity", "tag:entity/character", "tag:entity/character/hero"]),
-		);
+		expect(tagIds).toEqual(new Set(["tag:entity", "tag:entity/character", "tag:entity/character/hero"]));
 		// Hierarchy edges: hero → character, character → entity
 		const hier = g.edges.filter((e) => e.type === "inheritance" && e.source.startsWith("tag:"));
 		const keys = hier.map((e) => `${e.source}->${e.target}`).sort();
-		expect(keys).toEqual([
-			"tag:entity/character->tag:entity",
-			"tag:entity/character/hero->tag:entity/character",
-		]);
+		expect(keys).toEqual(["tag:entity/character->tag:entity", "tag:entity/character/hero->tag:entity/character"]);
 	});
 });
 

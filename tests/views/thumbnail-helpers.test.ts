@@ -12,11 +12,7 @@
  *      the suite).
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import {
-	extractFrontmatterImage,
-	isNodeOnScreen,
-	createThumbnailClone,
-} from "../../src/views/thumbnail-helpers";
+import { extractFrontmatterImage, isNodeOnScreen, createThumbnailClone } from "../../src/views/thumbnail-helpers";
 
 describe("extractFrontmatterImage", () => {
 	it("prefers `image` over `thumbnail` and `cover`", () => {

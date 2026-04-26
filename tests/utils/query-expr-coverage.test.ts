@@ -1,9 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-	evaluateExpr,
-	parseQueryExpr,
-	buildSearchHopSet,
-} from "../../src/utils/query-expr";
+import { evaluateExpr, parseQueryExpr, buildSearchHopSet } from "../../src/utils/query-expr";
 import type { GraphNode } from "../../src/types";
 
 function makeNode(overrides?: Partial<GraphNode>): GraphNode {

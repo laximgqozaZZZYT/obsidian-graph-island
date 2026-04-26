@@ -31,7 +31,8 @@ import {
 	blendThemeLabel,
 	cleanArcName,
 	areSavedPositionsValid,
-	lightenHex, giDiag,
+	lightenHex,
+	giDiag,
 } from "../utils/gvc-helpers";
 import {
 	buildGraphFromVault,
@@ -7168,8 +7169,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		// them on a tight Fermat spiral so the opening frame already has a
 		// pleasing radial composition and the physics only has to refine it.
 		const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5)); // ~137.508°
-		const FADE_RING_BASE = 22;   // world-unit radius for the innermost member
-		const FADE_RING_STEP = 2.4;  // radial growth per member
+		const FADE_RING_BASE = 22; // world-unit radius for the innermost member
+		const FADE_RING_STEP = 2.4; // radial growth per member
 		let fadeIdx = 0;
 		for (const n of gd.nodes) {
 			if (fade && fade.stagger.has(n.id)) {
@@ -7177,7 +7178,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 				const theta = fadeIdx * GOLDEN_ANGLE;
 				n.x = fade.originX + Math.cos(theta) * r;
 				n.y = fade.originY + Math.sin(theta) * r;
-				n.vx = Math.cos(theta) * 0.8;  // tiny outward nudge
+				n.vx = Math.cos(theta) * 0.8; // tiny outward nudge
 				n.vy = Math.sin(theta) * 0.8;
 				fadeIdx++;
 				continue;

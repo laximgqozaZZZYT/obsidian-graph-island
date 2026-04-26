@@ -38,35 +38,46 @@ import {
 // Re-export for public API (tests and other modules import MIN_WORLD_RADIUS_PX from here)
 export { MIN_WORLD_RADIUS_PX } from "../constants";
 import {
-	darkenColor, lightenColor, blendColors, desaturateColor,
-	computeGlowParams, computeLabelColors, isDensityTooClose,
+	darkenColor,
+	lightenColor,
+	blendColors,
+	desaturateColor,
+	computeGlowParams,
+	computeLabelColors,
+	isDensityTooClose,
 	computeZonePlacementFromAngles,
-	GLOW_ATTENUATE_THRESHOLD, GLOW_ATTENUATE_RANGE, GLOW_RADIUS_ATTENUATE_FACTOR, GLOW_P90_FRACTION,
+	GLOW_ATTENUATE_THRESHOLD,
+	GLOW_ATTENUATE_RANGE,
+	GLOW_RADIUS_ATTENUATE_FACTOR,
+	GLOW_P90_FRACTION,
 	LABEL_Y_OFFSET_FACTOR,
 } from "./render-pipeline-utils";
 export {
-	darkenColor, lightenColor, blendColors, desaturateColor,
-	computeGlowParams, computeLabelColors, isDensityTooClose,
+	darkenColor,
+	lightenColor,
+	blendColors,
+	desaturateColor,
+	computeGlowParams,
+	computeLabelColors,
+	isDensityTooClose,
 	computeZonePlacementFromAngles,
-	GLOW_ATTENUATE_THRESHOLD, GLOW_ATTENUATE_RANGE, GLOW_RADIUS_ATTENUATE_FACTOR, GLOW_P90_FRACTION,
+	GLOW_ATTENUATE_THRESHOLD,
+	GLOW_ATTENUATE_RANGE,
+	GLOW_RADIUS_ATTENUATE_FACTOR,
+	GLOW_P90_FRACTION,
 	LABEL_Y_OFFSET_FACTOR,
 };
 import {
-	computeZoomNodeBoost, computeBaseStrokeWidth, computeNodeAlpha, resolveNodeDrawColor,
+	computeZoomNodeBoost,
+	computeBaseStrokeWidth,
+	computeNodeAlpha,
+	resolveNodeDrawColor,
 } from "./node-render-helpers";
 import type { DenseStrokeConfig } from "./node-render-helpers";
 import { SpatialHashGrid } from "../utils/spatial-grid";
 import { computeViewportBounds, collectVisibleNodes } from "./batch-context";
-import {
-	cleanupCardText,
-	cleanupCardTextAll,
-	renderCardMode,
-	CARD_FONT_FAMILY,
-} from "./card-renderer";
-import {
-	renderDonutMode,
-	renderSunburstSegmentMode,
-} from "./donut-renderer";
+import { cleanupCardText, cleanupCardTextAll, renderCardMode, CARD_FONT_FAMILY } from "./card-renderer";
+import { renderDonutMode, renderSunburstSegmentMode } from "./donut-renderer";
 import { renderSemanticZoomMode } from "./semantic-zoom-renderer";
 import {
 	renderPathfinderMarkers,
@@ -89,8 +100,15 @@ import {
 // Shared render context type for node rendering methods
 // ---------------------------------------------------------------------------
 interface NormalZoomCtx {
-	visible: PixiNode[]; pixiNodes: Map<string, PixiNode>; tlFilteredOut: Set<string> | null;
-	alpha: number; nodeCount: number; shapeRules: ShapeRule[]; worldScale: number; minWorldRadius: number; lodLevel: number;
+	visible: PixiNode[];
+	pixiNodes: Map<string, PixiNode>;
+	tlFilteredOut: Set<string> | null;
+	alpha: number;
+	nodeCount: number;
+	shapeRules: ShapeRule[];
+	worldScale: number;
+	minWorldRadius: number;
+	lodLevel: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -852,7 +870,12 @@ export class RenderPipeline {
 		const worldScale = world?.scale?.x ?? 1;
 		const { width: cw, height: ch } = this.host.getCanvasDimensions();
 		const viewport = computeViewportBounds(
-			world?.x ?? 0, world?.y ?? 0, worldScale, cw, ch, VIEWPORT_CULL_MARGIN_PX,
+			world?.x ?? 0,
+			world?.y ?? 0,
+			worldScale,
+			cw,
+			ch,
+			VIEWPORT_CULL_MARGIN_PX,
 		);
 
 		// Collect visible nodes (reuse pooled array)
@@ -942,8 +965,11 @@ export class RenderPipeline {
 		rt: ReturnType<typeof Object.assign>,
 	) {
 		const { visible, shapeRules, alpha, nodeCount, minWorldRadius } = ctx;
-		const { glowAlpha: baseGlowAlpha, glowRadius: baseGlowRadius } =
-			computeGlowParams(nodeCount, rt.glowBaseAlpha, rt.glowBaseRadius);
+		const { glowAlpha: baseGlowAlpha, glowRadius: baseGlowRadius } = computeGlowParams(
+			nodeCount,
+			rt.glowBaseAlpha,
+			rt.glowBaseRadius,
+		);
 
 		// Reuse degree buffer + O(n) quickSelect instead of sort O(n log n)
 		const degArr = this._degreesPool;
@@ -1079,7 +1105,12 @@ export class RenderPipeline {
 	}
 
 	/** Normal zoom: full shape + optional gradient, with display mode support. */
-	private _renderNormalZoom(g: CanvasGraphics, ctx: NormalZoomCtx, crc: ReturnType<typeof Object.assign>, rt: ReturnType<typeof Object.assign>) {
+	private _renderNormalZoom(
+		g: CanvasGraphics,
+		ctx: NormalZoomCtx,
+		crc: ReturnType<typeof Object.assign>,
+		rt: ReturnType<typeof Object.assign>,
+	) {
 		const displayMode = this.host.getNodeDisplayMode();
 
 		if (displayMode !== "card" || (this.host.getCardDisplayConfig().headerStyle ?? "plain") !== "table") {
@@ -1108,7 +1139,12 @@ export class RenderPipeline {
 	}
 
 	/** Auto-LOD node rendering: selects card/compact/semantic/node based on lodLevel. */
-	private _renderAutoLODNode(g: CanvasGraphics, ctx: NormalZoomCtx, crc: ReturnType<typeof Object.assign>, rt: ReturnType<typeof Object.assign>) {
+	private _renderAutoLODNode(
+		g: CanvasGraphics,
+		ctx: NormalZoomCtx,
+		crc: ReturnType<typeof Object.assign>,
+		rt: ReturnType<typeof Object.assign>,
+	) {
 		if (ctx.lodLevel >= 5) {
 			this._renderCardMode(g, ctx, crc, rt);
 		} else if (ctx.lodLevel >= 4) {
@@ -1119,7 +1155,12 @@ export class RenderPipeline {
 	}
 
 	/** Delegates to semantic zoom or standard node rendering. */
-	private _renderNodeOrSemantic(g: CanvasGraphics, ctx: NormalZoomCtx, crc: ReturnType<typeof Object.assign>, rt: ReturnType<typeof Object.assign>) {
+	private _renderNodeOrSemantic(
+		g: CanvasGraphics,
+		ctx: NormalZoomCtx,
+		crc: ReturnType<typeof Object.assign>,
+		rt: ReturnType<typeof Object.assign>,
+	) {
 		if (this.host.getSemanticZoom?.()) {
 			this._renderSemanticZoomMode(g, ctx, crc, rt);
 		} else {
@@ -1128,10 +1169,19 @@ export class RenderPipeline {
 	}
 
 	/** Card mode with tiered density fallback to prevent overlap at low zoom/high density. */
-	private _renderCardWithDensityFallback(g: CanvasGraphics, ctx: NormalZoomCtx, crc: ReturnType<typeof Object.assign>, rt: ReturnType<typeof Object.assign>) {
+	private _renderCardWithDensityFallback(
+		g: CanvasGraphics,
+		ctx: NormalZoomCtx,
+		crc: ReturnType<typeof Object.assign>,
+		rt: ReturnType<typeof Object.assign>,
+	) {
 		const tLow = rt.cardDensityFallbackCount;
 		const tHigh = rt.cardDensityFallbackCountHigh;
-		if (ctx.lodLevel < 3 || (ctx.lodLevel === 3 && ctx.visible.length > tLow) || (ctx.lodLevel === 4 && ctx.visible.length > tHigh)) {
+		if (
+			ctx.lodLevel < 3 ||
+			(ctx.lodLevel === 3 && ctx.visible.length > tLow) ||
+			(ctx.lodLevel === 4 && ctx.visible.length > tHigh)
+		) {
 			this._renderNodeMode(g, ctx, crc, rt);
 		} else {
 			this._renderCardMode(g, ctx, crc, rt);
@@ -1210,8 +1260,10 @@ export class RenderPipeline {
 		const zoomBoost = computeZoomNodeBoost(worldScale);
 		const hc = this.host.isHighContrastMode?.() ?? false;
 		const ds: DenseStrokeConfig = {
-			zoomLow: rt.denseStrokeZoomLow, zoomMid: rt.denseStrokeZoomMid,
-			maxWidth: rt.denseStrokeMaxWidth, midWidth: rt.denseStrokeMidWidth,
+			zoomLow: rt.denseStrokeZoomLow,
+			zoomMid: rt.denseStrokeZoomMid,
+			maxWidth: rt.denseStrokeMaxWidth,
+			midWidth: rt.denseStrokeMidWidth,
 		};
 		const baseStrokeW = computeBaseStrokeWidth(worldScale, hc, ds);
 
@@ -1219,12 +1271,28 @@ export class RenderPipeline {
 			const shape = getNodeShape(pn.data, shapeRules);
 			const effR = Math.max(pn.radius * zoomBoost, minWorldRadius);
 			const filteredOut = !!(tlFilteredOut && tlFilteredOut.has(pn.data.id));
-			const nodeAlpha = computeNodeAlpha(alpha, filteredOut, crc.filteredNodeAlpha, worldScale, pn.sortRank, prominentN, rt.fadeLowDegreeFloor);
+			const nodeAlpha = computeNodeAlpha(
+				alpha,
+				filteredOut,
+				crc.filteredNodeAlpha,
+				worldScale,
+				pn.sortRank,
+				prominentN,
+				rt.fadeLowDegreeFloor,
+			);
 			const drawColor = resolveNodeDrawColor(pn.color, pn.sortRank, prominentN, nonPromSat, desaturateColor);
 			const strokeColor = darkenColor(drawColor, crc.strokeDarken);
 			g.lineStyle(baseStrokeW, strokeColor, nodeAlpha * crc.strokeAlpha);
 			if (useGradient && shape === "circle") {
-				g.beginRadialFill(pn.data.x, pn.data.y, effR, lightenColor(drawColor, crc.gradientHighlight), darkenColor(drawColor, crc.gradientShadow), nodeAlpha, nodeAlpha);
+				g.beginRadialFill(
+					pn.data.x,
+					pn.data.y,
+					effR,
+					lightenColor(drawColor, crc.gradientHighlight),
+					darkenColor(drawColor, crc.gradientShadow),
+					nodeAlpha,
+					nodeAlpha,
+				);
 			} else {
 				g.beginFill(drawColor, nodeAlpha);
 			}
@@ -1399,9 +1467,7 @@ export class RenderPipeline {
 		// several frames of idle time per chunk.
 		const SYNC_ALL_THRESHOLD = 500;
 		const IMMEDIATE_BATCH =
-			sorted.length <= SYNC_ALL_THRESHOLD
-				? sorted.length
-				: Math.min(IMMEDIATE_BATCH_SIZE, sorted.length);
+			sorted.length <= SYNC_ALL_THRESHOLD ? sorted.length : Math.min(IMMEDIATE_BATCH_SIZE, sorted.length);
 		const world = this.host.getWorldContainer()!;
 
 		for (let i = 0; i < IMMEDIATE_BATCH; i++) {
@@ -1439,8 +1505,16 @@ export class RenderPipeline {
 		const ns = this.host.getNodeSize?.() ?? nodeR(n);
 		const nodeDeg = this.host.getDegrees().get(n.id) || 0;
 		const r = effectiveRadius(
-			n, ns, nodeDeg, maxR, rtNode.minNodeRadius, this._cachedMaxDeg,
-			rtNode.nodeSizeByDegree, n.bodyLength ?? 0, this._cachedMaxBodyLength ?? 0, rtNode.cardContentScale,
+			n,
+			ns,
+			nodeDeg,
+			maxR,
+			rtNode.minNodeRadius,
+			this._cachedMaxDeg,
+			rtNode.nodeSizeByDegree,
+			n.bodyLength ?? 0,
+			this._cachedMaxBodyLength ?? 0,
+			rtNode.cardContentScale,
 		);
 		const color = nodeColor(n);
 		const circle = new CanvasGraphics();
@@ -1480,10 +1554,22 @@ export class RenderPipeline {
 		}
 
 		this.host.getPixiNodes().set(n.id, {
-			data: n, gfx: container, circle, label, tagLabel, subLabels,
-			hoverLabel: null, leaderLine: null, radius: r, color,
-			held: false, sortRank: -1, priorityScore: -1,
-			minShowZoom: 1.0, labelWasVisible: false, hoverForcedLabel: false,
+			data: n,
+			gfx: container,
+			circle,
+			label,
+			tagLabel,
+			subLabels,
+			hoverLabel: null,
+			leaderLine: null,
+			radius: r,
+			color,
+			held: false,
+			sortRank: -1,
+			priorityScore: -1,
+			minShowZoom: 1.0,
+			labelWasVisible: false,
+			hoverForcedLabel: false,
 		});
 	}
 
@@ -1503,7 +1589,10 @@ export class RenderPipeline {
 		// Iterate via snapshot so we can delete inside the loop
 		for (const [id, startMs] of fade) {
 			const pn = pixiNodes.get(id);
-			if (!pn) { fade.delete(id); continue; }
+			if (!pn) {
+				fade.delete(id);
+				continue;
+			}
 			const t = Math.min((now - startMs) / dur, 1);
 			const eased = 1 - Math.pow(1 - t, 3);
 			const alpha = Math.min(1, t * 1.4);
@@ -1535,14 +1624,20 @@ export class RenderPipeline {
 	}
 
 	private _computeLabelColors(
-		rt: Required<RenderThresholds>, isSuperNode: boolean, color: number,
+		rt: Required<RenderThresholds>,
+		isSuperNode: boolean,
+		color: number,
 	): { labelBg: number; labelFill: number } {
 		return computeLabelColors(this.host.isDarkTheme(), rt, isSuperNode, color);
 	}
 
 	private _createNodeLabel(
-		n: GraphNode, rt: Required<RenderThresholds>, isSuperNode: boolean,
-		color: number, deg: number, r: number,
+		n: GraphNode,
+		rt: Required<RenderThresholds>,
+		isSuperNode: boolean,
+		color: number,
+		deg: number,
+		r: number,
 	): CanvasText {
 		const maxDeg = this._cachedMaxDeg || 1;
 		const importance = maxDeg > 0 ? Math.min(1, deg / maxDeg) : 0;
@@ -1557,8 +1652,10 @@ export class RenderPipeline {
 			if (icon) displayLabel = `${icon} ${displayLabel}`;
 		}
 		const label = new CanvasText(displayLabel, {
-			fontSize: scaledFontSize, fill: labelFill,
-			fontWeight: isSuperNode ? "bold" : "500", fontFamily: CARD_FONT_FAMILY,
+			fontSize: scaledFontSize,
+			fill: labelFill,
+			fontWeight: isSuperNode ? "bold" : "500",
+			fontFamily: CARD_FONT_FAMILY,
 		});
 		label.bgColor = labelBg;
 		const baseBgAlpha = isSuperNode ? rt.superNodeLabelBgAlpha : rt.labelBgAlpha;
@@ -1581,10 +1678,16 @@ export class RenderPipeline {
 	}
 
 	private _createTagLabel(n: GraphNode, rt: Required<RenderThresholds>, r: number): CanvasText {
-		const tagText = n.tags!.slice(0, rt.tagLabelMaxTags).map((t) => `#${t}`).join(" ");
+		const tagText = n
+			.tags!.slice(0, rt.tagLabelMaxTags)
+			.map((t) => `#${t}`)
+			.join(" ");
 		const accentColor = this.host.getAccentColor?.() ?? 0x818cf8;
 		const tagLabel = new CanvasText(tagText, {
-			fontSize: rt.tagLabelFontSize, fill: accentColor, fontWeight: "400", fontFamily: CARD_FONT_FAMILY,
+			fontSize: rt.tagLabelFontSize,
+			fill: accentColor,
+			fontWeight: "400",
+			fontFamily: CARD_FONT_FAMILY,
 		});
 		tagLabel.alpha = rt.tagLabelAlpha;
 		tagLabel.bgColor = rt.labelBgColor;
@@ -1600,25 +1703,33 @@ export class RenderPipeline {
 	}
 
 	private _createSubLabels(
-		n: GraphNode, isSuperNode: boolean,
-		label: CanvasText | null, tagLabel: CanvasText | null, r: number,
+		n: GraphNode,
+		isSuperNode: boolean,
+		label: CanvasText | null,
+		tagLabel: CanvasText | null,
+		r: number,
 	): CanvasText[] {
 		const subLabels: CanvasText[] = [];
 		const subFieldsRaw = this.host.getNodeSubLabelFields?.() ?? "";
 		if (!subFieldsRaw || !label || isSuperNode) return subLabels;
 		const srt = this.getCachedRT();
-		const fields = subFieldsRaw.split(",").map((s) => s.trim()).filter(Boolean);
-		let yOffset = tagLabel
-			? r + srt.tagLabelOffset + srt.tagLabelFontSize + SUB_LABEL.GAP
-			: r + srt.tagLabelOffset;
+		const fields = subFieldsRaw
+			.split(",")
+			.map((s) => s.trim())
+			.filter(Boolean);
+		let yOffset = tagLabel ? r + srt.tagLabelOffset + srt.tagLabelFontSize + SUB_LABEL.GAP : r + srt.tagLabelOffset;
 		for (const field of fields) {
 			const val = this.host.getNodeProperty
 				? this.host.getNodeProperty(n.id, field)
-				: n.meta?.[field] !== undefined && n.meta?.[field] !== null ? String(n.meta[field]) : undefined;
+				: n.meta?.[field] !== undefined && n.meta?.[field] !== null
+					? String(n.meta[field])
+					: undefined;
 			if (!val) continue;
 			const subLabel = new CanvasText(val, {
-				fontSize: SUB_LABEL.FONT_SIZE, fill: this.host.isDarkTheme() ? 0xbbbbbb : 0x555555,
-				fontWeight: "400", fontFamily: CARD_FONT_FAMILY,
+				fontSize: SUB_LABEL.FONT_SIZE,
+				fill: this.host.isDarkTheme() ? 0xbbbbbb : 0x555555,
+				fontWeight: "400",
+				fontFamily: CARD_FONT_FAMILY,
 			});
 			subLabel.alpha = SUB_LABEL.ALPHA;
 			subLabel.bgColor = srt.labelBgColor;
@@ -1831,7 +1942,13 @@ export class RenderPipeline {
 		const pixiNodes = this.host.getPixiNodes();
 		const degrees = this.host.getDegrees();
 
-		const rects = this._collectLabelRects(pixiNodes, degrees, zoom, rt.labelOverlapMaxScreenW, rt.labelOverlapMaxScreenH);
+		const rects = this._collectLabelRects(
+			pixiNodes,
+			degrees,
+			zoom,
+			rt.labelOverlapMaxScreenW,
+			rt.labelOverlapMaxScreenH,
+		);
 		const grid = new SpatialHashGrid<CullLabelRect>(OVERLAP_GRID_CELL_SIZE, margin);
 
 		this._reserveDomExclusionZones(grid);
@@ -1850,29 +1967,61 @@ export class RenderPipeline {
 
 		if (this._activeLeaderCount > 0) {
 			for (const pn of pixiNodes.values()) {
-				if (pn.leaderLine) { pn.leaderLine.clear(); pn.leaderLine.visible = false; }
+				if (pn.leaderLine) {
+					pn.leaderLine.clear();
+					pn.leaderLine.visible = false;
+				}
 			}
 			this._activeLeaderCount = 0;
 		}
 
 		for (const r of rects) {
-			if (!grid.checkOverlap(r)) { placed.push(r); grid.insert(r); continue; }
-			const found = this._tryDisplaceLabel(r, zoom, rt.labelMaxDisplacementRatio, grid, drawLeader, llWidth, llAlpha);
-			if (found) { placed.push(found); grid.insert(found); }
-			else { this._fadeOutLabel(r.label, rt.labelFadeRate); }
+			if (!grid.checkOverlap(r)) {
+				placed.push(r);
+				grid.insert(r);
+				continue;
+			}
+			const found = this._tryDisplaceLabel(
+				r,
+				zoom,
+				rt.labelMaxDisplacementRatio,
+				grid,
+				drawLeader,
+				llWidth,
+				llAlpha,
+			);
+			if (found) {
+				placed.push(found);
+				grid.insert(found);
+			} else {
+				this._fadeOutLabel(r.label, rt.labelFadeRate);
+			}
 		}
 
 		this._runDensityCulling(rt, placed, zoom);
 
-		this._guaranteePlacementFloor(rt, rects, placed, grid, zoom, margin, rt.labelMinNonSuper, drawLeader, llWidth, llAlpha);
+		this._guaranteePlacementFloor(
+			rt,
+			rects,
+			placed,
+			grid,
+			zoom,
+			margin,
+			rt.labelMinNonSuper,
+			drawLeader,
+			llWidth,
+			llAlpha,
+		);
 		this._drawCounterScaleLeaderLines(rt, placed, zoom, drawLeader, llWidth, llAlpha);
 
 		const totalVisible = rects.filter((r) => r.label.visible).length;
 		const densityCulled = rects.length - totalVisible;
 		this.host.updateDensityCulledBadge?.(densityCulled);
 		this._lastCullStats = {
-			totalLabels: rects.length, visibleLabels: totalVisible,
-			culledLabels: densityCulled, collisionRate: rects.length > 0 ? densityCulled / rects.length : 0,
+			totalLabels: rects.length,
+			visibleLabels: totalVisible,
+			culledLabels: densityCulled,
+			collisionRate: rects.length > 0 ? densityCulled / rects.length : 0,
 		};
 	}
 
@@ -1891,8 +2040,14 @@ export class RenderPipeline {
 			if (!el || el.style.display === "none" || !el.offsetParent) continue;
 			const r = el.getBoundingClientRect();
 			grid.insert({
-				x: r.left - canvasRect.left, y: r.top - canvasRect.top, w: r.width, h: r.height,
-				label: null as unknown as CanvasText, pn: null as unknown as PixiNode, degree: 999, isSuper: false,
+				x: r.left - canvasRect.left,
+				y: r.top - canvasRect.top,
+				w: r.width,
+				h: r.height,
+				label: null as unknown as CanvasText,
+				pn: null as unknown as PixiNode,
+				degree: 999,
+				isSuper: false,
 			});
 		}
 	}
@@ -1909,8 +2064,14 @@ export class RenderPipeline {
 			const sw = (lbl.width ?? 60) * lbl.scale.x;
 			const sh = (lbl.height ?? 14) * lbl.scale.y;
 			grid.insert({
-				x: sx - sw / 2, y: sy - sh / 2, w: sw, h: sh,
-				label: null as unknown as CanvasText, pn: null as unknown as PixiNode, degree: 500, isSuper: false,
+				x: sx - sw / 2,
+				y: sy - sh / 2,
+				w: sw,
+				h: sh,
+				label: null as unknown as CanvasText,
+				pn: null as unknown as PixiNode,
+				degree: 500,
+				isSuper: false,
 			});
 		}
 	}
@@ -1918,12 +2079,17 @@ export class RenderPipeline {
 	private _runDensityCulling(rt: Required<RenderThresholds>, placed: CullLabelRect[], zoom: number) {
 		if (placed.length <= 10) return;
 		const densityMinDist = computeDensityMinDist(
-			rt.labelDensityMinScreenDist, rt.labelDensityMaxDist, zoom, rt.labelDensityZoomThreshold,
+			rt.labelDensityMinScreenDist,
+			rt.labelDensityMaxDist,
+			zoom,
+			rt.labelDensityZoomThreshold,
 		);
 		const densityMinDist2 = densityMinDist * densityMinDist;
-		placed.sort((a, b) =>
-			b.pn.priorityScore + (b.pn.hoverForcedLabel ? 80 : 0)
-			- (a.pn.priorityScore + (a.pn.hoverForcedLabel ? 80 : 0)),
+		placed.sort(
+			(a, b) =>
+				b.pn.priorityScore +
+				(b.pn.hoverForcedLabel ? 80 : 0) -
+				(a.pn.priorityScore + (a.pn.hoverForcedLabel ? 80 : 0)),
 		);
 		const kept: CullLabelRect[] = [];
 		const bucketSize = Math.max(densityMinDist, 50);
@@ -1937,7 +2103,8 @@ export class RenderPipeline {
 				kept.push(r);
 				const key = `${Math.floor(cx / bucketSize)},${Math.floor(cy / bucketSize)}`;
 				const arr = densityGrid.get(key);
-				if (arr) arr.push({ cx, cy }); else densityGrid.set(key, [{ cx, cy }]);
+				if (arr) arr.push({ cx, cy });
+				else densityGrid.set(key, [{ cx, cy }]);
 			}
 		}
 		placed.length = 0;
@@ -1945,7 +2112,10 @@ export class RenderPipeline {
 	}
 
 	private _isDensityTooClose(
-		cx: number, cy: number, bucketSize: number, minDist2: number,
+		cx: number,
+		cy: number,
+		bucketSize: number,
+		minDist2: number,
 		grid: Map<string, { cx: number; cy: number }[]>,
 	): boolean {
 		return isDensityTooClose(cx, cy, bucketSize, minDist2, grid);
@@ -1992,7 +2162,12 @@ export class RenderPipeline {
 
 	/** Measure label dimensions in screen space, accounting for scale and padding. */
 	private _measureLabelDims(
-		label: CanvasText, fontSize: number, charW: number, zoom: number, maxScreenW: number, maxScreenH: number,
+		label: CanvasText,
+		fontSize: number,
+		charW: number,
+		zoom: number,
+		maxScreenW: number,
+		maxScreenH: number,
 	): { w: number; h: number } {
 		const scaleX = label.scale?.x ?? 1;
 		const scaleY = label.scale?.y ?? 1;
@@ -2009,7 +2184,11 @@ export class RenderPipeline {
 	}
 
 	private _buildLabelRect(
-		pn: PixiNode, degrees: Map<string, number>, zoom: number, maxScreenW: number, maxScreenH: number,
+		pn: PixiNode,
+		degrees: Map<string, number>,
+		zoom: number,
+		maxScreenW: number,
+		maxScreenH: number,
 	): CullLabelRect | null {
 		const isHoverLabel = !!(pn.hoverLabel && pn.hoverLabel.visible);
 		const label = isHoverLabel ? pn.hoverLabel : pn.label;
@@ -2021,10 +2200,12 @@ export class RenderPipeline {
 		const anchorX = label.anchor?.x ?? 0;
 		const anchorY = label.anchor?.y ?? 0;
 		return {
-			pn, label,
+			pn,
+			label,
 			x: (pn.data.x + label.x) * zoom - w * anchorX,
 			y: (pn.data.y + label.y) * zoom - h * anchorY,
-			w, h,
+			w,
+			h,
 			degree: degrees.get(pn.data.id) ?? 0,
 			isSuper: !!(pn.data.collapsedMembers && pn.data.collapsedMembers.length > 0),
 		};

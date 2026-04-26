@@ -698,6 +698,13 @@ focus=$FOCUS の改善を1つ実装せよ:
     --allowedTools "Bash,Read,Write,Edit,Glob,Grep" \
     --max-turns "$MAX_TURNS"
 
+  # ── Phase Q (2026-04-26): auto-format implementation output ──
+  # CI was failing every PR because Claude's edits were not Prettier-clean
+  # and `enforce-gates.sh` had no format gate. Run `pnpm format` once here
+  # so the autonomous PR ships formatted code; CI's `format:check` then
+  # passes downstream.
+  pnpm format >/dev/null 2>&1 || true
+
   # ── VERIFY: gates (mechanical) ──
   # (kaizen 2026-04-24) DEBUG_RETRY_COUNT=1 was 3 — 1回で直らないなら3回目も無駄
   log "Verifying gates..."

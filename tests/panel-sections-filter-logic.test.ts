@@ -340,19 +340,19 @@ describe("shouldShowRoadSubSettings", () => {
 
 describe("shouldShowRelationColorSection", () => {
 	it("requires both colorEdgesByRelation flag and non-empty colors map", () => {
-		expect(
-			shouldShowRelationColorSection({ colorEdgesByRelation: true }, { relationColors: { size: 3 } }),
-		).toBe(true);
+		expect(shouldShowRelationColorSection({ colorEdgesByRelation: true }, { relationColors: { size: 3 } })).toBe(
+			true,
+		);
 	});
 	it("returns false when flag is false even with colors", () => {
-		expect(
-			shouldShowRelationColorSection({ colorEdgesByRelation: false }, { relationColors: { size: 3 } }),
-		).toBe(false);
+		expect(shouldShowRelationColorSection({ colorEdgesByRelation: false }, { relationColors: { size: 3 } })).toBe(
+			false,
+		);
 	});
 	it("returns false when colors map is empty (size 0)", () => {
-		expect(
-			shouldShowRelationColorSection({ colorEdgesByRelation: true }, { relationColors: { size: 0 } }),
-		).toBe(false);
+		expect(shouldShowRelationColorSection({ colorEdgesByRelation: true }, { relationColors: { size: 0 } })).toBe(
+			false,
+		);
 	});
 	it("returns false when both gates fail", () => {
 		expect(shouldShowRelationColorSection({}, { relationColors: { size: 0 } })).toBe(false);

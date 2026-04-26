@@ -342,16 +342,17 @@ describe("partitionNodes", () => {
 		// 3 buckets: "0", "1-2", "11+"
 		expect(groups.size).toBe(3);
 		expect(groups.get("0")?.map((n) => n.id)).toEqual(["zero"]);
-		expect(groups.get("1-2")?.map((n) => n.id).sort()).toEqual(["low1", "low2"]);
+		expect(
+			groups
+				.get("1-2")
+				?.map((n) => n.id)
+				.sort(),
+		).toEqual(["low1", "low2"]);
 		expect(groups.get("11+")?.map((n) => n.id)).toEqual(["hi"]);
 	});
 
 	it("partitions nodes by their tag-vs-file kind when groupBy === 'node_type'", () => {
-		const nodes = [
-			makeNode("file1"),
-			makeNode("tag1", { isTag: true }),
-			makeNode("file2", { category: "char" }),
-		];
+		const nodes = [makeNode("file1"), makeNode("tag1", { isTag: true }), makeNode("file2", { category: "char" })];
 		const groups = partitionNodes(nodes, "node_type", new Map());
 		// Tag bucket holds the tag node; non-tag nodes go to category or "file"
 		expect(groups.get("tag")?.map((n) => n.id)).toEqual(["tag1"]);

@@ -70,9 +70,7 @@ describe("computeEdgeViewport", () => {
 	});
 
 	it("treats undefined worldScale as 1", () => {
-		const vpUndef = computeEdgeViewport(
-			cfg({ viewportX: 100, viewportY: 100, viewportW: 200, viewportH: 200 }),
-		);
+		const vpUndef = computeEdgeViewport(cfg({ viewportX: 100, viewportY: 100, viewportW: 200, viewportH: 200 }));
 		const vpOne = computeEdgeViewport(
 			cfg({ worldScale: 1, viewportX: 100, viewportY: 100, viewportW: 200, viewportH: 200 }),
 		);

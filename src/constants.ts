@@ -371,9 +371,12 @@ export const LABEL_LAYOUT = {
 
 /** Label background pill padding (px) per node type */
 export const LABEL_PAD = {
-	SUPER_X: 10, SUPER_Y: 4,
-	REGULAR_X: 8, REGULAR_Y: 3,
-	TAG_X: 4, TAG_Y: 1,
+	SUPER_X: 10,
+	SUPER_Y: 4,
+	REGULAR_X: 8,
+	REGULAR_Y: 3,
+	TAG_X: 4,
+	TAG_Y: 1,
 } as const;
 
 /** Sub-label rendering constants */
