@@ -508,7 +508,12 @@ export class LabelManager {
 	): void {
 		const eligibleNonSuper = candidates.filter((c) => !c.isSuper).length;
 		const eligibleSuper = candidates.filter((c) => c.isSuper).length;
-		const targetRegulars = Math.max(rt.labelMinNonSuper ?? 5, Math.ceil(eligibleSuper * 0.5));
+		const zoom = this.host.getWorldScale();
+		const baseMin = rt.labelMinNonSuper ?? 5;
+		const zoomedOutMin = rt.labelMinNonSuperZoomedOut ?? 20;
+		const threshold = rt.labelMinNonSuperZoomThreshold ?? 0.2;
+		const effectiveMin = zoom < threshold ? Math.max(baseMin, zoomedOutMin) : baseMin;
+		const targetRegulars = Math.max(effectiveMin, Math.ceil(eligibleSuper * 0.5));
 		if (eligibleNonSuper >= targetRegulars) return;
 		const needed = targetRegulars - eligibleNonSuper;
 		const hiddenNonSupers: { pn: PixiNode; deg: number }[] = [];

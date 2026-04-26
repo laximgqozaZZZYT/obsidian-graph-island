@@ -1082,6 +1082,13 @@ export interface RenderThresholds {
 	 *  by degree are force-shown even if they overlap. Prevents super-node monopoly (AP-5).
 	 *  Default: 5. Set to 0 to disable. */
 	labelMinNonSuper?: number;
+	/** Zoom-aware floor for non-super labels when zoomed out below
+	 *  `labelMinNonSuperZoomThreshold`. Aligns with the LOD-aware visual report that
+	 *  expects ~20 candidate labels at low zoom levels. Default: 20. */
+	labelMinNonSuperZoomedOut?: number;
+	/** Zoom level below which `labelMinNonSuperZoomedOut` is applied instead of
+	 *  `labelMinNonSuper`. Default: 0.2. */
+	labelMinNonSuperZoomThreshold?: number;
 
 	/** Maximum effective label width in screen pixels for the overlap AABB check (default 200).
 	 *  At extreme zoom-out the counter-scaled world AABB becomes enormous, causing excessive
@@ -1579,6 +1586,8 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
 	labelLeaderLineWidth: 1.2,
 	labelLeaderLineAlwaysThreshold: 2.0,
 	labelMinNonSuper: 40,
+	labelMinNonSuperZoomedOut: 20,
+	labelMinNonSuperZoomThreshold: 0.2,
 	labelOverlapMaxScreenW: 500,
 	labelOverlapMaxScreenH: 150,
 	labelMinPlaced: 3,
