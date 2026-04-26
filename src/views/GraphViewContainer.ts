@@ -82,8 +82,13 @@ import {
 	filterBySubgraph,
 	filterByLocalGraph,
 } from "../utils/graph-filter";
-import { pointInPolygon, hitTestAggregateRegions, computeGroupMemberBounds } from "../utils/geometry";
+import { pointInPolygon } from "../utils/geometry";
 import type { AggregateHitRegion } from "../utils/geometry";
+import {
+	attachGroupLabelInteractions,
+	hitTestAndZoomGroupByLabel,
+	type GroupLabelHitHost,
+} from "./container-helpers/group-label-hit";
 import {
 	AGGREGATE_ZOOM_THRESHOLD,
 	collectGroupCentroids,
@@ -385,7 +390,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	/** GroupBy group member IDs (key → Set<nodeId>) for hover highlight */
 	private groupByMembers: Map<string, Set<string>> = new Map();
 	/** Currently hovered group label key (for highlight) */
-	private _hoveredGroupLabel: string | null = null;
+	_hoveredGroupLabel: string | null = null;
+	/** Detach handle for group-label canvas interactions (cleared on rewire/destroy). */
+	private _groupLabelDetach: (() => void) | null = null;
 	/** Suppress autoFitView after user-initiated zoom (group label click, fit-all, etc.) */
 	private _suppressAutoFit = false;
 	/** Dedicated container for groupBy labels (rendered above nodes/edges) */
@@ -1700,6 +1707,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		this.resizeObserver = null;
 		this.interactionManager?.detach();
 		this.interactionManager = null;
+		this._groupLabelDetach?.();
+		this._groupLabelDetach = null;
 		this.destroyPixi();
 		this.statusEl = null;
 		this.panelEl = null;
@@ -2019,81 +2028,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		this.interactionManager?.detach();
 		this.interactionManager = new InteractionManager(this as unknown as InteractionHost, canvas, world);
 
-		// Group label hover: highlight group members on pointermove
-		canvas.addEventListener("pointermove", (e) => {
-			if (!this.groupByLabels.size || !this.worldContainer) return;
-			const rect = canvas.getBoundingClientRect();
-			const mx = e.clientX - rect.left;
-			const my = e.clientY - rect.top;
-			const ws = this.worldContainer.scale.x;
-			if (!isFinite(ws) || ws <= 0) return;
-			const worldX = this.worldContainer.x;
-			const worldY = this.worldContainer.y;
-
-			let hitKey: string | null = null;
-			for (const [key, txt] of this.groupByLabels) {
-				if (!txt.visible) continue;
-				// Screen position of label center
-				const sx = txt.x * ws + worldX;
-				const sy = txt.y * ws + worldY;
-				// Screen-space hit area (target 14px font, ~7px char width)
-				const textLen = txt.text?.length ?? 10;
-				const hw = textLen * 7 * 0.5 + 10; // half-width + padding
-				const hh = 14 + 5; // half-height + padding
-				if (mx >= sx - hw && mx <= sx + hw && my >= sy - hh && my <= sy + hh) {
-					hitKey = key;
-					break;
-				}
-			}
-
-			if (hitKey !== this._hoveredGroupLabel) {
-				this._hoveredGroupLabel = hitKey;
-				if (hitKey) {
-					const memberIds = this.groupByMembers.get(hitKey);
-					if (memberIds && memberIds.size > 0) {
-						this.applyEphemeralHighlight(memberIds);
-					}
-				} else {
-					this.applyEphemeralHighlight(null);
-				}
-			}
-		});
-
-		// Group label click: zoom to group members
-		canvas.addEventListener("click", (e) => {
-			if (!this._hoveredGroupLabel || !this.worldContainer) return;
-			const memberIds = this.groupByMembers.get(this._hoveredGroupLabel);
-			if (!memberIds || memberIds.size === 0) return;
-			e.stopPropagation();
-			// Compute bounding box of group members
-			let minX = Infinity,
-				maxX = -Infinity,
-				minY = Infinity,
-				maxY = -Infinity;
-			for (const id of memberIds) {
-				const pn = this.pixiNodes.get(id);
-				if (!pn) continue;
-				minX = Math.min(minX, pn.gfx.x);
-				maxX = Math.max(maxX, pn.gfx.x);
-				minY = Math.min(minY, pn.gfx.y);
-				maxY = Math.max(maxY, pn.gfx.y);
-			}
-			if (!isFinite(minX)) return;
-			const pad = 100;
-			const canvasW = this.canvasWrap?.clientWidth ?? 800;
-			const canvasH = this.canvasWrap?.clientHeight ?? 600;
-			const scaleX = canvasW / (maxX - minX + pad * 2);
-			const scaleY = canvasH / (maxY - minY + pad * 2);
-			const scale = Math.min(scaleX, scaleY, 2.0);
-			const cx = (minX + maxX) / 2;
-			const cy = (minY + maxY) / 2;
-			this.worldContainer.scale.set(scale);
-			this.worldContainer.x = canvasW / 2 - cx * scale;
-			this.worldContainer.y = canvasH / 2 - cy * scale;
-			this.applyEphemeralHighlight(null);
-			this._hoveredGroupLabel = null;
-			this.markDirty(true);
-		});
+		// Group label hover/click → highlight + zoom (extracted to container-helpers/group-label-hit)
+		this._groupLabelDetach?.();
+		this._groupLabelDetach = attachGroupLabelInteractions(canvas, this as unknown as GroupLabelHitHost);
 
 		// Set up render pipeline (render loop, Canvas 2D node creation, batch drawing)
 		this.renderPipeline = new RenderPipeline(this);
@@ -5021,45 +4958,17 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
 	/** Hit-test group/aggregate labels and zoom to the matching cluster. */
 	hitTestAndZoomGroupLabel(wx: number, wy: number): boolean {
-		// Check aggregate hit regions (zoom-out folder summaries)
-		const hitRegion = hitTestAggregateRegions(wx, wy, this._aggregateHitRegions);
-		if (hitRegion) {
-			this._zoomToWorldRect(
-				hitRegion.cx - hitRegion.r,
-				hitRegion.cy - hitRegion.r,
-				hitRegion.r * 2,
-				hitRegion.r * 2,
-			);
-			return true;
-		}
-		// Check groupBy labels
-		for (const [, txt] of this.groupByLabels) {
-			if (!txt.visible) continue;
-			const cs = txt.scale?.x ?? 1;
-			const tw = (txt.width ?? 100) * cs;
-			const th = 20 * cs;
-			const lx = txt.x - tw / 2;
-			const ly = txt.y - th / 2;
-			if (wx >= lx && wx <= lx + tw && wy >= ly && wy <= ly + th) {
-				const memberKey = (txt as CanvasText & { _groupKey?: string })._groupKey;
-				if (memberKey) {
-					const bounds = computeGroupMemberBounds(this.pixiNodes.values(), memberKey, 50);
-					if (bounds) {
-						this._zoomToWorldRect(bounds.x, bounds.y, bounds.w, bounds.h);
-						return true;
-					}
-				}
-				// Fallback: zoom to label position
-				this._zoomToWorldRect(
-					txt.x - ZOOM_TO_LABEL_RECT / 2,
-					txt.y - ZOOM_TO_LABEL_RECT / 2,
-					ZOOM_TO_LABEL_RECT,
-					ZOOM_TO_LABEL_RECT,
-				);
-				return true;
-			}
-		}
-		return false;
+		return hitTestAndZoomGroupByLabel(
+			wx,
+			wy,
+			{
+				groupByLabels: this.groupByLabels,
+				pixiNodes: this.pixiNodes.values(),
+				aggregateHitRegions: this._aggregateHitRegions,
+				zoomToWorldRect: (x, y, w, h) => this._zoomToWorldRect(x, y, w, h),
+			},
+			ZOOM_TO_LABEL_RECT,
+		);
 	}
 
 	/** Animate zoom to a world-coordinate rectangle. */
