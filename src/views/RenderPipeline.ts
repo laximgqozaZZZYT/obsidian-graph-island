@@ -68,6 +68,17 @@ export {
 	LABEL_Y_OFFSET_FACTOR,
 };
 import {
+	computeLodLevel,
+	computeLodTiers,
+	computeMinWorldRadius,
+	renderCompactCardBg,
+	renderExtremeZoom,
+	renderMidZoom,
+	shouldFallbackToNodeMode,
+} from "./render-pipeline/lod";
+// Re-export computeLodLevel so existing tests/importers continue to resolve it from RenderPipeline.
+export { computeLodLevel } from "./render-pipeline/lod";
+import {
 	computeZoomNodeBoost,
 	computeBaseStrokeWidth,
 	computeNodeAlpha,
@@ -133,32 +144,6 @@ export function computeZoomFadeAlpha(zoom: number, fadeStart = 0.7, fadeEnd = 0.
 
 // Render pipeline numeric/object constants (IMMEDIATE_BATCH_SIZE, KB_FOCUS,
 // LABEL_LAYOUT, LABEL_PAD, SUB_LABEL, etc.) now live in constants.ts.
-
-/**
- * Compute the LOD (Level of Detail) tier based on node screen-space pixel size.
- * Pure function — no DOM/Canvas dependency.
- *
- * @param nodeScreenPx  Screen-space pixel size of a node (NODE_SCREEN_PX_BASE * worldScale)
- * @param thresholds    LOD threshold values from render settings
- * @returns LOD level 0–5 (0 = extreme zoom-out dots, 5 = full card mode)
- */
-export function computeLodLevel(
-	nodeScreenPx: number,
-	thresholds: {
-		cardLODExtremePx: number;
-		cardLODMidLabelPx: number;
-		cardLODNormalPx: number;
-		cardLODCompactPx: number;
-		cardLODFullCardPx: number;
-	},
-): number {
-	if (nodeScreenPx < thresholds.cardLODExtremePx) return 0;
-	if (nodeScreenPx < thresholds.cardLODMidLabelPx) return 1;
-	if (nodeScreenPx < thresholds.cardLODNormalPx) return 2;
-	if (nodeScreenPx < thresholds.cardLODCompactPx) return 3;
-	if (nodeScreenPx < thresholds.cardLODFullCardPx) return 4;
-	return 5;
-}
 
 /**
  * Compute density-adaptive culling scale factor for label spacing.
@@ -695,9 +680,7 @@ export class RenderPipeline {
 			const rt = this.getCachedRT();
 			const nodeScreenPx = pn.radius * worldScale;
 			const isExtremeZoom = nodeScreenPx < rt.cardLODExtremePx;
-			const minWorldRadius = isExtremeZoom
-				? Math.max(0.5 / worldScale, 1)
-				: Math.max(0, MIN_WORLD_RADIUS_PX / worldScale);
+			const minWorldRadius = computeMinWorldRadius(worldScale, isExtremeZoom);
 			const effR = Math.max(pn.radius, minWorldRadius);
 
 			if (isKbFocused) {
@@ -900,22 +883,8 @@ export class RenderPipeline {
 		const nodeCount = visible.length;
 		const shapeRules = this.host.getNodeShapeRules();
 
-		// LOD tiers
-		const nodeScreenPx = NODE_SCREEN_PX_BASE * worldScale;
-		const isExtremeZoom = nodeScreenPx < rt.cardLODExtremePx;
-		const isMidZoom = !isExtremeZoom && nodeScreenPx < rt.cardLODNormalPx;
-		// A11y: even at extreme zoom-out, guarantee minimum 1px screen-space radius
-		const minWorldRadius = isExtremeZoom
-			? Math.max(0.5 / worldScale, 1) // at least 1px on screen
-			: Math.max(0, MIN_WORLD_RADIUS_PX / worldScale);
-
-		// 5-level LOD (used when autoLOD is enabled)
-		let lodLevel = computeLodLevel(nodeScreenPx, rt as Parameters<typeof computeLodLevel>[1]);
-
-		// Mobile lightweight mode: force simplified rendering (no gradients/glow/complex shapes)
-		if (Platform.isMobile && lodLevel < 3) {
-			lodLevel = 3;
-		}
+		// LOD tiers (consolidated in render-pipeline/lod.ts)
+		const { isExtremeZoom, isMidZoom, minWorldRadius, lodLevel } = computeLodTiers(worldScale, rt);
 
 		return {
 			visible,
@@ -1033,17 +1002,12 @@ export class RenderPipeline {
 		}
 
 		if (isExtremeZoom) {
-			this._renderExtremeZoom(g, visible, tlFilteredOut, alpha, worldScale, crc);
+			renderExtremeZoom(g, visible, tlFilteredOut, alpha, worldScale, crc);
 		} else if (isMidZoom) {
-			this._renderMidZoom(g, visible, tlFilteredOut, alpha, minWorldRadius, crc);
+			renderMidZoom(g, visible, tlFilteredOut, alpha, minWorldRadius, crc);
 		} else {
 			this._renderNormalZoom(g, ctx, crc, rt);
 		}
-	}
-
-	/** Remove CardText children from a single node's gfx container. */
-	private _cleanupCardText(gfx: CanvasContainer) {
-		cleanupCardText(gfx);
 	}
 
 	/** Remove all CardText children from every node's gfx container. */
@@ -1051,60 +1015,8 @@ export class RenderPipeline {
 		cleanupCardTextAll(pixiNodes);
 	}
 
-	/** Extreme zoom-out: draw fixed-size dots with stroke for visibility. */
-	private _renderExtremeZoom(
-		g: CanvasGraphics,
-		visible: PixiNode[],
-		tlFilteredOut: Set<string> | null,
-		alpha: number,
-		worldScale: number,
-		crc: ReturnType<typeof Object.assign>,
-	) {
-		// At extreme zoom, hide individual (non-super) nodes — cluster summary bars
-		// rendered by _updateGroupByLabels replace them for a cleaner overview.
-		// Super-nodes (collapsed groups) still render as dots since they already
-		// represent aggregated clusters.
-		const dotRadius = Math.max(1.5, 2 / worldScale);
-		const strokeW = Math.max(0.5, 0.8 / worldScale);
-		for (const pn of visible) {
-			const isSuperNode = !!(pn.data.collapsedMembers && pn.data.collapsedMembers.length > 0);
-			if (!isSuperNode) {
-				pn.gfx.visible = false;
-				continue;
-			}
-			const nodeAlpha = tlFilteredOut && tlFilteredOut.has(pn.data.id) ? alpha * crc.filteredNodeAlpha : alpha;
-			g.lineStyle(strokeW, 0x000000, nodeAlpha * 0.4);
-			g.beginFill(pn.color, nodeAlpha);
-			g.drawCircle(pn.data.x, pn.data.y, dotRadius);
-			g.endFill();
-		}
-		g.lineStyle(0);
-	}
-
-	/** Mid zoom: all circles (skip shape lookup + gradient for speed).
-	 *  SuperNodes (collapsed groups) render at full alpha; individual nodes fade out. */
-	private _renderMidZoom(
-		g: CanvasGraphics,
-		visible: PixiNode[],
-		tlFilteredOut: Set<string> | null,
-		alpha: number,
-		minWorldRadius: number,
-		crc: ReturnType<typeof Object.assign>,
-	) {
-		g.lineStyle(0);
-		for (const pn of visible) {
-			const isSuperNode = !!(pn.data.collapsedMembers && pn.data.collapsedMembers.length > 0);
-			const effR = Math.max(pn.radius, minWorldRadius);
-			let nodeAlpha = tlFilteredOut && tlFilteredOut.has(pn.data.id) ? alpha * crc.filteredNodeAlpha : alpha;
-			// Individual (non-super) nodes get extra fade at mid-zoom to reduce clumping
-			if (!isSuperNode) nodeAlpha *= 0.4;
-			g.beginFill(pn.color, nodeAlpha);
-			g.drawCircle(pn.data.x, pn.data.y, effR);
-			g.endFill();
-		}
-	}
-
-	/** Normal zoom: full shape + optional gradient, with display mode support. */
+	/** Normal zoom: full shape + optional gradient, with display mode support.
+	 *  LOD-tiered dispatch (autoLOD + density fallback) lives in render-pipeline/lod.ts. */
 	private _renderNormalZoom(
 		g: CanvasGraphics,
 		ctx: NormalZoomCtx,
@@ -1117,8 +1029,17 @@ export class RenderPipeline {
 			this._cleanupCardTextAll(ctx.pixiNodes);
 		}
 
+		// Auto-LOD node mode: tier-based dispatch (card / compact-card+node / node-or-semantic)
 		if (rt.autoLOD && displayMode === "node") {
-			this._renderAutoLODNode(g, ctx, crc, rt);
+			if (ctx.lodLevel >= 5) {
+				this._renderCardMode(g, ctx, crc, rt);
+			} else if (ctx.lodLevel >= 4) {
+				// Compact card backgrounds first, then standard node shapes on top
+				for (const pn of ctx.visible) renderCompactCardBg(g, pn, crc);
+				this._renderNodeOrSemantic(g, ctx, crc, rt);
+			} else {
+				this._renderNodeOrSemantic(g, ctx, crc, rt);
+			}
 			return;
 		}
 
@@ -1127,7 +1048,18 @@ export class RenderPipeline {
 				this._renderNodeOrSemantic(g, ctx, crc, rt);
 				break;
 			case "card":
-				this._renderCardWithDensityFallback(g, ctx, crc, rt);
+				if (
+					shouldFallbackToNodeMode(
+						ctx.lodLevel,
+						ctx.visible.length,
+						rt.cardDensityFallbackCount,
+						rt.cardDensityFallbackCountHigh,
+					)
+				) {
+					this._renderNodeMode(g, ctx, crc, rt);
+				} else {
+					this._renderCardMode(g, ctx, crc, rt);
+				}
 				break;
 			case "donut":
 				this._renderDonutMode(g, ctx, crc);
@@ -1138,22 +1070,6 @@ export class RenderPipeline {
 		}
 	}
 
-	/** Auto-LOD node rendering: selects card/compact/semantic/node based on lodLevel. */
-	private _renderAutoLODNode(
-		g: CanvasGraphics,
-		ctx: NormalZoomCtx,
-		crc: ReturnType<typeof Object.assign>,
-		rt: ReturnType<typeof Object.assign>,
-	) {
-		if (ctx.lodLevel >= 5) {
-			this._renderCardMode(g, ctx, crc, rt);
-		} else if (ctx.lodLevel >= 4) {
-			this._renderNodeModeAutoLOD(g, ctx, crc, rt);
-		} else {
-			this._renderNodeOrSemantic(g, ctx, crc, rt);
-		}
-	}
-
 	/** Delegates to semantic zoom or standard node rendering. */
 	private _renderNodeOrSemantic(
 		g: CanvasGraphics,
@@ -1161,75 +1077,6 @@ export class RenderPipeline {
 		crc: ReturnType<typeof Object.assign>,
 		rt: ReturnType<typeof Object.assign>,
 	) {
-		if (this.host.getSemanticZoom?.()) {
-			this._renderSemanticZoomMode(g, ctx, crc, rt);
-		} else {
-			this._renderNodeMode(g, ctx, crc, rt);
-		}
-	}
-
-	/** Card mode with tiered density fallback to prevent overlap at low zoom/high density. */
-	private _renderCardWithDensityFallback(
-		g: CanvasGraphics,
-		ctx: NormalZoomCtx,
-		crc: ReturnType<typeof Object.assign>,
-		rt: ReturnType<typeof Object.assign>,
-	) {
-		const tLow = rt.cardDensityFallbackCount;
-		const tHigh = rt.cardDensityFallbackCountHigh;
-		if (
-			ctx.lodLevel < 3 ||
-			(ctx.lodLevel === 3 && ctx.visible.length > tLow) ||
-			(ctx.lodLevel === 4 && ctx.visible.length > tHigh)
-		) {
-			this._renderNodeMode(g, ctx, crc, rt);
-		} else {
-			this._renderCardMode(g, ctx, crc, rt);
-		}
-	}
-
-	/** Render compact card background (rounded rect) behind a node for LOD 4.
-	 *  A1: Height expands to accommodate sub-labels when present. */
-	private _renderCompactCardBg(
-		g: CanvasGraphics,
-		pn: PixiNode,
-		crc: Required<import("../types").CardRenderConfig>,
-	): void {
-		const w = pn.radius * crc.compactCardWidthRatio;
-		// Expand height if sub-labels exist (to house metadata text)
-		const subCount = pn.subLabels?.length ?? 0;
-		const h = pn.radius * crc.compactCardHeightRatio + subCount * (SUB_LABEL.FONT_SIZE + SUB_LABEL.GAP) * 0.06;
-		const x = pn.data.x - w / 2;
-		const y = pn.data.y - h / 2;
-		g.lineStyle(1, pn.color, crc.compactCardStrokeAlpha);
-		g.beginFill(pn.color, crc.compactCardFillAlpha);
-		g.drawRoundedRect(x, y, w, h, crc.cardCornerRadius);
-		g.endFill();
-		g.lineStyle(0);
-	}
-
-	/** Node mode with autoLOD level 4 compact card backgrounds. */
-	private _renderNodeModeAutoLOD(
-		g: CanvasGraphics,
-		ctx: {
-			visible: PixiNode[];
-			pixiNodes: Map<string, PixiNode>;
-			tlFilteredOut: Set<string> | null;
-			alpha: number;
-			nodeCount: number;
-			shapeRules: ShapeRule[];
-			worldScale: number;
-			minWorldRadius: number;
-			lodLevel: number;
-		},
-		crc: ReturnType<typeof Object.assign>,
-		rt: ReturnType<typeof Object.assign>,
-	) {
-		// Render compact card backgrounds first, then normal node shapes on top
-		for (const pn of ctx.visible) {
-			this._renderCompactCardBg(g, pn, crc);
-		}
-		// Render nodes on top using standard node mode
 		if (this.host.getSemanticZoom?.()) {
 			this._renderSemanticZoomMode(g, ctx, crc, rt);
 		} else {
