@@ -160,65 +160,9 @@ export function computeLodLevel(
 	return 5;
 }
 
-/**
- * Compute density-adaptive culling scale factor for label spacing.
- * At low zoom: aggressive spacing (sqrt scaling). At high zoom: mild spacing.
- *
- * @param zoom  Current zoom level (worldContainer.scale.x)
- * @param threshold  Zoom level that separates "low" from "high" (labelDensityZoomThreshold)
- * @returns Scale factor (>1 = more aggressive, <1 = more lenient)
- */
-export function computeDensityScale(zoom: number, threshold: number): number {
-	if (zoom < threshold) {
-		return 1 + Math.sqrt((threshold - zoom) / threshold) * 1.5;
-	}
-	return Math.max(0.3, 1 - (zoom - threshold) * 0.5);
-}
-
-/**
- * Compute minimum distance for density culling.
- *
- * @param baseDist  Base screen-space distance (labelDensityMinScreenDist)
- * @param maxDist   Maximum allowed distance (labelDensityMaxDist)
- * @param zoom      Current zoom level
- * @param threshold Zoom threshold for density scaling
- * @returns Minimum distance in screen pixels
- */
-export function computeDensityMinDist(baseDist: number, maxDist: number, zoom: number, threshold: number): number {
-	return Math.min(baseDist * computeDensityScale(zoom, threshold), maxDist);
-}
-
-/**
- * Generate label displacement offset candidates for overlap avoidance.
- * Returns 12 offsets sorted by distance from label center (farthest first by default).
- *
- * @param labelW  Label width in screen pixels
- * @param labelH  Label height in screen pixels
- * @param nodeScreenR  Node radius in screen pixels
- * @returns Array of {dx, dy} offsets in screen coordinates
- */
-export function generateDisplacementOffsets(
-	labelW: number,
-	labelH: number,
-	nodeScreenR: number,
-): Array<{ dx: number; dy: number }> {
-	const hw = labelW * 0.5;
-	const pad = nodeScreenR + 2;
-	return [
-		{ dx: hw + pad, dy: pad + labelH }, // bottom-right
-		{ dx: -(labelW + pad), dy: 0 }, // left
-		{ dx: 0, dy: pad + labelH * 1.2 }, // below
-		{ dx: hw + pad, dy: -(pad + labelH) }, // top-right
-		{ dx: -(labelW + pad), dy: -(pad + labelH) }, // top-left
-		{ dx: -(labelW + pad), dy: pad + labelH }, // bottom-left
-		{ dx: hw + pad, dy: -(pad + labelH * 1.2) }, // above-right
-		{ dx: -(hw + pad), dy: -(pad + labelH * 1.2) }, // above-left
-		{ dx: labelW + pad * 2, dy: 0 }, // far right
-		{ dx: 0, dy: -(pad + labelH * 1.5) }, // far above
-		{ dx: -(labelW + pad * 2), dy: pad + labelH * 0.5 }, // far bottom-left
-		{ dx: hw + pad, dy: pad + labelH * 1.5 }, // far below-right
-	];
-}
+// Density culling helpers (computeDensityScale, computeDensityMinDist) and
+// label displacement offsets (generateDisplacementOffsets) live in
+// ./render-pipeline/label-culling — re-exported below for backward compat.
 
 /** Simple deterministic hash of a string to a hue value (0–360). */
 export function hashStringToHue(str: string): number {
