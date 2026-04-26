@@ -8,20 +8,19 @@
 // measured count drops meaningfully below THRESHOLD, lower THRESHOLD to
 // lock in the improvement — same operating model as the bundle-size budget.
 //
-// Measured baseline (2026-04-19, after subtask-1 / C-category removals):
-//   src/ unused exports=39, types=44  → total=83
-// Expected post subtask-2,3 (barrel re-export cleanup): ~48
-// THRESHOLD is set at the parent issue target (≤50).
+// Measured baselines:
+//   2026-04-19 (after subtask-1 / C-category removals): exports=39, types=44 → 83
+//   2026-04-26 (after subtask-2,3 / parent 1312 complete): exports=11, types=15 → 26
 //
-// Rollout order: run standalone only until subtask-2,3 land. Wiring this
-// into CI/lint pipelines before then would trip the gate on its own
-// baseline (83 > 50). Enable in CI only after the measured total ≤ 50.
+// THRESHOLD history: 50 (parent issue target) → 30 (ratchet-down 2026-04-26
+// to lock in the post-subtask-3 measurement of 26 with a 4-slot buffer for
+// natural fluctuations during normal feature work).
 //
 // Usage: node scripts/check-dead-exports.mjs
 
 import { spawnSync } from "node:child_process";
 
-const THRESHOLD = 50;
+const THRESHOLD = 30;
 
 function runKnip() {
 	const res = spawnSync("npx", ["--yes", "knip", "--reporter", "json"], {
