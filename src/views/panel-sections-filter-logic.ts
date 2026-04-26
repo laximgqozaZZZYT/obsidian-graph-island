@@ -39,7 +39,7 @@ export function normalizeDonutBreakdownField(raw: string): string | undefined {
 // Card preset application
 // ---------------------------------------------------------------------------
 
-export type CardPreset = NonNullable<CardDisplayConfig["preset"]>;
+type CardPreset = NonNullable<CardDisplayConfig["preset"]>;
 
 /**
  * Return a new `CardDisplayConfig` with preset-specific defaults merged on top
@@ -165,7 +165,7 @@ export function shouldShowOntologyBackbone(settings: {
 // Hover highlight defaults
 // ---------------------------------------------------------------------------
 
-export interface HoverHighlightTypes {
+interface HoverHighlightTypes {
 	forwardLinks: boolean;
 	backlinks: boolean;
 	sharedTags: boolean;
