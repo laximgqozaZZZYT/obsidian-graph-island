@@ -17,36 +17,58 @@ export default class GraphViewsPlugin extends Plugin {
 	private timers = new ManagedTimers();
 
 	async onload() {
+		// Phase timing instrumentation (dropped in production by esbuild console.* removal).
+		const t0 = performance.now();
+		const mark = (name: string, start: number) => {
+			console.info("[graph-island load]", name, +(performance.now() - start).toFixed(1), "ms");
+		};
+
+		let s = performance.now();
 		await this.loadSettings();
+		mark("loadSettings", s);
 
 		// Auto-detect tag relationships on first load (when tagRelations is empty)
+		s = performance.now();
 		this.app.workspace.onLayoutReady(() => {
 			this.autoDetectTagRelationsIfNeeded();
 		});
+		mark("onLayoutReady-register", s);
 
+		s = performance.now();
 		this.registerView(VIEW_TYPE_GRAPH, (leaf) => new GraphViewContainer(leaf, this));
-
 		this.registerView(VIEW_TYPE_NODE_DETAIL, (leaf) => new NodeDetailView(leaf));
-
 		this.registerView(VIEW_TYPE_NODE_COMPARE, (leaf) => new NodeComparisonView(leaf));
+		mark("registerView", s);
 
 		// 比較イベント発火時に比較パネルを自動オープン
+		s = performance.now();
 		this.registerEvent(
 			asInternalWorkspace(this.app.workspace).on(EVENT_COMPARE_NODES, (data: unknown) => {
 				if (data) this.ensureComparePane();
 			}),
 		);
+		mark("registerEvent", s);
 
+		s = performance.now();
 		this.addRibbonIcon("git-fork", "Graph Island", () => {
 			this.activateView();
 		});
+		mark("addRibbonIcon", s);
 
+		s = performance.now();
 		this._registerCoreCommands();
-		this._registerGraphUtilityCommands();
+		mark("registerCoreCommands", s);
 
+		s = performance.now();
+		this._registerGraphUtilityCommands();
+		mark("registerGraphUtilityCommands", s);
+
+		s = performance.now();
 		this.addSettingTab(new GraphViewsSettingTab(this.app, this));
+		mark("addSettingTab", s);
 
 		// Code block processor for embedded mini-graphs in notes
+		s = performance.now();
 		this.registerMarkdownCodeBlockProcessor("graph-island", (source, el, _ctx) => {
 			import("./views/EmbeddedGraphRenderer")
 				.then(({ renderEmbeddedGraph }) => {
@@ -56,6 +78,9 @@ export default class GraphViewsPlugin extends Plugin {
 					el.createDiv({ cls: "gi-embed-error", text: t("embed.renderFailed") });
 				});
 		});
+		mark("registerCodeBlockProcessor", s);
+
+		console.info("[graph-island load]", "total:", +(performance.now() - t0).toFixed(1), "ms");
 	}
 
 	private _registerCoreCommands() {
