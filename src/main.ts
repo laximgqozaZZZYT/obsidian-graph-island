@@ -11,42 +11,70 @@ import { t } from "./i18n";
 import { showToast } from "./utils/toast";
 import { asInternalWorkspace, asGraphView, type GraphViewInternal } from "./obsidian-internals";
 
+// Onload phase budget thresholds (ms). console.warn fires when a phase exceeds
+// its budget — esbuild drops console.* in prod, so this is a dev-only regression
+// guard. Values are conservative caps reflecting healthy-system upper bounds for
+// each operation class (sync registration vs async loadData I/O).
+const LOAD_PHASE_BUDGETS = {
+	loadSettings: 50,
+	registerViews: 5,
+	registerEvents: 5,
+	ribbonIcon: 5,
+	registerCommands: 15,
+	settingTab: 5,
+	markdownProcessor: 5,
+	total: 100,
+} as const;
+
 export default class GraphViewsPlugin extends Plugin {
 	settings: GraphViewsSettings = DEFAULT_SETTINGS;
 	private _snapshotsLoaded = false;
 	private timers = new ManagedTimers();
 
 	async onload() {
+		const onloadStart = performance.now();
+
+		let phaseStart = performance.now();
 		await this.loadSettings();
+		this._measurePhase("loadSettings", phaseStart);
 
 		// Auto-detect tag relationships on first load (when tagRelations is empty)
 		this.app.workspace.onLayoutReady(() => {
 			this.autoDetectTagRelationsIfNeeded();
 		});
 
+		phaseStart = performance.now();
 		this.registerView(VIEW_TYPE_GRAPH, (leaf) => new GraphViewContainer(leaf, this));
-
 		this.registerView(VIEW_TYPE_NODE_DETAIL, (leaf) => new NodeDetailView(leaf));
-
 		this.registerView(VIEW_TYPE_NODE_COMPARE, (leaf) => new NodeComparisonView(leaf));
+		this._measurePhase("registerViews", phaseStart);
 
 		// 比較イベント発火時に比較パネルを自動オープン
+		phaseStart = performance.now();
 		this.registerEvent(
 			asInternalWorkspace(this.app.workspace).on(EVENT_COMPARE_NODES, (data: unknown) => {
 				if (data) this.ensureComparePane();
 			}),
 		);
+		this._measurePhase("registerEvents", phaseStart);
 
+		phaseStart = performance.now();
 		this.addRibbonIcon("git-fork", "Graph Island", () => {
 			this.activateView();
 		});
+		this._measurePhase("ribbonIcon", phaseStart);
 
+		phaseStart = performance.now();
 		this._registerCoreCommands();
 		this._registerGraphUtilityCommands();
+		this._measurePhase("registerCommands", phaseStart);
 
+		phaseStart = performance.now();
 		this.addSettingTab(new GraphViewsSettingTab(this.app, this));
+		this._measurePhase("settingTab", phaseStart);
 
 		// Code block processor for embedded mini-graphs in notes
+		phaseStart = performance.now();
 		this.registerMarkdownCodeBlockProcessor("graph-island", (source, el, _ctx) => {
 			import("./views/EmbeddedGraphRenderer")
 				.then(({ renderEmbeddedGraph }) => {
@@ -56,6 +84,17 @@ export default class GraphViewsPlugin extends Plugin {
 					el.createDiv({ cls: "gi-embed-error", text: t("embed.renderFailed") });
 				});
 		});
+		this._measurePhase("markdownProcessor", phaseStart);
+
+		this._measurePhase("total", onloadStart);
+	}
+
+	private _measurePhase(name: keyof typeof LOAD_PHASE_BUDGETS, start: number): void {
+		const duration = +(performance.now() - start).toFixed(1);
+		console.info("[graph-island load]", name, duration, "ms");
+		if (duration > LOAD_PHASE_BUDGETS[name]) {
+			console.warn("[graph-island load] slow phase", name, duration);
+		}
 	}
 
 	private _registerCoreCommands() {
