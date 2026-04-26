@@ -443,9 +443,13 @@ summary: 1行要約
       --allowedTools "Bash,Read,Glob,Grep,Write" \
       --max-turns 20
 
-    # Auto-commit any newly created issues to keep main clean
-    if [[ -n "$(cd "$PROJECT_DIR" && git status --porcelain scripts/pipeline/issues/)" ]]; then
-      (cd "$PROJECT_DIR" && git add scripts/pipeline/issues/ && git commit -m "chore: kaizen-discovered issues
+    # Auto-commit any newly created issues to keep main clean.
+    # CSV migration: kaizen discovery writes to issues.csv + descriptions/<id>.md
+    # via csv_lib, NOT to the legacy scripts/pipeline/issues/ directory (which
+    # was removed in Phase 3). Watch the CSV path so the dirty-state guard at
+    # L249 doesn't trip on un-staged csv writes and SKIP every subsequent cycle.
+    if [[ -n "$(cd "$PROJECT_DIR" && git status --porcelain scripts/pipeline/issues.csv scripts/pipeline/descriptions/)" ]]; then
+      (cd "$PROJECT_DIR" && git add scripts/pipeline/issues.csv scripts/pipeline/descriptions/ && git commit -m "chore: kaizen-discovered issues
 
 Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>" --no-verify 2>/dev/null) || true
       log "Kaizen issues committed to main"
