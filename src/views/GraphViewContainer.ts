@@ -121,6 +121,10 @@ import { drawEnclosures as drawEnclosuresImpl, type OverlapCache, type Enclosure
 import type { ClusterMetadata, TimelineRoute } from "../layouts/cluster-force";
 import { analyzeOverlap, computeAutoOptimize, effectiveRadius, nodeRadius } from "../layouts/cluster-force";
 import { InteractionManager, type PixiNode, type InteractionHost } from "./InteractionManager";
+import {
+	findHoveredGroupLabel,
+	computeGroupZoomTransform,
+} from "./container-helpers/group-label-hit-test";
 import { RenderPipeline, MIN_WORLD_RADIUS_PX, type RenderHost } from "./RenderPipeline";
 import { LayoutController, type LayoutHost } from "./LayoutController";
 import { LabelManager } from "./LabelManager";
@@ -2027,24 +2031,15 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			const my = e.clientY - rect.top;
 			const ws = this.worldContainer.scale.x;
 			if (!isFinite(ws) || ws <= 0) return;
-			const worldX = this.worldContainer.x;
-			const worldY = this.worldContainer.y;
 
-			let hitKey: string | null = null;
-			for (const [key, txt] of this.groupByLabels) {
-				if (!txt.visible) continue;
-				// Screen position of label center
-				const sx = txt.x * ws + worldX;
-				const sy = txt.y * ws + worldY;
-				// Screen-space hit area (target 14px font, ~7px char width)
-				const textLen = txt.text?.length ?? 10;
-				const hw = textLen * 7 * 0.5 + 10; // half-width + padding
-				const hh = 14 + 5; // half-height + padding
-				if (mx >= sx - hw && mx <= sx + hw && my >= sy - hh && my <= sy + hh) {
-					hitKey = key;
-					break;
-				}
-			}
+			const hitKey = findHoveredGroupLabel(
+				mx,
+				my,
+				this.groupByLabels,
+				this.worldContainer.x,
+				this.worldContainer.y,
+				ws,
+			);
 
 			if (hitKey !== this._hoveredGroupLabel) {
 				this._hoveredGroupLabel = hitKey;
@@ -2065,31 +2060,13 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			const memberIds = this.groupByMembers.get(this._hoveredGroupLabel);
 			if (!memberIds || memberIds.size === 0) return;
 			e.stopPropagation();
-			// Compute bounding box of group members
-			let minX = Infinity,
-				maxX = -Infinity,
-				minY = Infinity,
-				maxY = -Infinity;
-			for (const id of memberIds) {
-				const pn = this.pixiNodes.get(id);
-				if (!pn) continue;
-				minX = Math.min(minX, pn.gfx.x);
-				maxX = Math.max(maxX, pn.gfx.x);
-				minY = Math.min(minY, pn.gfx.y);
-				maxY = Math.max(maxY, pn.gfx.y);
-			}
-			if (!isFinite(minX)) return;
-			const pad = 100;
 			const canvasW = this.canvasWrap?.clientWidth ?? 800;
 			const canvasH = this.canvasWrap?.clientHeight ?? 600;
-			const scaleX = canvasW / (maxX - minX + pad * 2);
-			const scaleY = canvasH / (maxY - minY + pad * 2);
-			const scale = Math.min(scaleX, scaleY, 2.0);
-			const cx = (minX + maxX) / 2;
-			const cy = (minY + maxY) / 2;
-			this.worldContainer.scale.set(scale);
-			this.worldContainer.x = canvasW / 2 - cx * scale;
-			this.worldContainer.y = canvasH / 2 - cy * scale;
+			const transform = computeGroupZoomTransform(memberIds, this.pixiNodes, canvasW, canvasH);
+			if (!transform) return;
+			this.worldContainer.scale.set(transform.scale);
+			this.worldContainer.x = transform.x;
+			this.worldContainer.y = transform.y;
 			this.applyEphemeralHighlight(null);
 			this._hoveredGroupLabel = null;
 			this.markDirty(true);
