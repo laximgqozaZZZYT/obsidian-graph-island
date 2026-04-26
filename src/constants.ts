@@ -383,6 +383,34 @@ export const SUB_LABEL = {
 	GAP: 2,
 } as const;
 
+// ---- Renderer decorations ----
+// Numeric parameters for node-decorations.ts overlay passes (badges, rings,
+// halos, markers). Prefix: NODE_DECO_. Values only — node-decorations.ts is
+// not yet refactored to consume these in this task.
+
+/** Tag badge radius in screen pixels (renderTagBadges minScreenPx) */
+export const NODE_DECO_BADGE_RADIUS_PX = 3;
+/** Maximum tag badges drawn per node before the overflow indicator (renderTagBadges) */
+export const NODE_DECO_BADGE_MAX_COUNT = 4;
+/** Padding fraction between adjacent tag badges (renderTagBadges PAD = BADGE_R × factor) */
+export const NODE_DECO_BADGE_PAD_FACTOR = 0.7;
+/** Default decoration ring stroke width (missing-neighbor / multi-select / bridge / articulation) */
+export const NODE_DECO_RING_WIDTH = 2;
+/** Default radius padding beyond node radius for decoration rings */
+export const NODE_DECO_RING_PAD = 4;
+/** Default alpha for decoration rings (missing-neighbor / multi-select) */
+export const NODE_DECO_RING_ALPHA = 0.85;
+/** Number of dashed segments around a decoration ring (renderMissingNeighborRings) */
+export const NODE_DECO_DASH_SEGMENTS = 10;
+/** Gap fraction within each dashed ring segment (renderMissingNeighborRings) */
+export const NODE_DECO_DASH_GAP_FRACTION = 0.35;
+/** Base alpha for entropy halo overlay (renderEntropyOverlay) */
+export const NODE_DECO_HALO_ALPHA_BASE = 0.15;
+/** Per-entropy-unit alpha boost for halo overlay (renderEntropyOverlay) */
+export const NODE_DECO_HALO_ALPHA_FACTOR = 0.2;
+/** Number of star spikes drawn for bookmark indicators (renderBookmarkStars) */
+export const NODE_DECO_BOOKMARK_STAR_SPIKES = 5;
+
 // ---- Edge labels (EdgeLabelRenderer) ----
 export const EDGE_LABEL_FONT_SIZE_DEFAULT = 10;
 /** A11y: edge label background for contrast (WCAG 1.4.3) */
@@ -692,3 +720,35 @@ export const GVC_HEATMAP_GAUSSIAN_RADIUS = 3;
 
 // ---- Progressive simulation rendering (sync positions every N ticks) ----
 export const GVC_PROGRESSIVE_INTERVAL = 10;
+
+// ===========================================================================
+// ---- Pathfinder overlay ----
+// Drawing constants for the shortest-path overlay renderer.
+// Mirror of values in src/views/pathfinder-overlay.ts; that module will be
+// switched to import from here in a follow-up subtask. Prefix: PATHFINDER_.
+// ===========================================================================
+
+/** Pathfinder line / glow color (PIXI hex) */
+export const PATHFINDER_COLOR = 0x00ced1;
+/** Pathfinder line / glow color (CSS hex) */
+export const PATHFINDER_COLOR_CSS = "#00CED1";
+/** Pulse animation phase increment per frame (radians-equivalent) */
+export const PATHFINDER_PULSE_SPEED = 0.06;
+/** Pulse animation amplitude added/subtracted from base alpha */
+export const PATHFINDER_PULSE_AMPLITUDE = 0.1;
+/** Base alpha for the wide glow stroke */
+export const PATHFINDER_GLOW_ALPHA_BASE = 0.45;
+/** Base alpha for the solid foreground stroke */
+export const PATHFINDER_SOLID_ALPHA_BASE = 0.85;
+/** Line width (px) for the wide glow stroke */
+export const PATHFINDER_GLOW_STROKE_WIDTH = 8;
+/** Line width (px) for the solid foreground stroke */
+export const PATHFINDER_SOLID_STROKE_WIDTH = 3;
+/** Radius (px) for per-node path dots */
+export const PATHFINDER_DOT_RADIUS = 5;
+/** Font size (px) for the hop-count label */
+export const PATHFINDER_LABEL_FONT_SIZE = 11;
+/** Horizontal offset (px) of the hop-count label from segment midpoint */
+export const PATHFINDER_LABEL_OFFSET_X = 6;
+/** Vertical offset (px, negative = upward) of the hop-count label */
+export const PATHFINDER_LABEL_OFFSET_Y = -14;

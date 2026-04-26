@@ -24,13 +24,14 @@ import type {
 } from "../types";
 import { DEFAULT_COLORS, DEFAULT_CARD_RENDER_CONFIG, DEFAULT_ONTOLOGY, mergeRenderThresholds } from "../types";
 import { buildSearchHopSet, evaluateExpr, parseQueryExpr, serializeExpr } from "../utils/query-expr";
+import { ManagedTimers } from "../utils/managed-timers";
 import {
 	deriveClusterRulesFromQueries,
 	deriveClusterRules,
 	blendThemeLabel,
 	cleanArcName,
 	areSavedPositionsValid,
-	lightenHex,
+	lightenHex, giDiag,
 } from "../utils/gvc-helpers";
 import {
 	buildGraphFromVault,
@@ -612,16 +613,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	private _lastDoRenderTime = 0;
 
 	/** Tracked one-shot timers — cleared on close to prevent leaks */
-	private _pendingTimers = new Set<ReturnType<typeof setTimeout>>();
+	timers = new ManagedTimers();
 
 	/** Schedule a one-shot timer that is auto-tracked and cleared on close. */
 	private _scheduleTimer(cb: () => void, ms: number): ReturnType<typeof setTimeout> {
-		const id = setTimeout(() => {
-			this._pendingTimers.delete(id);
-			cb();
-		}, ms);
-		this._pendingTimers.add(id);
-		return id;
+		return this.timers.setTimeout(cb, ms);
 	}
 
 	/** C1: Hover preview toast state */
@@ -1685,8 +1681,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		clearTimeout(this._doRenderDebounceTimer);
 		if (this._saveTimer) clearTimeout(this._saveTimer);
 		cancelAnimationFrame(this._zoomAnimId);
-		for (const id of this._pendingTimers) clearTimeout(id);
-		this._pendingTimers.clear();
+		this.timers.clearAll();
 		// C1: Clear hover preview
 		this._cancelHoverPreview();
 		// Clean up panel resize listeners (may persist if destroyed mid-drag)
@@ -6023,6 +6018,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			hasImageMetaNodes: this._hasImageMetaNodes(),
 			hasInheritanceEdges: this.graphEdges.some((e) => e.type === "inheritance"),
 			pluginDir: this.plugin.manifest?.dir ?? "",
+			timers: this.timers,
 		};
 	}
 
@@ -7321,7 +7317,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			this.updatePositions(true);
 
 			// --- PHASE B (next tick): light bookkeeping ---
-			setTimeout(() => {
+			this.timers.setTimeout(() => {
 				const isFirstLaunch = !localStorage.getItem(SR_GUIDE_KEY);
 				if (isFirstLaunch) localStorage.setItem(SR_GUIDE_KEY, "1");
 				this._announceA11y(
@@ -7342,7 +7338,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			}, 0);
 
 			// --- PHASE C (after B): viewport fit + road network ---
-			setTimeout(() => {
+			this.timers.setTimeout(() => {
 				const wrap = this.canvasWrap;
 				{
 					const renderer = this.pixiApp?.renderer;
@@ -7371,14 +7367,14 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			}, 0);
 
 			// --- PHASE D (after C): heavy label-culling work (was the 15-s offender) ---
-			setTimeout(() => {
+			this.timers.setTimeout(() => {
 				this.updateLabelsForZoom();
 				this.recalcNodeRadii();
 				this._autoOptimizeLabelOverlapOnce();
 			}, 0);
 
 			// --- PHASE E (after D): auto-focus + position persistence ---
-			setTimeout(() => {
+			this.timers.setTimeout(() => {
 				this._autoFocusActiveFile();
 				this._suppressAutoFit = false;
 				this._persistAllPositions();

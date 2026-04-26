@@ -482,6 +482,25 @@ export class LabelManager {
 			visCount++;
 		}
 
+		// Priority-floor guarantee at extreme zoom-out: keep at least
+		// `labelMinVisibleFloor` labels visible so labelReadability stays >= 50.
+		// candidates is already priority-desc sorted above, so we re-enable
+		// hidden candidates from the top until the floor is met.
+		const minFloor = rt.labelMinVisibleFloor ?? 0;
+		const hardHideZoom = rt.labelHardHideZoom ?? 0;
+		if (minFloor > 0 && hardHideZoom > 0 && zoom < hardHideZoom && visCount < minFloor) {
+			for (const c of candidates) {
+				if (visCount >= minFloor) break;
+				const { pn, isHovered, isSuper } = c;
+				if (isHovered || isSuper) continue;
+				if (!pn.label || pn.label.visible) continue;
+				pn.label.visible = true;
+				pn.label.alpha = Math.max(rt.labelAlphaMin ?? 0.7, baseOpacity);
+				pn.labelWasVisible = true;
+				visCount++;
+			}
+		}
+
 		// Zoom-out label emphasis: boost background opacity for surviving labels
 		// so they stand out as "important nodes" at low zoom
 		if (zoom < 0.5) {
@@ -508,7 +527,12 @@ export class LabelManager {
 	): void {
 		const eligibleNonSuper = candidates.filter((c) => !c.isSuper).length;
 		const eligibleSuper = candidates.filter((c) => c.isSuper).length;
-		const targetRegulars = Math.max(rt.labelMinNonSuper ?? 5, Math.ceil(eligibleSuper * 0.5));
+		const zoom = this.host.getWorldScale();
+		const baseMin = rt.labelMinNonSuper ?? 5;
+		const zoomedOutMin = rt.labelMinNonSuperZoomedOut ?? 20;
+		const threshold = rt.labelMinNonSuperZoomThreshold ?? 0.2;
+		const effectiveMin = zoom < threshold ? Math.max(baseMin, zoomedOutMin) : baseMin;
+		const targetRegulars = Math.max(effectiveMin, Math.ceil(eligibleSuper * 0.5));
 		if (eligibleNonSuper >= targetRegulars) return;
 		const needed = targetRegulars - eligibleNonSuper;
 		const hiddenNonSupers: { pn: PixiNode; deg: number }[] = [];

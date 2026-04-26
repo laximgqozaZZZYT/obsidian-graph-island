@@ -1082,6 +1082,13 @@ export interface RenderThresholds {
 	 *  by degree are force-shown even if they overlap. Prevents super-node monopoly (AP-5).
 	 *  Default: 5. Set to 0 to disable. */
 	labelMinNonSuper?: number;
+	/** Zoom-aware floor for non-super labels when zoomed out below
+	 *  `labelMinNonSuperZoomThreshold`. Aligns with the LOD-aware visual report that
+	 *  expects ~20 candidate labels at low zoom levels. Default: 20. */
+	labelMinNonSuperZoomedOut?: number;
+	/** Zoom level below which `labelMinNonSuperZoomedOut` is applied instead of
+	 *  `labelMinNonSuper`. Default: 0.2. */
+	labelMinNonSuperZoomThreshold?: number;
 
 	/** Maximum effective label width in screen pixels for the overlap AABB check (default 200).
 	 *  At extreme zoom-out the counter-scaled world AABB becomes enormous, causing excessive
@@ -1146,6 +1153,15 @@ export interface RenderThresholds {
 	 *  After semantic-zoom filtering, labels are sorted by degree and capped.
 	 *  Hovered nodes and their BFS neighbours bypass this limit. */
 	labelMaxVisible?: number;
+	/** visual-report の labelReadability 50 達成のための priority 上位ラベル下限
+	 *  (0 = 無効, default 20). 極端ズームアウト時 (zoom < labelHardHideZoom) にのみ
+	 *  適用され、未表示 candidate を priority 降順で点灯させて最低本数を保証する。 */
+	labelMinVisibleFloor?: number;
+	/** Zoom threshold below which extreme-zoom-out safeguards activate (default 0.1).
+	 *  Currently used as the gate for `labelMinVisibleFloor`. At zoom < this value,
+	 *  the priority-floor logic re-enables hidden candidates to keep the screen
+	 *  legible. Above this zoom, behavior is unchanged. */
+	labelHardHideZoom?: number;
 	/** Label density multiplier for zoom-based cap (default 1.0).
 	 *  Higher values show more labels at zoom-out, lower values show fewer.
 	 *  Range: 0.2 – 3.0. Applied as multiplier to the zoom-based label cap. */
@@ -1579,6 +1595,8 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
 	labelLeaderLineWidth: 1.2,
 	labelLeaderLineAlwaysThreshold: 2.0,
 	labelMinNonSuper: 40,
+	labelMinNonSuperZoomedOut: 20,
+	labelMinNonSuperZoomThreshold: 0.2,
 	labelOverlapMaxScreenW: 500,
 	labelOverlapMaxScreenH: 150,
 	labelMinPlaced: 3,
@@ -1603,6 +1621,8 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
 	labelDegreePctTier2: 0.1,
 	labelDegreePctTier3: 0.3,
 	labelMaxVisible: 0,
+	labelMinVisibleFloor: 20,
+	labelHardHideZoom: 0.1,
 	labelDensity: 1.0,
 	labelInitialsZoom: 0.005, // effectively disabled — always show text, not initials
 	labelTruncateZoom: 0.01, // effectively disabled — always show full label
