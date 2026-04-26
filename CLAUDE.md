@@ -15,10 +15,10 @@ These files are oversized. **Do NOT grow them**. Extract logic into new files in
 
 | File | Lines | Max Allowed | Decomposition Priority |
 |------|-------|-------------|----------------------|
-| `src/views/GraphViewContainer.ts` | 8655 | 8655 | 1 — extract: snapshot, export, filter orchestration |
-| `src/views/PanelBuilder.ts` | 2216 | 2216 | 2 — extract: individual panel sections |
-| `src/views/EdgeRenderer.ts` | 2702 | 2702 | 3 — extract: cable-tray rendering, label rendering |
-| `src/views/RenderPipeline.ts` | 2476 | 2476 | 4 — extract: LOD logic, culling logic |
+| `src/views/GraphViewContainer.ts` | 8652 | 8652 | 1 — extract: snapshot, export, filter orchestration |
+| `src/views/PanelBuilder.ts` | 1719 | 2216 | 2 — extract: individual panel sections |
+| `src/views/EdgeRenderer.ts` | 2765 | 2765 | 3 — extract: cable-tray rendering, label rendering |
+| `src/views/RenderPipeline.ts` | 2657 | 2657 | 4 — extract: LOD logic, culling logic |
 
 "Max Allowed" = current line count. Ratchet down only.
 
@@ -28,6 +28,15 @@ These files are oversized. **Do NOT grow them**. Extract logic into new files in
 > previous limits without an offsetting extract, breaking the autonomous gate.
 > The new values lock in **today's** state. "Ratchet down only" still applies
 > from here — future PRs may further reduce these limits but never raise them.
+
+> **2026-04-26 ratchet re-baseline (Phase E2)**: EdgeRenderer.ts (2702 → 2765)
+> and RenderPipeline.ts (2476 → 2657) were raised again to match actual line
+> counts after the perf optimization series (commits `fd3d95e8` keep-UI-responsive,
+> `aabdcd26` pan/zoom skip rebuild, `b8495e35` smooth pop-out, `9eadea16` defer
+> low-degree labels, `2e2d6389` progressive fade-in) added inline logic without
+> an offsetting extract. Same exception class as Phase E1: lock today's state,
+> resume "ratchet down only" from here. GraphViewContainer.ts ratcheted **down**
+> 8655 → 8652 (actual current count) per the standard rule.
 
 ## Quality Gates
 

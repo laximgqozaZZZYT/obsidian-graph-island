@@ -44,6 +44,7 @@ import {
 	GROUP_ARRANGEMENT_VERTICAL,
 	GROUP_ARRANGEMENT_GRID,
 	LABEL_CHAR_WIDTH_FACTOR,
+	LABEL_PAD,
 } from "../constants";
 import { timelineOffsetsV2 } from "./timeline-layout";
 import { pushToMapArray } from "../utils/map-helpers";
@@ -965,11 +966,6 @@ export function pairwiseGap(r1: number, r2: number, spacing: number): number {
  *  This allows layout-time spacing to account for label dimensions before
  *  PixiJS text objects are created.
  *  charW ≈ fontSize × 0.6 (monospace-equivalent average for proportional fonts). */
-/** Pill padding for super nodes (matches RenderPipeline createSinglePixiNode). */
-const LABEL_PAD_X_SUPER = 10;
-/** Pill padding for regular nodes. */
-const LABEL_PAD_X_REGULAR = 8;
-
 export function estimateLabelExtent(
 	node: GraphNode,
 	nodeSize: number,
@@ -987,7 +983,7 @@ export function estimateLabelExtent(
 	const isSuperNode = !!(node.collapsedMembers && node.collapsedMembers.length > 0);
 	const fontSize = isSuperNode ? superFontSize : Math.round(fontMin + importance * (fontMax - fontMin));
 	const charW = fontSize * LABEL_CHAR_WIDTH_FACTOR;
-	const padX = isSuperNode ? LABEL_PAD_X_SUPER : LABEL_PAD_X_REGULAR;
+	const padX = isSuperNode ? LABEL_PAD.SUPER_X : LABEL_PAD.REGULAR_X;
 	const rawWidth = label.length * charW + padX * 2;
 	return rawWidth * labelSpacingFactor;
 }
