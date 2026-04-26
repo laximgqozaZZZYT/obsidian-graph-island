@@ -9,6 +9,7 @@ import { detectTagRelations } from "./utils/tag-relation-presets";
 import { t } from "./i18n";
 import { showToast } from "./utils/toast";
 import { asInternalWorkspace, asGraphView, type GraphViewInternal } from "./obsidian-internals";
+import { cancelAllPanelWidgetTimers } from "./views/panel-widgets";
 
 export default class GraphViewsPlugin extends Plugin {
 	settings: GraphViewsSettings = DEFAULT_SETTINGS;
@@ -235,7 +236,9 @@ export default class GraphViewsPlugin extends Plugin {
 		return null;
 	}
 
-	onunload() {}
+	onunload() {
+		cancelAllPanelWidgetTimers();
+	}
 
 	// Snapshots live in a sidecar file (data-snapshots.json) to keep data.json
 	// small and loadSettings() fast. Without this separation, data.json grows

@@ -15,6 +15,21 @@ import { DEFAULT_COLORS } from "../types";
 import { EDGE_TYPE_INHERITANCE } from "../constants";
 import { parseQueryExpr, serializeExpr } from "../utils/query-expr";
 
+const pendingTimers = new Set<ReturnType<typeof setTimeout>>();
+
+function scheduleDismiss(fn: () => void, ms: number): void {
+	const id = setTimeout(() => {
+		pendingTimers.delete(id);
+		fn();
+	}, ms);
+	pendingTimers.add(id);
+}
+
+export function cancelAllPanelWidgetTimers(): void {
+	for (const id of pendingTimers) clearTimeout(id);
+	pendingTimers.clear();
+}
+
 export function updateSliderProgress(el: HTMLInputElement) {
 	const min = parseFloat(el.min) || 0;
 	const max = parseFloat(el.max) || 100;
@@ -206,7 +221,7 @@ function attachAutocomplete(input: HTMLInputElement, suggestions: string[]) {
 	input.addEventListener("focus", show);
 	input.addEventListener("input", show);
 	input.addEventListener("blur", () => {
-		setTimeout(() => (popup.style.display = "none"), 150);
+		scheduleDismiss(() => (popup.style.display = "none"), 150);
 	});
 	input.addEventListener("keydown", (e) => {
 		const items = popup.querySelectorAll(".gi-ac-item");
@@ -859,7 +874,7 @@ export function attachQueryHint(input: HTMLInputElement, getSuggestions: (field:
 		show: () => rebuildHint(),
 		hide: () => {
 			if (!hintEl) return;
-			setTimeout(() => {
+			scheduleDismiss(() => {
 				if (input === document.activeElement) return;
 				dismissHint();
 			}, 150);
@@ -1066,7 +1081,7 @@ function attachFixedHint(
 
 	input.addEventListener("focus", rebuild);
 	input.addEventListener("blur", () => {
-		setTimeout(() => {
+		scheduleDismiss(() => {
 			if (input === document.activeElement) return;
 			dismissHint();
 		}, 150);
@@ -1223,7 +1238,7 @@ function _setupSearchJumpListeners(
 ) {
 	input.addEventListener("input", () => {
 		// Defer slightly so attachQueryHint processes first
-		setTimeout(ctx.rebuild, 50);
+		scheduleDismiss(ctx.rebuild, 50);
 	});
 
 	input.addEventListener("keydown", (e: KeyboardEvent) => {
@@ -1257,7 +1272,7 @@ function _setupSearchJumpListeners(
 	});
 
 	input.addEventListener("blur", () => {
-		setTimeout(ctx.dismiss, 200);
+		scheduleDismiss(ctx.dismiss, 200);
 	});
 }
 
