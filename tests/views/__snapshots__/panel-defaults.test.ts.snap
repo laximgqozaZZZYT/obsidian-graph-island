@@ -32,7 +32,6 @@ exports[`panel-defaults — shape snapshots > DEFAULT_DISPLAY_STATE shape is sta
   "gridCellShading": false,
   "gridLabelPlacement": "on-line",
   "gridShowHeaders": false,
-  "gridStyle": "lines",
   "highContrastMode": false,
   "highlightPatterns": false,
   "hoverEdgeTypes": {
@@ -280,7 +279,6 @@ exports[`panel-defaults — shape snapshots > createDefaultPanelState shape is s
   "gridCellShading": false,
   "gridLabelPlacement": "on-line",
   "gridShowHeaders": false,
-  "gridStyle": "lines",
   "groupBy": "none",
   "groupByRules": null,
   "groupFilter": "",

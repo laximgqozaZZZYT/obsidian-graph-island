@@ -828,7 +828,6 @@ function resolveCoordinateGrid(
 		t2,
 	);
 
-	const gridStyle = effectiveGrid.style ?? "lines";
 	const rawAxis1Lines = resolveGridLines(
 		axis1Grid,
 		layout.axis1.source,
@@ -837,18 +836,8 @@ function resolveCoordinateGrid(
 		finalT1,
 		spacing,
 		layout.constants,
-		gridStyle,
 	);
-	const rawAxis2Lines = resolveGridLines(
-		axis2Grid,
-		layout.axis2.source,
-		members,
-		ctx,
-		t2,
-		spacing,
-		layout.constants,
-		gridStyle,
-	);
+	const rawAxis2Lines = resolveGridLines(axis2Grid, layout.axis2.source, members, ctx, t2, spacing, layout.constants);
 
 	// Apply centroid shift to grid line positions
 	const axis1Lines = rawAxis1Lines.map((l) => ({
@@ -980,40 +969,15 @@ export function coordinateOffsets(
 // ---------------------------------------------------------------------------
 
 /**
- * Convert N category center positions into N+1 cell boundary positions
- * for table-style grids (cell walls with nodes inside cells).
+ * Resolve category-based grid positions: places grid lines at category centers.
  */
-function categoryToBoundaries(centers: number[], spacing: number): number[] {
-	const boundaries: number[] = [];
-	const halfFirst = centers.length > 1 ? (centers[1] - centers[0]) / 2 : spacing / 2;
-	boundaries.push(centers[0] - halfFirst);
-	for (let i = 0; i + 1 < centers.length; i++) {
-		boundaries.push((centers[i] + centers[i + 1]) / 2);
-	}
-	const halfLast = centers.length > 1 ? (centers[centers.length - 1] - centers[centers.length - 2]) / 2 : spacing / 2;
-	boundaries.push(centers[centers.length - 1] + halfLast);
-	return boundaries;
-}
-
-/**
- * Resolve category-based grid positions, applying table-boundary conversion
- * when gridStyle === "table".
- */
-function resolveCategoryGridPositions(
-	catPositions: { position: number; label: string }[],
-	gridStyle: string | undefined,
-	spacing: number,
-): { linePositions: number[]; autoLabels: string[] | undefined } {
+function resolveCategoryGridPositions(catPositions: { position: number; label: string }[]): {
+	linePositions: number[];
+	autoLabels: string[] | undefined;
+} {
 	if (catPositions.length === 0) {
 		return { linePositions: [], autoLabels: undefined };
 	}
-	if (gridStyle === "table") {
-		const centers = catPositions.map((c) => c.position);
-		const boundaries = categoryToBoundaries(centers, spacing);
-		// N labels for N cells (placed "between" pairs of N+1 boundary lines)
-		return { linePositions: boundaries, autoLabels: catPositions.map((c) => c.label) };
-	}
-	// Lines style: grid lines at category centers (original behavior)
 	return {
 		linePositions: catPositions.map((c) => c.position),
 		autoLabels: catPositions.map((c) => c.label),
@@ -1100,7 +1064,6 @@ function resolveGridLinePositions(
 	ctx: CoordinateContext,
 	transformedValues: Map<string, number>,
 	spacing: number,
-	gridStyle: string | undefined,
 	tMin: number,
 	tMax: number,
 	tRange: number,
@@ -1111,7 +1074,7 @@ function resolveGridLinePositions(
 			const cats = resolveAxisCategories(members, axisSource, ctx);
 			if (cats) {
 				const catPositions = collectCategoryPositions(members, axisSource, ctx, transformedValues);
-				const resolved = resolveCategoryGridPositions(catPositions, gridStyle, spacing);
+				const resolved = resolveCategoryGridPositions(catPositions);
 				return { linePositions: resolved.linePositions, autoLabels: resolved.autoLabels };
 			}
 			// Continuous: equal divisions (configurable)
@@ -1147,7 +1110,7 @@ function resolveGridLinePositions(
 					? { kind: SOURCE_FIELD, field: positions.field }
 					: { kind: SOURCE_PROPERTY, key: positions.key };
 			const catPositions = collectCategoryPositions(members, source, ctx, transformedValues);
-			const resolved = resolveCategoryGridPositions(catPositions, gridStyle, spacing);
+			const resolved = resolveCategoryGridPositions(catPositions);
 			return { linePositions: resolved.linePositions, autoLabels: resolved.autoLabels };
 		}
 		case "expression":
@@ -1197,7 +1160,6 @@ function resolveGridLines(
 	transformedValues: Map<string, number>,
 	spacing: number,
 	constants?: Record<string, number>,
-	gridStyle?: string,
 ): ResolvedGridLine[] {
 	const { positions, ticks } = gridAxis;
 
@@ -1222,7 +1184,6 @@ function resolveGridLines(
 		ctx,
 		transformedValues,
 		spacing,
-		gridStyle,
 		tMin,
 		tMax,
 		tRange,

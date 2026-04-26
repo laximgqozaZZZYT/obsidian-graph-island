@@ -115,7 +115,6 @@ export const DEFAULT_DISPLAY_STATE = () => ({
 	showAxisTitles: true,
 	showTimelineTickLabels: true,
 	gridCellShading: false,
-	gridStyle: "lines" as const,
 	gridLabelPlacement: "on-line" as const,
 	nodeDisplayMode: "node" as NodeDisplayMode,
 	cardDisplayConfig: { fields: [] as string[], maxWidth: 120, showIcon: false },

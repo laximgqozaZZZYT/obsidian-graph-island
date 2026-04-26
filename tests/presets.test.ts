@@ -75,7 +75,6 @@ const DEFAULT_PANEL = {
 	showAxisTitles: true,
 	showTimelineTickLabels: true,
 	gridCellShading: false,
-	gridStyle: "lines" as const,
 	gridLabelPlacement: "on-line" as const,
 	clusterGravity: { interGroupAttraction: 0.5, intraGroupDensity: 1.0 },
 	clusterFollowsGroupBy: true,

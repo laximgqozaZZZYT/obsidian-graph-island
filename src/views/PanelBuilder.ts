@@ -219,8 +219,6 @@ export interface PanelState {
 	showTimelineTickLabels: boolean;
 	/** Shade cells by node density */
 	gridCellShading: boolean;
-	/** Grid display style */
-	gridStyle: "lines" | "table";
 	/** Grid label placement mode: on grid lines or between them */
 	gridLabelPlacement: "on-line" | "between";
 	/** Cluster-level gravity coefficients for group spacing */

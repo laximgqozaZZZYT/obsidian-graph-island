@@ -361,11 +361,6 @@ const en: TranslationMap = {
 	"coord.constantKey": "Name",
 	"coord.constantValue": "Value",
 
-	"guide.gridTableMode": "Custom Grid",
-	"guide.gridTableModeDesc": "Display custom grid overlay on coordinate layout",
-	"guide.gridStyle": "Grid Style",
-	"guide.gridStyle.lines": "Lines",
-	"guide.gridStyle.table": "Table",
 	"guide.gridShowHeaders": "Show Headers",
 	"guide.gridShowHeadersDesc": "Show row and column header labels",
 	"guide.showAxisTitles": "Show Axis Titles",
@@ -1338,11 +1333,6 @@ const ja: TranslationMap = {
 	"coord.constantKey": "名前",
 	"coord.constantValue": "値",
 
-	"guide.gridTableMode": "カスタムグリッド",
-	"guide.gridTableModeDesc": "座標レイアウトにカスタムグリッドを表示",
-	"guide.gridStyle": "グリッドスタイル",
-	"guide.gridStyle.lines": "ライン",
-	"guide.gridStyle.table": "テーブル",
 	"guide.gridShowHeaders": "ヘッダー表示",
 	"guide.gridShowHeadersDesc": "行・列のヘッダーラベルを表示",
 	"guide.showAxisTitles": "軸タイトル表示",

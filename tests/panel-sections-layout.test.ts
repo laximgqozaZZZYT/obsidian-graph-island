@@ -281,7 +281,6 @@ function createMockPanel(): PanelState {
 		autoFit: false,
 		presetZoomLevel: 0,
 		showDotGrid: false,
-		gridStyle: "lines",
 		gridCellShading: false,
 		gridShowHeaders: false,
 		gridLabelPlacement: "on-line",

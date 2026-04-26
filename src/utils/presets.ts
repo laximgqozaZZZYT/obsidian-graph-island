@@ -120,7 +120,6 @@ const STRING_FIELDS: (keyof PanelState)[] = [
 	"dataviewQuery",
 	"timelineEndKey",
 	"timelineOrderFields",
-	"gridStyle",
 	"gridLabelPlacement",
 	"orphanClusterField",
 	"localGraphCenter",

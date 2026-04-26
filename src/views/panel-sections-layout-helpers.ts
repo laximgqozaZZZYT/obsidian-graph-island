@@ -37,54 +37,12 @@ export function addAutoFitToggle(s: ClusterSectionCtx): void {
 }
 
 /**
- * Custom grid controls (table mode + style/headers/label-placement/cell-shading).
+ * Custom grid controls (headers/label-placement/cell-shading).
  * Visible only when a coordinateLayout is active. No-op otherwise.
  */
 export function addCustomGridControls(s: ClusterSectionCtx): void {
 	const { body, panel, cb } = s;
 	if (!panel.coordinateLayout) return;
-
-	const hasGrid = !!panel.coordinateLayout.grid;
-	addToggle(
-		body,
-		t("guide.gridTableMode"),
-		hasGrid,
-		(v) => {
-			if (v && panel.coordinateLayout) {
-				panel.coordinateLayout.grid = {
-					style: panel.gridStyle,
-					cellShading: panel.gridCellShading,
-				};
-			} else if (panel.coordinateLayout) {
-				panel.coordinateLayout.grid = undefined;
-			}
-			cb.applyClusterForce();
-			cb.restartSimulation(0.3);
-			cb.rebuildPanel();
-		},
-		t("guide.gridTableModeDesc"),
-	);
-
-	if (!hasGrid) return;
-
-	addSelect(
-		body,
-		t("guide.gridStyle"),
-		[
-			{ value: "lines", label: t("guide.gridStyle.lines") },
-			{ value: "table", label: t("guide.gridStyle.table") },
-		],
-		panel.gridStyle,
-		(v) => {
-			panel.gridStyle = v as "lines" | "table";
-			if (panel.coordinateLayout?.grid) {
-				panel.coordinateLayout.grid.style = panel.gridStyle;
-			}
-			cb.applyClusterForce();
-			cb.restartSimulation(0.3);
-			cb.doRenderKeepPanel();
-		},
-	);
 
 	addToggle(
 		body,
