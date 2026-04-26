@@ -189,11 +189,11 @@ describe("validatePanelState — boundary values", () => {
 		expect(panel.collapsedGroups instanceof Set).toBe(true);
 	});
 
-	it("renderThresholds migration: nodeSizeByDegree defaults to true", () => {
+	it("renderThresholds: user-set nodeSizeByDegree=false is preserved", () => {
 		const panel = createDefaultPanel();
 		panel.renderThresholds = { nodeSizeByDegree: false };
 		validatePanelState(panel);
-		expect(panel.renderThresholds.nodeSizeByDegree).toBe(true);
+		expect(panel.renderThresholds.nodeSizeByDegree).toBe(false);
 	});
 
 	it("renderThresholds migration: autoLOD defaults to true", () => {

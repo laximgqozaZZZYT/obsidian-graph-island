@@ -466,12 +466,6 @@ export function validatePanelState(panel: PanelState): void {
 	if (panel.cableTrunkAlpha === 0) panel.cableTrunkAlpha = 0.25;
 	// Settings migration: ensure new-default features are enabled
 	if (panel.renderThresholds) {
-		if (
-			panel.renderThresholds.nodeSizeByDegree === false ||
-			panel.renderThresholds.nodeSizeByDegree === undefined
-		) {
-			panel.renderThresholds.nodeSizeByDegree = true;
-		}
 		if (panel.renderThresholds.autoLOD === undefined) {
 			panel.renderThresholds.autoLOD = true;
 		}
