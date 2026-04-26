@@ -228,6 +228,14 @@ export const SEQUENCE_COLOR = 0xef4444;
 /** teal-500 — explicit inline annotation */
 export const INLINE_RELATION_COLOR = 0x14b8a6;
 
+/** Edge type fallback colors used when colorEdgesByRelation is on but e.relation is unset */
+export const EDGE_TYPE_FALLBACK_COLORS: ReadonlyMap<string, number> = new Map([
+	["link", LINK_COLOR],
+	["tag", TAG_EDGE_COLOR],
+	["category", CATEGORY_EDGE_COLOR],
+	["semantic", SEMANTIC_EDGE_COLOR],
+]);
+
 // ---- Edge bundling (EdgeRenderer) ----
 /** Number of angular bins over [0, π). 6 bins = 30° each. */
 export const ANGLE_BINS = 6;

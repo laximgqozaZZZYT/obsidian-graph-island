@@ -18,10 +18,7 @@ import {
 	EDGE_TYPE_INLINE_RELATION,
 	EDGE_TYPE_NAMED_RELATION,
 	// Render constants (consolidated in constants.ts)
-	LINK_COLOR,
-	TAG_EDGE_COLOR,
-	CATEGORY_EDGE_COLOR,
-	SEMANTIC_EDGE_COLOR,
+	EDGE_TYPE_FALLBACK_COLORS,
 	INHERITANCE_COLOR,
 	AGGREGATION_COLOR,
 	SIMILAR_COLOR,
@@ -81,6 +78,7 @@ export {
 	ZOOM_FADE_THRESHOLD,
 	ZOOM_FADE_MIN_ALPHA,
 	DEFAULT_DENSITY_FLOOR,
+	EDGE_TYPE_FALLBACK_COLORS,
 } from "../constants";
 import {
 	type GroupPort,
@@ -361,20 +359,13 @@ export const EDGE_TYPE_SPECS: ReadonlyMap<string, EdgeTypeSpec> = new Map<string
 	[EDGE_TYPE_NAMED_RELATION, { visibilityField: "showNamedRelation", color: null }],
 ]);
 
-// Render constants (bundling / alpha / arrows / density) now live in constants.ts.
-// Cable-tray constants, types, and pure functions are in CableTrayRenderer.ts.
+// Render constants (bundling / alpha / arrows / density / EDGE_TYPE_FALLBACK_COLORS)
+// now live in constants.ts. Cable-tray constants, types, and pure functions are
+// in CableTrayRenderer.ts.
 
 // ---------------------------------------------------------------------------
 // Edge color helper (shared between pre-computation and draw loop)
 // ---------------------------------------------------------------------------
-/** Edge type fallback colors used when colorEdgesByRelation is on but e.relation is unset */
-export const EDGE_TYPE_FALLBACK_COLORS: ReadonlyMap<string, number> = new Map([
-	["link", LINK_COLOR],
-	["tag", TAG_EDGE_COLOR],
-	["category", CATEGORY_EDGE_COLOR],
-	["semantic", SEMANTIC_EDGE_COLOR],
-]);
-
 export function resolveEdgeColor(
 	e: GraphEdge,
 	useRelColor: boolean,
