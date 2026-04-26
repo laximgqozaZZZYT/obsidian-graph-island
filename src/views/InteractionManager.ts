@@ -7,6 +7,7 @@ import type { Simulation } from "d3-force";
 import { LAYOUT_CONCENTRIC } from "../constants";
 import { t } from "../i18n";
 import { asInternalApp, asSearchView } from "../obsidian-internals";
+import { InertiaPan } from "./inertia-pan";
 
 // ---------------------------------------------------------------------------
 // PixiNode shape (mirrors the one in GraphViewContainer)
@@ -99,6 +100,8 @@ export interface InteractionHost {
 	getContainerEl(): HTMLElement;
 	/** IL: Zoom wheel sensitivity multiplier (0.5-2.0, default 1.0) */
 	getZoomSensitivity?(): number;
+	/** Whether inertial panning is enabled (default: true). Returning false stops flick momentum. */
+	isInertiaEnabled?(): boolean;
 	/** Called when zoom changes — debounced layout recalculation */
 	onZoomLayoutUpdate?(zoom: number): void;
 	/** Update label visibility for semantic zoom */
@@ -326,6 +329,10 @@ export class InteractionManager {
 	private _smoothZoomCursorX = 0;
 	private _smoothZoomCursorY = 0;
 
+	// Inertial pan (flick momentum after pointer release)
+	private _inertiaPan: InertiaPan;
+	private _inertiaTickId = 0;
+
 	// Hover preview: track last hovered node to avoid redundant hover-link events
 	private lastHoveredId: string | null = null;
 
@@ -343,6 +350,14 @@ export class InteractionManager {
 		this.canvas = canvas;
 		this.world = world;
 		this._targetScale = world.scale.x;
+		this._inertiaPan = new InertiaPan(
+			() => this.host.isInertiaEnabled?.() ?? true,
+			(dx, dy) => {
+				this.world.x += dx;
+				this.world.y += dy;
+				this.host.markTransformDirty();
+			},
+		);
 
 		this._onWheel = this.handleWheel.bind(this);
 		this._onPointerDown = this.handlePointerDown.bind(this);
@@ -368,6 +383,9 @@ export class InteractionManager {
 	detach() {
 		cancelAnimationFrame(this._smoothZoomId);
 		this._smoothZoomId = 0;
+		cancelAnimationFrame(this._inertiaTickId);
+		this._inertiaTickId = 0;
+		this._inertiaPan.cancel();
 		clearTimeout(this._zoomLayoutTimer);
 		clearTimeout(this._zoomCullTimer);
 		this.canvas.removeEventListener("wheel", this._onWheel);
@@ -398,6 +416,9 @@ export class InteractionManager {
 		e.preventDefault();
 		const app = this.host.getPixiApp();
 		if (!app) return;
+
+		// New zoom gesture takes over — drop any in-flight pan momentum.
+		this.cancelInertia();
 
 		const sens = this.host.getZoomSensitivity?.() ?? 1.0;
 		const rect = this.canvas.getBoundingClientRect();
@@ -464,6 +485,9 @@ export class InteractionManager {
 	private handlePointerDown(e: PointerEvent) {
 		const app = this.host.getPixiApp();
 		if (!app) return;
+
+		// Any new pointer interaction interrupts ongoing flick momentum.
+		this.cancelInertia();
 
 		const rect = this.canvas.getBoundingClientRect();
 		const mx = e.clientX - rect.left;
@@ -557,6 +581,7 @@ export class InteractionManager {
 		this.isPanning = true;
 		this.panStart = { x: mx, y: my };
 		this.worldStart = { x: this.world.x, y: this.world.y };
+		this._inertiaPan.trackPointer(mx, my, performance.now());
 	}
 
 	// -----------------------------------------------------------------------
@@ -585,6 +610,7 @@ export class InteractionManager {
 		} else if (this.isPanning) {
 			this.world.x = this.worldStart.x + (mx - this.panStart.x);
 			this.world.y = this.worldStart.y + (my - this.panStart.y);
+			this._inertiaPan.trackPointer(mx, my, performance.now());
 			// Transform-only: pan moves world.x/y, scene graph unchanged.
 			this.host.markTransformDirty();
 		} else {
@@ -753,8 +779,41 @@ export class InteractionManager {
 		}
 		if (!this.hasDragged && this._upGroupLabelClick(e)) return;
 
+		if (this.isPanning) {
+			// `hasDragged` is set only by node/marquee/lasso paths, never by
+			// a pan gesture — so we always attempt release here. InertiaPan
+			// returns zero velocity when the sample history is empty (e.g.
+			// a click without movement), making no-movement releases a no-op.
+			this.releasePanInertia();
+		}
 		this.isPanning = false;
 		this.hasDragged = false;
+	}
+
+	/** Begin a flick-momentum animation from the velocity captured during the last pan gesture. */
+	private releasePanInertia() {
+		const vel = this._inertiaPan.release();
+		if (vel.vx === 0 && vel.vy === 0) return;
+		if (!this._inertiaTickId) {
+			this._inertiaTickId = requestAnimationFrame(() => this.inertiaTick());
+		}
+	}
+
+	private inertiaTick() {
+		this._inertiaTickId = 0;
+		const running = this._inertiaPan.tick();
+		if (running) {
+			this._inertiaTickId = requestAnimationFrame(() => this.inertiaTick());
+		}
+	}
+
+	/** Stop any in-flight inertial pan immediately (called when a new gesture starts). */
+	private cancelInertia() {
+		if (this._inertiaTickId) {
+			cancelAnimationFrame(this._inertiaTickId);
+			this._inertiaTickId = 0;
+		}
+		this._inertiaPan.cancel();
 	}
 
 	/** Link editor: finalize link on drop */
