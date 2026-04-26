@@ -387,7 +387,7 @@ export function buildSamplePresetSelector(
 			Object.assign(panel, merged);
 			cb.invalidateData();
 			if (panel.presetZoomLevel > 0) {
-				setTimeout(() => cb.setZoom?.(panel.presetZoomLevel), 500);
+				ctx.timers.setTimeout(() => cb.setZoom?.(panel.presetZoomLevel), 500);
 			}
 			cb.rebuildPanel();
 			showToast(t("preset.sampleLoaded").replace("{name}", name));
@@ -469,7 +469,7 @@ export function buildCoordinateControls(
 		suggestions: string[],
 	) => void,
 	buildCoordPreview: (body: HTMLElement, layout: CoordinateLayout) => void,
-	buildExprLibrary: (body: HTMLElement, panel: PanelState, cb: PanelCallbacks) => void,
+	buildExprLibrary: (body: HTMLElement, panel: PanelState, cb: PanelCallbacks, ctx: PanelContext) => void,
 	buildConstantsUI: (body: HTMLElement, panel: PanelState, cb: PanelCallbacks) => void,
 	getAxisSourceSuggestions: (ctx: PanelContext) => string[],
 ): void {
@@ -507,7 +507,7 @@ export function buildCoordinateControls(
 	buildCoordPreview(body, coordLayout);
 
 	// Expression library (preset formulas)
-	buildExprLibrary(body, panel, cb);
+	buildExprLibrary(body, panel, cb, ctx);
 
 	// Constants management
 	buildConstantsUI(body, panel, cb);

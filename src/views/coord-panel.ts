@@ -353,7 +353,12 @@ function buildVariableReference(container: HTMLElement): void {
 }
 
 /** Build the expression library UI — collapsible list of preset formulas */
-export function buildExprLibrary(body: HTMLElement, panel: PanelState, cb: PanelCallbacks): void {
+export function buildExprLibrary(
+	body: HTMLElement,
+	panel: PanelState,
+	cb: PanelCallbacks,
+	ctx: PanelContext,
+): void {
 	const wrapper = body.createDiv({ cls: "gi-expr-library" });
 
 	// Header (collapsible)
@@ -423,7 +428,7 @@ export function buildExprLibrary(body: HTMLElement, panel: PanelState, cb: Panel
 
 			// Brief highlight
 			nameEl.style.color = "var(--text-success, #4f4)";
-			setTimeout(() => {
+			ctx.timers.setTimeout(() => {
 				nameEl.style.color = "";
 			}, 600);
 		});
@@ -441,7 +446,7 @@ export function buildExprLibrary(body: HTMLElement, panel: PanelState, cb: Panel
 		cb.autoOptimize();
 		const rt = mergeRenderThresholds(panel.renderThresholds);
 		const waitMs = rt.autoOptMaxPasses * 1500 + 500;
-		setTimeout(() => {
+		ctx.timers.setTimeout(() => {
 			optBtn.disabled = false;
 			optBtn.textContent = t("coord.autoOptimize");
 		}, waitMs);
