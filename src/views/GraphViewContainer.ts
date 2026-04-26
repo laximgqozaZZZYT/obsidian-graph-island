@@ -30,7 +30,7 @@ import {
 	blendThemeLabel,
 	cleanArcName,
 	areSavedPositionsValid,
-	lightenHex,
+	lightenHex, giDiag,
 } from "../utils/gvc-helpers";
 import {
 	buildGraphFromVault,

@@ -152,3 +152,12 @@ export function resolveNodeColor(
 	}
 	return defaultColor;
 }
+
+export function giDiag<T extends { nodes: { length: number }; edges: { length: number } }>(stage: string, data: T): T {
+	const w = typeof window !== "undefined" ? (window as { __GI_DIAG__?: boolean }) : null;
+	const env = typeof process !== "undefined" && process.env?.NODE_ENV !== "production";
+	if (env || w?.__GI_DIAG__ === true) {
+		console.log(`[graph-island][diag] ${stage} nodes=${data.nodes.length} edges=${data.edges.length}`);
+	}
+	return data;
+}
