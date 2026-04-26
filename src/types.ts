@@ -1127,6 +1127,13 @@ export interface RenderThresholds {
 	// ---- Semantic zoom / label scaling ----
 	/** Minimum on-screen pixel size for node labels (default 14) */
 	labelMinScreenPx?: number;
+	/**
+	 * Hard floor for label screen-pixel font size — guarantees readability
+	 * even when counter-scale is capped at extreme zoom-out (default 11).
+	 * Distinct from `labelMinScreenPx`, which targets counter-scale floor;
+	 * this constant is the absolute lower bound applied after all scaling.
+	 */
+	labelMinReadablePx?: number;
 	/** Counter-scale power exponent — controls shrink rate when zooming out (default 0.4) */
 	labelScalePower?: number;
 	/** Maximum counter-scale factor for labels (default 12) */
@@ -1609,6 +1616,7 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
 	autoOptMaxPasses: 3,
 	autoOptCloseThreshold: 3.0,
 	labelMinScreenPx: 20,
+	labelMinReadablePx: 11,
 	labelScalePower: 0.4,
 	labelScaleMax: 6,
 	labelScaleMaxExtreme: 7,
