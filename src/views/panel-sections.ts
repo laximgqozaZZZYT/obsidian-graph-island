@@ -15,18 +15,6 @@ import { addSlider, addToggle, addSelect, addTextInput } from "./panel-widgets";
 // Node Advanced Controls — extracted to reduce complexity of the outer arrow fn
 // ---------------------------------------------------------------------------
 function _buildNodeAdvancedControls(adv: HTMLElement, panel: PanelState, cb: PanelCallbacks): void {
-	const rtNode = mergeRenderThresholds(panel.renderThresholds);
-	addToggle(
-		adv,
-		t("display.nodeSizeByDegree"),
-		rtNode.nodeSizeByDegree,
-		(v) => {
-			ensureRT(panel).nodeSizeByDegree = v;
-			cb.recalcNodeRadii();
-			cb.markDirty();
-		},
-		t("desc.nodeSizeByDegree"),
-	);
 	addTextInput(
 		adv,
 		t("display.nodeSubLabelFields"),
