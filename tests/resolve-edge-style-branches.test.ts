@@ -228,7 +228,10 @@ describe("resolveEdgeStyle — combined modifiers", () => {
 	it("fadeByDegree + highContrast: HC boost applies after degree fade", () => {
 		const cfg = makeCfg({
 			fadeByDegree: true,
-			degrees: new Map([["a", 10], ["b", 10]]),
+			degrees: new Map([
+				["a", 10],
+				["b", 10],
+			]),
 			maxDegree: 100,
 			highContrast: true,
 		});

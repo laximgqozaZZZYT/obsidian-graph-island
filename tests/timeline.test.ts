@@ -903,10 +903,7 @@ describe("applyTimelineLayout hierarchical parent_id lanes", () => {
 
 	it("single-segment path falls back to the segment itself", () => {
 		// filePath "solo.md" → segs=["solo.md"] → segs.length < 2 → returns segs[0]="solo.md"
-		const nodes = [
-			makeNode("a", { filePath: "fileA.md" } as any),
-			makeNode("b", { filePath: "fileB.md" } as any),
-		];
+		const nodes = [makeNode("a", { filePath: "fileA.md" } as any), makeNode("b", { filePath: "fileB.md" } as any)];
 		const fm = makeFrontmatter({
 			a: { date: "T1", parent_id: "pa" },
 			b: { date: "T2" },
@@ -936,9 +933,7 @@ describe("applyTimelineLayout hierarchical parent_id lanes", () => {
 		});
 
 		// Should not throw
-		expect(() =>
-			applyTimelineLayout({ nodes, edges: [] }, { timeKey: "date", getNodeProperty: fm }),
-		).not.toThrow();
+		expect(() => applyTimelineLayout({ nodes, edges: [] }, { timeKey: "date", getNodeProperty: fm })).not.toThrow();
 	});
 
 	it("falls back to id when filePath is missing (workGroup uses n.id)", () => {

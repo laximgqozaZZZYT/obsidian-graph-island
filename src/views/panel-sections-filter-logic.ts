@@ -155,9 +155,7 @@ export function shouldShowHierarchyTree(ctx: { hasInheritanceEdges?: boolean }):
 	return !!ctx.hasInheritanceEdges;
 }
 
-export function shouldShowOntologyBackbone(settings: {
-	ontology?: { rules?: readonly unknown[] };
-}): boolean {
+export function shouldShowOntologyBackbone(settings: { ontology?: { rules?: readonly unknown[] } }): boolean {
 	return (settings.ontology?.rules?.length ?? 0) > 0;
 }
 
@@ -180,16 +178,12 @@ export const DEFAULT_HOVER_HIGHLIGHT_TYPES: HoverHighlightTypes = {
 };
 
 /** Return a fully-populated HoverHighlightTypes, falling back to defaults. */
-export function ensureHoverHighlightTypes(
-	current: Partial<HoverHighlightTypes> | undefined,
-): HoverHighlightTypes {
+export function ensureHoverHighlightTypes(current: Partial<HoverHighlightTypes> | undefined): HoverHighlightTypes {
 	return { ...DEFAULT_HOVER_HIGHLIGHT_TYPES, ...(current ?? {}) };
 }
 
 /** Count how many hover highlight categories are active. */
-export function countActiveHoverHighlights(
-	types: Partial<HoverHighlightTypes> | undefined,
-): number {
+export function countActiveHoverHighlights(types: Partial<HoverHighlightTypes> | undefined): number {
 	if (!types) return 0;
 	let n = 0;
 	if (types.forwardLinks) n++;

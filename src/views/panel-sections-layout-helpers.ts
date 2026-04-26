@@ -146,10 +146,7 @@ export function addAxisTitlesToggle(s: ClusterSectionCtx): void {
 }
 
 /** Cluster gravity sliders (inter/intra-group). Visible only when groupBy is active. */
-export function addClusterGravitySliders(
-	s: ClusterSectionCtx,
-	debouncedClusterForce: () => void,
-): void {
+export function addClusterGravitySliders(s: ClusterSectionCtx, debouncedClusterForce: () => void): void {
 	const { body, panel } = s;
 	if (!panel.groupBy || panel.groupBy === "none") return;
 

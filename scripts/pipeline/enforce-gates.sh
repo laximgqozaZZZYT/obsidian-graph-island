@@ -31,6 +31,11 @@ run_gate() {
 # ── All gates run unconditionally ──
 run_gate "typecheck" npx tsc --noEmit
 run_gate "lint" npx eslint src/ --quiet --max-warnings 999
+# Phase Q (2026-04-26): added format gate. CI's `format:check` was failing
+# every PR because nothing locally enforced Prettier. autonomous-improve.sh
+# runs `pnpm format` after Claude edits, but this gate is the safety net
+# in case a future implementer skips the write step.
+run_gate "format" npx prettier --check src/ tests/
 run_gate "test" npx vitest run
 run_gate "build" node esbuild.config.mjs production
 run_gate "bundle" bash scripts/bundle-size-check.sh

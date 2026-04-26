@@ -196,7 +196,8 @@ describe("InteractionManager", () => {
 		// Mock InteractionHost with all required methods
 		mockHost = {
 			hitTestNode: vi.fn(() => null),
-			markDirty: vi.fn(), markTransformDirty: vi.fn(),
+			markDirty: vi.fn(),
+			markTransformDirty: vi.fn(),
 			applyHover: vi.fn(),
 			getHighlightedNodeId: vi.fn(() => null),
 			setHighlightedNodeId: vi.fn(),
@@ -412,7 +413,8 @@ describe("InteractionHost interface", () => {
 
 		const mockHost: InteractionHost = {
 			hitTestNode: () => null,
-			markDirty: () => {}, markTransformDirty: () => {},
+			markDirty: () => {},
+			markTransformDirty: () => {},
 			applyHover: () => {},
 			getHighlightedNodeId: () => null,
 			setHighlightedNodeId: () => {},
@@ -447,7 +449,8 @@ describe("InteractionHost interface", () => {
 	it("should support optional methods", () => {
 		const mockHost: InteractionHost = {
 			hitTestNode: () => null,
-			markDirty: () => {}, markTransformDirty: () => {},
+			markDirty: () => {},
+			markTransformDirty: () => {},
 			applyHover: () => {},
 			getHighlightedNodeId: () => null,
 			setHighlightedNodeId: () => {},
@@ -761,7 +764,8 @@ describe("InteractionManager event handlers", () => {
 
 		mockHost = {
 			hitTestNode: vi.fn(() => null),
-			markDirty: vi.fn(), markTransformDirty: vi.fn(),
+			markDirty: vi.fn(),
+			markTransformDirty: vi.fn(),
 			applyHover: vi.fn(),
 			getHighlightedNodeId: vi.fn(() => null),
 			setHighlightedNodeId: vi.fn(),
@@ -948,7 +952,8 @@ describe("InteractionManager node interaction helpers", () => {
 
 		mockHost = {
 			hitTestNode: vi.fn(() => null),
-			markDirty: vi.fn(), markTransformDirty: vi.fn(),
+			markDirty: vi.fn(),
+			markTransformDirty: vi.fn(),
 			applyHover: vi.fn(),
 			getHighlightedNodeId: vi.fn(() => null),
 			setHighlightedNodeId: vi.fn(),

@@ -87,9 +87,7 @@ describe("computeAutoFitSpacing", () => {
 	});
 
 	it("clamps to unconstrained upper bounds (10/5/5) when skipGroupOverlap is false", () => {
-		const nodes = Array.from({ length: 40 }, (_, i) =>
-			makeNode(`n${i}`, { tags: [i < 20 ? "g1" : "g2"] }),
-		);
+		const nodes = Array.from({ length: 40 }, (_, i) => makeNode(`n${i}`, { tags: [i < 20 ? "g1" : "g2"] }));
 		const result = computeAutoFitSpacing(
 			nodes,
 			[],
@@ -110,9 +108,7 @@ describe("computeAutoFitSpacing", () => {
 	});
 
 	it("survives large graphs (n > 500) where max iterations is reduced", () => {
-		const nodes = Array.from({ length: 600 }, (_, i) =>
-			makeNode(`n${i}`, { tags: [`g${i % 5}`] }),
-		);
+		const nodes = Array.from({ length: 600 }, (_, i) => makeNode(`n${i}`, { tags: [`g${i % 5}`] }));
 		const degrees = new Map(nodes.map((n, i) => [n.id, i % 10]));
 		const result = computeAutoFitSpacing(nodes, [], degrees, baseCfg({ arrangement: "phyllotaxis" }));
 		// All return values are finite and within unconstrained caps
@@ -162,9 +158,7 @@ describe("buildClusterForce metadata", () => {
 	});
 
 	it("clusterRadii are positive and finite for each group", () => {
-		const nodes = Array.from({ length: 12 }, (_, i) =>
-			makeNode(`n${i}`, { tags: [i < 6 ? "a" : "b"] }),
-		);
+		const nodes = Array.from({ length: 12 }, (_, i) => makeNode(`n${i}`, { tags: [i < 6 ? "a" : "b"] }));
 		const result = buildClusterForce(nodes, [], new Map(), baseCfg({ arrangement: "concentric" }));
 		expect(result).not.toBeNull();
 		const radii = result!.metadata.clusterRadii;
@@ -274,8 +268,7 @@ describe("effectiveRadius interaction edges", () => {
 // estimateLabelExtent — font scaling via (degree / maxDeg) importance
 // ---------------------------------------------------------------------------
 describe("estimateLabelExtent font scaling", () => {
-	const mk = (label: string, over?: Partial<GraphNode>): GraphNode =>
-		({ id: label, label, ...over }) as GraphNode;
+	const mk = (label: string, over?: Partial<GraphNode>): GraphNode => ({ id: label, label, ...over }) as GraphNode;
 
 	it("maxDeg=0 pins font to fontMin (importance=0)", () => {
 		const w = estimateLabelExtent(mk("abc"), 10, 100, 0, 1, 11, 14);
@@ -291,26 +284,8 @@ describe("estimateLabelExtent font scaling", () => {
 	});
 
 	it("super node uses the fixed superFontSize regardless of importance", () => {
-		const a = estimateLabelExtent(
-			mk("xyz", { collapsedMembers: ["m"] as any }),
-			10,
-			0,
-			10,
-			1,
-			11,
-			14,
-			13,
-		);
-		const b = estimateLabelExtent(
-			mk("xyz", { collapsedMembers: ["m"] as any }),
-			10,
-			10,
-			10,
-			1,
-			11,
-			14,
-			13,
-		);
+		const a = estimateLabelExtent(mk("xyz", { collapsedMembers: ["m"] as any }), 10, 0, 10, 1, 11, 14, 13);
+		const b = estimateLabelExtent(mk("xyz", { collapsedMembers: ["m"] as any }), 10, 10, 10, 1, 11, 14, 13);
 		expect(a).toBe(b);
 	});
 });

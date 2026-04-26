@@ -261,10 +261,7 @@ export default class GraphViewsPlugin extends Plugin {
 
 		if (migrationSnapshots) {
 			try {
-				await this.app.vault.adapter.write(
-					this._snapshotsSidecarPath(),
-					JSON.stringify(migrationSnapshots),
-				);
+				await this.app.vault.adapter.write(this._snapshotsSidecarPath(), JSON.stringify(migrationSnapshots));
 				this.settings.snapshots = [];
 				await this.saveData(this.settings); // rewrite data.json without snapshots
 				this.settings.snapshots = migrationSnapshots as any;

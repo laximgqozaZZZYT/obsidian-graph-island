@@ -1,11 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { parseTransformExpr, transformExprToString } from "../../src/utils/transform-expr";
-import {
-	TRANSFORM_CURVE,
-	TRANSFORM_LINEAR,
-	SOURCE_INDEX,
-	SOURCE_FIELD,
-} from "../../src/constants";
+import { TRANSFORM_CURVE, TRANSFORM_LINEAR, SOURCE_INDEX, SOURCE_FIELD } from "../../src/constants";
 import type { AxisSource, AxisTransform } from "../../src/types";
 
 // ---------------------------------------------------------------------------

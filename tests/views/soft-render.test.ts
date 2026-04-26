@@ -15,16 +15,13 @@ interface HostOpts {
 
 function makeHost(opts: HostOpts = {}) {
 	const log: string[] = [];
-	const record =
-		(name: string) =>
-		(): void => {
-			log.push(name);
-		};
+	const record = (name: string) => (): void => {
+		log.push(name);
+	};
 	const pixiNodes = new Map<string, object>();
 	for (const id of opts.pixiNodeIds ?? []) pixiNodes.set(id, {});
 
-	const gdFn =
-		opts.graphDataFn ?? ((): GraphData => opts.graphData ?? { nodes: [], edges: [] });
+	const gdFn = opts.graphDataFn ?? ((): GraphData => opts.graphData ?? { nodes: [], edges: [] });
 	const userDoRender = opts.doRender;
 
 	const host = {

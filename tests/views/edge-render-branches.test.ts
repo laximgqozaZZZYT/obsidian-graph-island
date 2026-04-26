@@ -22,11 +22,7 @@ import {
 	EDGE_TYPE_FALLBACK_COLORS,
 	type EdgeDrawConfig,
 } from "../../src/views/EdgeRenderer";
-import {
-	computeLodLevel,
-	computeZoomFadeAlpha,
-	screenToWorld,
-} from "../../src/views/RenderPipeline";
+import { computeLodLevel, computeZoomFadeAlpha, screenToWorld } from "../../src/views/RenderPipeline";
 import { NODE_SCREEN_PX_BASE } from "../../src/constants";
 import type { GraphEdge } from "../../src/types";
 
@@ -282,22 +278,12 @@ describe("resolveEdgeColor fallback branches", () => {
 	it("colorEdgesByRelation=true + no relation + known fallback type → EDGE_TYPE_FALLBACK_COLORS", () => {
 		const semanticFallback = EDGE_TYPE_FALLBACK_COLORS.get("semantic");
 		expect(semanticFallback).toBeDefined();
-		const color = resolveEdgeColor(
-			makeEdge({ type: "semantic" }),
-			true,
-			new Map(),
-			true,
-		);
+		const color = resolveEdgeColor(makeEdge({ type: "semantic" }), true, new Map(), true);
 		expect(color).toBe(semanticFallback);
 	});
 
 	it("named-relation (spec.color=null) with useRelColor=false falls through to defaultColor", () => {
-		const color = resolveEdgeColor(
-			makeEdge({ type: "named-relation" }),
-			false,
-			new Map(),
-			true,
-		);
+		const color = resolveEdgeColor(makeEdge({ type: "named-relation" }), false, new Map(), true);
 		// spec exists but color=null, useRelColor=false → defaultColor(isDark=true) = 0x666666
 		expect(color).toBe(0x666666);
 	});

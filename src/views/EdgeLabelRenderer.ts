@@ -27,11 +27,7 @@ import {
 import { shouldSkipEdge, shouldSkipByDirection, type EdgeDrawConfig } from "./EdgeRenderer";
 
 // Re-export for public API (tests import these from EdgeLabelRenderer)
-export {
-	EDGE_LABEL_FONT_SIZE_DEFAULT,
-	EDGE_LABEL_BG_ALPHA,
-	MAX_EDGE_LABELS,
-} from "../constants";
+export { EDGE_LABEL_FONT_SIZE_DEFAULT, EDGE_LABEL_BG_ALPHA, MAX_EDGE_LABELS } from "../constants";
 
 // ---------------------------------------------------------------------------
 // Helpers

@@ -293,9 +293,7 @@ describe("heatmapColor — mid-range", () => {
 // ---------------------------------------------------------------------------
 describe("findMatchingGroupPreset — tagDisplay-only branch", () => {
 	it("matches preset with tagDisplay-only condition", () => {
-		const presets: GroupPreset[] = [
-			{ condition: { tagDisplay: "inline" } } as GroupPreset,
-		];
+		const presets: GroupPreset[] = [{ condition: { tagDisplay: "inline" } } as GroupPreset];
 		expect(findMatchingGroupPreset(presets, "force", "inline")).toBe(presets[0]);
 	});
 
@@ -332,8 +330,6 @@ describe("resolveNodeColor — empty tags branch", () => {
 
 	it("falls through from category to tag when category not in map", () => {
 		// category exists but missing → falls to tag fallback
-		expect(resolveNodeColor({ category: "ghost", tags: ["action"] }, colorMap, "#default")).toBe(
-			"#00ff00",
-		);
+		expect(resolveNodeColor({ category: "ghost", tags: ["action"] }, colorMap, "#default")).toBe("#00ff00");
 	});
 });

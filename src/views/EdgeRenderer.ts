@@ -5,10 +5,7 @@ import { DEFAULT_CARDINALITY_RENDER_CONFIG } from "../types";
 import { cssColorToHex, edgeSourceId, edgeTargetId, incCounter } from "../utils/graph-helpers";
 import { addToMapSet } from "../utils/map-helpers";
 import type { RoadNetwork } from "../layouts/cable-tray";
-import {
-	routeEdge,
-	invalidatePathCache,
-} from "../layouts/cable-tray";
+import { routeEdge, invalidatePathCache } from "../layouts/cable-tray";
 import {
 	EDGE_TYPE_INHERITANCE,
 	EDGE_TYPE_AGGREGATION,
@@ -1168,9 +1165,10 @@ function _drawSingleIntraCableGpb(
 			const gpHighlight = getBranchHighlight(edges);
 			if (gpHighlight !== filterHighlight) continue;
 
-			const wireAlpha = (gpHighlight === "bright"
-				? (cfg.highlightEdgeAlpha ?? 1.0)
-				: (cfg.highlightEdgeNonMatchAlpha ?? FADE_BY_DEGREE_MIN_ALPHA)) * fadeMul;
+			const wireAlpha =
+				(gpHighlight === "bright"
+					? (cfg.highlightEdgeAlpha ?? 1.0)
+					: (cfg.highlightEdgeNonMatchAlpha ?? FADE_BY_DEGREE_MIN_ALPHA)) * fadeMul;
 
 			const gpFinalAlpha =
 				(gpHighlight === "bright" ? wireAlpha : Math.max(wireAlpha * densityScale, 0.05)) * zoomFade;
@@ -1274,7 +1272,10 @@ function drawIntraGroupCables(
 // moved to CableTrayRenderer.ts
 
 /** Split wire edges into bright/dim sets based on highlight membership. */
-function _splitHighlightEdges(wireEdges: GraphEdge[], highlightSet: Set<string>): { bright: GraphEdge[]; dim: GraphEdge[] } {
+function _splitHighlightEdges(
+	wireEdges: GraphEdge[],
+	highlightSet: Set<string>,
+): { bright: GraphEdge[]; dim: GraphEdge[] } {
 	const bright: GraphEdge[] = [];
 	const dim: GraphEdge[] = [];
 	for (const e of wireEdges) {
@@ -1289,9 +1290,15 @@ function _splitHighlightEdges(wireEdges: GraphEdge[], highlightSet: Set<string>)
 
 /** Draw highlight-split wire: bright/dim passes for highlighted trunk wires. */
 function _drawHighlightedWire(
-	g: CanvasGraphics, wirePath: { x: number; y: number }[], wireWidth: number,
-	color: number, wireEdges: GraphEdge[], cfg: EdgeDrawConfig,
-	fadeMul: number, densityScale: number, filterHighlight: "bright" | "dim" | "normal" | null,
+	g: CanvasGraphics,
+	wirePath: { x: number; y: number }[],
+	wireWidth: number,
+	color: number,
+	wireEdges: GraphEdge[],
+	cfg: EdgeDrawConfig,
+	fadeMul: number,
+	densityScale: number,
+	filterHighlight: "bright" | "dim" | "normal" | null,
 ): void {
 	const { bright, dim } = _splitHighlightEdges(wireEdges, cfg.highlightSet);
 	if (dim.length > 0 && (filterHighlight === null || filterHighlight === "dim")) {
@@ -1374,7 +1381,17 @@ function _drawSingleTrunk(
 		const wireWidth = (baseWireW + cableWeightThickness(wireEdges, cfg)) * zoomThicken * hcMul;
 
 		if (cfg.highlightedNodeId) {
-			_drawHighlightedWire(g, _buildTrunkWirePath(), wireWidth, color, wireEdges, cfg, fadeMul, densityScale, filterHighlight);
+			_drawHighlightedWire(
+				g,
+				_buildTrunkWirePath(),
+				wireWidth,
+				color,
+				wireEdges,
+				cfg,
+				fadeMul,
+				densityScale,
+				filterHighlight,
+			);
 		} else {
 			if (filterHighlight !== null && filterHighlight !== "normal") continue;
 			const wireAlpha = Math.max(baseWireA * fadeMul * densityScale, 0.35);
@@ -2021,9 +2038,15 @@ function rebuildTrunkCables(
 	}
 	cache.groupBBox.clear();
 	const allGroupPorts = computeGroupPorts(
-		groupKeys, centroids, radii, connections,
-		cfg.coordinateSystem, polarCenter, resolvePos,
-		cfg.nodeClusterMap ?? undefined, cache,
+		groupKeys,
+		centroids,
+		radii,
+		connections,
+		cfg.coordinateSystem,
+		polarCenter,
+		resolvePos,
+		cfg.nodeClusterMap ?? undefined,
+		cache,
 	);
 	cache.cachedGroupPorts = allGroupPorts;
 	cache.cable = buildTrunks(edges, resolvePos, cfg, allGroupPorts);
@@ -2073,9 +2096,15 @@ function prepareCables(
 				const groupKeys = new Set(cfg.nodeClusterMap!.values());
 				const pc = computePolarCenter(cfg);
 				cache.cachedGroupPorts = computeGroupPorts(
-					groupKeys, centroids, radii, connections,
-					cfg.coordinateSystem, pc, resolvePos,
-					cfg.nodeClusterMap ?? undefined, cache,
+					groupKeys,
+					centroids,
+					radii,
+					connections,
+					cfg.coordinateSystem,
+					pc,
+					resolvePos,
+					cfg.nodeClusterMap ?? undefined,
+					cache,
 				);
 			}
 			cache.intraCable = buildIntraGroupCables(edges, resolvePos, cfg, cache.cachedGroupPorts, cache);
@@ -2235,8 +2264,12 @@ function desaturateAtZoom(color: number, worldScale: number, isDark: boolean): n
 	if (worldScale >= 0.3) return color;
 	const gray = isDark ? 0x666666 : 0x999999;
 	const blend = Math.min(1, (0.3 - worldScale) / 0.2);
-	const r1 = (color >> 16) & 0xff, g1 = (color >> 8) & 0xff, b1 = color & 0xff;
-	const r2 = (gray >> 16) & 0xff, g2 = (gray >> 8) & 0xff, b2 = gray & 0xff;
+	const r1 = (color >> 16) & 0xff,
+		g1 = (color >> 8) & 0xff,
+		b1 = color & 0xff;
+	const r2 = (gray >> 16) & 0xff,
+		g2 = (gray >> 8) & 0xff,
+		b2 = gray & 0xff;
 	return (
 		(Math.round(r1 + (r2 - r1) * blend * 0.5) << 16) |
 		(Math.round(g1 + (g2 - g1) * blend * 0.5) << 8) |
@@ -2287,21 +2320,51 @@ function _drawEdgesSinglePass(
 			continue;
 		}
 
-		_drawNonCabledEdge(g, e, src, tgt, cfg, useRelColor, isArcLayout, densityScale, pairCount, bundles, bundleStrength, ws, arrowGfx, cache);
+		_drawNonCabledEdge(
+			g,
+			e,
+			src,
+			tgt,
+			cfg,
+			useRelColor,
+			isArcLayout,
+			densityScale,
+			pairCount,
+			bundles,
+			bundleStrength,
+			ws,
+			arrowGfx,
+			cache,
+		);
 	}
 }
 
 /** Render a single non-cabled edge with style resolution, ontology backbone, and dash. */
 function _drawNonCabledEdge(
-	g: CanvasGraphics, e: GraphEdge, src: Pos, tgt: Pos,
-	cfg: EdgeDrawConfig, useRelColor: boolean, isArcLayout: boolean,
-	densityScale: number, pairCount: Map<string, number> | null,
-	bundles: Map<string, BundleGroup> | null, bundleStrength: number,
-	ws: number, arrowGfx?: CanvasGraphics | null, cache: EdgeRenderCache = _cache,
-	alphaMul = 1, widthOff = 0, skipDesaturate = false,
+	g: CanvasGraphics,
+	e: GraphEdge,
+	src: Pos,
+	tgt: Pos,
+	cfg: EdgeDrawConfig,
+	useRelColor: boolean,
+	isArcLayout: boolean,
+	densityScale: number,
+	pairCount: Map<string, number> | null,
+	bundles: Map<string, BundleGroup> | null,
+	bundleStrength: number,
+	ws: number,
+	arrowGfx?: CanvasGraphics | null,
+	cache: EdgeRenderCache = _cache,
+	alphaMul = 1,
+	widthOff = 0,
+	skipDesaturate = false,
 ): void {
 	let lineColor = resolveEdgeColor(e, useRelColor, cfg.relationColors, cfg.isDark);
-	const { alpha: _alpha, lineThick: _lineThick, isHighlighted: edgeHL } = resolveEdgeStyle(e, src, tgt, cfg, densityScale, pairCount);
+	const {
+		alpha: _alpha,
+		lineThick: _lineThick,
+		isHighlighted: edgeHL,
+	} = resolveEdgeStyle(e, src, tgt, cfg, densityScale, pairCount);
 	let alpha = _alpha;
 	let lineThick = _lineThick;
 
@@ -2411,7 +2474,25 @@ function _drawEdgesLayered(
 				continue;
 			}
 
-			_drawNonCabledEdge(g, e, src, tgt, cfg, useRelColor, isArcLayout, densityScale, pairCount, bundles, bundleStrength, ws, arrowGfx, cache, alphaMul, widthOff, true);
+			_drawNonCabledEdge(
+				g,
+				e,
+				src,
+				tgt,
+				cfg,
+				useRelColor,
+				isArcLayout,
+				densityScale,
+				pairCount,
+				bundles,
+				bundleStrength,
+				ws,
+				arrowGfx,
+				cache,
+				alphaMul,
+				widthOff,
+				true,
+			);
 		}
 	}
 }

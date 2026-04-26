@@ -17,8 +17,7 @@ vi.mock("obsidian", () => ({
 vi.mock("../src/i18n", () => ({
 	// Translation keys that carry {nodes}/{edges} placeholders return a template
 	// so the orchestrator's .replace() logic has something to substitute into.
-	t: (key: string) =>
-		key === "export.graphDone" ? "nodes={nodes}, edges={edges}" : key,
+	t: (key: string) => (key === "export.graphDone" ? "nodes={nodes}, edges={edges}" : key),
 }));
 
 vi.mock("../src/views/ExportManager", () => ({

@@ -1054,7 +1054,9 @@ function resolveExpressionGridPositions(
 		}
 		// Deduplicate and sort
 		linePositions = [
-			...new Set(linePositions.map((v) => Math.round(v * LAYOUT_GRID_DEDUP_PRECISION) / LAYOUT_GRID_DEDUP_PRECISION)),
+			...new Set(
+				linePositions.map((v) => Math.round(v * LAYOUT_GRID_DEDUP_PRECISION) / LAYOUT_GRID_DEDUP_PRECISION),
+			),
 		].sort((a, b) => a - b);
 	} catch (_e) {
 		// Invalid expr — fall back to configurable divisions
