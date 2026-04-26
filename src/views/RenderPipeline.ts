@@ -111,128 +111,31 @@ interface NormalZoomCtx {
 	lodLevel: number;
 }
 
-// ---------------------------------------------------------------------------
-// Constants — consolidated in constants.ts (Render Constants section)
-// ---------------------------------------------------------------------------
-
-/** Convert a screen-pixel size to world units, floored at `floor`. */
-export function screenToWorld(screenPx: number, ws: number, floor: number): number {
-	return Math.max(floor, ws > 0 ? screenPx / ws : floor);
-}
-
-/**
- * Compute a fade-out alpha for individual nodes/intra-group cables at extreme zoom-out.
- * Returns 1.0 at zoom >= fadeStart, linearly fading to fadeFloor at zoom <= fadeEnd.
- * Does NOT affect trunks (inter-group cables).
- */
-export function computeZoomFadeAlpha(zoom: number, fadeStart = 0.7, fadeEnd = 0.15, fadeFloor = 0.03): number {
-	if (zoom >= fadeStart) return 1;
-	if (zoom <= fadeEnd) return fadeFloor;
-	return fadeFloor + ((1 - fadeFloor) * (zoom - fadeEnd)) / (fadeStart - fadeEnd);
-}
-
-// Render pipeline numeric/object constants (IMMEDIATE_BATCH_SIZE, KB_FOCUS,
-// LABEL_LAYOUT, LABEL_PAD, SUB_LABEL, etc.) now live in constants.ts.
-
-/**
- * Compute the LOD (Level of Detail) tier based on node screen-space pixel size.
- * Pure function — no DOM/Canvas dependency.
- *
- * @param nodeScreenPx  Screen-space pixel size of a node (NODE_SCREEN_PX_BASE * worldScale)
- * @param thresholds    LOD threshold values from render settings
- * @returns LOD level 0–5 (0 = extreme zoom-out dots, 5 = full card mode)
- */
-export function computeLodLevel(
-	nodeScreenPx: number,
-	thresholds: {
-		cardLODExtremePx: number;
-		cardLODMidLabelPx: number;
-		cardLODNormalPx: number;
-		cardLODCompactPx: number;
-		cardLODFullCardPx: number;
-	},
-): number {
-	if (nodeScreenPx < thresholds.cardLODExtremePx) return 0;
-	if (nodeScreenPx < thresholds.cardLODMidLabelPx) return 1;
-	if (nodeScreenPx < thresholds.cardLODNormalPx) return 2;
-	if (nodeScreenPx < thresholds.cardLODCompactPx) return 3;
-	if (nodeScreenPx < thresholds.cardLODFullCardPx) return 4;
-	return 5;
-}
-
-/**
- * Compute density-adaptive culling scale factor for label spacing.
- * At low zoom: aggressive spacing (sqrt scaling). At high zoom: mild spacing.
- *
- * @param zoom  Current zoom level (worldContainer.scale.x)
- * @param threshold  Zoom level that separates "low" from "high" (labelDensityZoomThreshold)
- * @returns Scale factor (>1 = more aggressive, <1 = more lenient)
- */
-export function computeDensityScale(zoom: number, threshold: number): number {
-	if (zoom < threshold) {
-		return 1 + Math.sqrt((threshold - zoom) / threshold) * 1.5;
-	}
-	return Math.max(0.3, 1 - (zoom - threshold) * 0.5);
-}
-
-/**
- * Compute minimum distance for density culling.
- *
- * @param baseDist  Base screen-space distance (labelDensityMinScreenDist)
- * @param maxDist   Maximum allowed distance (labelDensityMaxDist)
- * @param zoom      Current zoom level
- * @param threshold Zoom threshold for density scaling
- * @returns Minimum distance in screen pixels
- */
-export function computeDensityMinDist(baseDist: number, maxDist: number, zoom: number, threshold: number): number {
-	return Math.min(baseDist * computeDensityScale(zoom, threshold), maxDist);
-}
-
-/**
- * Generate label displacement offset candidates for overlap avoidance.
- * Returns 12 offsets sorted by distance from label center (farthest first by default).
- *
- * @param labelW  Label width in screen pixels
- * @param labelH  Label height in screen pixels
- * @param nodeScreenR  Node radius in screen pixels
- * @returns Array of {dx, dy} offsets in screen coordinates
- */
-export function generateDisplacementOffsets(
-	labelW: number,
-	labelH: number,
-	nodeScreenR: number,
-): Array<{ dx: number; dy: number }> {
-	const hw = labelW * 0.5;
-	const pad = nodeScreenR + 2;
-	return [
-		{ dx: hw + pad, dy: pad + labelH }, // bottom-right
-		{ dx: -(labelW + pad), dy: 0 }, // left
-		{ dx: 0, dy: pad + labelH * 1.2 }, // below
-		{ dx: hw + pad, dy: -(pad + labelH) }, // top-right
-		{ dx: -(labelW + pad), dy: -(pad + labelH) }, // top-left
-		{ dx: -(labelW + pad), dy: pad + labelH }, // bottom-left
-		{ dx: hw + pad, dy: -(pad + labelH * 1.2) }, // above-right
-		{ dx: -(hw + pad), dy: -(pad + labelH * 1.2) }, // above-left
-		{ dx: labelW + pad * 2, dy: 0 }, // far right
-		{ dx: 0, dy: -(pad + labelH * 1.5) }, // far above
-		{ dx: -(labelW + pad * 2), dy: pad + labelH * 0.5 }, // far bottom-left
-		{ dx: hw + pad, dy: pad + labelH * 1.5 }, // far below-right
-	];
-}
-
-/** Simple deterministic hash of a string to a hue value (0–360). */
-export function hashStringToHue(str: string): number {
-	let hash = 0;
-	for (let i = 0; i < str.length; i++) {
-		hash = ((hash << 5) - hash + str.charCodeAt(i)) | 0;
-	}
-	return ((hash % 360) + 360) % 360;
-}
-
-/** Truncate a label to maxChars, appending "…" if truncated. 0 or negative maxChars means no truncation. */
-export function truncateLabel(label: string, maxChars: number): string {
-	return maxChars > 0 && label.length > maxChars ? label.slice(0, maxChars) + "…" : label;
-}
+// Pure utility functions live in render-pipeline-utils.ts (extracted to keep this
+// file under the GOD OBJECT line limit). Imported here for internal use AND
+// re-exported below to preserve external import paths (`from "./RenderPipeline"`).
+import {
+	screenToWorld,
+	computeZoomFadeAlpha,
+	computeLodLevel,
+	computeDensityScale,
+	computeDensityMinDist,
+	generateDisplacementOffsets,
+	hashStringToHue,
+	truncateLabel,
+	quickSelect,
+} from "./render-pipeline-utils";
+export {
+	screenToWorld,
+	computeZoomFadeAlpha,
+	computeLodLevel,
+	computeDensityScale,
+	computeDensityMinDist,
+	generateDisplacementOffsets,
+	hashStringToHue,
+	truncateLabel,
+	quickSelect,
+};
 
 // ---------------------------------------------------------------------------
 // RenderHost — the interface the RenderPipeline needs from its parent

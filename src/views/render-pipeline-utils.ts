@@ -274,3 +274,129 @@ export function computeZonePlacementFromAngles(
 
 	return { x: lx, y: ly, anchorX };
 }
+
+// ---------------------------------------------------------------------------
+// Coordinate / scaling utilities (extracted from RenderPipeline.ts)
+// ---------------------------------------------------------------------------
+
+/** Convert a screen-pixel size to world units, floored at `floor`. */
+export function screenToWorld(screenPx: number, ws: number, floor: number): number {
+	return Math.max(floor, ws > 0 ? screenPx / ws : floor);
+}
+
+/**
+ * Compute a fade-out alpha for individual nodes/intra-group cables at extreme zoom-out.
+ * Returns 1.0 at zoom >= fadeStart, linearly fading to fadeFloor at zoom <= fadeEnd.
+ * Does NOT affect trunks (inter-group cables).
+ */
+export function computeZoomFadeAlpha(zoom: number, fadeStart = 0.7, fadeEnd = 0.15, fadeFloor = 0.03): number {
+	if (zoom >= fadeStart) return 1;
+	if (zoom <= fadeEnd) return fadeFloor;
+	return fadeFloor + ((1 - fadeFloor) * (zoom - fadeEnd)) / (fadeStart - fadeEnd);
+}
+
+/**
+ * Compute the LOD (Level of Detail) tier based on node screen-space pixel size.
+ * Pure function — no DOM/Canvas dependency.
+ */
+export function computeLodLevel(
+	nodeScreenPx: number,
+	thresholds: {
+		cardLODExtremePx: number;
+		cardLODMidLabelPx: number;
+		cardLODNormalPx: number;
+		cardLODCompactPx: number;
+		cardLODFullCardPx: number;
+	},
+): number {
+	if (nodeScreenPx < thresholds.cardLODExtremePx) return 0;
+	if (nodeScreenPx < thresholds.cardLODMidLabelPx) return 1;
+	if (nodeScreenPx < thresholds.cardLODNormalPx) return 2;
+	if (nodeScreenPx < thresholds.cardLODCompactPx) return 3;
+	if (nodeScreenPx < thresholds.cardLODFullCardPx) return 4;
+	return 5;
+}
+
+/**
+ * Compute density-adaptive culling scale factor for label spacing.
+ * NOTE: EdgeRenderer.ts has a different `computeDensityScale` (different signature, EdgeDrawConfig-based).
+ * They co-exist by import path — RenderPipeline-side callers go through this module.
+ */
+export function computeDensityScale(zoom: number, threshold: number): number {
+	if (zoom < threshold) {
+		return 1 + Math.sqrt((threshold - zoom) / threshold) * 1.5;
+	}
+	return Math.max(0.3, 1 - (zoom - threshold) * 0.5);
+}
+
+/** Compute minimum distance for density culling. */
+export function computeDensityMinDist(baseDist: number, maxDist: number, zoom: number, threshold: number): number {
+	return Math.min(baseDist * computeDensityScale(zoom, threshold), maxDist);
+}
+
+/**
+ * Generate label displacement offset candidates for overlap avoidance.
+ * Returns 12 offsets sorted by distance from label center.
+ */
+export function generateDisplacementOffsets(
+	labelW: number,
+	labelH: number,
+	nodeScreenR: number,
+): Array<{ dx: number; dy: number }> {
+	const hw = labelW * 0.5;
+	const pad = nodeScreenR + 2;
+	return [
+		{ dx: hw + pad, dy: pad + labelH }, // bottom-right
+		{ dx: -(labelW + pad), dy: 0 }, // left
+		{ dx: 0, dy: pad + labelH * 1.2 }, // below
+		{ dx: hw + pad, dy: -(pad + labelH) }, // top-right
+		{ dx: -(labelW + pad), dy: -(pad + labelH) }, // top-left
+		{ dx: -(labelW + pad), dy: pad + labelH }, // bottom-left
+		{ dx: hw + pad, dy: -(pad + labelH * 1.2) }, // above-right
+		{ dx: -(hw + pad), dy: -(pad + labelH * 1.2) }, // above-left
+		{ dx: labelW + pad * 2, dy: 0 }, // far right
+		{ dx: 0, dy: -(pad + labelH * 1.5) }, // far above
+		{ dx: -(labelW + pad * 2), dy: pad + labelH * 0.5 }, // far bottom-left
+		{ dx: hw + pad, dy: pad + labelH * 1.5 }, // far below-right
+	];
+}
+
+/** Simple deterministic hash of a string to a hue value (0–360). */
+export function hashStringToHue(str: string): number {
+	let hash = 0;
+	for (let i = 0; i < str.length; i++) {
+		hash = ((hash << 5) - hash + str.charCodeAt(i)) | 0;
+	}
+	return ((hash % 360) + 360) % 360;
+}
+
+/** Truncate a label to maxChars, appending "…" if truncated. 0 or negative maxChars means no truncation. */
+export function truncateLabel(label: string, maxChars: number): string {
+	return maxChars > 0 && label.length > maxChars ? label.slice(0, maxChars) + "…" : label;
+}
+
+/** O(n) average k-th smallest element (Hoare's selection algorithm). */
+export function quickSelect(arr: number[], k: number): number {
+	if (arr.length <= 1) return arr[0] ?? 0;
+	let lo = 0,
+		hi = arr.length - 1;
+	while (lo < hi) {
+		const pivot = arr[(lo + hi) >> 1];
+		let i = lo,
+			j = hi;
+		while (i <= j) {
+			while (arr[i] < pivot) i++;
+			while (arr[j] > pivot) j--;
+			if (i <= j) {
+				const tmp = arr[i];
+				arr[i] = arr[j];
+				arr[j] = tmp;
+				i++;
+				j--;
+			}
+		}
+		if (j < k) lo = i;
+		if (i > k) hi = j;
+	}
+	return k >= 0 && k < arr.length ? arr[k] : 0;
+}
