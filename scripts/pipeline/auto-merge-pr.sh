@@ -70,9 +70,10 @@ echo "Mode:          $([[ $DRY_RUN -eq 1 ]] && echo dry-run || echo apply)"
 echo ""
 
 # gh JSON to a tmp file (heredoc and pipe-stdin can't coexist as a python
-# input source — heredoc wins, so pipe data would be lost).
+# input source — heredoc wins, so pipe data would be lost). Includes
+# baseRefName so we can reject PRs targeting non-main bases below.
 gh pr list --state open --limit 100 \
-  --json number,headRefName,title,createdAt,isDraft,mergeable,mergeStateStatus \
+  --json number,headRefName,baseRefName,title,createdAt,isDraft,mergeable,mergeStateStatus \
   > /tmp/auto-merge-prs.json 2>/dev/null
 
 mapfile -t candidates < <(python3 - "$AGE_THRESHOLD" /tmp/auto-merge-prs.json <<'PY'
@@ -90,6 +91,10 @@ ok_merge_status = {"CLEAN", "UNSTABLE"}
 for p in prs:
     head = p.get("headRefName", "")
     if not head.startswith("auto-improve-"):
+        continue
+    # Only merge PRs targeting main directly. Anything else points at a
+    # ghost feature branch and the merge never reaches main.
+    if p.get("baseRefName") != "main":
         continue
     if p.get("isDraft"):
         continue

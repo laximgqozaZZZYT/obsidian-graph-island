@@ -268,10 +268,12 @@ fi
 
 log "Worktree created: $WORKTREE_DIR"
 
-# Capture the base branch the worktree was created from (for PR targeting).
-# All PRs target the branch we were on when cron fired, so merge contents
-# reflect only what this session produced on top of main work.
-BASE_BRANCH="$(cd "$PROJECT_DIR" && git symbolic-ref --short HEAD 2>/dev/null || echo main)"
+# Base branch for the cycle's PR. Hard-coded to `main` so that auto-merge
+# (Phase P) can land changes on main directly. Previously this read whatever
+# branch was checked out when cron fired, which produced PRs targeting old
+# feature branches (e.g. fix/g2-queue-cleanup) that had themselves already
+# been merged — the resulting "merge" never reached main.
+BASE_BRANCH="main"
 
 # ── Cleanup trap: preserve WIP + push branch + open PR, then remove local worktree ──
 # This replaces the prior "git merge to main" flow. Every exit path (normal
