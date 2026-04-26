@@ -42,3 +42,26 @@ summary: 読み込み時の動作が異様に重い — 昨日比でプラグイ
 - `/plan` での実行希望 (ユーザー指定)
 - ユーザー issue は autonomous より優先度高
 - Phase R 候補
+
+## Initial investigation (2026-04-26 16:50 JST)
+
+CDP A/B 計測 (yesterday build = `99df3a19` vs current HEAD):
+
+| 指標 | yesterday (24h前) | current (HEAD) | delta |
+|---|---|---|---|
+| bundle size | 775.4 KB | 776.9 KB | +0.2% |
+| enable avg (3run) | 631 ms (551-714) | 562 ms (462-682) | **-70 ms (高速化)** |
+| invalidateAndRebuild avg (5run) | 183 ms | 181 ms | ほぼ同等 |
+| getGraphData (5run) | 1.5-5 ms | 1.2-2.4 ms | ほぼ同等 |
+
+**結論: Canvas2D / disable-enable シナリオでは regression 検出されず。**
+
+未測定で重さの可能性がある領域:
+1. **Cold start** — Obsidian 起動時の main.js 初回 parse + plugin onload (今回 disable/enable のみ計測)
+2. **WebGL モード** — useWebGL=true 時の shader compile / tessellator init
+3. **特定操作** — hover / scroll / zoom / search / 大量 selection
+4. **TTI 過去最適化 (memory: project_perf_tti.md = 9.6s)** からの劣化
+5. ユーザー固有環境 (マシン spec / 別プラグイン干渉)
+6. 「昨日」の認識ずれ (実際は数日〜週前のバージョンとの比較)
+
+autonomous で next-step probes を decompose 推奨。
