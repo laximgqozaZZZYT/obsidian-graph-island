@@ -1,0 +1,14 @@
+{
+  "layout": "force",
+  "searchQuery": "path:mythology-egyptian*",
+  "nodeSize": 7,
+  "repelForce": 476,
+  "linkDistance": 139,
+  "showLinks": true,
+  "showSemanticEdges": true,
+  "showTagEdges": false,
+  "colorEdgesByRelation": true,
+  "nodeColorMode": "category",
+  "showMinimap": true,
+  "showArrows": true
+}

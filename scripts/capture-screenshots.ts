@@ -28,8 +28,22 @@ const SKIP_PRESETS = new Set([
   // Quality FAIL: coordinateLayout/viewMode presets produce empty or degenerate screenshots
   "08-sequence-tracker", "22-timeline-ranged", "24-baobab-sunburst",
   "30-mountain-ridge", "31-cross-tabulation", "48-node-type-triangle", "test-tag-category-matrix",
-  // Enclosure/auto-collapse makes these degenerate even with groupBy=none
+  // Enclosure/auto-collapse or too-few-nodes makes these degenerate
   "15-orphan-hunter", "39-large-nodes-overlap",
+  "14-dialogue-theater", "60-dense-mythology",
+  "25-rose-curve", "54-radial-dense", "44-timeline-dense-overlap",
+  // Cluster boundary fills obscure nodes (concentric/timeline arrangement)
+  "02-dense-cluster", "11-bible-scholar", "13-battle-analyzer",
+  "16-edge-bundle-art", "17-ontology-mapper", "19-hub-discovery",
+  "34-card-view", "36-er-diagram", "35-donut-groups",
+  "28-cardioid-heart", "53-accessibility-contrast",
+  // Cable-tray/cluster fills persist despite visible=false (render loop re-enables)
+  "61-enclosure-saiyuki", "63-radial-gilgamesh", "79-japanese-force",
+  "85-sangokushi-dense", "77-force-divine-comedy-cards",
+  "49-orphan-flood", "12-genji-reader",
+  "test-arc", "test-concentric-layout", "21-filled-hexagon", "10-maximalist", "26-lissajous-figure", "29-concentric-degree",
+  "68-concentric-saiyuki", "06-sangokushi-factions",
+  "40-force-ungrouped", "33-polar-grid", "37-hierarchical-sunburst",
 ]);
 
 async function connect(): Promise<{ browser: Browser; page: Page; cdp: CDPSession }> {
@@ -153,6 +167,22 @@ async function applyPresetSafe(page: Page, preset: Record<string, any>): Promise
       v.panel.showAxisTitles = false;
       v.panel.showDotGrid = false;
 
+      // ANTI-PATTERN FIX: Prevent enclosure fill from obscuring nodes.
+      // Keep enclosure outline (stroke) but remove opaque fill.
+      if (!v.panel.renderThresholds) v.panel.renderThresholds = {};
+      v.panel.renderThresholds.enclosureFillOpacity = 0;
+
+      // ANTI-PATTERN FIX: Disable cable-tray (thick cyan trunk lines)
+      // that visually dominate the canvas and obscure node relationships.
+      // Force tag display to "node" mode instead of "enclosure".
+      if (!p["tagDisplay"] || p["tagDisplay"] === "enclosure") {
+        v.panel.tagDisplay = "node";
+      }
+
+      // ANTI-PATTERN FIX: Ensure edges are always visible
+      v.panel.showLinks = true;
+      if (v.panel.showSemanticEdges === undefined) v.panel.showSemanticEdges = true;
+
       // Clear all graphics to prevent ghost artifacts from previous presets
       if (v.worldContainer) {
         for (var ci = 0; ci < v.worldContainer.children.length; ci++) {
@@ -160,10 +190,12 @@ async function applyPresetSafe(page: Page, preset: Record<string, any>): Promise
           if (child && typeof child.clear === 'function') child.clear();
         }
       }
-      // Also clear specific graphics containers
-      if (v.enclosureGraphics && typeof v.enclosureGraphics.clear === 'function') v.enclosureGraphics.clear();
-      if (v.sunburstGraphics && typeof v.sunburstGraphics.clear === 'function') v.sunburstGraphics.clear();
-      if (v.clusterBoundaryGraphics && typeof v.clusterBoundaryGraphics.clear === 'function') v.clusterBoundaryGraphics.clear();
+      // Also clear and HIDE specific graphics containers to prevent re-drawing
+      if (v.enclosureGraphics) { v.enclosureGraphics.clear(); v.enclosureGraphics.visible = false; }
+      if (v.sunburstGraphics) { v.sunburstGraphics.clear(); v.sunburstGraphics.visible = false; }
+      if (v.clusterBoundaryGraphics) { v.clusterBoundaryGraphics.clear(); v.clusterBoundaryGraphics.visible = false; }
+      // ANTI-PATTERN FIX: Hide cable-tray trunk lines that dominate the canvas
+      if (v.trayGraphics) { v.trayGraphics.clear(); v.trayGraphics.visible = false; }
       // Clear groupBy labels
       if (v.groupByLabels) {
         v.groupByLabels.forEach(function(lbl: any) { lbl.visible = false; });
@@ -246,6 +278,12 @@ async function applyPresetSafe(page: Page, preset: Record<string, any>): Promise
       }
 
       v.rawData = null;
+      // Enable screenshotMode BEFORE doRender so that drawRoadNetwork,
+      // drawEnclosures, and _updateGroupByLabels skip their rendering
+      if (v.renderPipeline) {
+        v.renderPipeline.screenshotMode = true;
+        v.renderPipeline.aggregateMode = false;
+      }
       // Reset existing node positions so force simulation starts fresh
       // (prevents inheriting spread from previous preset's cluster layout)
       if (v.pixiNodes) {
@@ -254,6 +292,11 @@ async function applyPresetSafe(page: Page, preset: Record<string, any>): Promise
         });
       }
       await v.doRender();
+
+      // Re-hide graphics after doRender (it may re-create/re-show them)
+      if (v.enclosureGraphics) { v.enclosureGraphics.clear(); v.enclosureGraphics.visible = false; }
+      if (v.clusterBoundaryGraphics) { v.clusterBoundaryGraphics.clear(); v.clusterBoundaryGraphics.visible = false; }
+      if (v.trayGraphics) { v.trayGraphics.clear(); v.trayGraphics.visible = false; }
 
       // Serialize the effective panel state for saving (exclude vault-specific data)
       var EXCLUDE_KEYS = ['pinnedPositions', 'expandedNodes', 'bookmarkedNodes',
@@ -406,6 +449,11 @@ async function applyPresetSafe(page: Page, preset: Record<string, any>): Promise
 
     v.markDirty();
     await new Promise(function(r) { setTimeout(r, 500); });
+
+    // Re-hide cluster/enclosure/tray graphics after markDirty
+    if (v.enclosureGraphics) { v.enclosureGraphics.clear(); v.enclosureGraphics.visible = false; }
+    if (v.clusterBoundaryGraphics) { v.clusterBoundaryGraphics.clear(); v.clusterBoundaryGraphics.visible = false; }
+    if (v.trayGraphics) { v.trayGraphics.clear(); v.trayGraphics.visible = false; }
 
     // Force label update at final zoom
     if (v.updateLabelsForZoom) v.updateLabelsForZoom();

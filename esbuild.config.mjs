@@ -1,5 +1,5 @@
 import esbuild from "esbuild";
-import { readFileSync } from "fs";
+import { readFileSync, writeFileSync } from "fs";
 import { execFileSync } from "child_process";
 
 const prod = process.argv[2] === "production";
@@ -30,6 +30,7 @@ const context = await esbuild.context({
   treeShaking: true,
   outfile: "main.js",
   minify: prod,
+  metafile: prod,
   drop: prod ? ["console", "debugger"] : [],
   define: {
     "process.env.PLUGIN_VERSION": JSON.stringify(manifest.version),
@@ -39,6 +40,9 @@ const context = await esbuild.context({
 if (watch) {
   await context.watch();
 } else {
-  await context.rebuild();
+  const result = await context.rebuild();
+  if (prod && result.metafile) {
+    writeFileSync("main.js.meta.json", JSON.stringify(result.metafile));
+  }
   await context.dispose();
 }

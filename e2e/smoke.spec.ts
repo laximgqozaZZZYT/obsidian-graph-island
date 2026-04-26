@@ -42,20 +42,15 @@ test.beforeAll(async () => {
   });
   await page.waitForTimeout(5000);
 
-  // Get baseline node count
-  BASELINE = await page.evaluate(() => {
-    const v = (window as any).app.workspace.getLeavesOfType("graph-view")
-      .find((l: any) => "pixiNodes" in l.view)?.view;
-    return v?.pixiNodes?.size ?? 0;
-  });
+  BASELINE = await renderAndCount({ showOrphans: true });
 });
 
-/** Helper: set panel props, doRender, wait, return node count. */
+/** Helper: set panel props, doRender, wait, return stable node count via getGraphData(). */
 async function renderAndCount(settings: Record<string, unknown>): Promise<number> {
   return page.evaluate(async (s: Record<string, unknown>) => {
     const v = (window as any).app.workspace.getLeavesOfType("graph-view")
       .find((l: any) => "pixiNodes" in l.view)?.view;
-    if (!v) return 0;
+    if (!v) throw new Error("Graph Island view not found");
     for (const [k, val] of Object.entries(s)) {
       if (k === "collapsedGroups" && Array.isArray(val)) v.panel[k] = new Set(val);
       else v.panel[k] = val;
@@ -63,7 +58,7 @@ async function renderAndCount(settings: Record<string, unknown>): Promise<number
     v.rawData = null;
     await v.doRender();
     await new Promise(r => setTimeout(r, 2000));
-    return v.pixiNodes?.size ?? v.getGraphData()?.nodes?.length ?? 0;
+    return v.getGraphData()?.nodes?.length ?? 0;
   }, settings);
 }
 
@@ -75,7 +70,7 @@ async function reset(): Promise<number> {
     showAttachments: true,
     existingOnly: false,
     groupBy: "none",
-    clusterArrangement: "force",
+    clusterArrangement: "inherit",
     viewMode: "graph",
   });
 }
@@ -107,47 +102,35 @@ test.describe("2-Settings", () => {
     expect(count).toBeGreaterThan(0);
   });
 
-  test("force layout restores", async () => {
-    const count = await renderAndCount({ clusterArrangement: "force" });
+  test("inherit layout restores", async () => {
+    const count = await renderAndCount({ clusterArrangement: "inherit" });
     expect(count).toBeGreaterThan(0);
   });
 
-  test("arrangement changes node positions", async () => {
-    const posGrid = await page.evaluate(async () => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")
-        .find((l: any) => "pixiNodes" in l.view)?.view;
-      if (!v) return [];
-      v.panel.clusterArrangement = "grid";
-      v.rawData = null;
-      await v.doRender();
-      await new Promise(r => setTimeout(r, 2000));
-      const pts: number[] = [];
-      let i = 0;
-      for (const [, pn] of v.pixiNodes) {
-        if (i++ >= 5) break;
-        pts.push(Math.round(pn.data.x), Math.round(pn.data.y));
-      }
-      return pts;
-    });
+  test("arrangement changes node positions (groupBy=folder)", async () => {
+    const getPositions = (arrangement: string) =>
+      page.evaluate(async (arr) => {
+        const v = (window as any).app.workspace.getLeavesOfType("graph-view")
+          .find((l: any) => "pixiNodes" in l.view)?.view;
+        if (!v) return [];
+        v.panel.groupBy = "folder";
+        v.panel.clusterArrangement = arr;
+        v.rawData = null;
+        await v.doRender();
+        await new Promise(r => setTimeout(r, 3000));
+        const pts: number[] = [];
+        let i = 0;
+        for (const [, pn] of v.pixiNodes) {
+          if (i++ >= 5) break;
+          pts.push(Math.round(pn.data.x), Math.round(pn.data.y));
+        }
+        return pts;
+      }, arrangement);
 
-    const posSpiral = await page.evaluate(async () => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")
-        .find((l: any) => "pixiNodes" in l.view)?.view;
-      if (!v) return [];
-      v.panel.clusterArrangement = "spiral";
-      v.rawData = null;
-      await v.doRender();
-      await new Promise(r => setTimeout(r, 2000));
-      const pts: number[] = [];
-      let i = 0;
-      for (const [, pn] of v.pixiNodes) {
-        if (i++ >= 5) break;
-        pts.push(Math.round(pn.data.x), Math.round(pn.data.y));
-      }
-      return pts;
-    });
+    const posGrid = await getPositions("grid");
+    const posConcentric = await getPositions("concentric");
 
-    expect(posGrid).not.toEqual(posSpiral);
+    expect(posGrid).not.toEqual(posConcentric);
     await reset();
   });
 });
@@ -170,7 +153,6 @@ test.describe("3-Filter", () => {
   });
 
   test("existingOnly=true filters unresolved", async () => {
-    // Reset fully first to ensure clean state
     await reset();
     const countAll = await renderAndCount({ existingOnly: false });
     const countExisting = await renderAndCount({ existingOnly: true });

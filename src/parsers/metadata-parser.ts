@@ -2,20 +2,27 @@ import { App, TFile } from "obsidian";
 import type { GraphData, GraphNode, GraphEdge, GraphViewsSettings, SunburstData, OntologyConfig } from "../types";
 import { DEFAULT_COLORS } from "../types";
 import {
-  EDGE_TYPE_INHERITANCE, EDGE_TYPE_AGGREGATION, EDGE_TYPE_SEQUENCE,
-  EDGE_TYPE_SIMILAR, EDGE_TYPE_SIBLING, EDGE_TYPE_LINK, EDGE_TYPE_TAG,
-  EDGE_TYPE_HAS_TAG,
+	EDGE_TYPE_INHERITANCE,
+	EDGE_TYPE_AGGREGATION,
+	EDGE_TYPE_SEQUENCE,
+	EDGE_TYPE_SIMILAR,
+	EDGE_TYPE_SIBLING,
+	EDGE_TYPE_LINK,
+	EDGE_TYPE_TAG,
+	EDGE_TYPE_HAS_TAG,
+	EDGE_TYPE_INLINE_RELATION,
 } from "../constants";
 import { incCounter } from "../utils/graph-helpers";
+import { pushToMapArray } from "../utils/map-helpers";
 
 /** Initial random scatter range for node positions */
 const INITIAL_SCATTER_X = 800;
 const INITIAL_SCATTER_Y = 600;
 
 interface ClassifyResult {
-  type: "inheritance" | "aggregation" | "similar" | "sibling" | "sequence";
-  /** True when the edge direction should be reversed (child/down/prev fields) */
-  reverse: boolean;
+	type: "inheritance" | "aggregation" | "similar" | "sibling" | "sequence";
+	/** True when the edge direction should be reversed (child/down/prev fields) */
+	reverse: boolean;
 }
 
 /**
@@ -23,342 +30,463 @@ interface ClassifyResult {
  * Handles both raw names ("parent") and @-prefixed names ("@Parent").
  * Returns reverse=true for Breadcrumbs-style child/down/prev fields.
  */
-export function classifyRelation(
-  name: string,
-  onto: OntologyConfig
-): ClassifyResult | undefined {
-  const clean = name.startsWith("@") ? name.slice(1).trim() : name.trim();
-  const lower = clean.toLowerCase();
+export function classifyRelation(name: string, onto: OntologyConfig): ClassifyResult | undefined {
+	const clean = name.startsWith("@") ? name.slice(1).trim() : name.trim();
+	const lower = clean.toLowerCase();
 
-  if (onto.inheritanceFields.some(f => f.toLowerCase() === lower))
-    return { type: EDGE_TYPE_INHERITANCE, reverse: false };
-  if (onto.aggregationFields.some(f => f.toLowerCase() === lower))
-    return { type: EDGE_TYPE_AGGREGATION, reverse: false };
-  if (onto.reverseInheritanceFields?.some(f => f.toLowerCase() === lower))
-    return { type: EDGE_TYPE_INHERITANCE, reverse: true };
-  if (onto.reverseAggregationFields?.some(f => f.toLowerCase() === lower))
-    return { type: EDGE_TYPE_AGGREGATION, reverse: true };
-  if (onto.similarFields.some(f => f.toLowerCase() === lower))
-    return { type: EDGE_TYPE_SIMILAR, reverse: false };
-  if (onto.siblingFields?.some(f => f.toLowerCase() === lower))
-    return { type: EDGE_TYPE_SIBLING, reverse: false };
-  if (onto.sequenceFields?.some(f => f.toLowerCase() === lower))
-    return { type: EDGE_TYPE_SEQUENCE, reverse: false };
-  if (onto.reverseSequenceFields?.some(f => f.toLowerCase() === lower))
-    return { type: EDGE_TYPE_SEQUENCE, reverse: true };
-  if (onto.customMappings[clean])
-    return { type: onto.customMappings[clean], reverse: false };
+	if (onto.inheritanceFields.some((f) => f.toLowerCase() === lower))
+		return { type: EDGE_TYPE_INHERITANCE, reverse: false };
+	if (onto.aggregationFields.some((f) => f.toLowerCase() === lower))
+		return { type: EDGE_TYPE_AGGREGATION, reverse: false };
+	if (onto.reverseInheritanceFields?.some((f) => f.toLowerCase() === lower))
+		return { type: EDGE_TYPE_INHERITANCE, reverse: true };
+	if (onto.reverseAggregationFields?.some((f) => f.toLowerCase() === lower))
+		return { type: EDGE_TYPE_AGGREGATION, reverse: true };
+	if (onto.similarFields.some((f) => f.toLowerCase() === lower)) return { type: EDGE_TYPE_SIMILAR, reverse: false };
+	if (onto.siblingFields?.some((f) => f.toLowerCase() === lower)) return { type: EDGE_TYPE_SIBLING, reverse: false };
+	if (onto.sequenceFields?.some((f) => f.toLowerCase() === lower))
+		return { type: EDGE_TYPE_SEQUENCE, reverse: false };
+	if (onto.reverseSequenceFields?.some((f) => f.toLowerCase() === lower))
+		return { type: EDGE_TYPE_SEQUENCE, reverse: true };
+	if (onto.customMappings[clean]) return { type: onto.customMappings[clean], reverse: false };
 
-  return undefined;
+	return undefined;
 }
 
-export function buildGraphFromVault(
-  app: App,
-  settings: GraphViewsSettings
-): GraphData {
-  const files = app.vault.getMarkdownFiles();
-  const nodes: GraphNode[] = [];
-  const edges: GraphEdge[] = [];
-  const nodeMap = new Map<string, GraphNode>();
-  const edgeSet = new Set<string>();
+export function buildGraphFromVault(app: App, settings: GraphViewsSettings): GraphData {
+	const files = app.vault.getMarkdownFiles();
+	const nodes: GraphNode[] = [];
+	const edges: GraphEdge[] = [];
+	const nodeMap = new Map<string, GraphNode>();
+	const edgeSet = new Set<string>();
 
-  // Create nodes from files (initial x/y set below after grouping)
-  for (const file of files) {
-    const cache = app.metadataCache.getFileCache(file);
-    const frontmatter = cache?.frontmatter;
+	// Phase 1: Create nodes from files (also caches file content for Phase 3)
+	const contentCache = new Map<string, string>();
+	createFileNodes(app, files, settings, nodes, nodeMap, contentCache);
 
-    const node: GraphNode = {
-      id: file.path,
-      label: file.basename,
-      x: 0,
-      y: 0,
-      vx: 0,
-      vy: 0,
-      // Category from configured colorField; fallback to folder-based category if field missing
-      category: (frontmatter?.[settings.colorField] as string | undefined)
-        ?? (file.path.includes("/") ? file.path.split("/")[0] : undefined),
-      tags: extractTags(frontmatter, cache),
-      filePath: file.path,
-      mtime: file.stat.mtime,
-      ctime: file.stat.ctime,
-    };
-    // meta is a live getter — reads from metadataCache on every access
-    defineLiveMeta(node, app);
-    // Extract body preview (first 100 chars, YAML stripped) + full body length
-    const rawContent = app.vault.cachedRead(file);
-    if (typeof rawContent === "string") {
-      const info = extractBodyInfo(rawContent, 100);
-      node.bodyPreview = info.preview;
-      node.bodyLength = info.length;
-    } else if (rawContent && typeof (rawContent as any).then === "function") {
-      // cachedRead returns Promise — backfill asynchronously
-      (rawContent as Promise<string>).then(text => {
-        const info = extractBodyInfo(text, 100);
-        node.bodyPreview = info.preview;
-        node.bodyLength = info.length;
-      }).catch(() => {});
-    }
-    nodes.push(node);
-    nodeMap.set(file.path, node);
-  }
+	// Phase 2: Place nodes at tag-group enclosure centers
+	placeNodesByTagGroups(nodes);
 
-  // Place nodes at their tag-group enclosure center.
-  // Each node is assigned to its SMALLEST tag group (most specific),
-  // so that broad parent tags don't create giant overlapping groups.
-  // Radius ∝ √(member count); groups arranged on a circle sized by
-  // the sum of diameters (not max), guaranteeing no overlap.
-  {
-    // Pass 1: count how many nodes each tag has
-    const tagCounts = new Map<string, number>();
-    for (const node of nodes) {
-      if (!node.tags) continue;
-      for (const tag of node.tags) {
-        incCounter(tagCounts, tag);
-      }
-    }
+	// Phase 3: Build edges from links + relation-typed edges
+	buildEdgesFromLinks(app, files, settings, nodeMap, edgeSet, edges, contentCache);
+	contentCache.clear(); // free memory after Phase 3
 
-    // Pass 2: assign each node to its smallest (most specific) tag group
-    const tagGroups = new Map<string, GraphNode[]>();
-    const ungrouped: GraphNode[] = [];
-    for (const node of nodes) {
-      if (!node.tags || node.tags.length === 0) {
-        ungrouped.push(node);
-        continue;
-      }
-      let bestTag = node.tags[0];
-      let bestCount = tagCounts.get(bestTag) ?? Infinity;
-      for (let i = 1; i < node.tags.length; i++) {
-        const count = tagCounts.get(node.tags[i]) ?? Infinity;
-        if (count < bestCount) {
-          bestCount = count;
-          bestTag = node.tags[i];
-        }
-      }
-      let group = tagGroups.get(bestTag);
-      if (!group) { group = []; tagGroups.set(bestTag, group); }
-      group.push(node);
-    }
+	// Phase 4: Build edges from shared metadata values
+	buildSharedMetadataEdges(app, settings, nodes, edgeSet, edges);
 
-    const groupEntries = [...tagGroups.entries()];
-    const totalGroups = groupEntries.length + (ungrouped.length > 0 ? 1 : 0);
-    const BASE_RADIUS = 30;
-    const GAP = 60;
+	// Phase 5: Build tag virtual nodes + tag hierarchy edges + note-to-tag edges
+	const tagResult = buildTagNodesAndEdges(nodes, nodeMap, edgeSet, settings);
+	nodes.push(...tagResult.nodes);
+	for (const tn of tagResult.nodes) nodeMap.set(tn.id, tn);
+	edges.push(...tagResult.edges);
 
-    // Compute radii for each group
-    const groupRadii = groupEntries.map(([, members]) =>
-      BASE_RADIUS * Math.sqrt(members.length)
-    );
-    const ungroupedRadius = ungrouped.length > 0
-      ? BASE_RADIUS * Math.sqrt(ungrouped.length)
-      : 0;
+	return { nodes, edges };
+}
 
-    // Layout radius from sum of diameters so every group fits without overlap
-    const allRadii = [...groupRadii, ...(ungrouped.length > 0 ? [ungroupedRadius] : [])];
-    const totalCircumference = allRadii.reduce(
-      (sum, r) => sum + 2 * r + GAP, 0
-    );
-    const layoutRadius = totalGroups <= 1
-      ? 0
-      : Math.max(totalCircumference / (2 * Math.PI), 200);
+/** Create GraphNode objects from vault markdown files. */
+function createFileNodes(
+	app: App,
+	files: TFile[],
+	settings: GraphViewsSettings,
+	nodes: GraphNode[],
+	nodeMap: Map<string, GraphNode>,
+	contentCache: Map<string, string>,
+): void {
+	for (const file of files) {
+		const cache = app.metadataCache.getFileCache(file);
+		const frontmatter = cache?.frontmatter;
 
-    // Place groups along the circle, advancing angle proportionally
-    let angle = 0;
-    let gi = 0;
-    for (const [, members] of groupEntries) {
-      const r = groupRadii[gi];
-      const arcLen = 2 * r + GAP;
-      const halfArc = arcLen / (2 * layoutRadius);
-      angle += halfArc;
+		const node: GraphNode = {
+			id: file.path,
+			label: file.basename,
+			x: 0,
+			y: 0,
+			vx: 0,
+			vy: 0,
+			category:
+				(frontmatter?.[settings.colorField] as string | undefined) ??
+				(file.path.includes("/") ? file.path.split("/")[0] : undefined),
+			tags: extractTags(frontmatter, cache),
+			filePath: file.path,
+			mtime: file.stat.mtime,
+			ctime: file.stat.ctime,
+		};
+		defineLazyMeta(node, frontmatter);
+		attachBodyPreview(node, app, file, contentCache);
+		nodes.push(node);
+		nodeMap.set(file.path, node);
+	}
+}
 
-      const cx = Math.cos(angle) * layoutRadius;
-      const cy = Math.sin(angle) * layoutRadius;
-      for (const node of members) {
-        const a = Math.random() * 2 * Math.PI;
-        const d = Math.sqrt(Math.random()) * r;
-        node.x = cx + Math.cos(a) * d;
-        node.y = cy + Math.sin(a) * d;
-      }
+/** Extract body preview (first 100 chars, YAML stripped) + full body length. */
+function attachBodyPreview(node: GraphNode, app: App, file: TFile, contentCache: Map<string, string>): void {
+	const rawContent = app.vault.cachedRead(file);
+	if (typeof rawContent === "string") {
+		contentCache.set(file.path, rawContent);
+		const info = extractBodyInfo(rawContent, 100);
+		node.bodyPreview = info.preview;
+		node.bodyLength = info.length;
+	} else if (rawContent && typeof (rawContent as unknown as Promise<string>).then === "function") {
+		// async path: warm contentCache so Phase 3 collectInlineRelations hits cache.
+		(rawContent as Promise<string>)
+			.then((text) => {
+				contentCache.set(file.path, text);
+				const info = extractBodyInfo(text, 100);
+				node.bodyPreview = info.preview;
+				node.bodyLength = info.length;
+			})
+			.catch(() => {
+				node.bodyPreview = "";
+				node.bodyLength = 0;
+			});
+	}
+}
 
-      angle += halfArc;
-      gi++;
-    }
+/**
+ * Place nodes at their tag-group enclosure center.
+ * Each node is assigned to its SMALLEST tag group (most specific),
+ * so that broad parent tags don't create giant overlapping groups.
+ * Radius proportional to sqrt(member count); groups arranged on a circle
+ * sized by the sum of diameters, guaranteeing no overlap.
+ */
+function placeNodesByTagGroups(nodes: GraphNode[]): void {
+	const tagCounts = new Map<string, number>();
+	for (const node of nodes) {
+		if (!node.tags) continue;
+		for (const tag of node.tags) incCounter(tagCounts, tag);
+	}
 
-    if (ungrouped.length > 0) {
-      const r = ungroupedRadius;
-      const arcLen = 2 * r + GAP;
-      const halfArc = arcLen / (2 * layoutRadius);
-      angle += halfArc;
+	const tagGroups = new Map<string, GraphNode[]>();
+	const ungrouped: GraphNode[] = [];
+	for (const node of nodes) {
+		if (!node.tags || node.tags.length === 0) {
+			ungrouped.push(node);
+			continue;
+		}
+		let bestTag = node.tags[0];
+		let bestCount = tagCounts.get(bestTag) ?? Infinity;
+		for (let i = 1; i < node.tags.length; i++) {
+			const count = tagCounts.get(node.tags[i]) ?? Infinity;
+			if (count < bestCount) {
+				bestCount = count;
+				bestTag = node.tags[i];
+			}
+		}
+		let group = tagGroups.get(bestTag);
+		if (!group) {
+			group = [];
+			tagGroups.set(bestTag, group);
+		}
+		group.push(node);
+	}
 
-      const cx = Math.cos(angle) * layoutRadius;
-      const cy = Math.sin(angle) * layoutRadius;
-      for (const node of ungrouped) {
-        const a = Math.random() * 2 * Math.PI;
-        const d = Math.sqrt(Math.random()) * r;
-        node.x = cx + Math.cos(a) * d;
-        node.y = cy + Math.sin(a) * d;
-      }
-    }
-  }
+	const groupEntries = [...tagGroups.entries()];
+	const totalGroups = groupEntries.length + (ungrouped.length > 0 ? 1 : 0);
+	const BASE_RADIUS = 30;
+	const GAP = 60;
 
-  // Build edges from internal links + relation-typed edges from
-  // frontmatter link properties and inline Dataview fields (Author::[[link]])
-  for (const file of files) {
-    const cache = app.metadataCache.getFileCache(file);
+	const groupRadii = groupEntries.map(([, members]) => BASE_RADIUS * Math.sqrt(members.length));
+	const ungroupedRadius = ungrouped.length > 0 ? BASE_RADIUS * Math.sqrt(ungrouped.length) : 0;
 
-    // --- Frontmatter link properties (e.g. Author: "[[Jesus]]") ---
-    const fmRelations = new Map<string, string>(); // targetPath → relation
-    if (cache?.frontmatterLinks) {
-      for (const fml of cache.frontmatterLinks) {
-        const targetFile = app.metadataCache.getFirstLinkpathDest(
-          fml.link,
-          file.path
-        );
-        if (targetFile) {
-          fmRelations.set(targetFile.path, fml.key);
-        }
-      }
-    }
+	const allRadii = [...groupRadii, ...(ungrouped.length > 0 ? [ungroupedRadius] : [])];
+	const totalCircumference = allRadii.reduce((sum, r) => sum + 2 * r + GAP, 0);
+	const layoutRadius = totalGroups <= 1 ? 0 : Math.max(totalCircumference / (2 * Math.PI), 200);
 
-    // --- Inline Dataview fields (e.g. Author::[[Jesus]], @Parent::[[Entity]]) ---
-    const inlineRelations = new Map<string, InlineFieldResult>();
-    const contentOrPromise = app.vault.cachedRead(file);
-    if (typeof contentOrPromise === "string") {
-      parseInlineFields(contentOrPromise, file.path, app).forEach(
-        (result, tPath) => inlineRelations.set(tPath, result)
-      );
-    }
-    // When cachedRead returns a Promise (file not in cache), inline fields
-    // are skipped for this file.  This is acceptable because the vault
-    // cache is populated on startup and rarely misses.
+	let angle = 0;
+	let gi = 0;
+	for (const [, members] of groupEntries) {
+		const r = groupRadii[gi];
+		angle = scatterGroupOnCircle(members, r, GAP, layoutRadius, angle);
+		gi++;
+	}
 
-    // --- Regular links ---
-    if (cache?.links) {
-      for (const link of cache.links) {
-        const targetFile = app.metadataCache.getFirstLinkpathDest(
-          link.link,
-          file.path
-        );
-        if (!targetFile || !nodeMap.has(targetFile.path)) continue;
+	if (ungrouped.length > 0) {
+		scatterGroupOnCircle(ungrouped, ungroupedRadius, GAP, layoutRadius, angle);
+	}
+}
 
-        const edgeId = `${file.path}->${targetFile.path}`;
-        if (edgeSet.has(edgeId)) continue;
-        edgeSet.add(edgeId);
+/** Scatter a group of nodes around a point on the layout circle. Returns updated angle. */
+function scatterGroupOnCircle(
+	members: GraphNode[],
+	r: number,
+	gap: number,
+	layoutRadius: number,
+	angle: number,
+): number {
+	const arcLen = 2 * r + gap;
+	const halfArc = arcLen / (2 * layoutRadius);
+	angle += halfArc;
 
-        const inlineResult = inlineRelations.get(targetFile.path);
-        const fmRel = fmRelations.get(targetFile.path);
-        const relation = fmRel ?? inlineResult?.relation;
-        const isOntologyInline = inlineResult?.isOntology ?? false;
+	const cx = Math.cos(angle) * layoutRadius;
+	const cy = Math.sin(angle) * layoutRadius;
+	for (const node of members) {
+		const a = Math.random() * 2 * Math.PI;
+		const d = Math.sqrt(Math.random()) * r;
+		node.x = cx + Math.cos(a) * d;
+		node.y = cy + Math.sin(a) * d;
+	}
 
-        let edgeType: GraphEdge["type"] = relation ? "semantic" : EDGE_TYPE_LINK;
-        let reverse = false;
-        if (relation) {
-          const classified = classifyRelation(
-            isOntologyInline ? `@${relation}` : relation,
-            settings.ontology
-          );
-          if (classified) {
-            edgeType = classified.type;
-            reverse = classified.reverse;
-          }
-        }
+	return angle + halfArc;
+}
 
-        const src = reverse ? targetFile.path : file.path;
-        const tgt = reverse ? file.path : targetFile.path;
-        edges.push({
-          id: edgeId,
-          source: src,
-          target: tgt,
-          type: edgeType,
-          relation,
-        });
-      }
-    }
+/** Build edges from internal links, frontmatter link properties, and inline Dataview fields. */
+function buildEdgesFromLinks(
+	app: App,
+	files: TFile[],
+	settings: GraphViewsSettings,
+	nodeMap: Map<string, GraphNode>,
+	edgeSet: Set<string>,
+	edges: GraphEdge[],
+	contentCache: Map<string, string>,
+): void {
+	for (const file of files) {
+		const cache = app.metadataCache.getFileCache(file);
+		const fmRelations = collectFrontmatterRelations(app, cache, file);
+		const inlineRelations = collectInlineRelations(app, file, contentCache);
 
-    // Frontmatter links not captured by cache.links (array properties etc.)
-    for (const [targetPath, relation] of fmRelations) {
-      if (!nodeMap.has(targetPath)) continue;
-      const edgeId = `${file.path}->${targetPath}`;
-      if (edgeSet.has(edgeId)) continue;
-      edgeSet.add(edgeId);
+		if (cache?.links) {
+			addRegularLinkEdges(
+				app,
+				file,
+				cache.links,
+				fmRelations,
+				inlineRelations,
+				settings,
+				nodeMap,
+				edgeSet,
+				edges,
+			);
+		}
 
-      const classified = classifyRelation(relation, settings.ontology);
-      const reverse = classified?.reverse ?? false;
-      const src = reverse ? targetPath : file.path;
-      const tgt = reverse ? file.path : targetPath;
+		addRemainingFrontmatterEdges(file, fmRelations, settings, nodeMap, edgeSet, edges);
+		addInlineRelationEdges(file, inlineRelations, settings, nodeMap, edgeSet, edges);
+	}
+}
 
-      edges.push({
-        id: edgeId,
-        source: src,
-        target: tgt,
-        type: classified?.type ?? "semantic",
-        relation,
-      });
-    }
-  }
+/** Collect frontmatter link properties (e.g. Author: "[[Jesus]]") as targetPath -> relation. */
+function collectFrontmatterRelations(
+	app: App,
+	cache: ReturnType<App["metadataCache"]["getFileCache"]>,
+	file: TFile,
+): Map<string, string> {
+	const fmRelations = new Map<string, string>();
+	if (cache?.frontmatterLinks) {
+		for (const fml of cache.frontmatterLinks) {
+			const targetFile = app.metadataCache.getFirstLinkpathDest(fml.link, file.path);
+			if (targetFile) fmRelations.set(targetFile.path, fml.key);
+		}
+	}
+	return fmRelations;
+}
 
-  // Build edges from shared metadata values
-  // Cap per-group to avoid O(N²) explosion (e.g. 50 nodes sharing a tag → 1,225 edges)
-  const SHARED_EDGE_CAP = 1500;
-  let sharedEdgeCount = 0;
+/** Collect inline Dataview fields (e.g. Author::[[Jesus]], @Parent::[[Entity]]). */
+function collectInlineRelations(
+	app: App,
+	file: TFile,
+	contentCache: Map<string, string>,
+): Map<string, InlineFieldResult> {
+	const content = contentCache.get(file.path);
+	const text =
+		content !== undefined
+			? content
+			: (() => {
+					const raw = app.vault.cachedRead(file);
+					return typeof raw === "string" ? raw : undefined;
+				})();
+	if (text === undefined) return new Map();
+	const out = parseInlineFields(text, file.path, app);
+	parseInlineRelationLinks(text, file.path, app).forEach((result, tPath) => {
+		if (!out.has(tPath)) out.set(tPath, result);
+	});
+	return out;
+}
 
-  for (const field of settings.edgeFields) {
-    if (sharedEdgeCount >= SHARED_EDGE_CAP) break;
+/** Resolve edge type and direction from a relation name. */
+function resolveRelationEdge(
+	relation: string | undefined,
+	isOntologyInline: boolean,
+	ontology: OntologyConfig,
+): { edgeType: GraphEdge["type"]; reverse: boolean } {
+	if (!relation) return { edgeType: EDGE_TYPE_LINK, reverse: false };
+	const classified = classifyRelation(isOntologyInline ? `@${relation}` : relation, ontology);
+	if (classified) return { edgeType: classified.type, reverse: classified.reverse };
+	return { edgeType: "semantic", reverse: false };
+}
 
-    const valueToNodes = new Map<string, string[]>();
+/** Add edges from regular wiki-links in file content. */
+function addRegularLinkEdges(
+	app: App,
+	file: TFile,
+	links: NonNullable<ReturnType<App["metadataCache"]["getFileCache"]>>["links"],
+	fmRelations: Map<string, string>,
+	inlineRelations: Map<string, InlineFieldResult>,
+	settings: GraphViewsSettings,
+	nodeMap: Map<string, GraphNode>,
+	edgeSet: Set<string>,
+	edges: GraphEdge[],
+): void {
+	for (const link of links!) {
+		const targetFile = app.metadataCache.getFirstLinkpathDest(link.link, file.path);
+		if (!targetFile || !nodeMap.has(targetFile.path)) continue;
 
-    for (const node of nodes) {
-      const cache = app.metadataCache.getFileCache(
-        app.vault.getAbstractFileByPath(node.id) as TFile
-      );
-      const frontmatter = cache?.frontmatter;
-      if (!frontmatter?.[field]) continue;
+		const edgeId = `${file.path}->${targetFile.path}`;
+		if (edgeSet.has(edgeId)) continue;
+		edgeSet.add(edgeId);
 
-      const values = Array.isArray(frontmatter[field])
-        ? frontmatter[field]
-        : [frontmatter[field]];
+		const inlineResult = inlineRelations.get(targetFile.path);
+		const fmRel = fmRelations.get(targetFile.path);
+		const relation = fmRel ?? inlineResult?.relation;
+		const isOntologyInline = inlineResult?.isOntology ?? false;
 
-      for (const val of values) {
-        const key = `${field}:${String(val)}`;
-        if (!valueToNodes.has(key)) valueToNodes.set(key, []);
-        valueToNodes.get(key)!.push(node.id);
-      }
-    }
+		const { edgeType, reverse } = resolveRelationEdge(relation, isOntologyInline, settings.ontology);
+		// Inline relation annotations that aren't ontology-classified get their own type
+		const hasInlineAnnotation = inlineResult != null && fmRel == null;
+		const finalType = hasInlineAnnotation && edgeType === "semantic" ? EDGE_TYPE_INLINE_RELATION : edgeType;
+		const src = reverse ? targetFile.path : file.path;
+		const tgt = reverse ? file.path : targetFile.path;
+		edges.push({ id: edgeId, source: src, target: tgt, type: finalType, relation });
+	}
+}
 
-    // Sort by group size ascending so smaller (more meaningful) groups are kept first
-    const groups = [...valueToNodes.values()]
-      .filter(ids => ids.length >= 2 && ids.length <= 50)
-      .sort((a, b) => a.length - b.length);
+/** Add edges from frontmatter links not already captured by regular links. */
+function addRemainingFrontmatterEdges(
+	file: TFile,
+	fmRelations: Map<string, string>,
+	settings: GraphViewsSettings,
+	nodeMap: Map<string, GraphNode>,
+	edgeSet: Set<string>,
+	edges: GraphEdge[],
+): void {
+	for (const [targetPath, relation] of fmRelations) {
+		if (!nodeMap.has(targetPath)) continue;
+		const edgeId = `${file.path}->${targetPath}`;
+		if (edgeSet.has(edgeId)) continue;
+		edgeSet.add(edgeId);
 
-    for (const nodeIds of groups) {
-      if (sharedEdgeCount >= SHARED_EDGE_CAP) break;
-      for (let i = 0; i < nodeIds.length; i++) {
-        if (sharedEdgeCount >= SHARED_EDGE_CAP) break;
-        for (let j = i + 1; j < nodeIds.length; j++) {
-          if (sharedEdgeCount >= SHARED_EDGE_CAP) break;
-          const edgeId = `${field}:${nodeIds[i]}->${nodeIds[j]}`;
-          if (edgeSet.has(edgeId)) continue;
-          edgeSet.add(edgeId);
+		const classified = classifyRelation(relation, settings.ontology);
+		const reverse = classified?.reverse ?? false;
+		const src = reverse ? targetPath : file.path;
+		const tgt = reverse ? file.path : targetPath;
 
-          edges.push({
-            id: edgeId,
-            source: nodeIds[i],
-            target: nodeIds[j],
-            type: field === "tags" ? EDGE_TYPE_TAG : "category",
-            label: field,
-          });
-          sharedEdgeCount++;
-        }
-      }
-    }
-  }
+		edges.push({ id: edgeId, source: src, target: tgt, type: classified?.type ?? "semantic", relation });
+	}
+}
 
-  // Build tag virtual nodes + tag hierarchy edges + note-to-tag edges
-  const tagResult = buildTagNodesAndEdges(nodes, nodeMap, edgeSet, settings);
-  nodes.push(...tagResult.nodes);
-  for (const tn of tagResult.nodes) nodeMap.set(tn.id, tn);
-  edges.push(...tagResult.edges);
+/** Add edges from inline relation links not already captured by regular/FM links. */
+function addInlineRelationEdges(
+	file: TFile,
+	inlineRelations: Map<string, InlineFieldResult>,
+	settings: GraphViewsSettings,
+	nodeMap: Map<string, GraphNode>,
+	edgeSet: Set<string>,
+	edges: GraphEdge[],
+): void {
+	for (const [targetPath, result] of inlineRelations) {
+		if (!nodeMap.has(targetPath)) continue;
+		const edgeId = `${file.path}->${targetPath}`;
+		if (edgeSet.has(edgeId)) continue;
+		edgeSet.add(edgeId);
 
-  return { nodes, edges };
+		const { edgeType, reverse } = resolveRelationEdge(result.relation, result.isOntology, settings.ontology);
+		// Unclassified inline relations get their own type instead of falling back to "semantic"
+		const finalType = edgeType === "semantic" ? EDGE_TYPE_INLINE_RELATION : edgeType;
+		const src = reverse ? targetPath : file.path;
+		const tgt = reverse ? file.path : targetPath;
+		edges.push({ id: edgeId, source: src, target: tgt, type: finalType, relation: result.relation });
+	}
+}
+
+/**
+ * Build edges from shared metadata values (edgeFields).
+ * Cap per-group to avoid O(N^2) explosion.
+ */
+function buildSharedMetadataEdges(
+	app: App,
+	settings: GraphViewsSettings,
+	nodes: GraphNode[],
+	edgeSet: Set<string>,
+	edges: GraphEdge[],
+): void {
+	const SHARED_EDGE_CAP = 1500;
+	let sharedEdgeCount = 0;
+
+	for (const field of settings.edgeFields) {
+		if (sharedEdgeCount >= SHARED_EDGE_CAP) break;
+
+		const valueToNodes = new Map<string, string[]>();
+		for (const node of nodes) {
+			const abstractFile = app.vault.getAbstractFileByPath(node.id);
+			if (!(abstractFile instanceof TFile)) continue;
+			const cache = app.metadataCache.getFileCache(abstractFile);
+			const frontmatter = cache?.frontmatter;
+			if (!frontmatter?.[field]) continue;
+
+			const values = Array.isArray(frontmatter[field]) ? frontmatter[field] : [frontmatter[field]];
+			for (const val of values) {
+				const key = `${field}:${String(val)}`;
+				pushToMapArray(valueToNodes, key, node.id);
+			}
+		}
+
+		const groups = [...valueToNodes.values()]
+			.filter((ids) => ids.length >= 2 && ids.length <= 50)
+			.sort((a, b) => a.length - b.length);
+
+		for (const nodeIds of groups) {
+			if (sharedEdgeCount >= SHARED_EDGE_CAP) break;
+			for (let i = 0; i < nodeIds.length; i++) {
+				if (sharedEdgeCount >= SHARED_EDGE_CAP) break;
+				for (let j = i + 1; j < nodeIds.length; j++) {
+					if (sharedEdgeCount >= SHARED_EDGE_CAP) break;
+					const edgeId = `${field}:${nodeIds[i]}->${nodeIds[j]}`;
+					if (edgeSet.has(edgeId)) continue;
+					edgeSet.add(edgeId);
+
+					edges.push({
+						id: edgeId,
+						source: nodeIds[i],
+						target: nodeIds[j],
+						type: field === "tags" ? EDGE_TYPE_TAG : "category",
+						label: field,
+					});
+					sharedEdgeCount++;
+				}
+			}
+		}
+	}
+}
+
+/**
+ * Collect all unique tags from file nodes, including ancestor tags for hierarchy.
+ * e.g. nodes with tag "a/b/c" → Set{"a/b/c", "a/b", "a"}
+ */
+export function collectAllTags(fileNodes: readonly GraphNode[]): Set<string> {
+	const allTags = new Set<string>();
+	for (const node of fileNodes) {
+		if (!node.tags) continue;
+		for (const tag of node.tags) {
+			allTags.add(tag);
+			const parts = tag.split("/");
+			for (let i = 1; i < parts.length; i++) {
+				allTags.add(parts.slice(0, i).join("/"));
+			}
+		}
+	}
+	return allTags;
+}
+
+/** Create a virtual tag node with random initial position. */
+function createVirtualTagNode(tag: string): GraphNode {
+	return {
+		id: `tag:${tag}`,
+		label: `#${tag}`,
+		x: Math.random() * INITIAL_SCATTER_X - INITIAL_SCATTER_X / 2,
+		y: Math.random() * INITIAL_SCATTER_Y - INITIAL_SCATTER_Y / 2,
+		vx: 0,
+		vy: 0,
+		isTag: true,
+		tags: [tag],
+	};
 }
 
 /**
@@ -372,156 +500,119 @@ export function buildGraphFromVault(
  *   note.md  ──has-tag──→  tag:entity
  */
 function buildTagNodesAndEdges(
-  fileNodes: GraphNode[],
-  nodeMap: Map<string, GraphNode>,
-  edgeSet: Set<string>,
-  settings: GraphViewsSettings
+	fileNodes: GraphNode[],
+	nodeMap: Map<string, GraphNode>,
+	edgeSet: Set<string>,
+	settings: GraphViewsSettings,
 ): { nodes: GraphNode[]; edges: GraphEdge[] } {
-  const nodes: GraphNode[] = [];
-  const edges: GraphEdge[] = [];
+	const nodes: GraphNode[] = [];
+	const edges: GraphEdge[] = [];
 
-  // Collect all unique tags across all file nodes
-  const allTags = new Set<string>();
-  for (const node of fileNodes) {
-    if (!node.tags) continue;
-    for (const tag of node.tags) {
-      allTags.add(tag);
-      // Also add ancestor tags for hierarchy completeness
-      // e.g. "a/b/c" → also ensure "a/b" and "a" exist
-      const parts = tag.split("/");
-      for (let i = 1; i < parts.length; i++) {
-        allTags.add(parts.slice(0, i).join("/"));
-      }
-    }
-  }
+	const allTags = collectAllTags(fileNodes);
 
-  // Create virtual tag nodes
-  for (const tag of allTags) {
-    const tagId = `tag:${tag}`;
-    if (nodeMap.has(tagId)) continue;
-    const tagNode: GraphNode = {
-      id: tagId,
-      label: `#${tag}`,
-      x: Math.random() * INITIAL_SCATTER_X - INITIAL_SCATTER_X / 2,
-      y: Math.random() * INITIAL_SCATTER_Y - INITIAL_SCATTER_Y / 2,
-      vx: 0,
-      vy: 0,
-      isTag: true,
-      tags: [tag],
-    };
-    nodes.push(tagNode);
-    nodeMap.set(tagId, tagNode);
-  }
+	// Create virtual tag nodes
+	for (const tag of allTags) {
+		const tagId = `tag:${tag}`;
+		if (nodeMap.has(tagId)) continue;
+		const tagNode = createVirtualTagNode(tag);
+		nodes.push(tagNode);
+		nodeMap.set(tagId, tagNode);
+	}
 
-  // Tag-to-tag inheritance from nested hierarchy (B方式)
-  if (settings.ontology.useTagHierarchy) {
-    for (const tag of allTags) {
-      const slashIdx = tag.lastIndexOf("/");
-      if (slashIdx === -1) continue;
-      const parentTag = tag.substring(0, slashIdx);
-      if (!allTags.has(parentTag)) continue;
+	// Tag-to-tag inheritance from nested hierarchy (B方式)
+	if (settings.ontology.useTagHierarchy) {
+		for (const tag of allTags) {
+			const slashIdx = tag.lastIndexOf("/");
+			if (slashIdx === -1) continue;
+			const parentTag = tag.substring(0, slashIdx);
+			if (!allTags.has(parentTag)) continue;
 
-      const edgeId = `tag-hierarchy:tag:${tag}->tag:${parentTag}`;
-      if (edgeSet.has(edgeId)) continue;
-      edgeSet.add(edgeId);
+			const edgeId = `tag-hierarchy:tag:${tag}->tag:${parentTag}`;
+			if (edgeSet.has(edgeId)) continue;
+			edgeSet.add(edgeId);
 
-      edges.push({
-        id: edgeId,
-        source: `tag:${tag}`,
-        target: `tag:${parentTag}`,
-        type: EDGE_TYPE_INHERITANCE,
-        relation: `#${tag} extends #${parentTag}`,
-      });
-    }
-  }
+			edges.push({
+				id: edgeId,
+				source: `tag:${tag}`,
+				target: `tag:${parentTag}`,
+				type: EDGE_TYPE_INHERITANCE,
+				relation: `#${tag} extends #${parentTag}`,
+			});
+		}
+	}
 
-  // Explicit tag-to-tag relationships (without nesting)
-  if (settings.ontology.tagRelations?.length) {
-    for (const rel of settings.ontology.tagRelations) {
-      const srcTag = rel.source;
-      const tgtTag = rel.target;
-      // Ensure both tag nodes exist (create if needed)
-      for (const tag of [srcTag, tgtTag]) {
-        const tagId = `tag:${tag}`;
-        if (!nodeMap.has(tagId)) {
-          allTags.add(tag);
-          const tagNode: GraphNode = {
-            id: tagId,
-            label: `#${tag}`,
-            x: Math.random() * INITIAL_SCATTER_X - INITIAL_SCATTER_X / 2,
-            y: Math.random() * INITIAL_SCATTER_Y - INITIAL_SCATTER_Y / 2,
-            vx: 0,
-            vy: 0,
-            isTag: true,
-            tags: [tag],
-          };
-          nodes.push(tagNode);
-          nodeMap.set(tagId, tagNode);
-        }
-      }
-      const edgeId = `tag-rel:tag:${srcTag}->tag:${tgtTag}`;
-      if (edgeSet.has(edgeId)) continue;
-      edgeSet.add(edgeId);
-      const label = rel.type === EDGE_TYPE_INHERITANCE
-        ? `#${srcTag} is-a #${tgtTag}`
-        : `#${tgtTag} has #${srcTag}`;
-      edges.push({
-        id: edgeId,
-        source: `tag:${srcTag}`,
-        target: `tag:${tgtTag}`,
-        type: rel.type,
-        relation: label,
-      });
-    }
-  }
+	// Explicit tag-to-tag relationships (without nesting)
+	if (settings.ontology.tagRelations?.length) {
+		for (const rel of settings.ontology.tagRelations) {
+			const srcTag = rel.source;
+			const tgtTag = rel.target;
+			for (const tag of [srcTag, tgtTag]) {
+				const tagId = `tag:${tag}`;
+				if (!nodeMap.has(tagId)) {
+					allTags.add(tag);
+					const tagNode = createVirtualTagNode(tag);
+					nodes.push(tagNode);
+					nodeMap.set(tagId, tagNode);
+				}
+			}
+			const edgeId = `tag-rel:tag:${srcTag}->tag:${tgtTag}`;
+			if (edgeSet.has(edgeId)) continue;
+			edgeSet.add(edgeId);
+			const label =
+				rel.type === EDGE_TYPE_INHERITANCE ? `#${srcTag} is-a #${tgtTag}` : `#${tgtTag} has #${srcTag}`;
+			edges.push({
+				id: edgeId,
+				source: `tag:${srcTag}`,
+				target: `tag:${tgtTag}`,
+				type: rel.type,
+				relation: label,
+			});
+		}
+	}
 
-  // Note-to-tag edges (has-tag)
-  for (const node of fileNodes) {
-    if (!node.tags) continue;
-    for (const tag of node.tags) {
-      const tagId = `tag:${tag}`;
-      const edgeId = `has-tag:${node.id}->${tagId}`;
-      if (edgeSet.has(edgeId)) continue;
-      edgeSet.add(edgeId);
+	// Note-to-tag edges (has-tag)
+	for (const node of fileNodes) {
+		if (!node.tags) continue;
+		for (const tag of node.tags) {
+			const tagId = `tag:${tag}`;
+			const edgeId = `has-tag:${node.id}->${tagId}`;
+			if (edgeSet.has(edgeId)) continue;
+			edgeSet.add(edgeId);
 
-      edges.push({
-        id: edgeId,
-        source: node.id,
-        target: tagId,
-        type: EDGE_TYPE_HAS_TAG,
-      });
-    }
-  }
+			edges.push({
+				id: edgeId,
+				source: node.id,
+				target: tagId,
+				type: EDGE_TYPE_HAS_TAG,
+			});
+		}
+	}
 
-  return { nodes, edges };
+	return { nodes, edges };
 }
 
-export function buildSunburstData(
-  app: App,
-  groupField: string
-): SunburstData {
-  const files = app.vault.getMarkdownFiles();
-  const groups = new Map<string, SunburstData[]>();
+export function buildSunburstData(app: App, groupField: string): SunburstData {
+	const files = app.vault.getMarkdownFiles();
+	const groups = new Map<string, SunburstData[]>();
 
-  for (const file of files) {
-    const cache = app.metadataCache.getFileCache(file);
-    const frontmatter = cache?.frontmatter;
-    const group = (frontmatter?.[groupField] as string) ?? "Uncategorized";
+	for (const file of files) {
+		const cache = app.metadataCache.getFileCache(file);
+		const frontmatter = cache?.frontmatter;
+		const group = (frontmatter?.[groupField] as string) ?? "Uncategorized";
 
-    if (!groups.has(group)) groups.set(group, []);
-    groups.get(group)!.push({
-      name: file.basename,
-      value: 1,
-      filePath: file.path,
-    });
-  }
+		pushToMapArray(groups, group, {
+			name: file.basename,
+			value: 1,
+			filePath: file.path,
+		});
+	}
 
-  const children: SunburstData[] = [];
-  for (const [name, items] of groups) {
-    children.push({ name, children: items });
-  }
+	const children: SunburstData[] = [];
+	for (const [name, items] of groups) {
+		children.push({ name, children: items });
+	}
 
-  return { name: "Vault", children };
+	return { name: "Vault", children };
 }
 
 /**
@@ -530,37 +621,34 @@ export function buildSunburstData(
  * Tag nodes (isTag) are colored by their tag name.
  * File nodes are colored by category first, then by first tag.
  */
-export function assignNodeColors(
-  nodes: GraphNode[],
-  colorField: string
-): Map<string, string> {
-  const colorMap = new Map<string, string>();
-  const categories = new Set<string>();
-  const tags = new Set<string>();
+export function assignNodeColors(nodes: GraphNode[], _colorField: string): Map<string, string> {
+	const colorMap = new Map<string, string>();
+	const categories = new Set<string>();
+	const tags = new Set<string>();
 
-  for (const node of nodes) {
-    if (node.category) categories.add(node.category);
-    if (node.tags) {
-      for (const t of node.tags) tags.add(t);
-    }
-  }
+	for (const node of nodes) {
+		if (node.category) categories.add(node.category);
+		if (node.tags) {
+			for (const t of node.tags) tags.add(t);
+		}
+	}
 
-  let i = 0;
-  // Assign colors to categories first
-  for (const cat of [...categories].sort()) {
-    colorMap.set(cat, DEFAULT_COLORS[i % DEFAULT_COLORS.length]);
-    i++;
-  }
-  // Assign colors to tags (prefixed to avoid collision with category names)
-  for (const tag of [...tags].sort()) {
-    const key = `tag:${tag}`;
-    if (!colorMap.has(key)) {
-      colorMap.set(key, DEFAULT_COLORS[i % DEFAULT_COLORS.length]);
-      i++;
-    }
-  }
+	let i = 0;
+	// Assign colors to categories first
+	for (const cat of [...categories].sort()) {
+		colorMap.set(cat, DEFAULT_COLORS[i % DEFAULT_COLORS.length]);
+		i++;
+	}
+	// Assign colors to tags (prefixed to avoid collision with category names)
+	for (const tag of [...tags].sort()) {
+		const key = `tag:${tag}`;
+		if (!colorMap.has(key)) {
+			colorMap.set(key, DEFAULT_COLORS[i % DEFAULT_COLORS.length]);
+			i++;
+		}
+	}
 
-  return colorMap;
+	return colorMap;
 }
 
 /**
@@ -568,11 +656,11 @@ export function assignNodeColors(
  * Returns a non-negative integer suitable for palette indexing.
  */
 export function simpleHash(s: string): number {
-  let h = 5381;
-  for (let i = 0; i < s.length; i++) {
-    h = ((h << 5) + h + s.charCodeAt(i)) | 0;
-  }
-  return Math.abs(h);
+	let h = 5381;
+	for (let i = 0; i < s.length; i++) {
+		h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+	}
+	return Math.abs(h);
 }
 
 /**
@@ -586,56 +674,76 @@ export function simpleHash(s: string): number {
  * @returns The original function if colors are diverse, or a hash-based fallback
  */
 export function applyMonochromeFallback<T extends { id: string }>(
-  nodes: T[],
-  categoryColorFn: (n: T) => number,
-  palette: number[]
+	nodes: T[],
+	categoryColorFn: (n: T) => number,
+	palette: number[],
 ): (n: T) => number {
-  if (nodes.length < 5 || palette.length === 0) return categoryColorFn;
-  const uniqueColors = new Set<number>();
-  for (const n of nodes) {
-    uniqueColors.add(categoryColorFn(n));
-    if (uniqueColors.size > 1) return categoryColorFn;
-  }
-  // All nodes got the same color — fall back to hash-based coloring
-  return (n: T) => palette[simpleHash(n.id) % palette.length];
+	if (nodes.length < 5 || palette.length === 0) return categoryColorFn;
+	const uniqueColors = new Set<number>();
+	for (const n of nodes) {
+		uniqueColors.add(categoryColorFn(n));
+		if (uniqueColors.size > 1) return categoryColorFn;
+	}
+	// All nodes got the same color — fall back to hash-based coloring
+	return (n: T) => palette[simpleHash(n.id) % palette.length];
 }
 
 interface InlineFieldResult {
-  relation: string;
-  isOntology: boolean;
+	relation: string;
+	isOntology: boolean;
 }
 
 /**
  * Parse inline Dataview fields like `Author::[[Jesus]]` and
  * ontology fields like `@Parent::[[Entity]]` from file content.
  */
-function parseInlineFields(
-  content: string,
-  sourcePath: string,
-  app: App
-): Map<string, InlineFieldResult> {
-  const result = new Map<string, InlineFieldResult>();
-  const fieldRe = /^(@?[\w][\w\s-]*)::\s*(.+)$/gm;
-  const linkRe = /\[\[([^\]|]+)(?:\|[^\]]*)?\]\]/g;
-  let m: RegExpExecArray | null;
+function parseInlineFields(content: string, sourcePath: string, app: App): Map<string, InlineFieldResult> {
+	const result = new Map<string, InlineFieldResult>();
+	const fieldRe = /^(@?[\w][\w\s-]*)::\s*(.+)$/gm;
+	const linkRe = /\[\[([^\]|]+)(?:\|[^\]]*)?\]\]/g;
+	let m: RegExpExecArray | null;
 
-  while ((m = fieldRe.exec(content)) !== null) {
-    const rawName = m[1].trim();
-    const isOntology = rawName.startsWith("@");
-    const relation = isOntology ? rawName.slice(1).trim() : rawName;
-    const value = m[2];
-    let lm: RegExpExecArray | null;
-    while ((lm = linkRe.exec(value)) !== null) {
-      const targetFile = app.metadataCache.getFirstLinkpathDest(
-        lm[1],
-        sourcePath
-      );
-      if (targetFile) {
-        result.set(targetFile.path, { relation, isOntology });
-      }
-    }
-  }
-  return result;
+	while ((m = fieldRe.exec(content)) !== null) {
+		const rawName = m[1].trim();
+		const isOntology = rawName.startsWith("@");
+		const relation = isOntology ? rawName.slice(1).trim() : rawName;
+		const value = m[2];
+		let lm: RegExpExecArray | null;
+		while ((lm = linkRe.exec(value)) !== null) {
+			const targetFile = app.metadataCache.getFirstLinkpathDest(lm[1], sourcePath);
+			if (targetFile) {
+				result.set(targetFile.path, { relation, isOntology });
+			}
+		}
+	}
+	return result;
+}
+
+/**
+ * Extract raw inline-relation link matches from content.
+ * Notation: `[[target|display]@relation]` or `[[target]@relation]`
+ * Pure function — no Obsidian dependency, easy to test.
+ */
+export function parseInlineRelationLinksRaw(content: string): Array<{ linkTarget: string; relation: string }> {
+	const results: Array<{ linkTarget: string; relation: string }> = [];
+	const re = /\[\[([^\]|]+)(?:\|[^\]]*)?\]@([^\]]+)\]/g;
+	let m: RegExpExecArray | null;
+	while ((m = re.exec(content)) !== null) {
+		results.push({ linkTarget: m[1].trim(), relation: m[2].trim() });
+	}
+	return results;
+}
+
+/** Resolve raw inline-relation link matches to file paths. */
+function parseInlineRelationLinks(content: string, sourcePath: string, app: App): Map<string, InlineFieldResult> {
+	const result = new Map<string, InlineFieldResult>();
+	for (const { linkTarget, relation } of parseInlineRelationLinksRaw(content)) {
+		const targetFile = app.metadataCache.getFirstLinkpathDest(linkTarget, sourcePath);
+		if (targetFile) {
+			result.set(targetFile.path, { relation, isOntology: false });
+		}
+	}
+	return result;
 }
 
 /**
@@ -643,63 +751,74 @@ function parseInlineFields(
  * Same relation always gets the same color.
  */
 export function buildRelationColorMap(edges: GraphEdge[]): Map<string, string> {
-  const relations = new Set<string>();
-  for (const e of edges) {
-    if (e.relation) relations.add(e.relation);
-  }
-  const colorMap = new Map<string, string>();
-  let i = 0;
-  for (const rel of [...relations].sort()) {
-    colorMap.set(rel, DEFAULT_COLORS[i % DEFAULT_COLORS.length]);
-    i++;
-  }
-  return colorMap;
+	const relations = new Set<string>();
+	for (const e of edges) {
+		if (e.relation) relations.add(e.relation);
+	}
+	const colorMap = new Map<string, string>();
+	let i = 0;
+	for (const rel of [...relations].sort()) {
+		colorMap.set(rel, DEFAULT_COLORS[i % DEFAULT_COLORS.length]);
+		i++;
+	}
+	return colorMap;
 }
 
 /**
- * Define `meta` as a live getter that reads from metadataCache on every access.
- * This ensures frontmatter changes are always reflected without manual refresh.
+ * Install a lazy getter on `node.meta` that defers snapshotMeta until first access.
+ * On first read the getter replaces itself with the computed static value.
  */
-export function defineLiveMeta(node: GraphNode, app: App): void {
-  Object.defineProperty(node, "meta", {
-    get() {
-      if (!node.filePath) return undefined;
-      const f = app.vault.getAbstractFileByPath(node.filePath);
-      if (!(f instanceof TFile)) return undefined;
-      const fm = app.metadataCache.getFileCache(f)?.frontmatter;
-      if (!fm) return undefined;
-      return Object.fromEntries(
-        Object.entries(fm).filter(([k]) => k !== "position"),
-      );
-    },
-    enumerable: true,
-    configurable: true,
-  });
+export function defineLazyMeta(node: GraphNode, frontmatter: Record<string, unknown> | undefined): void {
+	if (!frontmatter) return;
+	Object.defineProperty(node, "meta", {
+		get() {
+			const value = snapshotMeta(frontmatter);
+			Object.defineProperty(this, "meta", {
+				value,
+				writable: true,
+				enumerable: true,
+				configurable: true,
+			});
+			return value;
+		},
+		enumerable: true,
+		configurable: true,
+	});
+}
+
+/**
+ * Snapshot frontmatter into a plain object, stripping the `position` key.
+ * rawData is invalidated on file changes, so a static snapshot is sufficient.
+ */
+export function snapshotMeta(frontmatter: Record<string, unknown> | undefined): Record<string, unknown> | undefined {
+	if (!frontmatter) return undefined;
+	const entries = Object.entries(frontmatter).filter(([k]) => k !== "position");
+	return entries.length > 0 ? Object.fromEntries(entries) : undefined;
 }
 
 function extractTags(
-  frontmatter: Record<string, unknown> | undefined,
-  cache: ReturnType<App["metadataCache"]["getFileCache"]>
+	frontmatter: Record<string, unknown> | undefined,
+	cache: ReturnType<App["metadataCache"]["getFileCache"]>,
 ): string[] {
-  const tags: string[] = [];
+	const tags: string[] = [];
 
-  if (frontmatter?.tags) {
-    const fm = frontmatter.tags;
-    if (Array.isArray(fm)) {
-      tags.push(...fm.map(String));
-    } else if (typeof fm === "string") {
-      tags.push(...fm.split(",").map((t) => t.trim()));
-    }
-  }
+	if (frontmatter?.tags) {
+		const fm = frontmatter.tags;
+		if (Array.isArray(fm)) {
+			tags.push(...fm.map(String));
+		} else if (typeof fm === "string") {
+			tags.push(...fm.split(",").map((t) => t.trim()));
+		}
+	}
 
-  if (cache?.tags) {
-    for (const t of cache.tags) {
-      const tag = t.tag.replace(/^#/, "");
-      if (!tags.includes(tag)) tags.push(tag);
-    }
-  }
+	if (cache?.tags) {
+		for (const t of cache.tags) {
+			const tag = t.tag.replace(/^#/, "");
+			if (!tags.includes(tag)) tags.push(tag);
+		}
+	}
 
-  return tags;
+	return tags;
 }
 
 /**
@@ -707,18 +826,18 @@ function extractTags(
  * Returns both a truncated preview and the full body length.
  */
 export function extractBodyInfo(content: string, maxLen: number): { preview: string; length: number } {
-  let body = content;
-  // Strip YAML frontmatter (--- ... ---)
-  if (body.startsWith("---")) {
-    const endIdx = body.indexOf("---", 3);
-    if (endIdx > 0) {
-      body = body.substring(endIdx + 3);
-    }
-  }
-  // Strip leading whitespace, headings, and blank lines
-  body = body.replace(/^\s+/, "").replace(/^#+\s*/gm, "");
-  // Collapse whitespace
-  body = body.replace(/\s+/g, " ").trim();
-  const preview = body.length > maxLen ? body.substring(0, maxLen) + "…" : body;
-  return { preview, length: body.length };
+	let body = content;
+	// Strip YAML frontmatter (--- ... ---)
+	if (body.startsWith("---")) {
+		const endIdx = body.indexOf("---", 3);
+		if (endIdx > 0) {
+			body = body.substring(endIdx + 3);
+		}
+	}
+	// Strip leading whitespace, headings, and blank lines
+	body = body.replace(/^\s+/, "").replace(/^#+\s*/gm, "");
+	// Collapse whitespace
+	body = body.replace(/\s+/g, " ").trim();
+	const preview = body.length > maxLen ? body.substring(0, maxLen) + "…" : body;
+	return { preview, length: body.length };
 }

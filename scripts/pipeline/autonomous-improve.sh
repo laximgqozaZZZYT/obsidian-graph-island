@@ -1,0 +1,1113 @@
+#!/usr/bin/env bash
+# ============================================================
+# autonomous-improve.sh — Headless autonomous improvement cycle
+# ============================================================
+# Supports up to MAX_SESSIONS parallel instances via git worktrees.
+# Each session gets its own worktree, runs independently, and
+# merges results back to main on success.
+#
+# crontab: 7,37 * * * * .../autonomous-improve.sh >> /tmp/graph-island-improve.log 2>&1
+# ============================================================
+set -uo pipefail
+
+# ── Environment ──
+export PATH="/home/ubuntu/.local/bin:/home/ubuntu/.nvm/versions/node/v22.18.0/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+export HOME="/home/ubuntu"
+
+PROJECT_DIR="/home/ubuntu/obsidian-plugins/obsidian-graph-island"
+LOG_FILE="/tmp/graph-island-improve.log"
+RESULT_DIR="/tmp/graph-island-improve-results"
+MAX_LOG_SIZE=$((10 * 1024 * 1024))
+MAX_SESSIONS=2
+MAX_ITERATIONS=3
+MAX_TURNS=30
+
+# ── Token-saving knobs (kaizen 2026-04-24) ──
+# These were added to prevent rate-limit burning from */5 cron + 4-way parallel.
+DEBUG_RETRY_COUNT=1          # was 3 — systematic-debugging retries on gate fail
+SIMPLIFY_ENABLED=false       # was implicit true — simplify step after review findings
+KAIZEN_PENDING_THRESHOLD=0   # was 5 — only run kaizen when pending==0
+
+# ── Queue caps (kaizen 2026-04-25) ──
+# Manual triage at 38 active tasks revealed quality decay (duplicates,
+# placeholders, undecomposable items). Cap active tasks so the queue stays
+# scannable. Active = pending|in-progress|decomposed.
+MAX_TOTAL_TASKS=${MAX_TOTAL_TASKS:-50}
+export MAX_TOTAL_TASKS
+
+# ── CSV migration feature flag (Phase 2-C) ──
+# When true, the script reads/writes pipeline state via scripts/pipeline/
+# csv-helpers.sh (issues.csv / tasks.csv / descriptions/<id>.md) instead of
+# per-file md frontmatter. Default false until Phase 3 flips it on.
+USE_CSV=${USE_CSV:-true}
+export USE_CSV
+if [[ "$USE_CSV" == "true" ]]; then
+  # shellcheck source=/dev/null
+  . "$PROJECT_DIR/scripts/pipeline/csv-helpers.sh"
+fi
+
+cd "$PROJECT_DIR" || exit 1
+
+# ── Log rotation ──
+if [[ -f "$LOG_FILE" ]] && [[ $(stat -c%s "$LOG_FILE" 2>/dev/null || echo 0) -gt $MAX_LOG_SIZE ]]; then
+  mv "$LOG_FILE" "${LOG_FILE}.old"
+fi
+mkdir -p "$RESULT_DIR"
+
+# ── Session ID ──
+SESSION_ID="auto-$(date +%Y%m%d-%H%M%S)-$$"
+SESSION_LOG="$RESULT_DIR/$SESSION_ID.log"
+
+log() { echo "[$(date -Iseconds)] [$SESSION_ID] $*" | tee -a "$SESSION_LOG"; }
+
+# ── Rate-limit-aware claude wrapper (kaizen 2026-04-24) ──
+# Captures claude -p output, detects rate-limit/quota messages, and exits the
+# whole cycle with exit 0 (not error) when detected — no point spending more
+# API calls once we're throttled. Returns claude's exit code otherwise.
+_claude_guard() {
+  local tmp
+  tmp=$(mktemp)
+  claude "$@" >"$tmp" 2>&1
+  local rc=$?
+  if grep -qiE "you've hit your limit|rate limit|quota exceeded|resets[[:space:]]+[0-9]+(am|pm)" "$tmp"; then
+    log "RATE LIMIT detected — aborting cycle early (no more claude -p calls)"
+    tail -3 "$tmp" | while IFS= read -r l; do log "  $l"; done
+    rm -f "$tmp"
+    # Mark cycle outcome, release worktree via trap, exit cleanly
+    exit 0
+  fi
+  tail -5 "$tmp" | while IFS= read -r l; do log "  $l"; done
+  rm -f "$tmp"
+  return $rc
+}
+
+log "================================================================"
+log "AUTONOMOUS IMPROVE CYCLE START"
+log "================================================================"
+
+# ── Cleanup zombie/orphan processes from previous sessions ──
+# Skip if e2e-patrol is running (don't kill its processes)
+E2E_PATROL_RUNNING=false
+if [[ -f /tmp/graph-island-e2e-patrol.lock ]]; then
+  E2E_PID=$(cat /tmp/graph-island-e2e-patrol.lock 2>/dev/null || echo "0")
+  kill -0 "$E2E_PID" 2>/dev/null && E2E_PATROL_RUNNING=true
+fi
+
+if [[ "$E2E_PATROL_RUNNING" == true ]]; then
+  log "e2e-patrol running (PID $E2E_PID) — skipping zombie cleanup"
+else
+  # visual-report.ts orphans (pre-fix sessions that never called browser.close)
+  ZOMBIE_VR=$(pgrep -f "tsx scripts/pipeline/visual-report" 2>/dev/null | wc -l)
+  if [[ $ZOMBIE_VR -gt 0 ]]; then
+    pkill -9 -f "tsx scripts/pipeline/visual-report" 2>/dev/null
+    log "Killed $ZOMBIE_VR zombie visual-report processes"
+  fi
+  # playwright orphans (not from active e2e-patrol)
+  ZOMBIE_PW=$(pgrep -f "playwright.*cdp-smoke" 2>/dev/null | wc -l)
+  if [[ $ZOMBIE_PW -gt 0 ]]; then
+    pkill -9 -f "playwright.*cdp-smoke" 2>/dev/null
+    log "Killed $ZOMBIE_PW zombie playwright processes"
+  fi
+  # esbuild daemon orphans (keep 2 for active sessions)
+  ZOMBIE_ES=$(pgrep -f "esbuild --service" 2>/dev/null | wc -l)
+  if [[ $ZOMBIE_ES -gt 2 ]]; then
+    pkill -9 -f "esbuild --service" 2>/dev/null
+    log "Killed $ZOMBIE_ES zombie esbuild processes"
+  fi
+  # vitest worker orphans (keep 4 for active sessions)
+  ZOMBIE_VT=$(pgrep -f "vitest.mjs" 2>/dev/null | wc -l)
+  if [[ $ZOMBIE_VT -gt 4 ]]; then
+    pkill -9 -f "vitest.mjs" 2>/dev/null
+    log "Killed $ZOMBIE_VT zombie vitest processes"
+  fi
+fi
+
+# ── Pre-flight checks ──
+if ! command -v claude &>/dev/null; then
+  log "ERROR: claude CLI not found"
+  exit 1
+fi
+
+if ! node -e "process.exit(0)" 2>/dev/null; then
+  log "ERROR: node not working"
+  exit 1
+fi
+
+# ── Count active sessions via lock directory (not pgrep) ──
+LOCK_DIR="/tmp/graph-island-sessions"
+mkdir -p "$LOCK_DIR"
+# Clean stale locks (PID dead OR session older than 2 hours)
+MAX_SESSION_AGE=7200  # 2 hours
+for lockfile in "$LOCK_DIR"/*.pid; do
+  [[ -f "$lockfile" ]] || continue
+  LOCK_PID=$(cat "$lockfile" 2>/dev/null || echo "0")
+  LOCK_AGE=$(( $(date +%s) - $(stat -c%Y "$lockfile" 2>/dev/null || echo "$(date +%s)") ))
+  if ! kill -0 "$LOCK_PID" 2>/dev/null || [[ $LOCK_AGE -gt $MAX_SESSION_AGE ]]; then
+    kill -9 "$LOCK_PID" 2>/dev/null  # force kill if still alive but too old
+    rm -f "$lockfile"
+    log "CLEANED: stale lock $(basename $lockfile) (PID=$LOCK_PID, age=${LOCK_AGE}s)"
+  fi
+done
+ACTIVE_COUNT=$(find "$LOCK_DIR" -maxdepth 1 -name '*.pid' 2>/dev/null | wc -l)
+if [[ $ACTIVE_COUNT -ge $MAX_SESSIONS ]]; then
+  log "SKIP: $ACTIVE_COUNT sessions running (max $MAX_SESSIONS)"
+  exit 0
+fi
+# Register this session (cleanup in main trap)
+echo $$ > "$LOCK_DIR/$SESSION_ID.pid"
+log "Active sessions: $ACTIVE_COUNT/$MAX_SESSIONS — proceeding"
+
+# ── Handle orphaned in-progress items (issues + tasks) ──
+# FIX A (2026-04-25): timed-out tasks are no longer re-SUBDIVIDEd. Re-decompose
+# was the root cause of chain explosion: task 1172-... was SUBDIVIDEd 22 times,
+# generating 765 descendants under a single ROOT issue. Timed-out tasks now
+# go straight to `blocked` and the cycle moves on.
+#
+# FIX B (2026-04-25): Issues track `decompose_attempts:` in frontmatter and are
+# blocked after MAX_ISSUE_ATTEMPTS=3 failed rounds. Previously issue
+# `144-coverage-drop` was picked 86 times in 24h — each time tasks/ drained,
+# the issue got re-decomposed, always failed, and re-entered the queue.
+ISSUE_DIR="$PROJECT_DIR/scripts/pipeline/issues"
+TASK_DIR="$PROJECT_DIR/scripts/pipeline/tasks"
+TASK_DONE_DIR="$TASK_DIR/done"
+mkdir -p "$TASK_DIR" "$TASK_DONE_DIR"
+MAX_ISSUE_ATTEMPTS=3
+
+NOW=$(date +%s)
+# CSV-mode timed-out scan: walk both kinds via CSV instead of glob+stat.
+# Uses updated_at as the age proxy (file mtime equivalent). Active rows
+# whose updated_at is older than 600s + status=in-progress are timed out.
+if [[ "$USE_CSV" == "true" ]]; then
+  for kind in tasks issues; do
+    for ID in $(csv_select_by_status "$kind" in-progress 2>/dev/null); do
+      UPDATED=$(csv_get_field "$kind" "$ID" updated_at 2>/dev/null)
+      [[ -n "$UPDATED" ]] || continue
+      UPDATED_EPOCH=$(date -d "$UPDATED" +%s 2>/dev/null || echo "$NOW")
+      FILE_AGE=$(( NOW - UPDATED_EPOCH ))
+      [[ $FILE_AGE -gt 600 ]] || continue
+
+      if [[ "$kind" == "tasks" ]]; then
+        # FIX A: Timed-out task → straight to blocked. No re-SUBDIVIDE.
+        log "BLOCKED: $ID timed out after ${FILE_AGE}s (no re-SUBDIVIDE) [csv]"
+        csv_set_status tasks "$ID" blocked 2>/dev/null || true
+        (cd "$PROJECT_DIR" && git add scripts/pipeline/ && \
+          git commit -m "chore: block timed-out task $ID" --no-verify 2>/dev/null) || true
+      else
+        # Issue timed out → bump decompose_attempts, or block if exhausted.
+        ORPHANED=false
+        if [[ -z "$(find "$LOCK_DIR" -maxdepth 1 -name '*.pid' 2>/dev/null | head -1)" ]]; then
+          ORPHANED=true
+        elif [[ $FILE_AGE -gt 600 ]]; then
+          ORPHANED=true
+        fi
+        if [[ "$ORPHANED" == true ]]; then
+          DECOMPOSE_ATTEMPTS=$(csv_get_field issues "$ID" decompose_attempts 2>/dev/null)
+          DECOMPOSE_ATTEMPTS=${DECOMPOSE_ATTEMPTS:-0}
+          if [[ "$DECOMPOSE_ATTEMPTS" -ge "$MAX_ISSUE_ATTEMPTS" ]]; then
+            log "BLOCKED: $ID — $DECOMPOSE_ATTEMPTS attempts exhausted (max $MAX_ISSUE_ATTEMPTS) [csv]"
+            csv_set_status issues "$ID" blocked 2>/dev/null || true
+            (cd "$PROJECT_DIR" && git add scripts/pipeline/ && \
+              git commit -m "chore: block exhausted issue $ID ($DECOMPOSE_ATTEMPTS attempts)" --no-verify 2>/dev/null) || true
+            continue
+          fi
+          NEXT_ATTEMPT=$((DECOMPOSE_ATTEMPTS + 1))
+          csv_set_field issues "$ID" decompose_attempts "$NEXT_ATTEMPT" 2>/dev/null || true
+          # Append to attempts.csv for traceability
+          csv_append_attempt issues "$ID" \
+            "Continue from where the last session left off. Do not repeat already-attempted approaches." \
+            "timed out after 1h" >/dev/null 2>&1 || true
+          csv_set_status issues "$ID" pending 2>/dev/null || true
+          log "CARRYOVER: $ID → pending (attempt $NEXT_ATTEMPT/$MAX_ISSUE_ATTEMPTS, age: ${FILE_AGE}s) [csv]"
+          (cd "$PROJECT_DIR" && git add scripts/pipeline/ && \
+            git commit -m "chore: carryover stale issue $ID (attempt $NEXT_ATTEMPT)" --no-verify 2>/dev/null) || true
+        fi
+      fi
+    done
+  done
+else
+for dir in "$ISSUE_DIR" "$TASK_DIR"; do
+  [[ -d "$dir" ]] || continue
+  for f in "$dir"/*.md; do
+    [[ -f "$f" ]] || continue
+    grep -q "status: in-progress" "$f" 2>/dev/null || continue
+    FILE_AGE=$(( NOW - $(stat -c%Y "$f" 2>/dev/null || echo "$NOW") ))
+    [[ $FILE_AGE -gt 600 ]] || continue  # 10 min grace period
+
+    FNAME=$(basename "$f")
+    if [[ "$dir" == "$TASK_DIR" ]]; then
+      # FIX A: Timed-out task → straight to blocked. No re-SUBDIVIDE.
+      log "BLOCKED: $FNAME timed out after ${FILE_AGE}s (no re-SUBDIVIDE)"
+      sed -i 's/status: in-progress/status: blocked/' "$f"
+      (cd "$PROJECT_DIR" && git add scripts/pipeline/ && git commit -m "chore: block timed-out task $FNAME" --no-verify 2>/dev/null) || true
+    else
+      # Issue timed out → increment attempt counter, or block if exhausted.
+      ORPHANED=false
+      if [[ -z "$(find "$LOCK_DIR" -maxdepth 1 -name '*.pid' 2>/dev/null | head -1)" ]]; then
+        ORPHANED=true
+      elif [[ $FILE_AGE -gt 600 ]]; then
+        ORPHANED=true
+      fi
+      if [[ "$ORPHANED" == true ]]; then
+        FNAME=$(basename "$f")
+        # FIX B: count prior attempts from frontmatter (decompose_attempts)
+        DECOMPOSE_ATTEMPTS=$(grep -oP '^decompose_attempts:\s*\K[0-9]+' "$f" 2>/dev/null | head -1)
+        DECOMPOSE_ATTEMPTS=${DECOMPOSE_ATTEMPTS:-0}
+        if [[ "$DECOMPOSE_ATTEMPTS" -ge "$MAX_ISSUE_ATTEMPTS" ]]; then
+          log "BLOCKED: $FNAME — $DECOMPOSE_ATTEMPTS decompose attempts exhausted (max $MAX_ISSUE_ATTEMPTS)"
+          sed -i 's/status: in-progress/status: blocked/' "$f"
+          (cd "$PROJECT_DIR" && git add "$f" && git commit -m "chore: block exhausted issue $FNAME ($DECOMPOSE_ATTEMPTS attempts)" --no-verify 2>/dev/null) || true
+          continue
+        fi
+        NEXT_ATTEMPT=$((DECOMPOSE_ATTEMPTS + 1))
+
+        SLUG="${FNAME%.md}"
+        LAST_SESSION_LOG=$(grep -l "$SLUG" /tmp/graph-island-improve-results/*.json 2>/dev/null | xargs ls -t 2>/dev/null | head -1)
+        SESSION_SUMMARY=""
+        if [[ -n "$LAST_SESSION_LOG" ]]; then
+          LAST_SID=$(grep -oP '"session":\s*"\K[^"]+' "$LAST_SESSION_LOG" 2>/dev/null || echo "unknown")
+          LAST_COMMITS=$(grep -oP '"commits":\s*\K[0-9]+' "$LAST_SESSION_LOG" 2>/dev/null || echo "0")
+          SESSION_SUMMARY="session=$LAST_SID, commits=$LAST_COMMITS"
+        fi
+
+        # Upsert decompose_attempts in frontmatter
+        if grep -q '^decompose_attempts:' "$f"; then
+          sed -i "s/^decompose_attempts:.*/decompose_attempts: $NEXT_ATTEMPT/" "$f"
+        else
+          # insert after status: line in frontmatter
+          sed -i "/^status:/a decompose_attempts: $NEXT_ATTEMPT" "$f"
+        fi
+
+        cat >> "$f" << ATTEMPT_EOF
+
+### Attempt $NEXT_ATTEMPT ($(date -Iseconds))
+- Status: timed out after 1h
+- ${SESSION_SUMMARY:-no session log found}
+- Previous session could not complete this issue within max turns.
+- **Continue from where the last session left off. Do not repeat already-attempted approaches.**
+ATTEMPT_EOF
+
+        sed -i 's/status: in-progress/status: pending/' "$f"
+        log "CARRYOVER: $FNAME → pending (attempt $NEXT_ATTEMPT/$MAX_ISSUE_ATTEMPTS, age: ${FILE_AGE}s)"
+        (cd "$PROJECT_DIR" && git add "$f" && git commit -m "chore: carryover stale issue $FNAME (attempt $NEXT_ATTEMPT)" --no-verify 2>/dev/null) || true
+      fi
+    fi
+  done
+done
+fi  # end USE_CSV branch for orphan detection
+
+# ── FIX C5 (2026-04-25): revive stuck `decomposed` issues ──
+# When a child task fails, status goes to `blocked`, but the parent issue
+# stays `decomposed` forever. If ALL children of an issue are blocked/done
+# (= no live child to drive progress) AND decompose_attempts < MAX, revert
+# the issue to `pending` so a later cycle can re-decompose it into a new
+# task set with different scoping. If attempts are already exhausted, mark
+# the issue `blocked` so it stops wasting queue scans.
+if [[ "$USE_CSV" == "true" ]]; then
+  for ID in $(csv_select_by_status issues decomposed 2>/dev/null); do
+    ISSUE_NUM=$(echo "$ID" | grep -oP '^\d+')
+    [[ -n "$ISSUE_NUM" ]] || continue
+    # Count live child tasks via CSV (parent FK match by id-prefix or parent col)
+    ALIVE=0
+    for CHILD_ID in $(csv_select_by_parent tasks "$ID" 2>/dev/null); do
+      CST=$(csv_get_status tasks "$CHILD_ID" 2>/dev/null)
+      if [[ "$CST" == "pending" || "$CST" == "in-progress" ]]; then
+        ALIVE=$((ALIVE + 1))
+      fi
+    done
+    [[ "$ALIVE" -gt 0 ]] && continue
+    ATTEMPTS=$(csv_get_field issues "$ID" decompose_attempts 2>/dev/null)
+    ATTEMPTS=${ATTEMPTS:-0}
+    if [[ "$ATTEMPTS" -ge "$MAX_ISSUE_ATTEMPTS" ]]; then
+      log "BLOCKED: $ID — no live children & $ATTEMPTS attempts exhausted [csv]"
+      csv_set_status issues "$ID" blocked 2>/dev/null || true
+      (cd "$PROJECT_DIR" && git add scripts/pipeline/ && \
+        git commit -m "chore: block exhausted issue $ID ($ATTEMPTS attempts)" --no-verify 2>/dev/null) || true
+    else
+      log "REVIVE: $ID — no live children, decomposed→pending (attempts=$ATTEMPTS/$MAX_ISSUE_ATTEMPTS) [csv]"
+      csv_set_status issues "$ID" pending 2>/dev/null || true
+      (cd "$PROJECT_DIR" && git add scripts/pipeline/ && \
+        git commit -m "chore: revive stuck issue $ID (all children blocked, attempts=$ATTEMPTS)" --no-verify 2>/dev/null) || true
+    fi
+  done
+else
+for f in "$ISSUE_DIR"/*.md; do
+  [[ -f "$f" ]] || continue
+  grep -q "^status: decomposed" "$f" 2>/dev/null || continue
+  FNAME=$(basename "$f")
+  ISSUE_NUM=$(echo "$FNAME" | grep -oP '^\d+')
+  [[ -n "$ISSUE_NUM" ]] || continue
+  # Count live (pending or in-progress) child tasks under this issue.
+  ALIVE=$(find "$TASK_DIR" -maxdepth 1 -name "*-${ISSUE_NUM}-*.md" 2>/dev/null \
+    | xargs -r grep -lE '^status: (pending|in-progress)' 2>/dev/null | wc -l)
+  [[ "$ALIVE" -gt 0 ]] && continue  # still has live children; leave alone
+  # All children are blocked or done. Check attempt counter.
+  ATTEMPTS=$(grep -oP '^decompose_attempts:\s*\K[0-9]+' "$f" 2>/dev/null | head -1)
+  ATTEMPTS=${ATTEMPTS:-0}
+  if [[ "$ATTEMPTS" -ge "$MAX_ISSUE_ATTEMPTS" ]]; then
+    log "BLOCKED: $FNAME — no live children & $ATTEMPTS attempts exhausted"
+    sed -i 's/^status: decomposed/status: blocked/' "$f"
+    (cd "$PROJECT_DIR" && git add "$f" && git commit -m "chore: block exhausted issue $FNAME ($ATTEMPTS attempts)" --no-verify 2>/dev/null) || true
+  else
+    log "REVIVE: $FNAME — no live children, reverting decomposed→pending (attempts=$ATTEMPTS/$MAX_ISSUE_ATTEMPTS)"
+    sed -i 's/^status: decomposed/status: pending/' "$f"
+    (cd "$PROJECT_DIR" && git add "$f" && git commit -m "chore: revive stuck issue $FNAME (all children blocked, attempts=$ATTEMPTS)" --no-verify 2>/dev/null) || true
+  fi
+done
+fi  # end USE_CSV branch for C5 sweep
+
+# ── Ensure main is clean for worktree creation ──
+cd "$PROJECT_DIR" || exit 1
+if [[ -n "$(git status --porcelain)" ]]; then
+  log "SKIP: Main working directory dirty"
+  git status --short | head -5 | while IFS= read -r line; do log "  $line"; done
+  exit 0
+fi
+
+# ── Create isolated worktree ──
+WORKTREE_DIR="$PROJECT_DIR/.autonomous-worktrees/$SESSION_ID"
+WORKTREE_BRANCH="auto-improve-$SESSION_ID"
+mkdir -p "$PROJECT_DIR/.autonomous-worktrees"
+
+git branch "$WORKTREE_BRANCH" HEAD 2>/dev/null
+git worktree add "$WORKTREE_DIR" "$WORKTREE_BRANCH" 2>&1 | while IFS= read -r line; do log "  $line"; done
+
+if [[ ! -d "$WORKTREE_DIR" ]]; then
+  log "ERROR: Failed to create worktree"
+  git branch -D "$WORKTREE_BRANCH" 2>/dev/null
+  exit 1
+fi
+
+log "Worktree created: $WORKTREE_DIR"
+
+# Capture the base branch the worktree was created from (for PR targeting).
+# All PRs target the branch we were on when cron fired, so merge contents
+# reflect only what this session produced on top of main work.
+BASE_BRANCH="$(cd "$PROJECT_DIR" && git symbolic-ref --short HEAD 2>/dev/null || echo main)"
+
+# ── Cleanup trap: preserve WIP + push branch + open PR, then remove local worktree ──
+# This replaces the prior "git merge to main" flow. Every exit path (normal
+# completion, _claude_guard rate-limit exit, ABORT after gates fail, bash
+# error) routes through here, so the user can review anything the session
+# produced — gate-passing commits AND gate-failing "wip" drafts — via PR.
+# Note: no additional claude -p calls, so token budget impact is zero.
+cleanup() {
+  rm -f "$LOCK_DIR/$SESSION_ID.pid" 2>/dev/null
+  pkill -P $$ 2>/dev/null
+  wait 2>/dev/null
+
+  # Preserve uncommitted work-in-progress in the worktree before teardown.
+  local wip_committed=0
+  if [[ -d "$WORKTREE_DIR" ]] && cd "$WORKTREE_DIR" 2>/dev/null; then
+    # Log git state so we can diagnose why WIP preservation did/did not fire.
+    local _status_summary
+    _status_summary=$(git status --porcelain 2>/dev/null | wc -l)
+    local _log_summary
+    _log_summary=$(git log --oneline "$BASE_BRANCH..HEAD" 2>/dev/null | wc -l)
+    log "Worktree state at cleanup: $_status_summary uncommitted file(s), $_log_summary branch commits above base"
+    if [[ -n "$(git status --porcelain 2>/dev/null)" ]]; then
+      git add -A 2>/dev/null || true
+      if git commit --no-verify -m "wip(auto): partial work — cycle aborted ($SESSION_ID)
+
+Task: ${ISSUE_NAME:-auto-focus}
+Focus: ${FOCUS:-unknown}
+Reason: cycle exited with uncommitted changes (rate-limit, gate fail, or
+early abort). This commit preserves the claude -p attempt for human review.
+
+Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>" 2>/dev/null; then
+        wip_committed=1
+        log "WIP committed for review"
+      fi
+    fi
+  fi
+
+  # If the branch has any commits beyond BASE_BRANCH, push + open a PR so a
+  # reviewer can evaluate. Skip silently on auth/network failure so that the
+  # local worktree still gets cleaned up.
+  cd "$PROJECT_DIR" 2>/dev/null || true
+  local ahead=0
+  if git rev-parse --verify "$WORKTREE_BRANCH" >/dev/null 2>&1; then
+    ahead=$(git rev-list --count "$BASE_BRANCH".."$WORKTREE_BRANCH" 2>/dev/null || echo 0)
+  fi
+  if [[ "$ahead" -gt 0 ]]; then
+    # Sync origin/$BASE_BRANCH with local so the PR diff contains ONLY what
+    # this cycle added. Without this, the PR shows every local commit that
+    # happened since the last time origin/$BASE_BRANCH was pushed (e.g.
+    # unrelated perf fixes, chores), inflating the review surface.
+    # A fast-forward push succeeds silently; if origin has diverged we just
+    # log the failure and proceed — the PR will still open, just with extra
+    # history visible to the reviewer.
+    log "Syncing origin/$BASE_BRANCH with local (fast-forward, so PR diff stays clean)..."
+    git push origin "$BASE_BRANCH" --no-verify 2>&1 | tail -3 | while IFS= read -r l; do log "  base-sync: $l"; done || log "  base-sync failed (non-fast-forward?); PR diff may include unrelated history"
+    log "Pushing $WORKTREE_BRANCH ($ahead commits ahead of $BASE_BRANCH)..."
+    if git push -u origin "$WORKTREE_BRANCH" --no-verify 2>&1 | tail -3 | while IFS= read -r l; do log "  push: $l"; done; then
+      local draft_flag=""
+      [[ "$wip_committed" -eq 1 ]] && draft_flag="--draft"
+      local pr_title="auto: ${FOCUS:-session} ${ISSUE_NAME:-$SESSION_ID}"
+      local pr_body="Session: $SESSION_ID
+Focus: ${FOCUS:-unknown}
+Task: ${ISSUE_NAME:-(auto-focus)}
+Commits: $ahead on $WORKTREE_BRANCH vs $BASE_BRANCH
+WIP: ${wip_committed}
+
+Generated by autonomous-improve.sh. Review before merging."
+      gh pr create \
+        --base "$BASE_BRANCH" \
+        --head "$WORKTREE_BRANCH" \
+        --title "$pr_title" \
+        $draft_flag \
+        --body "$pr_body" 2>&1 | tail -3 | while IFS= read -r l; do log "  pr: $l"; done || log "  gh pr create failed (non-fatal)"
+    else
+      log "  push failed — branch left locally; $WORKTREE_BRANCH not on origin"
+    fi
+  else
+    log "No commits on worktree branch — skipping push/PR"
+  fi
+
+  log "Cleaning up worktree..."
+  cd "$PROJECT_DIR" || true
+  git worktree remove "$WORKTREE_DIR" --force 2>/dev/null || rm -rf "$WORKTREE_DIR"
+  # Local branch can be deleted (remote retains it after push)
+  git branch -D "$WORKTREE_BRANCH" 2>/dev/null || true
+  git worktree prune 2>/dev/null
+  log "Cleanup complete"
+}
+trap cleanup EXIT
+
+# ── Work in worktree ──
+cd "$WORKTREE_DIR" || exit 1
+
+# ── DISCOVER: static scan + kaizen analysis ──
+log "Running static issue discovery..."
+bash "$PROJECT_DIR/scripts/pipeline/discover-issues.sh" 2>&1 | tail -5 | while IFS= read -r line; do log "  $line"; done
+
+# Kaizen-driven deep analysis (every 4th session to save API calls)
+HOUR=${HOUR:-$(date +%-H)}
+if [[ $((HOUR % 4)) -eq 0 ]]; then
+  # Count only TRUE pending issues — blocked/decomposed shouldn't lock the discovery loop
+  if [[ "$USE_CSV" == "true" ]]; then
+    PENDING_COUNT=$(csv_select_pending issues 2>/dev/null | wc -l | tr -cd '0-9')
+  else
+    PENDING_COUNT=$(grep -lE '^status: pending$' "$PROJECT_DIR"/scripts/pipeline/issues/*.md 2>/dev/null | wc -l | tr -cd '0-9')
+  fi
+  PENDING_COUNT=${PENDING_COUNT:-0}
+  if [[ $PENDING_COUNT -le $KAIZEN_PENDING_THRESHOLD ]]; then
+    log "Running /kaizen issue discovery (hour=$HOUR, pending=$PENDING_COUNT)..."
+    KAIZEN_PROMPT="あなたはKaizen(継続的改善)のスペシャリストです。
+
+Graph Island Obsidian プラグインのソースコード(src/)を分析し、
+既存コードの品質課題を発見してください。
+
+## ルール
+- 機能追加のアイデアは禁止。既存コードの問題だけ報告すること
+- 課題 = バグ、品質劣化、規約違反、一貫性の欠如、リスクのある実装
+- アイデア ≠ 課題。「こうしたら良い」ではなく「ここが壊れている/危険」を報告
+- CLAUDE.md のルールに照らして違反を探す
+- 具体的なファイル名と行番号を含めること
+
+## 誇大表現の禁止 (report-honesty rules)
+- 曖昧な時間表現を使わない: 「ここ数日」「しばらく」「最近」「以前から」等は禁止。
+  必要なら \`git log --since=\"YYYY-MM-DD\"\` で確認した具体的日付を書くこと。
+- 曖昧な数量表現を使わない: 「多数の」「多くの」「かなりの」「著しく」等は禁止。
+  実際の件数 (例: 「3 箇所」「N=12」) または「調査未完」と書くこと。
+- 未実測の効果予測は書かない: 「〜ms 削減できる」「X倍速化」は修正後に実測するまで
+  issue に書かない。仮説は \"Hypothesis:\" プレフィクスで明示。
+- パイプライン成果と手動作業を混ぜない: 発見が自律分析によるものであることを明記し、
+  他コミット群を根拠として列挙しないこと。
+
+## 分析対象 (優先順位順)
+1. ランタイムバグの可能性 (null参照、境界値、競合状態)
+2. リソースリーク (イベントリスナー未解除、タイマー未クリア)
+3. CLAUDE.md規約違反 (ハードコード値、God Object肥大化兆候)
+4. エラーハンドリングの欠陥
+5. 型安全性の穴 (any型、unsafe cast)
+6. テストされていない危険なコードパス
+
+## 出力形式
+発見した課題ごとに以下を scripts/pipeline/issues/ にファイルとして書き出すこと:
+
+ファイル名: scripts/pipeline/issues/NNN-slug.md (NNNは既存最大番号+1)
+
+内容:
+---
+priority: high または medium
+reported: $(date +%Y-%m-%d)
+status: pending
+source: kaizen
+summary: 1行要約
+---
+## Description
+詳細説明(ファイル名:行番号を含む)
+## Acceptance criteria
+- [ ] 具体的な修正基準
+
+最大3件まで。既に scripts/pipeline/issues/ にある課題と重複しないこと。
+既存のissueを確認してから書くこと。"
+
+    _claude_guard -p "$KAIZEN_PROMPT" \
+      --allowedTools "Bash,Read,Glob,Grep,Write" \
+      --max-turns 20
+
+    # Auto-commit any newly created issues to keep main clean
+    if [[ -n "$(cd "$PROJECT_DIR" && git status --porcelain scripts/pipeline/issues/)" ]]; then
+      (cd "$PROJECT_DIR" && git add scripts/pipeline/issues/ && git commit -m "chore: kaizen-discovered issues
+
+Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>" --no-verify 2>/dev/null) || true
+      log "Kaizen issues committed to main"
+    fi
+  fi
+fi
+
+# ── PRIORITIZE: moved into loop (per-iteration context reset) ──
+# Issue queue check + focus selection now happens at the start of each iteration
+# to ensure clean context and pick up newly filed issues mid-session.
+
+# ── Focus exhaustion check ──
+# Returns 0 (true) if the last 3 sessions with this focus all had 0 commits.
+_focus_exhausted() {
+  local f="$1"
+  local recent_commits
+  recent_commits=$(grep -l "\"focus\": \"$f\"" "$RESULT_DIR"/*.json 2>/dev/null \
+    | xargs ls -t 2>/dev/null | head -3 \
+    | xargs grep -h '"commits":' 2>/dev/null \
+    | grep -oP '"commits":\s*\K[0-9]+' \
+    | awk '{s+=$1} END{print s+0}')
+  [[ "$recent_commits" -eq 0 ]]
+}
+
+# ── E2E/CDP: handled by e2e-patrol.sh (separate cron, background) ──
+
+# ============================================================
+# IMPROVEMENT LOOP
+# ============================================================
+TOTAL_COMMITS=0
+
+for iter in $(seq 1 "$MAX_ITERATIONS"); do
+
+  # ── CONTEXT RESET (コンテキスト汚染防止) ──
+  # 各イテレーションをクリーンな状態から開始。
+  # リセットするもの: 前イテレーションの判断結果・中間変数
+  GATE_JSON=""
+  GODOBJ_JSON=""
+  GATE_STATUS=""
+  GODOBJ_STATUS=""
+  REVIEW_FINDINGS=""
+  PROMPT=""
+  SKILL_CONTEXT=""
+  ISSUE_FILE=""
+  ISSUE_CONTENT=""
+  ISSUE_NAME=""
+
+  # ── Work selection: tasks first → issues → focus rotation ──
+  ISSUE_DIR="$PROJECT_DIR/scripts/pipeline/issues"
+  TASK_DIR="$PROJECT_DIR/scripts/pipeline/tasks"
+
+  # Step 1: Check tasks/ for pending work (already decomposed, ready to implement)
+  ISSUE_FILE=""
+  ISSUE_ID=""  # CSV mode uses an id (no .md); md mode uses a path. Track separately.
+  if [[ "$USE_CSV" == "true" ]]; then
+    for prio in critical high medium low; do
+      ISSUE_ID=$(csv_select_pending tasks "$prio" 2>/dev/null | head -1)
+      [[ -n "$ISSUE_ID" ]] && break
+    done
+  else
+    if [[ -d "$TASK_DIR" ]]; then
+      for prio in critical high medium low; do
+        ISSUE_FILE=$(grep -rl "priority: $prio" "$TASK_DIR"/*.md 2>/dev/null | while read f; do
+          grep -q "status: pending" "$f" || continue
+          echo "$f" && break
+        done)
+        [[ -n "$ISSUE_FILE" ]] && break
+      done
+    fi
+  fi
+
+  if [[ -n "$ISSUE_FILE" || -n "$ISSUE_ID" ]]; then
+    if [[ "$USE_CSV" == "true" ]]; then
+      ATTEMPT_COUNT=$(csv_get_field tasks "$ISSUE_ID" attempt_count 2>/dev/null)
+      ATTEMPT_COUNT=${ATTEMPT_COUNT:-0}
+    else
+      ATTEMPT_COUNT=$(grep -c "^### Attempt " "$ISSUE_FILE" 2>/dev/null | head -1 | tr -cd '0-9')
+      ATTEMPT_COUNT=${ATTEMPT_COUNT:-0}
+    fi
+    if [[ "$ATTEMPT_COUNT" -ge 2 ]]; then
+      if [[ "$USE_CSV" == "true" ]]; then
+        log "BLOCKED: $ISSUE_ID exhausted ($ATTEMPT_COUNT attempts, 0 commits) — marking blocked [csv]"
+        csv_set_status tasks "$ISSUE_ID" blocked 2>/dev/null || true
+        (cd "$PROJECT_DIR" && git add scripts/pipeline/ && \
+          git commit -m "chore: block exhausted task $ISSUE_ID" --no-verify 2>/dev/null) || true
+      else
+        log "BLOCKED: $(basename "$ISSUE_FILE") exhausted ($ATTEMPT_COUNT attempts, 0 commits) — marking blocked"
+        sed -i 's/status: pending/status: blocked/; s/status: in-progress/status: blocked/' "$ISSUE_FILE" 2>/dev/null || true
+        (cd "$PROJECT_DIR" && git add scripts/pipeline/tasks/ && git commit -m "chore: block exhausted task $(basename "$ISSUE_FILE")" --no-verify 2>/dev/null) || true
+      fi
+      exit 0
+    fi
+    FOCUS="task"
+    if [[ "$USE_CSV" == "true" ]]; then
+      ISSUE_NAME="$ISSUE_ID"
+      ISSUE_CONTENT=$(csv_to_prompt_text tasks "$ISSUE_ID")
+      log "TASK: $ISSUE_NAME (attempt $((ATTEMPT_COUNT + 1))) [csv]"
+      csv_set_status tasks "$ISSUE_ID" in-progress 2>/dev/null || true
+      (cd "$PROJECT_DIR" && git add scripts/pipeline/ && \
+        git commit -m "chore: start task $ISSUE_NAME" --no-verify 2>/dev/null) || true
+    else
+      ISSUE_CONTENT=$(cat "$ISSUE_FILE")
+      ISSUE_NAME=$(basename "$ISSUE_FILE")
+      log "TASK: $ISSUE_NAME (attempt $((ATTEMPT_COUNT + 1)))"
+      sed -i 's/status: pending/status: in-progress/' "$ISSUE_FILE" 2>/dev/null || true
+      (cd "$PROJECT_DIR" && git add scripts/pipeline/tasks/ && git commit -m "chore: start task $ISSUE_NAME" --no-verify 2>/dev/null) || true
+    fi
+  else
+    # Step 2: Check issues/ for pending issues → decompose into tasks
+    # FIX B: skip issues that have already been decomposed MAX_ISSUE_ATTEMPTS
+    # times without producing a merge-candidate PR. Without this, an issue
+    # that fails to complete after decomposition gets re-picked and
+    # re-decomposed every time tasks/ drains (observed: 86 re-picks of
+    # 144-coverage-drop in 24h).
+    ISSUE_FILE=""
+    ISSUE_ID=""
+    if [[ "$USE_CSV" == "true" ]]; then
+      for prio in critical high medium low; do
+        for cand in $(csv_select_pending issues "$prio" 2>/dev/null); do
+          a=$(csv_get_field issues "$cand" decompose_attempts 2>/dev/null)
+          a=${a:-0}
+          [[ "$a" -ge "$MAX_ISSUE_ATTEMPTS" ]] && continue
+          ISSUE_ID="$cand"
+          break
+        done
+        [[ -n "$ISSUE_ID" ]] && break
+      done
+    else
+      if [[ -d "$ISSUE_DIR" ]]; then
+        for prio in critical high medium low; do
+          ISSUE_FILE=$(grep -rl "priority: $prio" "$ISSUE_DIR"/*.md 2>/dev/null | while read f; do
+            grep -q "status: pending" "$f" || continue
+            a=$(grep -oP '^decompose_attempts:\s*\K[0-9]+' "$f" 2>/dev/null | head -1)
+            a=${a:-0}
+            if [[ "$a" -ge "$MAX_ISSUE_ATTEMPTS" ]]; then continue; fi
+            echo "$f" && break
+          done)
+          [[ -n "$ISSUE_FILE" ]] && break
+        done
+      fi
+    fi
+
+    if [[ -n "$ISSUE_FILE" || -n "$ISSUE_ID" ]]; then
+      if [[ "$USE_CSV" == "true" ]]; then
+        ISSUE_NAME="$ISSUE_ID"
+        CUR_ATTEMPTS=$(csv_get_field issues "$ISSUE_ID" decompose_attempts 2>/dev/null)
+        CUR_ATTEMPTS=${CUR_ATTEMPTS:-0}
+        NEW_ATTEMPTS=$(csv_increment_attempts issues "$ISSUE_ID" 2>/dev/null)
+        log "ISSUE: $ISSUE_NAME — decomposing (attempt $NEW_ATTEMPTS/$MAX_ISSUE_ATTEMPTS) [csv]"
+      else
+        ISSUE_NAME=$(basename "$ISSUE_FILE")
+        CUR_ATTEMPTS=$(grep -oP '^decompose_attempts:\s*\K[0-9]+' "$ISSUE_FILE" 2>/dev/null | head -1)
+        CUR_ATTEMPTS=${CUR_ATTEMPTS:-0}
+        NEW_ATTEMPTS=$((CUR_ATTEMPTS + 1))
+        if grep -q '^decompose_attempts:' "$ISSUE_FILE"; then
+          sed -i "s/^decompose_attempts:.*/decompose_attempts: $NEW_ATTEMPTS/" "$ISSUE_FILE"
+        else
+          sed -i "/^status:/a decompose_attempts: $NEW_ATTEMPTS" "$ISSUE_FILE"
+        fi
+        log "ISSUE: $ISSUE_NAME — decomposing into tasks (attempt $NEW_ATTEMPTS/$MAX_ISSUE_ATTEMPTS)..."
+      fi
+      DECOMPOSE_LOG=$(mktemp)
+      if [[ "$USE_CSV" == "true" ]]; then
+        USE_CSV=true bash "$PROJECT_DIR/scripts/pipeline/decompose-issue.sh" "$ISSUE_NAME" >"$DECOMPOSE_LOG" 2>&1
+      else
+        bash "$PROJECT_DIR/scripts/pipeline/decompose-issue.sh" "$ISSUE_FILE" >"$DECOMPOSE_LOG" 2>&1
+      fi
+      DECOMPOSE_EXIT=$?
+      while IFS= read -r line; do log "  decompose: $line"; done < "$DECOMPOSE_LOG"
+      rm -f "$DECOMPOSE_LOG"
+      if [[ $DECOMPOSE_EXIT -eq 2 ]]; then
+        log "ABORT: decomposition hit rate-limit — skipping rest of cycle to conserve tokens"
+        exit 0
+      fi
+      if [[ $DECOMPOSE_EXIT -eq 4 ]]; then
+        log "ABORT: task queue at cap (MAX_TOTAL_TASKS=$MAX_TOTAL_TASKS) — skipping decomposition this cycle"
+        # Roll back the attempts increment so the issue isn't penalized
+        if [[ "$USE_CSV" == "true" ]]; then
+          csv_set_field issues "$ISSUE_NAME" decompose_attempts "$CUR_ATTEMPTS" 2>/dev/null || true
+        else
+          sed -i "s/^decompose_attempts:.*/decompose_attempts: $CUR_ATTEMPTS/" "$ISSUE_FILE" 2>/dev/null || true
+        fi
+        exit 0
+      fi
+
+      # Pick first task from newly created tasks
+      ISSUE_FILE=""
+      ISSUE_ID=""
+      if [[ "$USE_CSV" == "true" ]]; then
+        ISSUE_ID=$(csv_select_pending tasks 2>/dev/null | head -1)
+      else
+        for prio in critical high medium low; do
+          ISSUE_FILE=$(grep -rl "status: pending" "$TASK_DIR"/*.md 2>/dev/null | head -1)
+          [[ -n "$ISSUE_FILE" ]] && break
+        done
+      fi
+
+      if [[ -n "$ISSUE_FILE" || -n "$ISSUE_ID" ]]; then
+        FOCUS="task"
+        if [[ "$USE_CSV" == "true" ]]; then
+          ISSUE_NAME="$ISSUE_ID"
+          ISSUE_CONTENT=$(csv_to_prompt_text tasks "$ISSUE_ID")
+          log "FIRST TASK: $ISSUE_NAME [csv]"
+          csv_set_status tasks "$ISSUE_ID" in-progress 2>/dev/null || true
+          (cd "$PROJECT_DIR" && git add scripts/pipeline/ && \
+            git commit -m "chore: start task $ISSUE_NAME" --no-verify 2>/dev/null) || true
+        else
+          ISSUE_CONTENT=$(cat "$ISSUE_FILE")
+          ISSUE_NAME=$(basename "$ISSUE_FILE")
+          log "FIRST TASK: $ISSUE_NAME"
+          sed -i 's/status: pending/status: in-progress/' "$ISSUE_FILE" 2>/dev/null || true
+          (cd "$PROJECT_DIR" && git add scripts/pipeline/tasks/ && git commit -m "chore: start task $ISSUE_NAME" --no-verify 2>/dev/null) || true
+        fi
+      else
+        log "WARN: decomposition produced no tasks, falling back to auto-focus"
+        HOUR=$(date +%-H)
+        FOCUS_AREAS=("coverage" "eslint" "refactor")
+        FOCUS_INDEX=$(( (HOUR / 2) % 3 ))
+        FOCUS="${FOCUS_AREAS[$FOCUS_INDEX]}"
+      fi
+    else
+      # Step 3: No issues or tasks → focus rotation
+    HOUR=$(date +%-H)
+    FOCUS_AREAS=("coverage" "eslint" "refactor")
+    FOCUS_INDEX=$(( (HOUR / 2) % 3 ))
+    FOCUS="${FOCUS_AREAS[$FOCUS_INDEX]}"
+
+    # ── Skip exhausted focus areas ──
+    TRIED=0
+    while _focus_exhausted "$FOCUS" && [[ $TRIED -lt 3 ]]; do
+      log "SKIP focus=$FOCUS (last 3 sessions: 0 commits) — trying next"
+      FOCUS_INDEX=$(( (FOCUS_INDEX + 1) % 3 ))
+      FOCUS="${FOCUS_AREAS[$FOCUS_INDEX]}"
+      TRIED=$((TRIED + 1))
+    done
+    if [[ $TRIED -ge 3 ]]; then
+      log "ALL focus areas exhausted (0 commits each). Skipping session."
+      exit 0
+    fi
+    fi  # end: if [[ -n "$ISSUE_FILE" ]] (Step 2)
+  fi  # end: if [[ -n "$ISSUE_FILE" ]] (Step 1)
+
+  log "── Iteration $iter/$MAX_ITERATIONS (focus: $FOCUS, context: clean) ──"
+
+  # ── ASSESS (fresh data, no carry-over) ──
+  GATE_JSON=$(bash scripts/pipeline/enforce-gates.sh --json 2>/dev/null || echo '{"passed":0}')
+  GODOBJ_JSON=$(bash scripts/pipeline/god-object-audit.sh --json 2>&1 || echo '{"passed":0}')
+
+  # ── IMPLEMENT ──
+  log "Claude implementing ($FOCUS)..."
+
+  GATE_STATUS=$(echo "$GATE_JSON" | python3 -c "import sys,json; g=json.load(sys.stdin).get('gates',{}); print(' '.join(f'{k}:{v}' for k,v in g.items()))" 2>/dev/null || echo "?")
+  GODOBJ_STATUS=$(echo "$GODOBJ_JSON" | python3 -c "import sys,json; [print(f\"{k.split('/')[-1]}:{v['current']}/{v['limit']}\",end=' ') for k,v in json.load(sys.stdin).get('files',{}).items() if v.get('status')=='fail']" 2>/dev/null || echo "all pass")
+
+  if [[ "$FOCUS" == "task" || "$FOCUS" == "auto-issue" ]]; then
+    # Task or auto-discovered issue — small, focused implementation
+    PROMPT="以下のタスクを実装してください。
+
+## タスク
+$ISSUE_CONTENT
+
+## 現在の状態
+- ゲート: $GATE_STATUS
+- God Objects: $GODOBJ_STATUS
+
+## 手順
+1. /research: 関連ファイルを読んで理解する
+2. 実装: 最小限の変更で acceptance criteria を満たす
+3. 実装後は何もせず終了（検証はシェルが行う）
+
+## ルール
+- CLAUDE.md厳守
+- God Object肥大化禁止
+- テストを壊さない
+- 1つのタスクだけ実装する（他のタスクに手を出さない）
+- ESLint設定やカバレッジ閾値を変更しない"
+  else
+    # Each focus uses its appropriate skill
+    SKILL_CONTEXT=""
+    case "$FOCUS" in
+      coverage)
+        SKILL_CONTEXT="あなたは /test スペシャリストです。
+## /test の原則
+- カバレッジレポートを読んで最も効果的なテスト対象を選ぶ
+- 純粋関数を優先 (DOM/Canvas依存は後回し)
+- 境界値テスト: 空入力、極端な値、型境界
+- 既存テストと重複しない
+- テストの意味がある (形式だけのテストは不要)"
+        ;;
+      eslint)
+        SKILL_CONTEXT="あなたは /simplify スペシャリストです。
+## /simplify の原則
+- 複雑な関数を小さなヘルパーに分割
+- 早期returnで分岐を減らす
+- 重複コードを共通関数に抽出
+- 動作は変えない (純粋なリファクタ)
+- ESLint complexity 閾値は 25"
+        ;;
+      refactor)
+        SKILL_CONTEXT="あなたは /research + /simplify スペシャリストです。
+## /research の原則
+- まずコードを読んで構造を理解する
+- 依存関係を把握してから抽出する
+## /simplify の原則
+- God Object からロジックを新ファイルに抽出
+- importを正しく更新
+- 行数削減を確認"
+        ;;
+    esac
+
+    PROMPT="自律改善サイクル iteration $iter/$MAX_ITERATIONS。focus: $FOCUS
+
+$SKILL_CONTEXT
+
+状態:
+- ゲート: $GATE_STATUS
+- God Objects: $GODOBJ_STATUS
+
+focus=$FOCUS の改善を1つ実装せよ:
+- coverage: 低カバレッジファイルにテスト追加 (純粋関数優先)
+- eslint: complexity警告のリファクタ (閾値25、GVC内は行数を減らす方向で)
+- refactor: God Object からのロジック抽出
+
+禁止事項:
+- ESLint設定ファイル (eslint.config.js) を変更しない
+- カバレッジ閾値 (vitest.config.ts) を下げない
+- 新しいESLint warningを出さない
+- God Object ファイルの行数を増やさない
+
+実装後は何もせず終了（検証はシェルが行う）。CLAUDE.md厳守。"
+  fi
+
+  # Agent tool removed (kaizen 2026-04-24) to prevent subagent fan-out
+  _claude_guard -p "$PROMPT" \
+    --allowedTools "Bash,Read,Write,Edit,Glob,Grep" \
+    --max-turns "$MAX_TURNS"
+
+  # ── VERIFY: gates (mechanical) ──
+  # (kaizen 2026-04-24) DEBUG_RETRY_COUNT=1 was 3 — 1回で直らないなら3回目も無駄
+  log "Verifying gates..."
+  VERIFY_OK=false
+  TOTAL_GATE_TRIES=$((DEBUG_RETRY_COUNT + 1))
+  for fix_attempt in $(seq 1 "$TOTAL_GATE_TRIES"); do
+    if bash scripts/pipeline/enforce-gates.sh >/dev/null 2>&1; then
+      VERIFY_OK=true
+      break
+    fi
+    if [[ $fix_attempt -lt $TOTAL_GATE_TRIES ]]; then
+      log "Gate failed, fix attempt $fix_attempt/$TOTAL_GATE_TRIES — /systematic-debugging..."
+      ERRORS=$(bash scripts/pipeline/enforce-gates.sh 2>&1 | grep "^FAIL" || echo "unknown")
+      _claude_guard -p "あなたは systematic-debugging のスペシャリストです。
+
+ゲートが失敗しました: $ERRORS
+
+## 手順 (systematic-debugging)
+1. エラーメッセージを正確に読む
+2. 仮説を立てる前に事実を集める (ファイルを読む、テストを実行する)
+3. 根本原因を特定してから修正する (表面的なband-aid fix禁止)
+4. 修正後に同じテストが通ることを確認
+
+修正してください。CLAUDE.md厳守。" \
+        --allowedTools "Bash,Read,Write,Edit,Glob,Grep" \
+        --max-turns 15
+    fi
+  done
+
+  if [[ "$VERIFY_OK" != true ]]; then
+    log "ABORT: Gates failed after 3 fix attempts"
+    break
+  fi
+
+  # ── REVIEW: /review — code review the changes ──
+  # (kaizen 2026-04-24) simplify follow-up step removed — too expensive per-cycle
+  # and often broke gates requiring revert. Review stays read-only (diagnostic).
+  log "Running /review on changes..."
+  DIFF_STAT=$(git diff HEAD~1 --stat 2>/dev/null | tail -3 || echo "no diff")
+  REVIEW_TMP=$(mktemp)
+  claude -p "あなたはコードレビューのスペシャリストです。
+
+直近の変更をレビューしてください。
+
+diff stat: $DIFF_STAT
+全diffを確認するには git diff HEAD~1 を実行してください。
+
+## レビュー観点 (/review)
+1. 正確性: ロジックエラー、境界値の見落とし
+2. セキュリティ: インジェクション、XSS、unsafe patterns
+3. CLAUDE.md規約: God Object肥大化、ハードコード値、console文
+4. パフォーマンス: 不要な再計算、O(n²)ループ
+
+## findings 記述の規約 (report-honesty rules)
+- 各 finding は 1. severity, 2. file:line, 3. 観察された事実 (測定値があれば含む) の
+  3 点に絞って書くこと。
+- 「改善される」「速くなる」等の効果見込みは実測前には書かない。
+  必要なら \"Hypothesis:\" プレフィクス付きで別セクションに書くこと。
+- 曖昧な時間/数量表現 (「ここ数日」「多数の」「かなり」「著しく」) は禁止。
+  未確認なら「未測定」「調査が必要」と明記すること。
+
+findingsがあれば番号付きリストで出力。なければ 'NO FINDINGS' と出力。" \
+    --allowedTools "Bash,Read,Glob,Grep" \
+    --max-turns 10 \
+    >"$REVIEW_TMP" 2>&1 || echo "NO FINDINGS" >"$REVIEW_TMP"
+  if grep -qiE "you've hit your limit|rate limit|quota exceeded|resets[[:space:]]+[0-9]+(am|pm)" "$REVIEW_TMP"; then
+    log "RATE LIMIT during review — skipping rest of cycle"
+    rm -f "$REVIEW_TMP"
+    exit 0
+  fi
+  REVIEW_FINDINGS=$(cat "$REVIEW_TMP")
+  rm -f "$REVIEW_TMP"
+
+  if echo "$REVIEW_FINDINGS" | grep -qi "NO FINDINGS"; then
+    log "Review: clean"
+  elif [[ "$SIMPLIFY_ENABLED" == "true" ]]; then
+    log "Review: findings detected — /simplify enabled, running follow-up..."
+    _claude_guard -p "以下のレビューfindingsを修正し、コードを簡素化してください。
+
+## Findings
+$REVIEW_FINDINGS
+
+CLAUDE.md厳守。God Object行数を増やさない。" \
+      --allowedTools "Bash,Read,Write,Edit,Glob,Grep" \
+      --max-turns 10
+    if ! bash scripts/pipeline/enforce-gates.sh >/dev/null 2>&1; then
+      log "WARN: Simplification broke gates — reverting"
+      git checkout -- . 2>/dev/null
+    fi
+  else
+    log "Review: findings detected (simplify step disabled — will be picked up as future issue)"
+  fi
+
+
+  # ── COMMIT in worktree ──
+  if [[ -n "$(git status --porcelain)" ]]; then
+    git add -A
+    COMMIT_PREFIX="chore(auto)"
+    COMMIT_DETAIL="$FOCUS improvement"
+    if [[ "$FOCUS" == "user-issue" && -n "$ISSUE_NAME" ]]; then
+      COMMIT_PREFIX="fix(auto)"
+      COMMIT_DETAIL="resolve $ISSUE_NAME"
+    fi
+    git commit -m "$(cat <<COMMITMSG
+$COMMIT_PREFIX: $COMMIT_DETAIL (session $SESSION_ID, iter $iter)
+
+Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>
+COMMITMSG
+)" 2>&1 | tail -1
+    TOTAL_COMMITS=$((TOTAL_COMMITS + 1))
+    log "Committed (iter $iter)"
+  else
+    log "No changes (iter $iter)"
+  fi
+
+  # ── Mark task/issue as done (if applicable) ──
+  if [[ ("$FOCUS" == "task" || "$FOCUS" == "auto-issue") && $TOTAL_COMMITS -gt 0 ]]; then
+    if [[ "$USE_CSV" == "true" && -n "$ISSUE_NAME" ]]; then
+      # CSV mode: id-based status flip + parent rollup. No file moves.
+      # Determine kind: tasks if id matches in tasks.csv, else issues.
+      KIND="issues"
+      if [[ -n "$(csv_get_field tasks "$ISSUE_NAME" id 2>/dev/null)" ]]; then
+        KIND="tasks"
+      fi
+      csv_archive "$KIND" "$ISSUE_NAME" 2>/dev/null || true
+      log "$KIND $ISSUE_NAME → done [csv]"
+      if [[ "$KIND" == "tasks" ]]; then
+        PARENT=$(csv_get_field tasks "$ISSUE_NAME" parent 2>/dev/null)
+        if [[ -n "$PARENT" && "$PARENT" != "none" ]]; then
+          REMAINING=0
+          for SIB in $(csv_select_by_parent tasks "$PARENT" 2>/dev/null); do
+            SST=$(csv_get_status tasks "$SIB" 2>/dev/null)
+            if [[ "$SST" == "pending" || "$SST" == "in-progress" ]]; then
+              REMAINING=$((REMAINING + 1))
+            fi
+          done
+          if [[ $REMAINING -eq 0 ]]; then
+            csv_archive issues "$PARENT" 2>/dev/null || true
+            log "Parent issue $PARENT → done (all tasks complete) [csv]"
+          else
+            log "Task done. Parent $PARENT: $REMAINING tasks remaining [csv]"
+          fi
+        fi
+      fi
+      (cd "$PROJECT_DIR" && git add scripts/pipeline/ && \
+        git commit -m "chore: done $ISSUE_NAME" --no-verify 2>/dev/null) || true
+      ISSUE_NAME=""
+      ISSUE_FILE=""
+    elif [[ -n "$ISSUE_FILE" ]]; then
+      ISSUE_NAME=$(basename "$ISSUE_FILE")
+
+      if [[ "$ISSUE_FILE" == *"/tasks/"* ]]; then
+        # Task completed → move to tasks/done/
+        sed -i 's/status: in-progress/status: done/' "$ISSUE_FILE" 2>/dev/null
+        mv "$ISSUE_FILE" "$TASK_DONE_DIR/$ISSUE_NAME" 2>/dev/null
+        log "Task $ISSUE_NAME done"
+
+        # Check if all sibling tasks for parent issue are done
+        PARENT=$(grep -oP 'parent: \K.*' "$TASK_DONE_DIR/$ISSUE_NAME" 2>/dev/null || echo "")
+        if [[ -n "$PARENT" ]]; then
+          REMAINING=$(find "$TASK_DIR" -maxdepth 1 -name '*.md' 2>/dev/null | xargs grep -l "parent: $PARENT" 2>/dev/null | while read f; do
+            grep -q "status: pending\|status: in-progress" "$f" && echo "$f"
+          done | wc -l)
+          if [[ $REMAINING -eq 0 ]]; then
+            PARENT_FILE=$(ls "$ISSUE_DIR/$PARENT.md" "$ISSUE_DIR/done/$PARENT.md" 2>/dev/null | head -1)
+            if [[ -n "$PARENT_FILE" ]]; then
+              sed -i 's/status: decomposed/status: done/' "$PARENT_FILE" 2>/dev/null
+              mv "$PARENT_FILE" "$ISSUE_DIR/done/" 2>/dev/null
+              log "Parent issue $PARENT → done (all tasks complete)"
+            fi
+          else
+            log "Task done. Parent $PARENT: $REMAINING tasks remaining"
+          fi
+        fi
+      else
+        # Issue completed directly (auto-discovered)
+        sed -i 's/status: in-progress/status: done/' "$ISSUE_FILE" 2>/dev/null
+        mv "$ISSUE_FILE" "$ISSUE_DIR/done/$ISSUE_NAME" 2>/dev/null
+        log "Issue $ISSUE_NAME done"
+      fi
+
+      (cd "$PROJECT_DIR" && git add scripts/pipeline/issues/ scripts/pipeline/tasks/ && \
+        git commit -m "chore: done $ISSUE_NAME" --no-verify 2>/dev/null) || true
+      ISSUE_FILE=""
+    fi
+  fi
+
+  # ── RATCHET if applicable ──
+  if [[ "$FOCUS" == "coverage" && -f coverage/coverage-summary.json ]]; then
+    bash scripts/coverage-ratchet.sh 2>&1 | tail -1
+    if [[ -n "$(git status --porcelain vitest.config.ts)" ]]; then
+      git add vitest.config.ts
+      git commit -m "chore(auto): ratchet coverage
+
+Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>" 2>&1 | tail -1
+      TOTAL_COMMITS=$((TOTAL_COMMITS + 1))
+    fi
+  fi
+done
+
+# ============================================================
+# FINALIZE — the cleanup EXIT trap (set in the worktree-creation block)
+# handles push + PR opening for both successful and aborted cycles. We do
+# NOT merge directly to the base branch anymore; reviewer approval via PR
+# is the integration gate.
+# ============================================================
+log "Iteration loop complete ($TOTAL_COMMITS commits). Push + PR handled by cleanup trap on exit."
+
+# ── Update progress report ──
+log "Updating progress report..."
+bash "$PROJECT_DIR/scripts/pipeline/progress-report.sh" >>"$SESSION_LOG" 2>&1 \
+  || log "progress-report failed (see $SESSION_LOG)"
+
+# ── Result file ──
+cat > "$RESULT_DIR/$SESSION_ID.json" << ENDJSON
+{
+  "session": "$SESSION_ID",
+  "focus": "$FOCUS",
+  "commits": $TOTAL_COMMITS,
+  "timestamp": "$(date -Iseconds)"
+}
+ENDJSON
+
+log "AUTONOMOUS IMPROVE CYCLE COMPLETE ($TOTAL_COMMITS commits)"

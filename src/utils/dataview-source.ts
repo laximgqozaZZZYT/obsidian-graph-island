@@ -1,12 +1,13 @@
 import type { App } from "obsidian";
 import type { GraphNode } from "../types";
+import { asInternalApp } from "../obsidian-internals";
 
 /**
  * Get the Dataview API instance, or null if unavailable.
  */
-function getDataviewApi(app: App): any | null {
-  const dv = (app as any).plugins?.plugins?.["dataview"];
-  return dv?.api ?? null;
+function getDataviewApi(app: App): unknown | null {
+	const dv = asInternalApp(app).plugins?.plugins?.["dataview"];
+	return dv?.api ?? null;
 }
 
 /**
@@ -23,24 +24,26 @@ function getDataviewApi(app: App): any | null {
  * @returns Set of vault-relative file paths that match the query, or empty set on error
  */
 export function queryDataviewPages(app: App, query: string): Set<string> {
-  const api = getDataviewApi(app);
-  if (!api) return new Set();
+	const api = getDataviewApi(app);
+	if (!api) return new Set();
 
-  try {
-    // dv.pages(source) returns a DataArray of page objects with a .file.path property
-    const pages = api.pages(query);
-    const paths = new Set<string>();
-    if (pages && typeof pages.forEach === "function") {
-      pages.forEach((page: any) => {
-        const p = page?.file?.path;
-        if (typeof p === "string") paths.add(p);
-      });
-    }
-    return paths;
-  } catch {
-    // On any error (invalid query, etc.), return empty set — caller shows all nodes
-    return new Set();
-  }
+	try {
+		// dv.pages(source) returns a DataArray of page objects with a .file.path property
+		const pages = (
+			api as { pages: (q: string) => Iterable<unknown> & { forEach?: (fn: (p: unknown) => void) => void } }
+		).pages(query);
+		const paths = new Set<string>();
+		if (pages && typeof pages.forEach === "function") {
+			pages.forEach((page: unknown) => {
+				const p = (page as { file?: { path?: string } })?.file?.path;
+				if (typeof p === "string") paths.add(p);
+			});
+		}
+		return paths;
+	} catch (_e) {
+		// On any error (invalid query, etc.), return empty set — caller shows all nodes
+		return new Set();
+	}
 }
 
 /**
@@ -56,12 +59,12 @@ export function queryDataviewPages(app: App, query: string): Set<string> {
  * @returns Filtered array of nodes
  */
 export function filterNodesByDataview(
-  nodes: GraphNode[],
-  matchingPaths: Set<string>,
-  keepTagNodes: boolean,
+	nodes: GraphNode[],
+	matchingPaths: Set<string>,
+	keepTagNodes: boolean,
 ): GraphNode[] {
-  return nodes.filter((n) => {
-    if (keepTagNodes && n.isTag) return true;
-    return matchingPaths.has(n.id);
-  });
+	return nodes.filter((n) => {
+		if (keepTagNodes && n.isTag) return true;
+		return matchingPaths.has(n.id);
+	});
 }

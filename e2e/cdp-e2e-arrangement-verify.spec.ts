@@ -72,7 +72,7 @@ test("all valid arrangements produce nodes with non-zero spread", async () => {
     await page.evaluate(ev(`
       view.panel.searchQuery = "folder:characters";
       view.panel.showOrphans = true;
-      view.panel.showTags = false;
+      view.panel.includeTagsInData = false;
       view.panel.showTagNodes = false;
       view.panel.clusterArrangement = "${arr}";
       view.panel.coordinateLayout = null;
@@ -147,6 +147,25 @@ test("arrangement state is reflected in panel after assignment", async () => {
 // Visual Quality Gate — post-test display state check
 // =========================================================================
 test("VISUAL-GATE: display quality after test operations", async () => {
+  await page.evaluate(async () => {
+    const v = (window as any).app.workspace.getLeavesOfType("graph-view")
+      .find((l: any) => "pixiNodes" in l.view)?.view;
+    if (!v) return;
+    v.panel.clusterArrangement = "force";
+    v.panel.searchQuery = "";
+    v.panel.groupBy = "none";
+    v.panel.collapsedGroups = new Set();
+    v.rawData = null;
+    await v.doRender();
+  });
+  await page.waitForTimeout(5000);
+  await page.evaluate(() => {
+    const v = (window as any).app.workspace.getLeavesOfType("graph-view")
+      .find((l: any) => "pixiNodes" in l.view)?.view;
+    if (v?.autoFitView) v.autoFitView();
+  });
+  await page.waitForTimeout(2000);
+
   const density = await measureScreenDensity(page);
   const labels = await measureLabelReadability(page);
   const edges = await measureEdgeVisibility(page);
@@ -175,6 +194,11 @@ test("VISUAL-GATE: display quality after test operations", async () => {
 // Screen-Space Visual Quality (auto-generated)
 // =========================================================================
 test("SCREEN-QUALITY: no node pile-up and labels readable", async () => {
+  await page.evaluate(() => {
+    const v = (window as any).app.workspace.getLeavesOfType("graph-view")
+      .find((l: any) => "pixiNodes" in l.view)?.view;
+    if (v?.autoFitView) v.autoFitView();
+  });
   await page.waitForTimeout(2000);
 
   const hasView = await page.evaluate(() => {

@@ -147,7 +147,7 @@ test.describe("Pipeline Audit — Pattern Quality", () => {
     expect(m.nodeCount).toBeGreaterThan(500);
     expect(m.spread.width).toBeGreaterThan(50);
     expect(m.spread.height).toBeGreaterThan(50);
-    expect(m.overlapRatio).toBeLessThan(0.5);
+    expect(m.overlapRatio).toBeLessThan(0.25);
     console.log(`phyllotaxis: ${m.nodeCount} nodes, overlap=${(m.overlapRatio * 100).toFixed(1)}%`);
   });
 });

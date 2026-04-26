@@ -1,0 +1,1 @@
+{"layout":"concentric","searchQuery":"node_type:character AND path:classic-saiyuki*","nodeSize":9,"showLinks":true,"showSemanticEdges":true,"showTagEdges":false,"colorEdgesByRelation":true,"nodeColorMode":"category","showMinimap":true,"sortRules":[{"key":"degree","direction":"desc"}]}

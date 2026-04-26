@@ -21,7 +21,7 @@
   "showOrbitRings": true,
   "orbitAutoRotate": true,
   "groups": [],
-  "searchQuery": "path:classic-king-lear*",
+  "searchQuery": "path:classic-macbeth*",
   "searchMode": "filter",
   "colorEdgesByRelation": true,
   "nodeColorMode": "category",
@@ -30,7 +30,7 @@
   "showInheritance": false,
   "showAggregation": false,
   "showTagNodes": true,
-  "tagDisplay": "enclosure",
+  "tagDisplay": "node",
   "showSimilar": false,
   "showSibling": false,
   "showSequence": false,
@@ -142,11 +142,13 @@
     "intraGroupDensity": 1
   },
   "clusterFollowsGroupBy": true,
-  "nodeDisplayMode": "node",
+  "nodeDisplayMode": "card",
   "cardDisplayConfig": {
-    "fields": [],
+    "fields": [
+      "node_type"
+    ],
     "maxWidth": 120,
-    "showIcon": false
+    "showIcon": true
   },
   "donutDisplayConfig": {
     "innerRadius": 0.6
@@ -206,17 +208,18 @@
   "showOntologyBackbone": false,
   "showGapEdges": false,
   "layout": "force",
-  "showTags": true,
-  "colorNodesByCategory": true,
-  "heatmapMode": false,
   "showGuideLines": false,
-  "guideLineMode": "shared",
-  "showGroupGrid": true,
   "renderThresholds": {
+    "enclosureFillOpacity": 0,
     "minNodeRadius": 8,
     "nodeSizeByDegree": true,
     "autoLOD": true,
-    "labelOverlapMargin": 128
+    "labelOverlapMargin": 60
   },
+  "showTags": true,
+  "colorNodesByCategory": true,
+  "heatmapMode": false,
+  "guideLineMode": "shared",
+  "showGroupGrid": true,
   "_absoluteZoom": 0.8
 }

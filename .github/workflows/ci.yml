@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # Lint (errors only — warnings are tracked but not blocking)
+      - name: ESLint
+        run: pnpm lint --quiet
+
+      # Format check
+      - name: Prettier
+        run: pnpm format:check
+
+      # TypeScript type check
+      - name: Type check
+        run: npx tsc --noEmit
+
+      # Unit tests + coverage
+      - name: Tests
+        run: pnpm test:coverage
+
+      # Build
+      - name: Build
+        run: pnpm build
+
+      # Bundle size gate (800KB = 819200 bytes)
+      - name: Bundle size check
+        env:
+          BUDGET: "819200"
+        run: |
+          SIZE=$(stat -c%s main.js)
+          echo "Bundle size: ${SIZE} bytes (budget: ${BUDGET})"
+          if [ "$SIZE" -gt "$BUDGET" ]; then
+            echo "::error::Bundle size ${SIZE} exceeds budget ${BUDGET}"
+            exit 1
+          fi

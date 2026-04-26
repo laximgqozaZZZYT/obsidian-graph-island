@@ -170,18 +170,19 @@
   "showOntologyBackbone": false,
   "showGapEdges": false,
   "layout": "force",
-  "showTags": false,
-  "colorNodesByCategory": true,
-  "heatmapMode": false,
   "showGuideLines": false,
-  "guideLineMode": "shared",
-  "showGroupGrid": false,
   "renderThresholds": {
+    "enclosureFillOpacity": 0,
     "minNodeRadius": 8,
     "nodeSizeByDegree": true,
     "autoLOD": true,
-    "labelOverlapMargin": 152
+    "labelOverlapMargin": 84
   },
+  "showTags": false,
+  "colorNodesByCategory": true,
+  "heatmapMode": false,
+  "guideLineMode": "shared",
+  "showGroupGrid": false,
   "gridTableMode": true,
   "_absoluteZoom": 0.8
 }

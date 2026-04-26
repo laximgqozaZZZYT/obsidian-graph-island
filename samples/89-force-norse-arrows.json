@@ -1,0 +1,14 @@
+{
+  "layout": "force",
+  "searchQuery": "path:mythology-norse*",
+  "nodeSize": 8,
+  "repelForce": 400,
+  "linkDistance": 110,
+  "showLinks": true,
+  "showSemanticEdges": true,
+  "showTagEdges": false,
+  "showArrows": true,
+  "colorEdgesByRelation": true,
+  "nodeColorMode": "category",
+  "showMinimap": true
+}

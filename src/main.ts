@@ -1,4 +1,4 @@
-import { Plugin, MarkdownView } from "obsidian";
+import { Plugin } from "obsidian";
 import { GraphViewsSettingTab } from "./settings";
 import { GraphViewContainer, VIEW_TYPE_GRAPH } from "./views/GraphViewContainer";
 import { NodeDetailView, VIEW_TYPE_NODE_DETAIL } from "./views/NodeDetailView";
@@ -8,307 +8,397 @@ import { DEFAULT_SETTINGS, type GraphViewsSettings } from "./types";
 import { detectTagRelations } from "./utils/tag-relation-presets";
 import { t } from "./i18n";
 import { showToast } from "./utils/toast";
+import { asInternalWorkspace, asGraphView, type GraphViewInternal } from "./obsidian-internals";
 
 export default class GraphViewsPlugin extends Plugin {
-  settings: GraphViewsSettings = DEFAULT_SETTINGS;
+	settings: GraphViewsSettings = DEFAULT_SETTINGS;
+	private _snapshotsLoaded = false;
 
-  async onload() {
-    await this.loadSettings();
+	async onload() {
+		await this.loadSettings();
 
-    // Auto-detect tag relationships on first load (when tagRelations is empty)
-    this.app.workspace.onLayoutReady(() => {
-      this.autoDetectTagRelationsIfNeeded();
-    });
+		// Auto-detect tag relationships on first load (when tagRelations is empty)
+		this.app.workspace.onLayoutReady(() => {
+			this.autoDetectTagRelationsIfNeeded();
+		});
 
-    this.registerView(
-      VIEW_TYPE_GRAPH,
-      (leaf) => new GraphViewContainer(leaf, this)
-    );
+		this.registerView(VIEW_TYPE_GRAPH, (leaf) => new GraphViewContainer(leaf, this));
 
-    this.registerView(
-      VIEW_TYPE_NODE_DETAIL,
-      (leaf) => new NodeDetailView(leaf)
-    );
+		this.registerView(VIEW_TYPE_NODE_DETAIL, (leaf) => new NodeDetailView(leaf));
 
-    this.registerView(
-      VIEW_TYPE_NODE_COMPARE,
-      (leaf) => new NodeComparisonView(leaf)
-    );
+		this.registerView(VIEW_TYPE_NODE_COMPARE, (leaf) => new NodeComparisonView(leaf));
 
-    // 比較イベント発火時に比較パネルを自動オープン
-    this.registerEvent(
-      this.app.workspace.on(EVENT_COMPARE_NODES as any, (data: any) => {
-        if (data) this.ensureComparePane();
-      })
-    );
+		// 比較イベント発火時に比較パネルを自動オープン
+		this.registerEvent(
+			asInternalWorkspace(this.app.workspace).on(EVENT_COMPARE_NODES, (data: unknown) => {
+				if (data) this.ensureComparePane();
+			}),
+		);
 
-    this.addRibbonIcon("git-fork", "Graph Island", () => {
-      this.activateView();
-    });
+		this.addRibbonIcon("git-fork", "Graph Island", () => {
+			this.activateView();
+		});
 
-    this.addCommand({
-      id: "open-graph-view",
-      name: "Open graph view",
-      callback: () => {
-        this.activateView();
-      },
-    });
+		this._registerCoreCommands();
+		this._registerGraphUtilityCommands();
 
-    // グラフをアクティブノートにPNG画像として埋め込むコマンド
-    this.addCommand({
-      id: "embed-graph-in-note",
-      name: "Embed graph in note",
-      editorCallback: async () => {
-        const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_GRAPH);
-        if (leaves.length === 0) {
-          showToast(t("toast.embedNoGraph"), 5000);
-          return;
-        }
-        const view = leaves[0].view as GraphViewContainer;
-        await view.embedGraphInNote();
-      },
-    });
+		this.addSettingTab(new GraphViewsSettingTab(this.app, this));
 
-    // I5: Keyboard shortcuts for graph operations
-    this.addCommand({
-      id: "graph-mode-explore",
-      name: "Graph: Explore mode",
-      callback: () => {
-        const view = this.app.workspace.getLeavesOfType(VIEW_TYPE_GRAPH)[0]?.view;
-        if (view) { (view as GraphViewContainer).applyPresetByKey("explore"); }
-      },
-    });
-    this.addCommand({
-      id: "graph-mode-analyze",
-      name: "Graph: Analyze mode",
-      callback: () => {
-        const view = this.app.workspace.getLeavesOfType(VIEW_TYPE_GRAPH)[0]?.view;
-        if (view) { (view as GraphViewContainer).applyPresetByKey("analyze"); }
-      },
-    });
-    this.addCommand({
-      id: "graph-mode-write",
-      name: "Graph: Write mode",
-      callback: () => {
-        const view = this.app.workspace.getLeavesOfType(VIEW_TYPE_GRAPH)[0]?.view;
-        if (view) { (view as GraphViewContainer).applyPresetByKey("write"); }
-      },
-    });
-    this.addCommand({
-      id: "graph-focus-toggle",
-      name: "Graph: Toggle focus mode",
-      callback: () => {
-        const view = this.app.workspace.getLeavesOfType(VIEW_TYPE_GRAPH)[0]?.view;
-        if (view) {
-          const v = view as any;
-          v.panel.focusMode = !v.panel.focusMode;
-          v.markDirty(true);
-        }
-      },
-    });
-    this.addCommand({
-      id: "graph-search-focus",
-      name: "Graph: Focus search bar",
-      callback: () => {
-        const view = this.app.workspace.getLeavesOfType(VIEW_TYPE_GRAPH)[0]?.view;
-        if (view) {
-          const searchInput = (view as any).panelEl?.querySelector("input[type='text']");
-          if (searchInput) searchInput.focus();
-        }
-      },
-    });
+		// Code block processor for embedded mini-graphs in notes
+		this.registerMarkdownCodeBlockProcessor("graph-island", (source, el, _ctx) => {
+			import("./views/EmbeddedGraphRenderer")
+				.then(({ renderEmbeddedGraph }) => {
+					renderEmbeddedGraph(el, source, this.app, this.settings);
+				})
+				.catch(() => {
+					el.createDiv({ cls: "gi-embed-error", text: t("embed.renderFailed") });
+				});
+		});
+	}
 
-    // D2: Additional command palette integrations
-    this.addCommand({
-      id: "graph-toggle-stats",
-      name: "Graph: Toggle statistics panel",
-      callback: () => {
-        const v = this._getGraphView() as any;
-        if (v) { v.panel.showGraphStats = !v.panel.showGraphStats; v.markDirty(true); }
-      },
-    });
-    this.addCommand({
-      id: "graph-toggle-arrows",
-      name: "Graph: Toggle edge arrows",
-      callback: () => {
-        const v = this._getGraphView() as any;
-        if (v) { v.panel.showArrows = !v.panel.showArrows; v.markDirty(true); }
-      },
-    });
-    this.addCommand({
-      id: "graph-analysis-all",
-      name: "Graph: Show all analysis overlays",
-      callback: () => {
-        const v = this._getGraphView() as any;
-        if (v) { v.panel.analysisOverlay = "all"; v.doRender(); }
-      },
-    });
-    this.addCommand({
-      id: "graph-analysis-off",
-      name: "Graph: Hide analysis overlays",
-      callback: () => {
-        const v = this._getGraphView() as any;
-        if (v) { v.panel.analysisOverlay = "off"; v.doRender(); }
-      },
-    });
-    this.addCommand({
-      id: "graph-help",
-      name: "Graph: Show keyboard shortcuts",
-      callback: () => {
-        const v = this._getGraphView() as any;
-        if (v) { v._toggleHelpOverlay?.(); }
-      },
-    });
+	private _registerCoreCommands() {
+		this.addCommand({
+			id: "open-graph-view",
+			name: "Open graph view",
+			callback: () => {
+				this.activateView();
+			},
+		});
 
-    // A11y: Export commands for keyboard-only users
-    this.addCommand({
-      id: "graph-copy-png",
-      name: "Graph: Copy graph as PNG",
-      callback: () => {
-        const v = this._getGraphView() as any;
-        if (v) v.copyGraphToClipboard?.();
-      },
-    });
-    this.addCommand({
-      id: "graph-export-full",
-      name: "Graph: Export full graph as JSON",
-      callback: () => {
-        const v = this._getGraphView() as any;
-        if (v) v.exportFullGraph?.();
-      },
-    });
-    this.addCommand({
-      id: "graph-export-csv",
-      name: "Graph: Export as CSV",
-      callback: () => {
-        const v = this._getGraphView() as any;
-        if (v) v.exportGraphAsCSV?.();
-      },
-    });
-    this.addCommand({
-      id: "graph-export-mermaid",
-      name: "Graph: Export as Mermaid diagram",
-      callback: () => {
-        const v = this._getGraphView() as any;
-        if (v) v.exportGraphAsMermaid?.();
-      },
-    });
+		// グラフをアクティブノートにPNG画像として埋め込むコマンド
+		this.addCommand({
+			id: "embed-graph-in-note",
+			name: "Embed graph in note",
+			editorCallback: async () => {
+				const view = this._findGraphIslandView();
+				if (!view) {
+					showToast(t("toast.embedNoGraph"), 5000);
+					return;
+				}
+				await view.embedGraphInNote?.();
+			},
+		});
 
-    this.addSettingTab(new GraphViewsSettingTab(this.app, this));
+		// I5: Keyboard shortcuts for graph operations
+		this.addCommand({
+			id: "graph-mode-explore",
+			name: "Graph: Explore mode",
+			callback: () => {
+				const view = this._findGraphIslandView();
+				if (view) view.applyPresetByKey?.("explore");
+			},
+		});
+		this.addCommand({
+			id: "graph-mode-analyze",
+			name: "Graph: Analyze mode",
+			callback: () => {
+				const view = this._findGraphIslandView();
+				if (view) view.applyPresetByKey?.("analyze");
+			},
+		});
+		this.addCommand({
+			id: "graph-mode-write",
+			name: "Graph: Write mode",
+			callback: () => {
+				const view = this._findGraphIslandView();
+				if (view) view.applyPresetByKey?.("write");
+			},
+		});
+		this.addCommand({
+			id: "graph-focus-toggle",
+			name: "Graph: Toggle focus mode",
+			callback: () => {
+				const leaf = this.app.workspace.getLeavesOfType(VIEW_TYPE_GRAPH)[0];
+				if (leaf) {
+					const v = asGraphView(leaf);
+					if (!v) return;
+					v.panel.focusMode = !v.panel.focusMode;
+					v.markDirty?.(true);
+				}
+			},
+		});
+		this.addCommand({
+			id: "graph-search-focus",
+			name: "Graph: Focus search bar",
+			callback: () => {
+				const leaf = this.app.workspace.getLeavesOfType(VIEW_TYPE_GRAPH)[0];
+				if (leaf) {
+					const v = asGraphView(leaf);
+					const searchInput = v?.panelEl?.querySelector<HTMLInputElement>("input[type='text']");
+					if (searchInput) searchInput.focus();
+				}
+			},
+		});
+	}
 
-    // Code block processor for embedded mini-graphs in notes
-    this.registerMarkdownCodeBlockProcessor("graph-island", (source, el, ctx) => {
-      import("./views/EmbeddedGraphRenderer").then(({ renderEmbeddedGraph }) => {
-        renderEmbeddedGraph(el, source, this.app, this.settings);
-      }).catch((e) => {
-        el.createDiv({ cls: "gi-embed-error", text: "Graph Island: render failed" });
-        console.error("Graph Island embed error:", e);
-      });
-    });
+	private _registerGraphUtilityCommands() {
+		// D2: Additional command palette integrations
+		const gv = (): GraphViewInternal | null => {
+			const leaf = this.app.workspace.getLeavesOfType(VIEW_TYPE_GRAPH)[0];
+			return leaf ? asGraphView(leaf) : null;
+		};
+		this.addCommand({
+			id: "graph-toggle-stats",
+			name: "Graph: Toggle statistics panel",
+			callback: () => {
+				const v = gv();
+				if (v) {
+					v.panel.showGraphStats = !v.panel.showGraphStats;
+					v.markDirty?.(true);
+				}
+			},
+		});
+		this.addCommand({
+			id: "graph-toggle-arrows",
+			name: "Graph: Toggle edge arrows",
+			callback: () => {
+				const v = gv();
+				if (v) {
+					v.panel.showArrows = !v.panel.showArrows;
+					v.markDirty?.(true);
+				}
+			},
+		});
+		this.addCommand({
+			id: "graph-analysis-all",
+			name: "Graph: Show all analysis overlays",
+			callback: () => {
+				const v = gv();
+				if (v) {
+					v.panel.analysisOverlay = "all";
+					v.doRender?.();
+				}
+			},
+		});
+		this.addCommand({
+			id: "graph-analysis-off",
+			name: "Graph: Hide analysis overlays",
+			callback: () => {
+				const v = gv();
+				if (v) {
+					v.panel.analysisOverlay = "off";
+					v.doRender?.();
+				}
+			},
+		});
+		this.addCommand({
+			id: "graph-help",
+			name: "Graph: Show keyboard shortcuts",
+			callback: () => {
+				const v = gv();
+				if (v) {
+					v._toggleHelpOverlay?.();
+				}
+			},
+		});
 
-  }
+		// A11y: Export commands for keyboard-only users
+		this.addCommand({
+			id: "graph-copy-png",
+			name: "Graph: Copy graph as PNG",
+			callback: () => {
+				const v = gv();
+				if (v) v.copyGraphToClipboard?.();
+			},
+		});
+		this.addCommand({
+			id: "graph-export-full",
+			name: "Graph: Export full graph as JSON",
+			callback: () => {
+				const v = gv();
+				if (v) v.exportFullGraph?.();
+			},
+		});
+		this.addCommand({
+			id: "graph-export-csv",
+			name: "Graph: Export as CSV",
+			callback: () => {
+				const v = gv();
+				if (v) v.exportGraphAsCSV?.();
+			},
+		});
+		this.addCommand({
+			id: "graph-export-mermaid",
+			name: "Graph: Export as Mermaid diagram",
+			callback: () => {
+				const v = gv();
+				if (v) v.exportGraphAsMermaid?.();
+			},
+		});
+	}
 
-  onunload() {}
+	private _findGraphIslandView(): GraphViewInternal | null {
+		for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_GRAPH)) {
+			const v = asGraphView(leaf);
+			if (v) return v;
+		}
+		return null;
+	}
 
-  async loadSettings() {
-    this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
-  }
+	onunload() {}
 
-  async saveSettings() {
-    await this.saveData(this.settings);
-    // Notify all graph views to rebuild with updated settings
-    for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_GRAPH)) {
-      const view = leaf.view as any;
-      if (view?.rawData !== undefined) {
-        view.rawData = null;
-        view.doRender?.();
-      }
-    }
-  }
+	// Snapshots live in a sidecar file (data-snapshots.json) to keep data.json
+	// small and loadSettings() fast. Without this separation, data.json grows
+	// unbounded (~6MB+) and loadData() becomes a multi-second blocker on startup.
+	private _snapshotsSidecarPath(): string {
+		return `${this.manifest.dir ?? ".obsidian/plugins/graph-island"}/data-snapshots.json`;
+	}
 
-  async activateView() {
-    const leaf = this.app.workspace.getLeaf('tab');
-    await leaf.setViewState({
-      type: VIEW_TYPE_GRAPH,
-      active: true,
-    });
-    this.app.workspace.revealLeaf(leaf);
+	async loadSettings() {
+		const raw = (await this.loadData()) as Record<string, unknown> | null;
+		let migrationSnapshots: unknown[] | null = null;
+		if (raw && Array.isArray((raw as any).snapshots) && (raw as any).snapshots.length > 0) {
+			// One-time migration: move embedded snapshots to sidecar file.
+			migrationSnapshots = (raw as any).snapshots;
+			delete (raw as any).snapshots;
+		}
+		this.settings = Object.assign({}, DEFAULT_SETTINGS, raw ?? {});
+		this._snapshotsLoaded = false;
 
-    // Open the detail pane in the right sidebar if not already open
-    this.ensureDetailPane();
-  }
+		if (migrationSnapshots) {
+			try {
+				await this.app.vault.adapter.write(
+					this._snapshotsSidecarPath(),
+					JSON.stringify(migrationSnapshots),
+				);
+				this.settings.snapshots = [];
+				await this.saveData(this.settings); // rewrite data.json without snapshots
+				this.settings.snapshots = migrationSnapshots as any;
+				this._snapshotsLoaded = true;
+			} catch {
+				// If migration write fails, restore in-memory for this session
+				this.settings.snapshots = migrationSnapshots as any;
+				this._snapshotsLoaded = true;
+			}
+		}
+	}
 
-  /**
-   * On first load, scan the vault to detect tag co-occurrence patterns
-   * and generate tag-to-tag relationships as a starting preset.
-   * Runs only when ontology.tagRelations is empty (never overwrites user edits).
-   */
-  private async autoDetectTagRelationsIfNeeded() {
-    const ontology = this.settings.ontology;
-    if (!ontology || (ontology.tagRelations && ontology.tagRelations.length > 0)) {
-      return; // already has relations — respect user's configuration
-    }
+	/** Lazily load snapshots from sidecar file into settings.snapshots. */
+	async ensureSnapshotsLoaded(): Promise<void> {
+		if (this._snapshotsLoaded) return;
+		const path = this._snapshotsSidecarPath();
+		try {
+			const exists = await this.app.vault.adapter.exists(path);
+			if (exists) {
+				const txt = await this.app.vault.adapter.read(path);
+				this.settings.snapshots = JSON.parse(txt);
+			} else {
+				this.settings.snapshots = [];
+			}
+		} catch {
+			this.settings.snapshots = [];
+		}
+		this._snapshotsLoaded = true;
+	}
 
-    const detected = detectTagRelations(this.app);
-    if (detected.length === 0) return;
+	/** Persist snapshots to sidecar file (kept out of data.json for load speed). */
+	async saveSnapshots(): Promise<void> {
+		try {
+			await this.app.vault.adapter.write(
+				this._snapshotsSidecarPath(),
+				JSON.stringify(this.settings.snapshots ?? []),
+			);
+		} catch {
+			// swallow — caller will retry or surface to user
+		}
+	}
 
-    if (!this.settings.ontology) {
-      this.settings.ontology = { ...DEFAULT_SETTINGS.ontology };
-    }
-    this.settings.ontology.tagRelations = detected;
-    await this.saveSettings();
+	async saveSettings() {
+		// Persist snapshots separately (if loaded), then strip before writing data.json.
+		const snapshots = this.settings.snapshots;
+		if (this._snapshotsLoaded) {
+			await this.saveSnapshots();
+		}
+		// Temporarily remove snapshots field so data.json stays small
+		const hadSnapshots = this.settings.snapshots !== undefined;
+		if (hadSnapshots) this.settings.snapshots = undefined as any;
+		await this.saveData(this.settings);
+		if (hadSnapshots) this.settings.snapshots = snapshots;
+		// Notify all graph views to rebuild with updated settings
+		for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_GRAPH)) {
+			const view = asGraphView(leaf);
+			if (view?.rawData !== undefined) {
+				view.rawData = null;
+				view.doRender?.();
+			}
+		}
+	}
 
-    console.info(`Graph Island: auto-detected ${detected.length} tag relationships from vault`);
-  }
+	async activateView() {
+		const leaf = this.app.workspace.getLeaf("tab");
+		await leaf.setViewState({
+			type: VIEW_TYPE_GRAPH,
+			active: true,
+		});
+		this.app.workspace.revealLeaf(leaf);
 
-  /**
-   * Open a new graph tab pre-filtered to a subgraph.
-   */
-  async openSubgraphInNewTab(nodeIds: string[], viewMode: string): Promise<void> {
-    const leaf = this.app.workspace.getLeaf('split');
-    await leaf.setViewState({
-      type: VIEW_TYPE_GRAPH,
-      active: true,
-    });
-    this.app.workspace.revealLeaf(leaf);
-    // Configure the new view after creation
-    setTimeout(() => {
-      const view = leaf.view as any;
-      if (view?.panel) {
-        view.panel.subgraphNodeIds = [...nodeIds];
-        view.panel.viewMode = viewMode;
-        view.panel.multiSelectNodeIds = [];
-        view.panel.subgraphStack = [];
-        view.rawData = null;
-        view.doRender?.();
-      }
-    }, 100);
-  }
+		// Open the detail pane in the right sidebar if not already open
+		this.ensureDetailPane();
+	}
 
-  /** D2: Get the active graph view instance (if any). */
-  private _getGraphView(): GraphViewContainer | null {
-    const leaf = this.app.workspace.getLeavesOfType(VIEW_TYPE_GRAPH)[0];
-    return leaf ? (leaf.view as GraphViewContainer) : null;
-  }
+	/**
+	 * On first load, scan the vault to detect tag co-occurrence patterns
+	 * and generate tag-to-tag relationships as a starting preset.
+	 * Runs only when ontology.tagRelations is empty (never overwrites user edits).
+	 */
+	private async autoDetectTagRelationsIfNeeded() {
+		const ontology = this.settings.ontology;
+		if (!ontology || (ontology.tagRelations && ontology.tagRelations.length > 0)) {
+			return; // already has relations — respect user's configuration
+		}
 
-  private ensureDetailPane() {
-    const existing = this.app.workspace.getLeavesOfType(VIEW_TYPE_NODE_DETAIL);
-    if (existing.length > 0) return;
+		const detected = detectTagRelations(this.app);
+		if (detected.length === 0) return;
 
-    const rightLeaf = this.app.workspace.getRightLeaf(false);
-    if (rightLeaf) {
-      rightLeaf.setViewState({ type: VIEW_TYPE_NODE_DETAIL, active: true });
-    }
-  }
+		if (!this.settings.ontology) {
+			this.settings.ontology = { ...DEFAULT_SETTINGS.ontology };
+		}
+		this.settings.ontology.tagRelations = detected;
+		await this.saveSettings();
+	}
 
-  /** 比較パネルが未オープンなら右サイドバーに開く */
-  private ensureComparePane() {
-    const existing = this.app.workspace.getLeavesOfType(VIEW_TYPE_NODE_COMPARE);
-    if (existing.length > 0) return;
+	/**
+	 * Open a new graph tab pre-filtered to a subgraph.
+	 */
+	async openSubgraphInNewTab(nodeIds: string[], viewMode: string): Promise<void> {
+		const leaf = this.app.workspace.getLeaf("split");
+		await leaf.setViewState({
+			type: VIEW_TYPE_GRAPH,
+			active: true,
+		});
+		this.app.workspace.revealLeaf(leaf);
+		// Configure the new view after creation
+		setTimeout(() => {
+			const view = asGraphView(leaf);
+			if (view?.panel) {
+				view.panel.subgraphNodeIds = [...nodeIds];
+				view.panel.viewMode = viewMode;
+				view.panel.multiSelectNodeIds = [];
+				view.panel.subgraphStack = [];
+				view.rawData = null;
+				view.doRender?.();
+			}
+		}, 100);
+	}
 
-    const rightLeaf = this.app.workspace.getRightLeaf(false);
-    if (rightLeaf) {
-      rightLeaf.setViewState({ type: VIEW_TYPE_NODE_COMPARE, active: true });
-    }
-  }
+	private ensureDetailPane() {
+		const existing = this.app.workspace.getLeavesOfType(VIEW_TYPE_NODE_DETAIL);
+		if (existing.length > 0) return;
+
+		const rightLeaf = this.app.workspace.getRightLeaf(false);
+		if (rightLeaf) {
+			rightLeaf.setViewState({ type: VIEW_TYPE_NODE_DETAIL, active: true });
+		}
+	}
+
+	/** 比較パネルが未オープンなら右サイドバーに開く */
+	private ensureComparePane() {
+		const existing = this.app.workspace.getLeavesOfType(VIEW_TYPE_NODE_COMPARE);
+		if (existing.length > 0) return;
+
+		const rightLeaf = this.app.workspace.getRightLeaf(false);
+		if (rightLeaf) {
+			rightLeaf.setViewState({ type: VIEW_TYPE_NODE_COMPARE, active: true });
+		}
+	}
 }

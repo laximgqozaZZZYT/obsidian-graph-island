@@ -1,0 +1,14 @@
+{
+  "layout": "force",
+  "searchQuery": "path:classic-macbeth*",
+  "nodeSize": 7,
+  "repelForce": 300,
+  "linkDistance": 90,
+  "showLinks": true,
+  "showSemanticEdges": true,
+  "showTagEdges": false,
+  "colorEdgesByRelation": true,
+  "nodeColorMode": "category",
+  "showMinimap": true,
+  "showArrows": false
+}

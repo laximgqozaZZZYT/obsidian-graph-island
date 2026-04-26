@@ -1,0 +1,31 @@
+# frontmatter Read — 対象ファイル現状確認
+# generated: 2026-04-18
+# task: 729-717-frontmatter-read (parent chain: 717-691-status-done-edit → 691-662-subtask-status-done)
+
+## Subtask-1 source
+- subtask-1 (parent 691): 716-691-subtask-glob-read.md / 701-691-glob-read.md (done)
+- Glob spec: issues/pending/*639-626*subtask*.md (実 path: scripts/pipeline/tasks/)
+- 一致条件: summary == "subtask issueのstatusをdoneに更新しコミット"
+
+## Target file (一意特定)
+- path: scripts/pipeline/tasks/658-639-subtask-issue-status-done.md
+- 注: filename は `658-639-...` だが parent: 639-626-subtask の chain により *639-626* 系列に属する
+- 注: 仕様上の `issues/pending/` は actual repo では `tasks/` として存在 (pipeline 構造差異)
+
+## Frontmatter 現状 (差分比較用ベースライン)
+- priority: medium
+- reported: 2026-04-18
+- status: done           ← 既に done。pending/in-progress ではない (no-op 候補)
+- source: decomposed
+- parent: 639-626-subtask
+- depends: subtask-2
+- summary: subtask issueのstatusをdoneに更新しコミット
+
+## 本文セクション冒頭
+- L11: ## Description (subtask of 639-626-subtask)
+- L19: ## Acceptance criteria
+
+## 観察
+- status は既に `done` のため、後続 subtask (730-717-status-done-edit) の Edit は no-op になる
+- 兄弟 task 756-729-status-done-no-op.md がこの分岐を扱う設計
+- この時点では編集を行わない (確認のみ)

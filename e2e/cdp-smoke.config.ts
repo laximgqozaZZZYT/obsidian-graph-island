@@ -3,8 +3,9 @@ import { defineConfig } from "@playwright/test";
 /**
  * Smoke test suite — single unified file, run by Stop hook.
  * 1 file, ~20 tests, target <3 min.
- * Mid suite (16 files):   use cdp-mid.config.ts
- * Full suite (231 files): use cdp-e2e.config.ts
+ * Run: pnpm test:e2e:smoke
+ * Mid suite (16 files):  pnpm test:e2e:mid
+ * Full suite (all files): pnpm test:e2e:full
  */
 export default defineConfig({
   testDir: "./",

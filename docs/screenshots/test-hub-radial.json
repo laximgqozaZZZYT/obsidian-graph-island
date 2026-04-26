@@ -21,7 +21,7 @@
   "showOrbitRings": false,
   "orbitAutoRotate": false,
   "groups": [],
-  "searchQuery": "path:classic-divine-comedy*",
+  "searchQuery": "path:bible-old-testament*",
   "searchMode": "filter",
   "colorEdgesByRelation": false,
   "nodeColorMode": "category",
@@ -132,11 +132,13 @@
     "intraGroupDensity": 1
   },
   "clusterFollowsGroupBy": true,
-  "nodeDisplayMode": "node",
+  "nodeDisplayMode": "card",
   "cardDisplayConfig": {
-    "fields": [],
-    "maxWidth": 120,
-    "showIcon": false
+    "fields": [
+      "node_type"
+    ],
+    "maxWidth": 110,
+    "showIcon": true
   },
   "donutDisplayConfig": {
     "innerRadius": 0.6
@@ -198,10 +200,11 @@
   "layout": "force",
   "showGuideLines": false,
   "renderThresholds": {
+    "enclosureFillOpacity": 0,
     "minNodeRadius": 8,
     "nodeSizeByDegree": true,
     "autoLOD": true,
-    "labelOverlapMargin": 24
+    "labelOverlapMargin": 108
   },
   "showTags": false,
   "colorNodesByCategory": true,

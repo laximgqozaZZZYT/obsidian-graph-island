@@ -12,23 +12,18 @@ import type { IApp } from "../views/canvas2d/interfaces";
  * @param app - The IApp renderer instance
  * @returns A Promise resolving to a PNG Blob
  */
-export async function exportGraphAsPng(
-  app: IApp,
-): Promise<Blob> {
-  const canvas = app.view;
+export async function exportGraphAsPng(app: IApp): Promise<Blob> {
+	const canvas = app.view;
 
-  return new Promise<Blob>((resolve, reject) => {
-    canvas.toBlob(
-      (blob) => {
-        if (blob) {
-          resolve(blob);
-        } else {
-          reject(new Error("Failed to create PNG blob from canvas"));
-        }
-      },
-      "image/png",
-    );
-  });
+	return new Promise<Blob>((resolve, reject) => {
+		canvas.toBlob((blob) => {
+			if (blob) {
+				resolve(blob);
+			} else {
+				reject(new Error("Failed to create PNG blob from canvas"));
+			}
+		}, "image/png");
+	});
 }
 
 /**
@@ -41,12 +36,12 @@ export async function exportGraphAsPng(
  * @param filename - The suggested file name
  */
 export function downloadBlob(blob: Blob, filename: string): void {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
+	const url = URL.createObjectURL(blob);
+	const a = document.createElement("a");
+	a.href = url;
+	a.download = filename;
+	a.click();
+	URL.revokeObjectURL(url);
 }
 
 /**
@@ -54,9 +49,9 @@ export function downloadBlob(blob: Blob, filename: string): void {
  * Format: graph-island-YYYY-MM-DD.png
  */
 export function makeExportFilename(): string {
-  const d = new Date();
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  return `graph-island-${yyyy}-${mm}-${dd}.png`;
+	const d = new Date();
+	const yyyy = d.getFullYear();
+	const mm = String(d.getMonth() + 1).padStart(2, "0");
+	const dd = String(d.getDate()).padStart(2, "0");
+	return `graph-island-${yyyy}-${mm}-${dd}.png`;
 }
