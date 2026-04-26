@@ -3,19 +3,31 @@
  * Extracted from GraphViewContainer to reduce god-object size.
  */
 
+import {
+	PATHFINDER_PULSE_SPEED,
+	PATHFINDER_PULSE_AMPLITUDE,
+	PATHFINDER_GLOW_ALPHA_BASE,
+	PATHFINDER_SOLID_ALPHA_BASE,
+	PATHFINDER_LABEL_OFFSET_X,
+	PATHFINDER_LABEL_OFFSET_Y,
+} from "../constants";
+
+export {
+	PATHFINDER_PULSE_SPEED,
+	PATHFINDER_PULSE_AMPLITUDE,
+	PATHFINDER_GLOW_ALPHA_BASE,
+	PATHFINDER_SOLID_ALPHA_BASE,
+	PATHFINDER_LABEL_OFFSET_X,
+	PATHFINDER_LABEL_OFFSET_Y,
+};
+
 // ---- Constants ----
 export const PATHFINDER_COLOR = 0x00ced1;
 export const PATHFINDER_COLOR_CSS = "#00CED1";
-export const PATHFINDER_PULSE_SPEED = 0.06;
-export const PATHFINDER_PULSE_AMPLITUDE = 0.1;
-export const PATHFINDER_GLOW_ALPHA_BASE = 0.45;
-export const PATHFINDER_SOLID_ALPHA_BASE = 0.85;
 export const PATHFINDER_GLOW_STROKE_WIDTH = 8;
 export const PATHFINDER_SOLID_STROKE_WIDTH = 3;
 export const PATHFINDER_DOT_RADIUS = 5;
 export const PATHFINDER_LABEL_FONT_SIZE = 11;
-export const PATHFINDER_LABEL_OFFSET_X = 6;
-export const PATHFINDER_LABEL_OFFSET_Y = -14;
 
 /** A single line segment between two nodes. */
 interface PathSegment {
