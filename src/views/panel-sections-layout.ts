@@ -387,7 +387,7 @@ export function buildSamplePresetSelector(
 			Object.assign(panel, merged);
 			cb.invalidateData();
 			if (panel.presetZoomLevel > 0) {
-				setTimeout(() => cb.setZoom?.(panel.presetZoomLevel), 500);
+				cb.scheduleTimeout(() => cb.setZoom?.(panel.presetZoomLevel), 500);
 			}
 			cb.rebuildPanel();
 			showToast(t("preset.sampleLoaded").replace("{name}", name));

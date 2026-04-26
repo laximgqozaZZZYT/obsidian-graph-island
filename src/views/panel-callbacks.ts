@@ -12,6 +12,7 @@ import type { Simulation } from "d3-force";
 import type { GraphNode, GraphEdge, GraphData } from "../types";
 import type { Minimap } from "./Minimap";
 import type { RenderPipeline } from "./RenderPipeline";
+import type { ManagedTimers } from "../utils/managed-timers";
 
 // ---------------------------------------------------------------------------
 // Host interface — narrow contract for the graph view container
@@ -84,6 +85,7 @@ export interface PanelCallbackHost {
 	canvasWrap: HTMLElement | null;
 	plugin: { settings: { groupPresets: GroupPreset[] }; saveSettings(): void };
 	app: { workspace: { getActiveFile(): { path: string } | null } };
+	timers: ManagedTimers;
 
 	// Preset map
 	allPresets: Record<string, Record<string, unknown>>;
@@ -148,6 +150,9 @@ function _buildRenderCallbacks(host: PanelCallbackHost): Partial<PanelCallbacks>
 			host.requestSave();
 		},
 		wakeRenderLoop: () => host.wakeRenderLoop(),
+		scheduleTimeout: (fn: () => void, ms: number) => {
+			host.timers.setTimeout(fn, ms);
+		},
 		rebuildPanel: () => {
 			host.buildPanel();
 			host.requestSave();

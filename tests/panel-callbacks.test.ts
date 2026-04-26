@@ -3,6 +3,7 @@ import { buildPanelCallbacks, type PanelCallbackHost } from "../src/views/panel-
 import type { PanelCallbacks } from "../src/views/PanelBuilder";
 import type { Simulation } from "d3-force";
 import type { GraphNode, GraphEdge, GraphData } from "../src/types";
+import { ManagedTimers } from "../src/utils/managed-timers";
 
 // ---------------------------------------------------------------------------
 // Mock PanelCallbackHost
@@ -89,6 +90,7 @@ function createMockHost(): PanelCallbackHost {
 				getActiveFile: vi.fn().mockReturnValue(null),
 			},
 		} as any,
+		timers: new ManagedTimers(),
 		allPresets: {},
 	};
 }
@@ -517,6 +519,23 @@ describe("buildPanelCallbacks", () => {
 		it("delegates to host", () => {
 			callbacks.rebuildHoverAdj();
 			expect(host._rebuildHoverAdj).toHaveBeenCalled();
+		});
+	});
+
+	describe("scheduleTimeout", () => {
+		it("delegates to host.timers.setTimeout and tracks the handle", () => {
+			vi.useFakeTimers();
+			try {
+				const fn = vi.fn();
+				expect(host.timers.size).toBe(0);
+				callbacks.scheduleTimeout(fn, 100);
+				expect(host.timers.size).toBe(1);
+				vi.advanceTimersByTime(100);
+				expect(fn).toHaveBeenCalledOnce();
+				expect(host.timers.size).toBe(0);
+			} finally {
+				vi.useRealTimers();
+			}
 		});
 	});
 

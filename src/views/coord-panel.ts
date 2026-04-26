@@ -423,7 +423,7 @@ export function buildExprLibrary(body: HTMLElement, panel: PanelState, cb: Panel
 
 			// Brief highlight
 			nameEl.style.color = "var(--text-success, #4f4)";
-			setTimeout(() => {
+			cb.scheduleTimeout(() => {
 				nameEl.style.color = "";
 			}, 600);
 		});
@@ -441,7 +441,7 @@ export function buildExprLibrary(body: HTMLElement, panel: PanelState, cb: Panel
 		cb.autoOptimize();
 		const rt = mergeRenderThresholds(panel.renderThresholds);
 		const waitMs = rt.autoOptMaxPasses * 1500 + 500;
-		setTimeout(() => {
+		cb.scheduleTimeout(() => {
 			optBtn.disabled = false;
 			optBtn.textContent = t("coord.autoOptimize");
 		}, waitMs);

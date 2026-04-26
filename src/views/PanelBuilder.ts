@@ -512,6 +512,8 @@ export interface PanelCallbacks {
 	announceA11y?(msg: string): void;
 	invalidateData(): void; // sets rawData = null then doRender
 	setZoom?(level: number): void;
+	/** Fire-and-forget timeout tracked by ManagedTimers — auto-cleared on view teardown */
+	scheduleTimeout(fn: () => void, ms: number): void;
 	/** Like invalidateData but keeps the panel DOM intact (for search filtering) */
 	invalidateDataKeepPanel(): void;
 	restartSimulation(alpha: number): void;
@@ -1382,7 +1384,7 @@ function _buildSettingsActionButtons(
 				cb.invalidateData();
 				// Restore preset zoom level if specified
 				if (panel.presetZoomLevel > 0) {
-					setTimeout(() => cb.setZoom?.(panel.presetZoomLevel), 500);
+					cb.scheduleTimeout(() => cb.setZoom?.(panel.presetZoomLevel), 500);
 				}
 				cb.rebuildPanel();
 			} catch (_e) {
