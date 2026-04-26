@@ -1672,7 +1672,7 @@ export class RenderPipeline {
 			// graph force simulation to reach alphaMin; if the user hovers
 			// a labelless node before then, LabelManager's hoverForcedLabel
 			// path still works via null-label-tolerant checks.
-			setTimeout(() => this.enrichLabelsDeferred(), 2500);
+			this._labelEnrichKickoffId = setTimeout(() => this.enrichLabelsDeferred(), 2500);
 		}
 	};
 
@@ -1684,11 +1684,11 @@ export class RenderPipeline {
 	 * the background. No-op if all nodes already have labels.
 	 */
 	private _enrichmentCancelId: ReturnType<typeof setTimeout> | null = null;
+	private _labelEnrichKickoffId: ReturnType<typeof setTimeout> | null = null;
 	private enrichLabelsDeferred(): void {
-		if (this._enrichmentCancelId !== null) {
-			clearTimeout(this._enrichmentCancelId);
-			this._enrichmentCancelId = null;
-		}
+		this._labelEnrichKickoffId = null;
+		if (this._enrichmentCancelId !== null) clearTimeout(this._enrichmentCancelId);
+		this._enrichmentCancelId = null;
 		const pixiNodes = this.host.getPixiNodes();
 		const todo: Array<string> = [];
 		for (const [id, pn] of pixiNodes) if (!pn.label) todo.push(id);
@@ -1735,13 +1735,12 @@ export class RenderPipeline {
 	}
 
 	cancelDeferredBatch() {
-		if (this.deferredBatchId !== null) {
-			clearTimeout(this.deferredBatchId as unknown as ReturnType<typeof setTimeout>);
-			this.deferredBatchId = null;
-		}
+		if (this.deferredBatchId !== null) clearTimeout(this.deferredBatchId as unknown as ReturnType<typeof setTimeout>);
+		if (this._labelEnrichKickoffId !== null) clearTimeout(this._labelEnrichKickoffId);
+		if (this._enrichmentCancelId !== null) clearTimeout(this._enrichmentCancelId);
+		this.deferredBatchId = this._labelEnrichKickoffId = this._enrichmentCancelId = null;
 		this.pendingNodes = [];
-		this.pendingNodeR = null;
-		this.pendingNodeColor = null;
+		this.pendingNodeR = this.pendingNodeColor = null;
 	}
 
 	// =========================================================================
