@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
 	filterOrphans,
-	filterAttachments,
 	filterTagNodes,
 	filterSimilarEdges,
 	filterNamedRelationEdges,
@@ -36,70 +35,6 @@ describe("filterOrphans", () => {
 	it("keeps all when all connected", () => {
 		const n = [node("a"), node("b")];
 		expect(filterOrphans(n, [edge("a", "b")])).toHaveLength(2);
-	});
-});
-
-describe("filterAttachments", () => {
-	it("removes image files", () => {
-		const nodes = [node("a.md"), node("img.png", { filePath: "img.png" })];
-		expect(filterAttachments(nodes).map((n) => n.id)).toEqual(["a.md"]);
-	});
-
-	it("removes PDF files", () => {
-		const nodes = [node("doc.pdf", { filePath: "doc.pdf" }), node("note.md")];
-		expect(filterAttachments(nodes).map((n) => n.id)).toEqual(["note.md"]);
-	});
-
-	it("keeps markdown and extensionless files", () => {
-		const nodes = [node("note.md"), node("noext")];
-		expect(filterAttachments(nodes)).toHaveLength(2);
-	});
-
-	it("is case-insensitive for extensions", () => {
-		const nodes = [node("photo.JPG", { filePath: "photo.JPG" })];
-		expect(filterAttachments(nodes)).toHaveLength(0);
-	});
-
-	// --- Boundary values (cycle116) ---
-
-	it("handles mixed md/png/pdf/excalidraw/csv files", () => {
-		const nodes = [
-			node("note.md"),
-			node("pic.png", { filePath: "pic.png" }),
-			node("doc.pdf", { filePath: "doc.pdf" }),
-			node("draw.excalidraw"), // no extension match → kept
-			node("data.csv", { filePath: "data.csv" }),
-			node("audio.mp3", { filePath: "audio.mp3" }),
-		];
-		const kept = filterAttachments(nodes).map((n) => n.id);
-		expect(kept).toContain("note.md");
-		expect(kept).toContain("draw.excalidraw"); // .excalidraw not in ATTACHMENT_EXTS
-		expect(kept).not.toContain("pic.png");
-		expect(kept).not.toContain("doc.pdf");
-		expect(kept).not.toContain("data.csv");
-		expect(kept).not.toContain("audio.mp3");
-	});
-
-	it("keeps nodes with no filePath and no extension in id", () => {
-		const nodes = [node("tag-node")]; // no extension
-		expect(filterAttachments(nodes)).toHaveLength(1);
-	});
-
-	it("handles empty node array", () => {
-		expect(filterAttachments([])).toEqual([]);
-	});
-
-	it("handles all video/audio extensions", () => {
-		const exts = [".mp4", ".webm", ".wav", ".ogg"];
-		for (const ext of exts) {
-			const nodes = [node(`file${ext}`, { filePath: `file${ext}` })];
-			expect(filterAttachments(nodes), `${ext} should be filtered`).toHaveLength(0);
-		}
-	});
-
-	it("keeps .md files with dots in name", () => {
-		const nodes = [node("my.project.notes.md")];
-		expect(filterAttachments(nodes)).toHaveLength(1);
 	});
 });
 
@@ -201,7 +136,6 @@ describe("filterExcludedNodes", () => {
 describe("applyVisibilityFilters", () => {
 	const defaultOpts: VisibilityOptions = {
 		showOrphans: true,
-		showAttachments: true,
 		includeTagsInData: true,
 		showTagNodes: true,
 		tagDisplay: "node",
@@ -266,24 +200,6 @@ describe("applyVisibilityFilters", () => {
 			includeTagsInData: false,
 		});
 		expect(result.nodes.length).toBeLessThanOrEqual(1);
-	});
-
-	// --- showAttachments filter (cycle122) ---
-
-	it("removes attachment files when showAttachments=false", () => {
-		const nodes = [
-			node("note.md"),
-			node("image.png", { filePath: "image.png" }),
-			node("doc.pdf", { filePath: "doc.pdf" }),
-		];
-		const result = applyVisibilityFilters(nodes, [], { ...defaultOpts, showAttachments: false });
-		expect(result.nodes.map((n) => n.id)).toEqual(["note.md"]);
-	});
-
-	it("keeps attachments when showAttachments=true", () => {
-		const nodes = [node("note.md"), node("image.png", { filePath: "image.png" })];
-		const result = applyVisibilityFilters(nodes, [], { ...defaultOpts, showAttachments: true });
-		expect(result.nodes).toHaveLength(2);
 	});
 
 	it("tagDisplay=enclosure removes tag nodes", () => {
@@ -447,7 +363,6 @@ describe("filterOrphans self-loop", () => {
 describe("showOrphans=false invariant", () => {
 	const baseOpts: VisibilityOptions = {
 		showOrphans: true,
-		showAttachments: true,
 		includeTagsInData: true,
 		showTagNodes: true,
 		tagDisplay: "node",
@@ -483,20 +398,6 @@ describe("showOrphans=false invariant", () => {
 			includeTagsInData: false,
 		});
 		expect(result.nodes.map((n) => n.id)).toEqual(["a"]);
-	});
-
-	it("keeps node whose only edge points to an attachment being filtered out", () => {
-		// filterOrphans runs before filterAttachments: note.md is non-orphan at
-		// orphan-check time (edge to pic.png still present); pic.png is stripped
-		// after. iso.md has no edges at all, so it's dropped as a true orphan.
-		const nodes = [node("note.md"), node("pic.png", { filePath: "pic.png" }), node("iso.md")];
-		const edges = [edge("note.md", "pic.png")];
-		const result = applyVisibilityFilters(nodes, edges, {
-			...baseOpts,
-			showOrphans: false,
-			showAttachments: false,
-		});
-		expect(result.nodes.map((n) => n.id)).toEqual(["note.md"]);
 	});
 
 	it("all-isolated graph collapses to empty under showOrphans=false", () => {

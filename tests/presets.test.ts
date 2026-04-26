@@ -6,7 +6,6 @@ import { exportPreset, exportPresetDiff, importPreset, applyPreset } from "../sr
 // This matches the shape in src/views/PanelBuilder.ts.
 const DEFAULT_PANEL = {
 	includeTagsInData: true,
-	showAttachments: false,
 	existingOnly: false,
 	showOrphans: true,
 	showArrows: false,

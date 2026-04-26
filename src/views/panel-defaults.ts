@@ -31,7 +31,6 @@ export const DEFAULT_FILTER_STATE = () => ({
 	minDegreeFilter: 0,
 	maxDegreeFilter: 0,
 	includeTagsInData: true,
-	showAttachments: false,
 	existingOnly: false,
 	showOrphans: true,
 	searchQuery: "",

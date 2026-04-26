@@ -14,7 +14,6 @@ import { ARRANGEMENT_GRID } from "../constants";
 /** Fields that should be boolean */
 const BOOLEAN_FIELDS: (keyof PanelState)[] = [
 	"includeTagsInData",
-	"showAttachments",
 	"existingOnly",
 	"showOrphans",
 	"showArrows",

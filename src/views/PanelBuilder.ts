@@ -109,7 +109,6 @@ export interface PanelState {
 	/** FZ: Maximum degree to show a node (0 = no filter) */
 	maxDegreeFilter: number;
 	includeTagsInData: boolean;
-	showAttachments: boolean;
 	existingOnly: boolean;
 	showOrphans: boolean;
 	showArrows: boolean;
@@ -1114,16 +1113,6 @@ function buildFilterTab(filterTab: HTMLElement, panel: PanelState, ctx: PanelCon
 			);
 			// --- Advanced (hidden by default) ---
 			addAdvancedGroup(body, (adv) => {
-				addToggle(
-					adv,
-					t("filter.attachments"),
-					panel.showAttachments,
-					(v) => {
-						panel.showAttachments = v;
-						cb.invalidateDataKeepPanel();
-					},
-					t("desc.attachments"),
-				);
 				addToggle(
 					adv,
 					t("filter.existingOnly"),

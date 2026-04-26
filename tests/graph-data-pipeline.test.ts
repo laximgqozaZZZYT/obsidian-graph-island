@@ -173,7 +173,6 @@ describe("edge re-filter by node set", () => {
 describe("applyVisibilityFilters pipeline", () => {
 	const allOpts = {
 		showOrphans: true,
-		showAttachments: true,
 		includeTagsInData: true,
 		showTagNodes: true,
 		tagDisplay: "node",

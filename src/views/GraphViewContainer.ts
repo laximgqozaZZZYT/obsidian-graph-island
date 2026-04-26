@@ -1480,7 +1480,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	/** 同期対象フィールド — 検索クエリやローカルグラフは除外 */
 	private static readonly SYNC_FIELDS: (keyof PanelState)[] = [
 		"includeTagsInData",
-		"showAttachments",
 		"existingOnly",
 		"showOrphans",
 		"showArrows",
@@ -6725,7 +6724,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		// Pure filters delegated to graph-filter.ts
 		({ nodes, edges } = applyVisibilityFilters(nodes, edges, {
 			showOrphans: this.panel.showOrphans,
-			showAttachments: this.panel.showAttachments ?? true,
 			includeTagsInData: this.panel.includeTagsInData ?? true,
 			showTagNodes: this.panel.showTagNodes ?? true,
 			tagDisplay: this.panel.tagDisplay ?? "node",

@@ -20,36 +20,6 @@ export function filterOrphans(nodes: GraphNode[], edges: GraphEdge[]): GraphNode
 	return nodes.filter((n) => connected.has(n.id));
 }
 
-/** Filter out attachment files by extension. */
-const ATTACHMENT_EXTS = new Set([
-	".png",
-	".jpg",
-	".jpeg",
-	".gif",
-	".svg",
-	".webp",
-	".bmp",
-	".pdf",
-	".mp3",
-	".mp4",
-	".webm",
-	".wav",
-	".ogg",
-	".csv",
-	".xlsx",
-	".docx",
-]);
-
-export function filterAttachments(nodes: GraphNode[]): GraphNode[] {
-	return nodes.filter((n) => {
-		const p = n.filePath ?? n.id;
-		if (!p) return true;
-		const dot = p.lastIndexOf(".");
-		if (dot < 0) return true;
-		return !ATTACHMENT_EXTS.has(p.substring(dot).toLowerCase());
-	});
-}
-
 /** Remove tag nodes and has-tag edges. */
 export function filterTagNodes(nodes: GraphNode[], edges: GraphEdge[]): { nodes: GraphNode[]; edges: GraphEdge[] } {
 	return {
@@ -108,7 +78,6 @@ export function filterExcludedNodes(
 /** Visibility filter options (subset of PanelState). */
 interface VisibilityOptions {
 	showOrphans: boolean;
-	showAttachments: boolean;
 	includeTagsInData: boolean;
 	showTagNodes: boolean;
 	tagDisplay: string;
@@ -123,7 +92,6 @@ export function applyVisibilityFilters(
 	opts: VisibilityOptions,
 ): { nodes: GraphNode[]; edges: GraphEdge[] } {
 	if (!opts.showOrphans) nodes = filterOrphans(nodes, edges);
-	if (!opts.showAttachments) nodes = filterAttachments(nodes);
 	if (!opts.includeTagsInData || !opts.showTagNodes || opts.tagDisplay === TAG_DISPLAY_ENCLOSURE) {
 		({ nodes, edges } = filterTagNodes(nodes, edges));
 	}
