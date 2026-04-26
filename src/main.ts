@@ -27,58 +27,54 @@ export default class GraphViewsPlugin extends Plugin {
 		await this.loadSettings();
 		mark("loadSettings", s);
 
-		// Auto-detect tag relationships on first load (when tagRelations is empty)
-		s = performance.now();
-		this.app.workspace.onLayoutReady(() => {
-			this.autoDetectTagRelationsIfNeeded();
-		});
-		mark("onLayoutReady-register", s);
-
+		// `registerView` is the only registration that MUST run synchronously
+		// in onload — Obsidian instantiates saved graph-view leaves during the
+		// layout-restoration step that runs between onload completion and the
+		// first `onLayoutReady` tick. If view types are missing at that point,
+		// saved leaves restore as empty placeholders.
 		s = performance.now();
 		this.registerView(VIEW_TYPE_GRAPH, (leaf) => new GraphViewContainer(leaf, this));
 		this.registerView(VIEW_TYPE_NODE_DETAIL, (leaf) => new NodeDetailView(leaf));
 		this.registerView(VIEW_TYPE_NODE_COMPARE, (leaf) => new NodeComparisonView(leaf));
 		mark("registerView", s);
 
-		// 比較イベント発火時に比較パネルを自動オープン
+		// Everything else — ribbon icon, commands, settings tab, markdown code
+		// block processor, compare event, tag-relation auto-detect — is deferred
+		// to `onLayoutReady` so it does not extend the onload critical path.
+		// None of these affect layout restoration; they become available right
+		// after Obsidian finishes restoring the workspace.
 		s = performance.now();
-		this.registerEvent(
-			asInternalWorkspace(this.app.workspace).on(EVENT_COMPARE_NODES, (data: unknown) => {
-				if (data) this.ensureComparePane();
-			}),
-		);
-		mark("registerEvent", s);
+		this.app.workspace.onLayoutReady(() => {
+			const sReady = performance.now();
+			this.autoDetectTagRelationsIfNeeded();
 
-		s = performance.now();
-		this.addRibbonIcon("git-fork", "Graph Island", () => {
-			this.activateView();
+			this.registerEvent(
+				asInternalWorkspace(this.app.workspace).on(EVENT_COMPARE_NODES, (data: unknown) => {
+					if (data) this.ensureComparePane();
+				}),
+			);
+
+			this.addRibbonIcon("git-fork", "Graph Island", () => {
+				this.activateView();
+			});
+
+			this._registerCoreCommands();
+			this._registerGraphUtilityCommands();
+			this.addSettingTab(new GraphViewsSettingTab(this.app, this));
+
+			this.registerMarkdownCodeBlockProcessor("graph-island", (source, el, _ctx) => {
+				import("./views/EmbeddedGraphRenderer")
+					.then(({ renderEmbeddedGraph }) => {
+						renderEmbeddedGraph(el, source, this.app, this.settings);
+					})
+					.catch(() => {
+						el.createDiv({ cls: "gi-embed-error", text: t("embed.renderFailed") });
+					});
+			});
+
+			console.info("[graph-island load]", "deferredInit:", +(performance.now() - sReady).toFixed(1), "ms");
 		});
-		mark("addRibbonIcon", s);
-
-		s = performance.now();
-		this._registerCoreCommands();
-		mark("registerCoreCommands", s);
-
-		s = performance.now();
-		this._registerGraphUtilityCommands();
-		mark("registerGraphUtilityCommands", s);
-
-		s = performance.now();
-		this.addSettingTab(new GraphViewsSettingTab(this.app, this));
-		mark("addSettingTab", s);
-
-		// Code block processor for embedded mini-graphs in notes
-		s = performance.now();
-		this.registerMarkdownCodeBlockProcessor("graph-island", (source, el, _ctx) => {
-			import("./views/EmbeddedGraphRenderer")
-				.then(({ renderEmbeddedGraph }) => {
-					renderEmbeddedGraph(el, source, this.app, this.settings);
-				})
-				.catch(() => {
-					el.createDiv({ cls: "gi-embed-error", text: t("embed.renderFailed") });
-				});
-		});
-		mark("registerCodeBlockProcessor", s);
+		mark("onLayoutReady-register", s);
 
 		console.info("[graph-island load]", "total:", +(performance.now() - t0).toFixed(1), "ms");
 	}
