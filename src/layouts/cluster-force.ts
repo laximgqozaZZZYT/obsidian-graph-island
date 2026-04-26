@@ -44,6 +44,11 @@ import {
 	GROUP_ARRANGEMENT_VERTICAL,
 	GROUP_ARRANGEMENT_GRID,
 	LABEL_CHAR_WIDTH_FACTOR,
+	NODE_SIZE_BASELINE,
+	NODE_SIZE_RATIO_MIN,
+	NODE_SIZE_RATIO_MAX,
+	NODE_SIZE_DEGREE_FLOOR,
+	NODE_SIZE_DEGREE_RANGE,
 } from "../constants";
 import { timelineOffsetsV2 } from "./timeline-layout";
 import { pushToMapArray } from "../utils/map-helpers";
@@ -992,7 +997,27 @@ export function estimateLabelExtent(
 	return rawWidth * labelSpacingFactor;
 }
 
+/** Compute the slider-driven multiplier applied on top of the canonical degree
+ *  curve. Pure function: clamps `panelNodeSize / baseline` to a sane range so
+ *  extreme slider values don't blow up the layout. Exported for direct reuse
+ *  from non-`nodeRadius` callers (e.g. cap-aware logic in `effectiveRadius`). */
+export function panelSizeRatio(panelNodeSize: number, baseline = NODE_SIZE_BASELINE): number {
+	if (!isFinite(panelNodeSize) || panelNodeSize <= 0 || baseline <= 0) return 1;
+	const raw = panelNodeSize / baseline;
+	if (raw < NODE_SIZE_RATIO_MIN) return NODE_SIZE_RATIO_MIN;
+	if (raw > NODE_SIZE_RATIO_MAX) return NODE_SIZE_RATIO_MAX;
+	return raw;
+}
+
 /** Visual radius of a node — canonical formula used across the codebase.
+ *
+ *  In `sizeByDegree` mode the radius is decomposed into:
+ *    `degreeScale(degree) * panelSizeRatio(nodeSize)`
+ *  where the canonical curve is anchored at NODE_SIZE_BASELINE and the panel
+ *  slider acts as a clamped multiplier. This guarantees that the slider has a
+ *  visible effect even when degree-driven sizing is enabled, and that extreme
+ *  slider values stay within a reasonable range.
+ *
  *  Enforces minNodeRadius floor so nodes remain hoverable/clickable. */
 export function nodeRadius(
 	nodeSize: number,
@@ -1002,13 +1027,13 @@ export function nodeRadius(
 	sizeByDegree = false,
 ): number {
 	const safeSize = isFinite(nodeSize) && nodeSize > 0 ? nodeSize : minNodeRadius;
-	const baseR = Math.max(safeSize, minNodeRadius);
 	if (sizeByDegree && maxDegree > 0 && degree > 0) {
 		const t = Math.sqrt(degree / maxDegree);
-		// Scale from baseR (degree 0) to baseR * 2.0 (max degree)
-		return baseR * (0.7 + t * 1.3);
+		const degreeR = NODE_SIZE_BASELINE * (NODE_SIZE_DEGREE_FLOOR + t * NODE_SIZE_DEGREE_RANGE);
+		const ratio = panelSizeRatio(safeSize);
+		return Math.max(degreeR * ratio, minNodeRadius);
 	}
-	return baseR;
+	return Math.max(safeSize, minNodeRadius);
 }
 
 /** Effective visual radius accounting for super nodes (collapsed groups) and content scale.

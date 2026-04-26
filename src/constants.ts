@@ -755,3 +755,28 @@ export const PATHFINDER_LABEL_FONT_SIZE = 11;
 export const PATHFINDER_LABEL_OFFSET_X = 6;
 /** Vertical offset (px, negative = upward) of the hop-count label */
 export const PATHFINDER_LABEL_OFFSET_Y = -14;
+
+// ===========================================================================
+// ---- Node radius scaling (panel.nodeSize slider behavior) ----
+// Used by `nodeRadius()` in `src/layouts/cluster-force.ts` so that the
+// `panel.nodeSize` slider reliably affects visual node size even when
+// `nodeSizeByDegree=true`. Formula:
+//   degreeScale = NODE_SIZE_DEGREE_FLOOR + sqrt(deg/maxDeg) * NODE_SIZE_DEGREE_RANGE
+//   final r     = NODE_SIZE_BASELINE * degreeScale * panelSizeRatio
+// ===========================================================================
+/** Reference panel.nodeSize value against which the slider ratio is computed.
+ *  Matches the default `panel.nodeSize` so that ratio=1 at default. */
+export const NODE_SIZE_BASELINE = 20;
+/** Lower clamp on (panel.nodeSize / NODE_SIZE_BASELINE).
+ *  Slider [5..300] yields raw ratios [0.25..15]; the lower clamp prevents
+ *  vanishingly small radii at the slider's lower bound. */
+export const NODE_SIZE_RATIO_MIN = 0.25;
+/** Upper clamp on (panel.nodeSize / NODE_SIZE_BASELINE).
+ *  Without this, slider=300 with degree=max could produce >600-unit radii
+ *  that overlap the entire viewport before maxNodeRadius cap applies. */
+export const NODE_SIZE_RATIO_MAX = 6;
+/** Lower bound of the degree-curve multiplier (applied at degree=0+).
+ *  Together with NODE_SIZE_DEGREE_RANGE: at max degree multiplier = 2.0. */
+export const NODE_SIZE_DEGREE_FLOOR = 0.7;
+/** Range of the degree-curve multiplier: total span 0.7 → 2.0. */
+export const NODE_SIZE_DEGREE_RANGE = 1.3;

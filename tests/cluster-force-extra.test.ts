@@ -6,7 +6,13 @@ import {
 	nodeRadius,
 	effectiveRadius,
 	analyzeOverlap,
+	panelSizeRatio,
 } from "../src/layouts/cluster-force";
+import {
+	NODE_SIZE_BASELINE,
+	NODE_SIZE_RATIO_MIN,
+	NODE_SIZE_RATIO_MAX,
+} from "../src/constants";
 import type { GraphNode } from "../src/types";
 
 function mkNode(id: string, x = 0, y = 0): GraphNode {
@@ -147,6 +153,83 @@ describe("nodeRadius edge cases", () => {
 		const r0 = nodeRadius(15, 0, 15, 100, false);
 		const r50 = nodeRadius(15, 50, 15, 100, false);
 		expect(r50).toBe(r0);
+	});
+});
+
+// =========================================================================
+// panelSizeRatio — slider-driven multiplier (Issue #1352 A-1)
+// =========================================================================
+describe("panelSizeRatio", () => {
+	it("returns 1 when nodeSize equals baseline", () => {
+		expect(panelSizeRatio(NODE_SIZE_BASELINE)).toBe(1);
+	});
+
+	it("scales linearly above baseline (within clamp)", () => {
+		expect(panelSizeRatio(NODE_SIZE_BASELINE * 2)).toBe(2);
+		expect(panelSizeRatio(NODE_SIZE_BASELINE * 3)).toBe(3);
+	});
+
+	it("scales linearly below baseline (within clamp)", () => {
+		expect(panelSizeRatio(NODE_SIZE_BASELINE * 0.5)).toBe(0.5);
+	});
+
+	it("clamps to NODE_SIZE_RATIO_MAX for extreme high values", () => {
+		// slider max is 300; raw ratio would be 15
+		expect(panelSizeRatio(300)).toBe(NODE_SIZE_RATIO_MAX);
+		expect(panelSizeRatio(1e6)).toBe(NODE_SIZE_RATIO_MAX);
+	});
+
+	it("clamps to NODE_SIZE_RATIO_MIN for extreme low values", () => {
+		expect(panelSizeRatio(0.0001)).toBe(NODE_SIZE_RATIO_MIN);
+		// slider min is 5; raw ratio is 0.25 which equals min
+		expect(panelSizeRatio(NODE_SIZE_BASELINE * 0.1)).toBe(NODE_SIZE_RATIO_MIN);
+	});
+
+	it("returns 1 for invalid inputs (NaN, 0, negative)", () => {
+		expect(panelSizeRatio(NaN)).toBe(1);
+		expect(panelSizeRatio(0)).toBe(1);
+		expect(panelSizeRatio(-5)).toBe(1);
+	});
+});
+
+// =========================================================================
+// nodeRadius — slider responsiveness in degree mode (Issue #1352 A-1)
+// =========================================================================
+describe("nodeRadius slider responsiveness in degree mode", () => {
+	it("responds to slider above baseline at max degree", () => {
+		// At max degree the canonical curve = baseline * 2.0 = 40.
+		// With slider=baseline → 40, with slider=2*baseline → 80 (ratio=2).
+		const r1x = nodeRadius(NODE_SIZE_BASELINE, 10, 15, 10, true);
+		const r2x = nodeRadius(NODE_SIZE_BASELINE * 2, 10, 15, 10, true);
+		expect(r1x).toBeCloseTo(40, 2);
+		expect(r2x).toBeCloseTo(80, 2);
+	});
+
+	it("responds to slider below baseline at max degree", () => {
+		// slider=baseline*0.5 → ratio=0.5 → 40 * 0.5 = 20
+		const r = nodeRadius(NODE_SIZE_BASELINE * 0.5, 10, 5, 10, true);
+		expect(r).toBeCloseTo(20, 2);
+	});
+
+	it("clamps slider effect at extreme high values", () => {
+		// raw ratio for slider=300 (60x baseline) clamped to NODE_SIZE_RATIO_MAX
+		const expected = NODE_SIZE_BASELINE * 2.0 * NODE_SIZE_RATIO_MAX;
+		const r = nodeRadius(NODE_SIZE_BASELINE * 60, 10, 15, 10, true);
+		expect(r).toBeCloseTo(expected, 2);
+	});
+
+	it("enforces minNodeRadius floor in degree mode", () => {
+		// slider tiny + low degree could otherwise undercut minR
+		const r = nodeRadius(NODE_SIZE_BASELINE * 0.25, 1, 30, 100, true);
+		expect(r).toBeGreaterThanOrEqual(30);
+	});
+
+	it("monotonic in slider value at fixed degree (within clamp range)", () => {
+		const a = nodeRadius(NODE_SIZE_BASELINE * 0.6, 10, 15, 10, true);
+		const b = nodeRadius(NODE_SIZE_BASELINE * 1.0, 10, 15, 10, true);
+		const c = nodeRadius(NODE_SIZE_BASELINE * 2.0, 10, 15, 10, true);
+		expect(a).toBeLessThan(b);
+		expect(b).toBeLessThan(c);
 	});
 });
 
