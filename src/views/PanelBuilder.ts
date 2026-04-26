@@ -75,6 +75,26 @@ import { buildEdgeDisplaySection, buildNodeDisplaySection } from "./panel-sectio
 import { buildNodesTab } from "./panel-sections-nodes-tab";
 import { createDefaultPanelState } from "./panel-defaults";
 
+// Per-panel setTimeout registry. Tracks pending timers so that the next
+// buildPanel() call (which detaches all child DOM via panelEl.empty()) can
+// clear them, preventing callbacks from firing against stale closures.
+const _panelTimers = new WeakMap<HTMLElement, Set<ReturnType<typeof setTimeout>>>();
+
+function trackPanelTimeout(panelEl: HTMLElement, fn: () => void, ms: number): ReturnType<typeof setTimeout> {
+	let set = _panelTimers.get(panelEl);
+	if (!set) {
+		set = new Set();
+		_panelTimers.set(panelEl, set);
+	}
+	const owner = set;
+	const handle = setTimeout(() => {
+		owner.delete(handle);
+		fn();
+	}, ms);
+	owner.add(handle);
+	return handle;
+}
+
 // ---------------------------------------------------------------------------
 // Panel state (shared with GraphViewContainer)
 // ---------------------------------------------------------------------------
@@ -608,6 +628,12 @@ export interface PanelContext {
 }
 
 export function buildPanel(panelEl: HTMLElement, panel: PanelState, ctx: PanelContext, cb: PanelCallbacks): void {
+	// Cancel any timers from a previous build before we detach old DOM.
+	const _prevTimers = _panelTimers.get(panelEl);
+	if (_prevTimers) {
+		for (const t of _prevTimers) clearTimeout(t);
+		_prevTimers.clear();
+	}
 	panelEl.empty();
 	// Cache field suggestions for query autocomplete
 	setCachedFieldSuggestions(cb.collectFieldSuggestions());
@@ -807,7 +833,7 @@ export function buildPanel(panelEl: HTMLElement, panel: PanelState, ctx: PanelCo
 			panel.searchQuery = searchBar.value;
 			searchClearBtn.style.display = searchBar.value ? "flex" : "none";
 			if (searchDebounce) clearTimeout(searchDebounce);
-			searchDebounce = setTimeout(() => {
+			searchDebounce = trackPanelTimeout(panelEl, () => {
 				// 非空クエリが変化した場合に履歴に追加
 				const q = searchBar.value.trim();
 				if (q && q !== lastCommittedQuery) {
@@ -834,7 +860,7 @@ export function buildPanel(panelEl: HTMLElement, panel: PanelState, ctx: PanelCo
 	});
 	searchBar.addEventListener("blur", () => {
 		// 少し遅延させてクリックイベントが先に処理されるようにする
-		setTimeout(() => {
+		trackPanelTimeout(panelEl, () => {
 			historyDropdown.style.display = "none";
 			searchBar.setAttribute("aria-expanded", "false");
 		}, 150);
@@ -1008,7 +1034,7 @@ export function buildPanel(panelEl: HTMLElement, panel: PanelState, ctx: PanelCo
 		display: () => buildDisplayTab(displayTab, panel, ctx, cb),
 		layout: () => buildLayoutTab(layoutTab, panel, ctx, cb),
 		nodes: () => buildNodesTab(nodesTab, panel, ctx, cb),
-		settings: () => buildSettingsTab(settingsTab, panel, ctx, cb),
+		settings: () => buildSettingsTab(panelEl, settingsTab, panel, ctx, cb),
 	};
 	const builtTabs = new Set<TabId>();
 
@@ -1299,6 +1325,7 @@ function buildLayoutTab(layoutTab: HTMLElement, panel: PanelState, ctx: PanelCon
 }
 
 function _buildSettingsActionButtons(
+	panelEl: HTMLElement,
 	tabEl: HTMLElement,
 	panel: PanelState,
 	ctx: PanelContext,
@@ -1324,7 +1351,7 @@ function _buildSettingsActionButtons(
 		try {
 			await navigator.clipboard.writeText(json);
 			exportBtn.textContent = t("preset.exported");
-			setTimeout(() => {
+			trackPanelTimeout(panelEl, () => {
 				exportBtn.textContent = t("preset.export");
 			}, 2000);
 		} catch (_e) {
@@ -1340,7 +1367,7 @@ function _buildSettingsActionButtons(
 		try {
 			await navigator.clipboard.writeText(json);
 			diffExportBtn.textContent = t("preset.exported");
-			setTimeout(() => {
+			trackPanelTimeout(panelEl, () => {
 				diffExportBtn.textContent = t("preset.exportDiff");
 			}, 2000);
 		} catch (_e) {
@@ -1379,7 +1406,7 @@ function _buildSettingsActionButtons(
 				cb.invalidateData();
 				// Restore preset zoom level if specified
 				if (panel.presetZoomLevel > 0) {
-					setTimeout(() => cb.setZoom?.(panel.presetZoomLevel), 500);
+					trackPanelTimeout(panelEl, () => cb.setZoom?.(panel.presetZoomLevel), 500);
 				}
 				cb.rebuildPanel();
 			} catch (_e) {
@@ -1441,11 +1468,17 @@ function _buildSettingsActionButtons(
 	}
 }
 
-function buildSettingsTab(settingsTab: HTMLElement, panel: PanelState, ctx: PanelContext, cb: PanelCallbacks): void {
+function buildSettingsTab(
+	panelEl: HTMLElement,
+	settingsTab: HTMLElement,
+	panel: PanelState,
+	ctx: PanelContext,
+	cb: PanelCallbacks,
+): void {
 	buildSamplePresetSelector(settingsTab, panel, ctx, cb);
 	buildOntologySection(settingsTab, panel, ctx, cb);
 	buildTagRelationsSection(settingsTab, panel, ctx, cb);
-	_buildSettingsActionButtons(settingsTab, panel, ctx, cb);
+	_buildSettingsActionButtons(panelEl, settingsTab, panel, ctx, cb);
 }
 
 // ---------------------------------------------------------------------------
