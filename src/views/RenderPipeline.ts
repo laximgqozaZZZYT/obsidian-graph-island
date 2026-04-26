@@ -56,6 +56,7 @@ import {
 } from "./node-render-helpers";
 import type { DenseStrokeConfig } from "./node-render-helpers";
 import { SpatialHashGrid } from "../utils/spatial-grid";
+import { TimerRegistry } from "../utils/timer-registry";
 import { computeViewportBounds, collectVisibleNodes } from "./batch-context";
 import {
 	cleanupCardText,
@@ -459,7 +460,8 @@ export class RenderPipeline {
 	private _cachedMaxDeg = 1;
 	private _cachedMaxBodyLength = 0;
 	private deferredBatchId: ReturnType<typeof setTimeout> | null = null;
-	/** FPS tracking */
+	/** Centralized timer registry for fire-and-forget setTimeouts; cleared in detach() to prevent leaks. */
+	private readonly _timers = new TimerRegistry();
 	private _fpsFrames = 0;
 	private _fpsLastTime = 0;
 	currentFps = 0;
@@ -600,6 +602,7 @@ export class RenderPipeline {
 	/** Detach the ticker callback. Call during cleanup. */
 	detach() {
 		this.cancelDeferredBatch();
+		this._timers.clearAll();
 		const app = this.host.getPixiApp();
 		if (this._tickerBound && app) {
 			app.ticker.remove(this.renderTick, this);
@@ -1415,11 +1418,10 @@ export class RenderPipeline {
 			this.scheduleDeferredBatch();
 		} else {
 			this.cullOverlappingLabels();
-			// Defer onAllPixiNodesCreated so any post-createPixiNodes setup
-			// in the host (alpha(0).stop(), force application) completes before
-			// the callback restarts the simulation. Without this, the sync path
-			// would restart the sim before the host has finished configuring it.
-			setTimeout(() => this.host.onAllPixiNodesCreated?.(), 0);
+			// Defer onAllPixiNodesCreated so any post-createPixiNodes setup in the host (alpha(0).stop(), force
+			// application) completes before the callback restarts the simulation. Otherwise the sync path would
+			// restart the sim before the host has finished configuring it.
+			this._timers.set(() => this.host.onAllPixiNodesCreated?.(), 0);
 		}
 	}
 
@@ -1667,12 +1669,10 @@ export class RenderPipeline {
 			this.cullOverlappingLabels();
 			this.markDirty(true); // single full redraw when all nodes are in
 			this.host.onAllPixiNodesCreated?.();
-			// Kick the label-enrichment pass after the simulation has had a
-			// chance to settle. 2.5 s is long enough for a typical large-
-			// graph force simulation to reach alphaMin; if the user hovers
-			// a labelless node before then, LabelManager's hoverForcedLabel
-			// path still works via null-label-tolerant checks.
-			setTimeout(() => this.enrichLabelsDeferred(), 2500);
+			// Kick the label-enrichment pass after the simulation has had a chance to settle. 2.5 s is long enough
+			// for a typical large-graph force simulation to reach alphaMin; if the user hovers a labelless node
+			// before then, LabelManager's hoverForcedLabel path still works via null-label-tolerant checks.
+			this._timers.set(() => this.enrichLabelsDeferred(), 2500);
 		}
 	};
 
