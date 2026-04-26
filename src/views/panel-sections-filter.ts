@@ -13,6 +13,11 @@ import { addSlider, addToggle, addSelect, addTextInput } from "./panel-widgets";
 import type { PanelState, PanelCallbacks, PanelContext } from "./PanelBuilder";
 import { ensureRT, buildSection } from "./PanelBuilder";
 import {
+	addCardPresetSelector,
+	addCardDisplayOptions,
+	addCardBodyControls,
+} from "./panel-sections-filter-card-helpers";
+import {
 	applyCardPreset,
 	ensureHoverHighlightTypes,
 	normalizeCardFields,
@@ -1013,142 +1018,9 @@ export function buildRelationColorSection(
 // Card display sub-settings (extracted from buildNodeDisplayModeSection)
 // ---------------------------------------------------------------------------
 function _buildCardSubSettings(body: HTMLElement, panel: PanelState, cb: PanelCallbacks): void {
-	// FO: Card display presets
-	addSelect(
-		body,
-		t("display.cardPreset") ?? "Card Preset",
-		[
-			{ value: "custom", label: t("display.cardPresetCustom") ?? "Custom" },
-			{ value: "compact", label: t("display.cardPresetCompact") ?? "Compact" },
-			{ value: "detailed", label: t("display.cardPresetDetailed") ?? "Detailed" },
-			{ value: "full", label: t("display.cardPresetFull") ?? "Full" },
-		],
-		panel.cardDisplayConfig.preset ?? "custom",
-		(v) => {
-			panel.cardDisplayConfig.preset = v as "custom" | "compact" | "detailed" | "full";
-			if (v === "compact") {
-				panel.cardDisplayConfig = {
-					...panel.cardDisplayConfig,
-					preset: "compact",
-					fields: [],
-					maxWidth: 80,
-					showIcon: false,
-					headerStyle: "plain",
-				};
-			} else if (v === "detailed") {
-				panel.cardDisplayConfig = {
-					...panel.cardDisplayConfig,
-					preset: "detailed",
-					fields: ["category"],
-					maxWidth: 150,
-					showIcon: true,
-					headerStyle: "table",
-				};
-			} else if (v === "full") {
-				panel.cardDisplayConfig = {
-					...panel.cardDisplayConfig,
-					preset: "full",
-					fields: ["category", "node_type", "tags"],
-					maxWidth: 200,
-					showIcon: true,
-					headerStyle: "table",
-				};
-			}
-			cb.doRenderKeepPanel();
-			cb.rebuildPanel();
-		},
-	);
-	addTextInput(
-		body,
-		t("display.cardFields"),
-		panel.cardDisplayConfig.fields.join(", "),
-		"e.g. category, tags, node_type",
-		(v) => {
-			panel.cardDisplayConfig.fields = v
-				.split(",")
-				.map((s) => s.trim())
-				.filter(Boolean);
-			cb.doRenderKeepPanel();
-		},
-	);
-	addSlider(body, t("display.cardMaxWidth"), 60, 300, 10, panel.cardDisplayConfig.maxWidth ?? 120, (v) => {
-		panel.cardDisplayConfig.maxWidth = v;
-		cb.doRenderKeepPanel();
-	});
-	addToggle(body, t("display.cardShowIcon"), panel.cardDisplayConfig.showIcon ?? false, (v) => {
-		panel.cardDisplayConfig.showIcon = v;
-		cb.doRenderKeepPanel();
-	});
-	addSelect(
-		body,
-		t("display.cardHeaderStyle"),
-		[
-			{ value: "plain", label: t("display.cardStylePlain") },
-			{ value: "table", label: t("display.cardStyleTable") },
-		],
-		panel.cardDisplayConfig.headerStyle ?? "plain",
-		(v) => {
-			panel.cardDisplayConfig.headerStyle = v as "plain" | "table";
-			cb.doRenderKeepPanel();
-		},
-	);
-	addSelect(
-		body,
-		t("display.cardFieldFormat") ?? "Field Format",
-		[
-			{ value: "key-value", label: "Key: Value" },
-			{ value: "value-only", label: "Value Only" },
-		],
-		panel.cardDisplayConfig.fieldFormat ?? "key-value",
-		(v) => {
-			panel.cardDisplayConfig.fieldFormat = v as "key-value" | "value-only";
-			cb.doRenderKeepPanel();
-		},
-	);
-	// FT: Card body max lines
-	const rtCard = mergeRenderThresholds(panel.renderThresholds);
-	addSlider(body, t("display.cardBodyLines") ?? "Body Lines", 0, 10, 1, rtCard.cardBodyMaxLines, (v) => {
-		ensureRT(panel).cardBodyMaxLines = v;
-		cb.recalcNodeRadii();
-		cb.doRenderKeepPanel();
-	});
-	// HM: Card content scale — log-based size boost from body length
-	addSlider(
-		body,
-		t("display.cardContentScale") ?? "Card Size by Content",
-		0,
-		2.0,
-		0.1,
-		rtCard.cardContentScale,
-		(v) => {
-			ensureRT(panel).cardContentScale = v;
-			cb.recalcNodeRadii();
-			cb.markDirty();
-			cb.announceA11y?.(`${t("display.cardContentScale") ?? "Card Size by Content"}: ${(v * 100).toFixed(0)}%`);
-		},
-		t("desc.cardContentScale"),
-	);
-	// GE: Card background opacity
-	const crcGE = panel.cardRenderConfig ?? {};
-	addSlider(
-		body,
-		t("display.cardBgOpacity") ?? "Card Opacity",
-		0.1,
-		1.0,
-		0.05,
-		crcGE.plainCardFillAlpha ?? 0.8,
-		(v) => {
-			if (!panel.cardRenderConfig) panel.cardRenderConfig = {};
-			panel.cardRenderConfig.plainCardFillAlpha = v;
-			cb.doRenderKeepPanel();
-		},
-	);
-	// FX: Card body font size
-	addSlider(body, t("display.cardBodyFontSize") ?? "Body Font Size", 4, 16, 1, rtCard.cardBodyFontSize, (v) => {
-		ensureRT(panel).cardBodyFontSize = v;
-		cb.recalcNodeRadii();
-		cb.doRenderKeepPanel();
-	});
+	addCardPresetSelector(body, panel, cb);
+	addCardDisplayOptions(body, panel, cb);
+	addCardBodyControls(body, panel, cb);
 }
 
 // ---------------------------------------------------------------------------
