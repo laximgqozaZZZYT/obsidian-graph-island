@@ -69,16 +69,21 @@ echo "MIN_AGE_HOURS: $MIN_AGE_HOURS"
 echo "Mode:          $([[ $DRY_RUN -eq 1 ]] && echo dry-run || echo apply)"
 echo ""
 
-# Pre-collect candidates via mapfile to avoid pipe-subshell stdout-trap.
-mapfile -t candidates < <(gh pr list --state open --limit 100 \
+# gh JSON to a tmp file (heredoc and pipe-stdin can't coexist as a python
+# input source — heredoc wins, so pipe data would be lost).
+gh pr list --state open --limit 100 \
   --json number,headRefName,title,createdAt,isDraft,mergeable,mergeStateStatus \
-  2>/dev/null \
-  | python3 - "$AGE_THRESHOLD" <<'PY'
+  > /tmp/auto-merge-prs.json 2>/dev/null
+
+mapfile -t candidates < <(python3 - "$AGE_THRESHOLD" /tmp/auto-merge-prs.json <<'PY'
 import json, sys
 from datetime import datetime, timezone
 
 age_threshold = int(sys.argv[1])
-prs = json.load(sys.stdin)
+json_path = sys.argv[2]
+
+with open(json_path) as f:
+    prs = json.load(f)
 
 ok_merge_status = {"CLEAN", "UNSTABLE"}
 
@@ -168,3 +173,4 @@ done
 
 echo ""
 echo "Done. (merged=$merged_count, rejected-protected=$rejected_protected, rejected-outside=$rejected_outside)"
+rm -f /tmp/auto-merge-prs.json
