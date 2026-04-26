@@ -9,6 +9,31 @@ import { contrastColor } from "../utils/color";
 import { darkenColor, truncateLabel } from "./RenderPipeline";
 import type { RenderHost } from "./RenderPipeline";
 import type { ShapeRule } from "../utils/node-shapes";
+import {
+	CARD_FONT_FAMILY,
+	CARD_SCALE_CAP,
+	CARD_ICON,
+	PLAIN_CARD,
+	FULL_CARD_FONT_BASE,
+	FULL_CARD_FONT_MIN,
+	CARD_LINE_HEIGHT,
+	CARD_SUB_FONT_RATIO,
+	COMPACT_CARD_FONT_MIN,
+	COMPACT_CARD_FONT_BASE,
+} from "../constants";
+// Re-export for backward compatibility (RenderPipeline, semantic-zoom-renderer, tests)
+export {
+	CARD_FONT_FAMILY,
+	CARD_SCALE_CAP,
+	CARD_ICON,
+	PLAIN_CARD,
+	FULL_CARD_FONT_BASE,
+	FULL_CARD_FONT_MIN,
+	CARD_LINE_HEIGHT,
+	CARD_SUB_FONT_RATIO,
+	COMPACT_CARD_FONT_MIN,
+	COMPACT_CARD_FONT_BASE,
+};
 
 /** Shared rendering context for card-mode functions. */
 interface CardRenderCtx {
@@ -42,9 +67,6 @@ export function markAsCardText(t: CanvasText): CardText {
 	return t as CardText;
 }
 
-/** Font family for card text */
-export const CARD_FONT_FAMILY = "-apple-system, BlinkMacSystemFont, sans-serif";
-
 /** Create a CanvasText marked as card text. */
 export function createCardText(
 	str: string,
@@ -62,21 +84,6 @@ export function createCardText(
 	});
 	return markAsCardText(t);
 }
-
-// ---------------------------------------------------------------------------
-// Card-specific constants
-// ---------------------------------------------------------------------------
-
-/** Maximum counter-scale factor for card mode (prevents enormous cards at extreme zoom-out) */
-export const CARD_SCALE_CAP = 8;
-
-export const CARD_ICON = {
-	SIZE_RATIO: 0.55,
-	FOLD_RATIO: 0.28,
-	OUTLINE_ALPHA: 0.7,
-	FILL_ALPHA: 0.25,
-	FOLD_ALPHA: 0.15,
-} as const;
 
 /**
  * Word-wrap text into lines by splitting on whitespace boundaries.
@@ -98,27 +105,6 @@ export function wrapTextToLines(text: string, charsPerLine: number, maxLines: nu
 	if (cur && lines.length < maxLines) lines.push(cur);
 	return lines;
 }
-
-export const PLAIN_CARD = {
-	TITLE_FONT_MIN: 3,
-	BODY_FONT_MIN: 2,
-	PAD: 4,
-	BODY_LINE_HEIGHT: 1.4,
-} as const;
-
-/** Semantic-zoom full card font sizes (tier 4 = name + definition + preview) */
-export const FULL_CARD_FONT_BASE = 10;
-export const FULL_CARD_FONT_MIN = 7;
-
-/** Line height multiplier for card text (vertical spacing between lines) */
-export const CARD_LINE_HEIGHT = 1.3;
-
-/** Ratio of sub-field font to header font in semantic-zoom cards */
-export const CARD_SUB_FONT_RATIO = 0.85;
-
-// Semantic-zoom compact card font sizes (tier 3 = compact labels)
-export const COMPACT_CARD_FONT_MIN = 6;
-export const COMPACT_CARD_FONT_BASE = 9;
 
 // ---------------------------------------------------------------------------
 // Cleanup helpers

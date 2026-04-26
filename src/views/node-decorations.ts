@@ -14,34 +14,19 @@ import type { ShapeRule } from "../utils/node-shapes";
 import { getNodeShape, drawShapeAt } from "../utils/node-shapes";
 import { hslToHex } from "../utils/graph-helpers";
 import { screenToWorld, hashStringToHue, type RenderHost } from "./RenderPipeline";
-
-// ---------------------------------------------------------------------------
-// Constants (moved from RenderPipeline.ts)
-// ---------------------------------------------------------------------------
-
-/** Hold ring / pathfinder ring stroke alpha */
-const INDICATOR_RING_ALPHA = 0.9;
-/** Pathfinder line width for start/end nodes */
-const PF_ENDPOINT_LINE_WIDTH = 3;
-/** Pathfinder line width for intermediate path nodes */
-const PF_INTERMEDIATE_LINE_WIDTH = 2;
-/** Pathfinder radius padding for start/end nodes */
-const PF_ENDPOINT_RADIUS_PAD = 6;
-/** Pathfinder radius padding for intermediate path nodes */
-const PF_INTERMEDIATE_RADIUS_PAD = 3;
-
-/** 比較選択リングの線幅 */
-const COMPARE_RING_LINE_WIDTH = 2.5;
-/** 比較選択リングの半径パディング */
-const COMPARE_RING_RADIUS_PAD = 8;
-/** 比較選択リングの色 (マゼンタ系) */
-const COMPARE_RING_COLOR = 0xe879f9;
-/** 比較選択リングのアルファ */
-const COMPARE_RING_ALPHA = 0.85;
-/** 比較選択リングの破線セグメント数 */
-const COMPARE_RING_SEGMENTS = 8;
-/** 比較選択リングの破線ギャップ比率 */
-const COMPARE_RING_GAP = 0.3;
+import {
+	INDICATOR_RING_ALPHA,
+	PF_ENDPOINT_LINE_WIDTH,
+	PF_INTERMEDIATE_LINE_WIDTH,
+	PF_ENDPOINT_RADIUS_PAD,
+	PF_INTERMEDIATE_RADIUS_PAD,
+	COMPARE_RING_LINE_WIDTH,
+	COMPARE_RING_RADIUS_PAD,
+	COMPARE_RING_COLOR,
+	COMPARE_RING_ALPHA,
+	COMPARE_RING_SEGMENTS,
+	COMPARE_RING_GAP,
+} from "../constants";
 
 // ---------------------------------------------------------------------------
 // Decoration context types

@@ -8,45 +8,22 @@
 import type { SnapshotDiff, SnapshotNode } from "../types";
 import type { PixiNode } from "./InteractionManager";
 import { t } from "../i18n";
-
-// ---------------------------------------------------------------------------
-// 描画定数
-// ---------------------------------------------------------------------------
-
-/** 追加ノードのリング色（緑） */
-const ADDED_COLOR = "#22c55e";
-/** 削除ノードの色（グレー） */
-const REMOVED_COLOR = "#9ca3af";
-/** 削除ノードのフィルアルファ */
-const REMOVED_ALPHA = 0.3;
-
-/** メタデータ変更ノードのリング色（黄色） */
-const CHANGED_COLOR = "#eab308";
-/** 追加エッジの色（緑） */
-const ADDED_EDGE_COLOR = "#22c55e";
-/** 削除エッジの色（赤） */
-const REMOVED_EDGE_COLOR = "#ef4444";
-
-/** リングの線幅（px） */
-const RING_LINE_WIDTH = 2;
-
-/** ゴーストノードの半径（px） */
-const GHOST_RADIUS = 6;
-/** ゴーストノードのグリッド間隔（px） */
-const GHOST_SPACING = 24;
-/** ゴーストノードのラベルフォントサイズ（px） */
-const GHOST_FONT_SIZE = 9;
-/** ゴーストエリアのビューポート端からのマージン（px） */
-const GHOST_MARGIN = 40;
-
-/** ステータスバーの背景色 */
-const STATUS_BG = "rgba(0, 0, 0, 0.6)";
-/** ステータスバーのテキスト色 */
-const STATUS_TEXT_COLOR = "#ffffff";
-/** ステータスバーのフォントサイズ（px） */
-const STATUS_FONT_SIZE = 12;
-/** ステータスバーの余白（px） */
-const STATUS_PADDING = 8;
+import {
+	ADDED_COLOR,
+	REMOVED_COLOR,
+	REMOVED_ALPHA,
+	CHANGED_COLOR,
+	REMOVED_EDGE_COLOR,
+	RING_LINE_WIDTH,
+	GHOST_RADIUS,
+	GHOST_SPACING,
+	GHOST_FONT_SIZE,
+	GHOST_MARGIN,
+	STATUS_BG,
+	STATUS_TEXT_COLOR,
+	STATUS_FONT_SIZE,
+	STATUS_PADDING,
+} from "../constants";
 
 export class DiffOverlay {
 	private diff: SnapshotDiff | null = null;
@@ -145,7 +122,7 @@ export class DiffOverlay {
 		}
 
 		// --- 追加エッジ（緑の実線） ---
-		ctx.strokeStyle = ADDED_EDGE_COLOR;
+		ctx.strokeStyle = ADDED_COLOR;
 		ctx.lineWidth = 2;
 		ctx.globalAlpha = 0.5;
 		ctx.setLineDash([]);

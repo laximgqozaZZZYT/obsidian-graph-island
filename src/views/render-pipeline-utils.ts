@@ -3,6 +3,23 @@
  * No DOM/Canvas dependency — all functions are pure.
  */
 import { hexToRgb, wcagContrastRatio, contrastColor, getLuminance } from "../utils/color";
+import {
+	GLOW_ATTENUATE_THRESHOLD,
+	GLOW_ATTENUATE_RANGE,
+	GLOW_RADIUS_ATTENUATE_FACTOR,
+	GLOW_P90_FRACTION,
+	ZONE_ANCHOR_COS_POSITIVE,
+	ZONE_ANCHOR_COS_NEGATIVE,
+	LABEL_Y_OFFSET_FACTOR,
+} from "../constants";
+// Re-export for backward compatibility (RenderPipeline imports/re-exports these from here)
+export {
+	GLOW_ATTENUATE_THRESHOLD,
+	GLOW_ATTENUATE_RANGE,
+	GLOW_RADIUS_ATTENUATE_FACTOR,
+	GLOW_P90_FRACTION,
+	LABEL_Y_OFFSET_FACTOR,
+};
 
 // ---------------------------------------------------------------------------
 // Color utilities (previously in RenderPipeline.ts)
@@ -51,15 +68,6 @@ export function desaturateColor(color: number, factor: number): number {
 // ---------------------------------------------------------------------------
 // Glow attenuation
 // ---------------------------------------------------------------------------
-
-/** Glow attenuation node count threshold (above this, glow starts fading) */
-export const GLOW_ATTENUATE_THRESHOLD = 300;
-/** Glow attenuation range (from threshold to threshold+range, glow fades to zero) */
-export const GLOW_ATTENUATE_RANGE = 500;
-/** Glow radius attenuation max factor */
-export const GLOW_RADIUS_ATTENUATE_FACTOR = 0.7;
-/** P90 percentile fraction for hub node glow detection */
-export const GLOW_P90_FRACTION = 0.9;
 
 /**
  * Compute attenuated glow alpha and radius for large node counts.
@@ -194,12 +202,6 @@ export function isDensityTooClose(
 // ---------------------------------------------------------------------------
 // Zone placement — angular-gap-based label positioning
 // ---------------------------------------------------------------------------
-
-/** Zone placement text-anchor cosine thresholds */
-const ZONE_ANCHOR_COS_POSITIVE = 0.3;
-const ZONE_ANCHOR_COS_NEGATIVE = -0.3;
-/** Default label Y-offset as a fraction of node radius */
-export const LABEL_Y_OFFSET_FACTOR = 0.4;
 
 /** Parameters for gap-dependent distance scaling in zone placement */
 interface ZoneGapScaleParams {
