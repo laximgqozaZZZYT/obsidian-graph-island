@@ -277,7 +277,7 @@ export function renderOntologyRule(
 	const fwdInput = row.createEl("input", {
 		cls: "gi-search gi-ont-input",
 		type: "text",
-		placeholder: "parent, extends...",
+		placeholder: t("ontology.relationPlaceholder"),
 		attr: { "aria-label": "Forward relation label" },
 	});
 	fwdInput.value = rule.forward;

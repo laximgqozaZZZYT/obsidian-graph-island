@@ -218,6 +218,10 @@ const en: TranslationMap = {
 	"nodeRules.spacing": "Spacing",
 	"nodeRules.gravity": "Gravity",
 	"nodeRules.color": "Color",
+	"nodeRules.queryPlaceholder": "tag:character, *, degree>5",
+
+	// --- PanelBuilder: ontology ---
+	"ontology.relationPlaceholder": "parent, extends...",
 
 	// --- PanelBuilder: gravity coefficients ---
 	"gravity.centerGravity": "Center Gravity",
@@ -226,6 +230,7 @@ const en: TranslationMap = {
 	"gravity.interGroupAttractionDesc": "Higher values bring groups closer together",
 	"gravity.intraGroupDensity": "Group Density",
 	"gravity.intraGroupDensityDesc": "Higher values pack nodes more tightly within groups",
+	"gravity.filterPlaceholder": "tag:character, category:*, *",
 
 	// --- PanelBuilder: relation colors ---
 	"relationColors.changeColor": "Click to change color",
@@ -481,6 +486,7 @@ const en: TranslationMap = {
 
 	// --- PanelBuilder: expression editor ---
 	"expr.addCondition": "+ Add Condition",
+	"expr.fieldPlaceholder": "tag:?, category:?, folder:?...",
 
 	// --- PanelBuilder: sort key options ---
 	"sort.degree": "Degree",
@@ -1195,6 +1201,10 @@ const ja: TranslationMap = {
 	"nodeRules.spacing": "間隔",
 	"nodeRules.gravity": "重力",
 	"nodeRules.color": "カラー",
+	"nodeRules.queryPlaceholder": "tag:character, *, degree>5",
+
+	// --- PanelBuilder: ontology ---
+	"ontology.relationPlaceholder": "親, extends...",
 
 	// --- PanelBuilder: gravity coefficients ---
 	"gravity.centerGravity": "中心引力",
@@ -1203,6 +1213,7 @@ const ja: TranslationMap = {
 	"gravity.interGroupAttractionDesc": "値が大きいほどグループ同士が近づく",
 	"gravity.intraGroupDensity": "グループ内密度",
 	"gravity.intraGroupDensityDesc": "値が大きいほどグループ内のノードが密集する",
+	"gravity.filterPlaceholder": "tag:character, category:*, *",
 
 	// --- PanelBuilder: relation colors ---
 	"relationColors.changeColor": "クリックで色を変更",
@@ -1458,6 +1469,7 @@ const ja: TranslationMap = {
 
 	// --- PanelBuilder: expression editor ---
 	"expr.addCondition": "＋ 条件追加",
+	"expr.fieldPlaceholder": "tag:?, category:?, folder:?...",
 
 	// --- PanelBuilder: sort key options ---
 	"sort.degree": "リンク数",
