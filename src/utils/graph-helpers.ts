@@ -14,6 +14,13 @@ export function edgeTargetId(e: { target: string | { id: string } }): string {
 	return typeof e.target === "string" ? e.target : e.target.id;
 }
 
+/** Type guard: true if `value` is a GraphNode-shaped object with a string `id`. */
+export function isGraphNode(value: unknown): value is GraphNode {
+	if (typeof value !== "object" || value === null) return false;
+	if (!("id" in value)) return false;
+	return typeof (value as { id: unknown }).id === "string";
+}
+
 /** Increment a Map<K, number> counter by `delta` (default 1). */
 export function incCounter<K>(map: Map<K, number>, key: K, delta = 1): void {
 	map.set(key, (map.get(key) ?? 0) + delta);
@@ -751,8 +758,8 @@ export function buildMissingNeighborSet(nodes: readonly GraphNode[], edges: read
 	// Build edge adjacency set for O(1) lookup
 	const edgeSet = new Set<string>();
 	for (const e of edges) {
-		const s = typeof e.source === "object" ? (e.source as GraphNode).id : e.source;
-		const t = typeof e.target === "object" ? (e.target as GraphNode).id : e.target;
+		const s = edgeSourceId(e);
+		const t = edgeTargetId(e);
 		edgeSet.add(s < t ? `${s}\0${t}` : `${t}\0${s}`);
 	}
 

@@ -122,3 +122,8 @@ export function asGraphView(leaf: WorkspaceLeaf): GraphViewInternal | null {
 	if (!view || !("pixiNodes" in view)) return null;
 	return view as unknown as GraphViewInternal;
 }
+
+/** Read the internal `id` property of a WorkspaceLeaf (used for sender-id matching in custom events). */
+export function getLeafId(leaf: WorkspaceLeaf): string {
+	return (leaf as unknown as { id: string }).id;
+}

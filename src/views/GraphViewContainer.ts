@@ -144,7 +144,8 @@ import { renderGraphStats, renderBreadcrumb, renderRelationMatrix } from "./Stat
 import { buildPanelCallbacks, type PanelCallbackHost } from "./panel-callbacks";
 import { renderLegend, type LegendHost, type LegendPanel } from "./LegendRenderer";
 import { renderTimelineBars } from "./timeline-bar-renderer";
-import { asInternalWorkspace } from "../obsidian-internals";
+import { asInternalWorkspace, getLeafId } from "../obsidian-internals";
+import { readPanelField, writePanelField, panelEntries } from "./panel-state";
 import { generatePhantomNodes } from "./phantom-node-generator";
 import { adjustTooltipPosition, type PanelRect } from "../utils/tooltip-position";
 import { handleShortcutKey, type KeyboardHost } from "./KeyboardHandler";
@@ -645,9 +646,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		const sup = super.getState();
 		// Serialize panel with special handling for Set (collapsedGroups) and transient fields
 		const panelClone: Record<string, unknown> = {};
-		for (const [k, v] of Object.entries(this.panel)) {
-			if (k === "collapsedGroups") {
-				panelClone[k] = Array.from(v as Set<string>);
+		for (const [k, v] of panelEntries(this.panel)) {
+			if (k === "collapsedGroups" && v instanceof Set) {
+				panelClone[k] = Array.from(v);
 			} else if (k === "groupByRules") {
 				// Transient editing state — don't persist empty-field rules
 				panelClone[k] = null;
@@ -697,7 +698,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 					this.panel.groupByRules = null;
 				} else {
 					// Safe: key is validated against DEFAULT_PANEL keys above
-					(this.panel as unknown as Record<string, unknown>)[key] = saved[key];
+					writePanelField(this.panel, key, saved[key]);
 				}
 			}
 		}
@@ -1462,7 +1463,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 				const data = args[0] as { senderId: string; panel: Record<string, unknown> } | null;
 				if (!data || !this.panel.syncViewId) return;
 				// 自分自身が送信元の場合は無視
-				if (data.senderId === (this.leaf as unknown as { id: string }).id) return;
+				if (data.senderId === getLeafId(this.leaf)) return;
 				this._syncReceiving = true;
 				try {
 					this._applySyncedPanel(data.panel);
@@ -1518,11 +1519,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		if (!this.panel.syncViewId || this._syncReceiving) return;
 		const payload: Record<string, unknown> = {};
 		for (const key of GraphViewContainer.SYNC_FIELDS) {
-			payload[key] = (this.panel as unknown as Record<string, unknown>)[key];
+			payload[key] = readPanelField(this.panel, key);
 		}
 		// workspace.trigger でカスタムイベントを発火
 		asInternalWorkspace(this.app.workspace).trigger(EVENT_SYNC_PANEL, {
-			senderId: (this.leaf as unknown as { id: string }).id,
+			senderId: getLeafId(this.leaf),
 			panel: payload,
 		});
 	}
@@ -1532,10 +1533,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		let needsRender = false;
 		for (const key of GraphViewContainer.SYNC_FIELDS) {
 			if (!(key in incoming)) continue;
-			const cur = (this.panel as unknown as Record<string, unknown>)[key];
+			const cur = readPanelField(this.panel, key);
 			const next = incoming[key];
 			if (cur !== next) {
-				(this.panel as unknown as Record<string, unknown>)[key] = next;
+				writePanelField(this.panel, key, next);
 				needsRender = true;
 			}
 		}
@@ -6184,15 +6185,15 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		if (!template) return;
 
 		// テンプレートのパネルデータを適用（Set フィールドの復元を含む）
-		const src = this.panel as unknown as Record<string, unknown>;
 		for (const [key, value] of Object.entries(template.panel)) {
 			// 一時的フィールドはスキップ（念のため）
 			if (GraphViewContainer.TEMPLATE_TRANSIENT_KEYS.has(key)) continue;
 			// 現在値が Set で、テンプレート値が Array の場合は Set に変換
-			if (src[key] instanceof Set && Array.isArray(value)) {
-				src[key] = new Set(value as unknown[]);
+			const cur = readPanelField(this.panel, key);
+			if (cur instanceof Set && Array.isArray(value)) {
+				writePanelField(this.panel, key, new Set(value));
 			} else {
-				src[key] = value;
+				writePanelField(this.panel, key, value);
 			}
 		}
 
@@ -8613,10 +8614,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			W,
 			H,
 			gd,
-			sortMode: (this.panel.matrixSortMode ?? "degree") as MatrixSortMode,
+			sortMode: this.panel.matrixSortMode ?? "degree",
 			isDark: this.isDarkTheme(),
 			onSortChange: (mode) => {
-				this.panel.matrixSortMode = mode as PanelState["matrixSortMode"];
+				this.panel.matrixSortMode = mode;
 				this._renderMatrixViewMode(gd, W, H);
 			},
 			onCellClick: (nodeId, secondId) => this._switchToGraphAndFocus(nodeId, secondId),
