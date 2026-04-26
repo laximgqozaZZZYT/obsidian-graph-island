@@ -23,139 +23,22 @@ export PATH="/home/ubuntu/.local/bin:/home/ubuntu/.nvm/versions/node/v22.18.0/bi
 export HOME="/home/ubuntu"
 
 PROJECT_DIR="/home/ubuntu/obsidian-plugins/obsidian-graph-island"
-ISSUE_DIR="$PROJECT_DIR/scripts/pipeline/issues"
-DONE_DIR="$ISSUE_DIR/done"
 DESCRIPTIONS_DIR="$PROJECT_DIR/scripts/pipeline/descriptions"
 
-# CSV migration feature flag (Phase 2-A)
-USE_CSV=${USE_CSV:-true}
-if [[ "$USE_CSV" == "true" ]]; then
-  # shellcheck source=/dev/null
-  . "$PROJECT_DIR/scripts/pipeline/csv-helpers.sh"
-  mkdir -p "$DESCRIPTIONS_DIR"
-fi
+# shellcheck source=/dev/null
+. "$PROJECT_DIR/scripts/pipeline/csv-helpers.sh"
+mkdir -p "$DESCRIPTIONS_DIR"
 
 cd "$PROJECT_DIR" || exit 1
-mkdir -p "$ISSUE_DIR" "$DONE_DIR"
 
 # ── Helper: create issue if not already filed ──
-# Dispatches to either the legacy md path (USE_CSV=false) or the
-# CSV path (USE_CSV=true). Both implementations preserve the same
-# duplicate-detection semantics (active slug, summary Jaccard ≥0.7,
-# 24h cooldown for blocked).
-file_issue() {
-  local slug="$1" priority="$2" summary="$3" description="$4" criteria="$5"
-  if [[ "$USE_CSV" == "true" ]]; then
-    _file_issue_csv "$slug" "$priority" "$summary" "$description" "$criteria"
-  else
-    _file_issue_md  "$slug" "$priority" "$summary" "$description" "$criteria"
-  fi
-}
-
-# Legacy md implementation (untouched logic, just extracted).
-_file_issue_md() {
-  local slug="$1"
-  local priority="$2"
-  local summary="$3"
-  local description="$4"
-  local criteria="$5"
-
-  # Skip if same slug is currently active (pending / in-progress / decomposed)
-  # OR permanently retired as undecomposable.
-  if grep -lE '^status: (pending|in-progress|decomposed|undecomposable)$' "$ISSUE_DIR"/*-"$slug".md 2>/dev/null | grep -q .; then
-    return 0
-  fi
-  # Summary similarity check (kaizen 2026-04-25)
-  local sim_winner
-  sim_winner=$(SUMMARY="$summary" python3 - <<'PY' "$ISSUE_DIR"
-import os, re, sys, glob
-issue_dir = sys.argv[1]
-new = os.environ.get('SUMMARY', '')
-def ws(t): return {w for w in re.findall(r'[a-z]{3,}', t.lower())}
-def jac(a, b): return len(a & b) / max(len(a | b), 1)
-new_ws = ws(new)
-best = (0.0, '')
-for f in glob.glob(f'{issue_dir}/*.md'):
-    try:
-        with open(f) as fh:
-            c = fh.read()
-    except Exception:
-        continue
-    st = re.search(r'^status:\s*(\S+)', c, re.MULTILINE)
-    if not st or st.group(1).strip() not in ('pending', 'in-progress', 'decomposed', 'undecomposable'):
-        continue
-    sm = re.search(r'^summary:\s*(.+)', c, re.MULTILINE)
-    if not sm:
-        continue
-    j = jac(new_ws, ws(sm.group(1).strip()))
-    if j > best[0]:
-        best = (j, sm.group(1).strip())
-print(f"{int(best[0]*100)}|{best[1][:60]}")
-PY
-)
-  local sim_int="${sim_winner%%|*}"
-  sim_int=${sim_int//[^0-9]/}
-  sim_int=${sim_int:-0}
-  if [[ $sim_int -ge 70 ]]; then
-    return 0
-  fi
-  # 24h cooldown for blocked
-  local cooldown_sec=86400
-  local now_epoch
-  now_epoch=$(date +%s)
-  local blocked_f mtime
-  for blocked_f in $(grep -lE '^status: blocked$' "$ISSUE_DIR"/*-"$slug".md 2>/dev/null); do
-    mtime=$(stat -c %Y "$blocked_f" 2>/dev/null || echo 0)
-    if (( now_epoch - mtime < cooldown_sec )); then
-      return 0
-    fi
-  done
-  # Stagnation check against done dir
-  local latest_done
-  latest_done=$(ls -t "$DONE_DIR"/*-"$slug".md 2>/dev/null | head -1)
-  if [[ -n "$latest_done" ]]; then
-    local prev_summary
-    prev_summary=$(grep -oP 'summary: \K.*' "$latest_done" 2>/dev/null || echo "")
-    if [[ "$prev_summary" == "$summary" ]]; then
-      return 0
-    fi
-  fi
-
-  # Find next number
-  local last_num
-  last_num=$(ls "$ISSUE_DIR"/*.md "$DONE_DIR"/*.md 2>/dev/null | xargs -I{} basename {} | grep -oP '^\d+' | sort -n | tail -1)
-  last_num=${last_num:-0}
-  last_num=$(echo "$last_num" | sed 's/^0*//' )
-  last_num=${last_num:-0}
-  local next_num=$(printf "%03d" $((last_num + 1)))
-
-  cat > "$ISSUE_DIR/${next_num}-${slug}.md" << ISSUE_EOF
----
-priority: $priority
-reported: $(date +%Y-%m-%d)
-status: pending
-source: auto-discovered
-summary: $summary
----
-
-## Description
-$description
-
-## Acceptance criteria
-$criteria
-ISSUE_EOF
-
-  echo "FILED: ${next_num}-${slug}.md ($priority)"
-}
-
-# CSV implementation (Phase 2-A). Reads/writes csv state via csv-helpers.sh.
-# Equivalent dedup semantics:
-#   1. Skip if same slug currently active (status pending|in-progress|
+# Dedup rules (apply in order):
+#   1. Skip if same slug currently active (pending|in-progress|
 #      decomposed|undecomposable).
 #   2. Skip if any active row's summary has Jaccard ≥0.7 vs the new summary.
 #   3. Skip if same slug was blocked within 24h (cooldown).
 #   4. Otherwise insert a new row + write descriptions/<id>.md.
-_file_issue_csv() {
+file_issue() {
   local slug="$1"
   local priority="$2"
   local summary="$3"
@@ -623,16 +506,10 @@ fi
 # ============================================================
 if [[ $ISSUES_FOUND -gt 0 ]]; then
   cd "$PROJECT_DIR" 2>/dev/null || true
-  if [[ "$USE_CSV" == "true" ]]; then
-    # CSV path: stage issues.csv + any new descriptions/<id>.md
-    git add scripts/pipeline/issues.csv \
-            scripts/pipeline/descriptions/ 2>/dev/null || true
-    git commit -m "chore(kaizen): report $ISSUES_FOUND quality issues [csv]" \
-      --no-verify 2>/dev/null || true
-  else
-    git add scripts/pipeline/issues/*.md 2>/dev/null || true
-    git commit -m "chore(kaizen): report $ISSUES_FOUND quality issues ($(ls scripts/pipeline/issues/*.md 2>/dev/null | xargs -I{} basename {} .md | grep -oP '^\d+' | sort -n | tail -"$ISSUES_FOUND" | paste -sd, -))" --no-verify 2>/dev/null || true
-  fi
+  git add scripts/pipeline/issues.csv \
+          scripts/pipeline/descriptions/ 2>/dev/null || true
+  git commit -m "chore(kaizen): report $ISSUES_FOUND quality issues" \
+    --no-verify 2>/dev/null || true
 fi
 
 # ============================================================
@@ -643,11 +520,11 @@ echo ""
 echo "=== Issue Discovery Complete ==="
 echo "Issues found: $ISSUES_FOUND"
 echo "Pending issues:"
-ls "$ISSUE_DIR"/*.md 2>/dev/null | while read f; do
-  prio=$(grep -oP "priority: \K\w+" "$f" || echo "?")
-  src=$(grep -oP "source: \K[\w-]+" "$f" || echo "user")
-  summary=$(grep -oP "summary: \K.*" "$f" || echo "?")
-  echo "  [$prio] [$src] $(basename $f)"
+csv_select_pending issues 2>/dev/null | while read id; do
+  [[ -z "$id" ]] && continue
+  prio=$(csv_get_field issues "$id" priority 2>/dev/null)
+  src=$(csv_get_field issues "$id" source 2>/dev/null)
+  echo "  [$prio] [$src] $id"
 done
 
 exit 0
