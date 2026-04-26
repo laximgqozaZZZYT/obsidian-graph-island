@@ -477,6 +477,8 @@ export class RenderPipeline {
 	private _cachedMaxDeg = 1;
 	private _cachedMaxBodyLength = 0;
 	private deferredBatchId: ReturnType<typeof setTimeout> | null = null;
+	private _allNodesCreatedCancelId: ReturnType<typeof setTimeout> | null = null;
+	private _enrichKickoffCancelId: ReturnType<typeof setTimeout> | null = null;
 	/** FPS tracking */
 	private _fpsFrames = 0;
 	private _fpsLastTime = 0;
@@ -1485,7 +1487,10 @@ export class RenderPipeline {
 			// in the host (alpha(0).stop(), force application) completes before
 			// the callback restarts the simulation. Without this, the sync path
 			// would restart the sim before the host has finished configuring it.
-			setTimeout(() => this.host.onAllPixiNodesCreated?.(), 0);
+			this._allNodesCreatedCancelId = setTimeout(() => {
+				this._allNodesCreatedCancelId = null;
+				this.host.onAllPixiNodesCreated?.();
+			}, 0);
 		}
 	}
 
@@ -1783,7 +1788,10 @@ export class RenderPipeline {
 			// graph force simulation to reach alphaMin; if the user hovers
 			// a labelless node before then, LabelManager's hoverForcedLabel
 			// path still works via null-label-tolerant checks.
-			setTimeout(() => this.enrichLabelsDeferred(), 2500);
+			this._enrichKickoffCancelId = setTimeout(() => {
+				this._enrichKickoffCancelId = null;
+				this.enrichLabelsDeferred();
+			}, 2500);
 		}
 	};
 
@@ -1846,9 +1854,18 @@ export class RenderPipeline {
 	}
 
 	cancelDeferredBatch() {
-		if (this.deferredBatchId !== null) {
-			clearTimeout(this.deferredBatchId as unknown as ReturnType<typeof setTimeout>);
-			this.deferredBatchId = null;
+		const slots = [
+			"deferredBatchId",
+			"_allNodesCreatedCancelId",
+			"_enrichKickoffCancelId",
+			"_enrichmentCancelId",
+		] as const;
+		for (const k of slots) {
+			const id = this[k];
+			if (id !== null) {
+				clearTimeout(id);
+				this[k] = null;
+			}
 		}
 		this.pendingNodes = [];
 		this.pendingNodeR = null;
