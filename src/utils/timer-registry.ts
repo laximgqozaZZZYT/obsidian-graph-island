@@ -1,38 +1,54 @@
 /**
  * Centralized setTimeout registry. Callers register one-shot timers via
- * `set()`; `clearAll()` releases every pending timer in one call so a
+ * `setTimeout()`; `clearAll()` releases every pending timer in one call so a
  * `destroy()` / plugin reload path cannot leak fired-after-unmount handlers.
  *
  * Auto-cleanup: the wrapper passed to setTimeout deletes the id from the
  * internal Set immediately after the handler runs, so `size` reflects only
  * still-pending timers.
+ *
+ * Lifecycle: call `dispose()` at teardown to clear pending timers and mark
+ * the registry as unusable; subsequent `setTimeout()` calls throw to surface
+ * use-after-dispose bugs early.
  */
 export class TimerRegistry {
-	private readonly _ids = new Set<number>();
+	private _ids: Set<number> | null = new Set<number>();
 
-	set(handler: () => void, ms: number): number {
+	setTimeout(fn: () => void, ms: number): number {
+		const ids = this._ids;
+		if (ids === null) {
+			throw new Error("TimerRegistry: setTimeout called after dispose()");
+		}
 		let id = 0;
 		id = window.setTimeout(() => {
-			handler();
-			this._ids.delete(id);
+			fn();
+			// Re-read because dispose() may have nulled `_ids` between schedule and fire.
+			this._ids?.delete(id);
 		}, ms) as unknown as number;
-		this._ids.add(id);
+		ids.add(id);
 		return id;
 	}
 
 	clear(id: number): void {
 		window.clearTimeout(id);
-		this._ids.delete(id);
+		this._ids?.delete(id);
 	}
 
 	clearAll(): void {
-		for (const id of this._ids) {
+		const ids = this._ids;
+		if (ids === null) return;
+		for (const id of ids) {
 			window.clearTimeout(id);
 		}
-		this._ids.clear();
+		ids.clear();
+	}
+
+	dispose(): void {
+		this.clearAll();
+		this._ids = null;
 	}
 
 	get size(): number {
-		return this._ids.size;
+		return this._ids?.size ?? 0;
 	}
 }
