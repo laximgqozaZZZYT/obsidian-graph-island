@@ -319,6 +319,10 @@ export class InteractionManager {
 	private _lastLayoutZoom = 1;
 	// Debounced label cull (expensive overlap detection) during rapid zoom
 	private _zoomCullTimer = 0;
+	// Pending search-command timer (300 ms after global-search:open before
+	// setQuery on the search leaf). Tracked so detach() can cancel it if the
+	// view is closed in the gap between executeCommandById and setQuery.
+	private _searchCommandTimer = 0;
 
 	// Smooth zoom interpolation state
 	private _targetScale = 1;
@@ -370,6 +374,7 @@ export class InteractionManager {
 		this._smoothZoomId = 0;
 		clearTimeout(this._zoomLayoutTimer);
 		clearTimeout(this._zoomCullTimer);
+		clearTimeout(this._searchCommandTimer);
 		this.canvas.removeEventListener("wheel", this._onWheel);
 		this.canvas.removeEventListener("pointerdown", this._onPointerDown);
 		this.canvas.removeEventListener("pointermove", this._onPointerMove);
@@ -1052,12 +1057,14 @@ export class InteractionManager {
 				.onClick(() => {
 					const obsApp = this.host.getApp();
 					asInternalApp(obsApp).commands?.executeCommandById("global-search:open");
-					setTimeout(() => {
+					clearTimeout(this._searchCommandTimer);
+					this._searchCommandTimer = window.setTimeout(() => {
+						this._searchCommandTimer = 0;
 						const searchLeaf = obsApp.workspace.getLeavesOfType("search")[0];
 						if (searchLeaf) {
 							asSearchView(searchLeaf.view).setQuery?.(node.data.label);
 						}
-					}, 300);
+					}, 300) as unknown as number;
 				});
 		});
 		const copyText = node.data.filePath || node.data.id;
