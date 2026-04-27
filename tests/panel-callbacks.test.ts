@@ -63,6 +63,13 @@ function createMockHost(): PanelCallbackHost {
 		skipPanelRebuildCount: 0,
 		edgeCache: {},
 		renderPipeline: null,
+		timers: {
+			setTimeout: vi.fn().mockReturnValue(0),
+			setInterval: vi.fn().mockReturnValue(0),
+			clear: vi.fn(),
+			clearAll: vi.fn(),
+			size: 0,
+		} as any,
 		rawData: null,
 		panel: {
 			showMinimap: false,

@@ -13,6 +13,7 @@ import { addSlider, getUnifiedFieldSuggestions } from "./panel-widgets";
 import { syncArrangementFromLayout, getOrCreateCoordLayout } from "./panel-sections-layout";
 import type { PanelState, PanelContext, PanelCallbacks } from "./PanelBuilder";
 import { mergeRenderThresholds } from "../types";
+import type { ManagedTimers } from "../utils/managed-timers";
 
 // ---------------------------------------------------------------------------
 // Pure evaluation helpers
@@ -353,7 +354,12 @@ function buildVariableReference(container: HTMLElement): void {
 }
 
 /** Build the expression library UI — collapsible list of preset formulas */
-export function buildExprLibrary(body: HTMLElement, panel: PanelState, cb: PanelCallbacks): void {
+export function buildExprLibrary(
+	body: HTMLElement,
+	panel: PanelState,
+	cb: PanelCallbacks,
+	timers: ManagedTimers,
+): void {
 	const wrapper = body.createDiv({ cls: "gi-expr-library" });
 
 	// Header (collapsible)
@@ -423,7 +429,7 @@ export function buildExprLibrary(body: HTMLElement, panel: PanelState, cb: Panel
 
 			// Brief highlight
 			nameEl.style.color = "var(--text-success, #4f4)";
-			setTimeout(() => {
+			timers.setTimeout(() => {
 				nameEl.style.color = "";
 			}, 600);
 		});
@@ -441,7 +447,7 @@ export function buildExprLibrary(body: HTMLElement, panel: PanelState, cb: Panel
 		cb.autoOptimize();
 		const rt = mergeRenderThresholds(panel.renderThresholds);
 		const waitMs = rt.autoOptMaxPasses * 1500 + 500;
-		setTimeout(() => {
+		timers.setTimeout(() => {
 			optBtn.disabled = false;
 			optBtn.textContent = t("coord.autoOptimize");
 		}, waitMs);
