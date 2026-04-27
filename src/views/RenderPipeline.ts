@@ -15,6 +15,7 @@ import type { ShapeRule } from "../utils/node-shapes";
 import { effectiveRadius } from "../layouts/cluster-force";
 import { Platform } from "obsidian";
 import { clamp } from "../utils/geometry";
+import { ManagedTimers } from "../utils/managed-timers";
 import {
 	LABEL_CHAR_WIDTH_FACTOR,
 	EDGE_REDRAW_SKIP,
@@ -477,6 +478,8 @@ export class RenderPipeline {
 	private _cachedMaxDeg = 1;
 	private _cachedMaxBodyLength = 0;
 	private deferredBatchId: ReturnType<typeof setTimeout> | null = null;
+	/** Tracks fire-and-forget timers so detach() can cancel any in-flight callbacks. */
+	private _timers = new ManagedTimers();
 	/** FPS tracking */
 	private _fpsFrames = 0;
 	private _fpsLastTime = 0;
@@ -618,6 +621,7 @@ export class RenderPipeline {
 	/** Detach the ticker callback. Call during cleanup. */
 	detach() {
 		this.cancelDeferredBatch();
+		this._timers.clearAll();
 		const app = this.host.getPixiApp();
 		if (this._tickerBound && app) {
 			app.ticker.remove(this.renderTick, this);
@@ -1485,7 +1489,7 @@ export class RenderPipeline {
 			// in the host (alpha(0).stop(), force application) completes before
 			// the callback restarts the simulation. Without this, the sync path
 			// would restart the sim before the host has finished configuring it.
-			setTimeout(() => this.host.onAllPixiNodesCreated?.(), 0);
+			this._timers.setTimeout(() => this.host.onAllPixiNodesCreated?.(), 0);
 		}
 	}
 
@@ -1783,7 +1787,7 @@ export class RenderPipeline {
 			// graph force simulation to reach alphaMin; if the user hovers
 			// a labelless node before then, LabelManager's hoverForcedLabel
 			// path still works via null-label-tolerant checks.
-			setTimeout(() => this.enrichLabelsDeferred(), 2500);
+			this._timers.setTimeout(() => this.enrichLabelsDeferred(), 2500);
 		}
 	};
 
@@ -1836,12 +1840,8 @@ export class RenderPipeline {
 
 	private scheduleDeferredBatch() {
 		if (this.deferredBatchId !== null) return;
-		// Use setTimeout(0) rather than requestAnimationFrame: d3-force's timer
-		// also runs on rAF, so both compete for each 16ms frame slot. On a
-		// 2,400-node graph that contention stretched full population from an
-		// expected ~2s to >2 minutes. setTimeout(0) runs as a macrotask between
-		// rAF ticks, breaking the contention and also yielding to input events
-		// between batches.
+		// setTimeout(0) over rAF: d3-force's timer also runs on rAF — on 2,400 nodes
+		// that contention stretched populate from ~2s to >2 minutes; macrotask yield.
 		this.deferredBatchId = setTimeout(this.processDeferredBatch, 0) as unknown as ReturnType<typeof setTimeout>;
 	}
 
