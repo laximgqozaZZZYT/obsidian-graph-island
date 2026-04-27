@@ -3,6 +3,7 @@ import { buildPanelCallbacks, type PanelCallbackHost } from "../src/views/panel-
 import type { PanelCallbacks } from "../src/views/PanelBuilder";
 import type { Simulation } from "d3-force";
 import type { GraphNode, GraphEdge, GraphData } from "../src/types";
+import { ManagedTimers } from "../src/utils/managed-timers";
 
 // ---------------------------------------------------------------------------
 // Mock PanelCallbackHost
@@ -90,6 +91,7 @@ function createMockHost(): PanelCallbackHost {
 			},
 		} as any,
 		allPresets: {},
+		timers: new ManagedTimers(),
 	};
 }
 

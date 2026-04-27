@@ -4,7 +4,7 @@ import { GraphViewContainer, VIEW_TYPE_GRAPH } from "./views/GraphViewContainer"
 import { NodeDetailView, VIEW_TYPE_NODE_DETAIL } from "./views/NodeDetailView";
 import { NodeComparisonView, VIEW_TYPE_NODE_COMPARE } from "./views/NodeComparisonView";
 import { EVENT_COMPARE_NODES } from "./constants";
-import { DEFAULT_SETTINGS, type GraphViewsSettings } from "./types";
+import { DEFAULT_SETTINGS, type GraphSnapshot, type GraphViewsSettings } from "./types";
 import { detectTagRelations } from "./utils/tag-relation-presets";
 import { ManagedTimers } from "./utils/managed-timers";
 import { t } from "./i18n";
@@ -249,12 +249,12 @@ export default class GraphViewsPlugin extends Plugin {
 	}
 
 	async loadSettings() {
-		const raw = (await this.loadData()) as Record<string, unknown> | null;
-		let migrationSnapshots: unknown[] | null = null;
-		if (raw && Array.isArray((raw as any).snapshots) && (raw as any).snapshots.length > 0) {
+		const raw = (await this.loadData()) as Partial<GraphViewsSettings> | null;
+		let migrationSnapshots: GraphSnapshot[] | null = null;
+		if (raw && Array.isArray(raw.snapshots) && raw.snapshots.length > 0) {
 			// One-time migration: move embedded snapshots to sidecar file.
-			migrationSnapshots = (raw as any).snapshots;
-			delete (raw as any).snapshots;
+			migrationSnapshots = raw.snapshots;
+			delete raw.snapshots;
 		}
 		this.settings = Object.assign({}, DEFAULT_SETTINGS, raw ?? {});
 		this._snapshotsLoaded = false;
@@ -264,11 +264,11 @@ export default class GraphViewsPlugin extends Plugin {
 				await this.app.vault.adapter.write(this._snapshotsSidecarPath(), JSON.stringify(migrationSnapshots));
 				this.settings.snapshots = [];
 				await this.saveData(this.settings); // rewrite data.json without snapshots
-				this.settings.snapshots = migrationSnapshots as any;
+				this.settings.snapshots = migrationSnapshots;
 				this._snapshotsLoaded = true;
 			} catch {
 				// If migration write fails, restore in-memory for this session
-				this.settings.snapshots = migrationSnapshots as any;
+				this.settings.snapshots = migrationSnapshots;
 				this._snapshotsLoaded = true;
 			}
 		}
@@ -312,7 +312,7 @@ export default class GraphViewsPlugin extends Plugin {
 		}
 		// Temporarily remove snapshots field so data.json stays small
 		const hadSnapshots = this.settings.snapshots !== undefined;
-		if (hadSnapshots) this.settings.snapshots = undefined as any;
+		if (hadSnapshots) this.settings.snapshots = undefined;
 		await this.saveData(this.settings);
 		if (hadSnapshots) this.settings.snapshots = snapshots;
 		// Notify all graph views to rebuild with updated settings

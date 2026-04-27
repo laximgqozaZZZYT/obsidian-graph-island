@@ -6,6 +6,7 @@ import type { GroupPreset, LayoutType } from "../types";
 import type { PanelCallbacks, NodeTreeEntry, PanelState } from "./PanelBuilder";
 import type { PixiNode } from "./InteractionManager";
 import { invalidateBundleCache, type EdgeRenderCache } from "./EdgeRenderer";
+import type { ManagedTimers } from "../utils/managed-timers";
 import { getNodeFieldValues } from "../utils/node-grouping";
 import { viewModeToLayout } from "../utils/view-mode-map";
 import type { Simulation } from "d3-force";
@@ -87,6 +88,9 @@ export interface PanelCallbackHost {
 
 	// Preset map
 	allPresets: Record<string, Record<string, unknown>>;
+
+	/** Shared timer registry — auto-cleared on view close to prevent leaks */
+	timers: ManagedTimers;
 }
 
 // ---------------------------------------------------------------------------
@@ -110,7 +114,7 @@ function _buildRenderCallbacks(host: PanelCallbackHost): Partial<PanelCallbacks>
 			invalidateBundleCache(host.edgeCache);
 			host.markDirty(true);
 			host.requestSave();
-			setTimeout(() => {
+			host.timers.setTimeout(() => {
 				host.renderPipeline?.forceRender();
 			}, 100);
 		},

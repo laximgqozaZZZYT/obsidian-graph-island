@@ -7,6 +7,7 @@ import type { Simulation } from "d3-force";
 import { LAYOUT_CONCENTRIC } from "../constants";
 import { t } from "../i18n";
 import { asInternalApp, asSearchView } from "../obsidian-internals";
+import type { ManagedTimers } from "../utils/managed-timers";
 
 // ---------------------------------------------------------------------------
 // PixiNode shape (mirrors the one in GraphViewContainer)
@@ -49,6 +50,8 @@ export interface PixiNode {
 // InteractionHost — the interface the InteractionManager needs from its parent
 // ---------------------------------------------------------------------------
 export interface InteractionHost {
+	/** Shared timer registry — auto-cleared on view close to prevent leaks */
+	timers: ManagedTimers;
 	/** Hit-test a world-coordinate point against the spatial grid */
 	hitTestNode(wx: number, wy: number): PixiNode | null;
 	/** Mark the render loop as needing a redraw */
@@ -1052,7 +1055,7 @@ export class InteractionManager {
 				.onClick(() => {
 					const obsApp = this.host.getApp();
 					asInternalApp(obsApp).commands?.executeCommandById("global-search:open");
-					setTimeout(() => {
+					this.host.timers.setTimeout(() => {
 						const searchLeaf = obsApp.workspace.getLeavesOfType("search")[0];
 						if (searchLeaf) {
 							asSearchView(searchLeaf.view).setQuery?.(node.data.label);

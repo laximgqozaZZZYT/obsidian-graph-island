@@ -2061,7 +2061,7 @@ export function _getTranslationKeys(locale: string): string[] {
 function detectLocale(): string {
 	try {
 		// Obsidian sets moment locale to match the user's language preference
-		const m = (window as unknown as { moment?: { locale: () => string } }).moment;
+		const m = window.moment;
 		if (m && typeof m.locale === "function") {
 			const loc = m.locale();
 			if (typeof loc === "string" && loc.startsWith("ja")) return "ja";

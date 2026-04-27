@@ -10,8 +10,8 @@ import type {
 } from "../types";
 import { DEFAULT_CARD_RENDER_CONFIG, mergeRenderThresholds } from "../types";
 import type { PixiNode } from "./InteractionManager";
-import { getNodeShape, drawShape, drawShapeAt } from "../utils/node-shapes";
-import type { ShapeRule } from "../utils/node-shapes";
+import { getNodeShape, drawShape, drawShapeAt, type ShapeRule } from "../utils/node-shapes";
+import type { ManagedTimers } from "../utils/managed-timers";
 import { effectiveRadius } from "../layouts/cluster-force";
 import { Platform } from "obsidian";
 import { clamp } from "../utils/geometry";
@@ -35,8 +35,7 @@ import {
 	LABEL_PAD,
 	SUB_LABEL,
 } from "../constants";
-// Re-export for public API (tests and other modules import MIN_WORLD_RADIUS_PX from here)
-export { MIN_WORLD_RADIUS_PX } from "../constants";
+export { MIN_WORLD_RADIUS_PX } from "../constants"; // Re-export for public API
 import {
 	darkenColor,
 	lightenColor,
@@ -238,6 +237,7 @@ export function truncateLabel(label: string, maxChars: number): string {
 // RenderHost — the interface the RenderPipeline needs from its parent
 // ---------------------------------------------------------------------------
 export interface RenderHost {
+	timers: ManagedTimers; // Shared timer registry — auto-cleared on view close to prevent leaks
 	/** Get the renderer app instance */
 	getPixiApp(): IApp | null;
 	/** Get the PIXI node map */
@@ -1485,7 +1485,7 @@ export class RenderPipeline {
 			// in the host (alpha(0).stop(), force application) completes before
 			// the callback restarts the simulation. Without this, the sync path
 			// would restart the sim before the host has finished configuring it.
-			setTimeout(() => this.host.onAllPixiNodesCreated?.(), 0);
+			this.host.timers.setTimeout(() => this.host.onAllPixiNodesCreated?.(), 0);
 		}
 	}
 
@@ -1783,7 +1783,7 @@ export class RenderPipeline {
 			// graph force simulation to reach alphaMin; if the user hovers
 			// a labelless node before then, LabelManager's hoverForcedLabel
 			// path still works via null-label-tolerant checks.
-			setTimeout(() => this.enrichLabelsDeferred(), 2500);
+			this.host.timers.setTimeout(() => this.enrichLabelsDeferred(), 2500);
 		}
 	};
 

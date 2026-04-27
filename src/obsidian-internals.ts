@@ -2,32 +2,51 @@
  * Type declarations for Obsidian internal APIs that are not part of the public type definitions.
  * These are accessed at runtime but not exported in obsidian.d.ts.
  *
- * Using explicit interfaces instead of `as any` for better type safety.
+ * Approach: TypeScript module augmentation extends Obsidian's public types with the optional
+ * internal members we touch. This eliminates `as unknown as X` casts entirely — accessors are
+ * type-checked directly against the augmented declarations.
  */
-import type { App, Vault, View, Workspace, WorkspaceLeaf } from "obsidian";
+import type { App, EventRef, Vault, View, WorkspaceLeaf } from "obsidian";
 
 // ---------------------------------------------------------------------------
-// Obsidian internal App extensions
+// Module augmentation: extend Obsidian's public types with optional internal APIs.
 // ---------------------------------------------------------------------------
 
-/** Obsidian App with internal plugin registry access. */
-interface ObsidianAppInternal extends App {
-	plugins?: {
-		plugins?: Record<string, { api?: unknown }>;
-	};
-	commands?: {
-		executeCommandById(id: string): void;
-	};
+declare module "obsidian" {
+	interface App {
+		plugins?: {
+			plugins?: Record<string, { api?: unknown }>;
+		};
+		commands?: {
+			executeCommandById(id: string): void;
+		};
+	}
+
+	interface Workspace {
+		// Custom (non-standard) event names use string keys; Obsidian's built-in
+		// overloads remain preferred for known event names.
+		on(name: string, callback: (...data: unknown[]) => void): EventRef;
+		trigger(name: string, ...data: unknown[]): void;
+	}
+
+	interface Vault {
+		getAvailablePath?: (basePath: string, extension: string) => string;
+		config?: { attachmentFolderPath?: string };
+	}
 }
 
 // ---------------------------------------------------------------------------
-// Obsidian internal Workspace extensions (custom events)
+// Window globals injected by Obsidian / runtime.
 // ---------------------------------------------------------------------------
 
-/** Workspace with custom event support (non-standard event names). */
-interface ObsidianWorkspaceInternal {
-	on(name: string, callback: (...data: unknown[]) => void): import("obsidian").EventRef;
-	trigger(name: string, ...data: unknown[]): void;
+declare global {
+	interface Window {
+		moment?: {
+			locale: () => string;
+		};
+		app?: App;
+		Notice: new (message: string, timeout?: number) => unknown;
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -59,66 +78,47 @@ export interface GraphViewInternal {
 	applyPresetByKey?: (key: string) => void;
 }
 
-// ---------------------------------------------------------------------------
-// Window globals injected by Obsidian
-// ---------------------------------------------------------------------------
-
-/** Window with Obsidian injected globals. */
-interface ObsidianWindow extends Window {
-	moment?: {
-		locale: () => string;
-	};
-	app?: App;
-	Notice: new (message: string, timeout?: number) => unknown;
-}
-
-// ---------------------------------------------------------------------------
-// Obsidian internal Vault extensions
-// ---------------------------------------------------------------------------
-
-/** Vault with internal methods for attachment path resolution. */
-interface ObsidianVaultInternal extends Vault {
-	getAvailablePath?: (basePath: string, extension: string) => string;
-	config?: { attachmentFolderPath?: string };
-}
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-/** Cast App to internal variant for accessing private APIs. */
-export function asInternalApp(app: App): ObsidianAppInternal {
-	return app as unknown as ObsidianAppInternal;
-}
-
-/** Cast Workspace to internal variant for custom events. */
-export function asInternalWorkspace(workspace: Workspace): ObsidianWorkspaceInternal {
-	return workspace as unknown as ObsidianWorkspaceInternal;
-}
-
-/** Cast Vault to internal variant for attachment-path resolution. */
-export function asInternalVault(vault: Vault): ObsidianVaultInternal {
-	return vault as unknown as ObsidianVaultInternal;
-}
-
-/** Obsidian search view with optional `setQuery` method. */
+/** Obsidian search view with optional `setQuery` method (internal, not in public types). */
 export interface ObsidianSearchView {
 	setQuery?: (q: string) => void;
 }
 
-/** Access a leaf's view as an Obsidian search view (internal API, not in public types). */
-export function asSearchView(view: View): ObsidianSearchView {
-	return view as unknown as ObsidianSearchView;
+// ---------------------------------------------------------------------------
+// Helpers — identity functions retained for stable call-site API.
+// Module augmentation above makes the underlying types match without casts.
+// ---------------------------------------------------------------------------
+
+/** Returns the App as-is; augmentation gives access to internal `plugins` / `commands`. */
+export function asInternalApp(app: App): App {
+	return app;
 }
 
-/** Cast window to Obsidian-augmented window. */
-export function asObsidianWindow(): ObsidianWindow {
-	return window as unknown as ObsidianWindow;
+/** Returns the Workspace as-is; augmentation adds string-keyed `on` / `trigger` overloads. */
+export function asInternalWorkspace(workspace: import("obsidian").Workspace): import("obsidian").Workspace {
+	return workspace;
 }
 
-/** Access a leaf's view as a Graph Island view with internal properties. Returns null for non-Graph-Island views (e.g. Obsidian built-in graph). */
+/** Returns the Vault as-is; augmentation exposes `getAvailablePath` / `config`. */
+export function asInternalVault(vault: Vault): Vault {
+	return vault;
+}
+
+/** Returns the global window with Obsidian-injected globals (`moment`, `app`, `Notice`). */
+export function asObsidianWindow(): Window {
+	return window;
+}
+
+/** Type guard: a leaf's view is a Graph Island view (sentinel: presence of `pixiNodes`). */
+function isGraphViewLike(view: unknown): view is GraphViewInternal {
+	return typeof view === "object" && view !== null && "pixiNodes" in view;
+}
+
+/** Access a leaf's view as a Graph Island view. Returns null for non-Graph-Island views. */
 export function asGraphView(leaf: WorkspaceLeaf): GraphViewInternal | null {
-	const view = leaf.view;
-	if (!view || !("pixiNodes" in view)) return null;
-	return view as unknown as GraphViewInternal;
+	return isGraphViewLike(leaf.view) ? leaf.view : null;
+}
+
+/** Access a leaf's view as an Obsidian search view (internal API, not in public types). */
+export function asSearchView(view: View): View & ObsidianSearchView {
+	return view;
 }
