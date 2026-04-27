@@ -14,6 +14,7 @@ import {
 } from "../constants";
 import { incCounter } from "../utils/graph-helpers";
 import { pushToMapArray } from "../utils/map-helpers";
+import { frontmatterString, isPromiseLike } from "../utils/type-guards";
 
 /** Initial random scatter range for node positions */
 const INITIAL_SCATTER_X = 800;
@@ -104,7 +105,7 @@ function createFileNodes(
 			vx: 0,
 			vy: 0,
 			category:
-				(frontmatter?.[settings.colorField] as string | undefined) ??
+				frontmatterString(frontmatter, settings.colorField) ??
 				(file.path.includes("/") ? file.path.split("/")[0] : undefined),
 			tags: extractTags(frontmatter, cache),
 			filePath: file.path,
@@ -126,9 +127,9 @@ function attachBodyPreview(node: GraphNode, app: App, file: TFile, contentCache:
 		const info = extractBodyInfo(rawContent, 100);
 		node.bodyPreview = info.preview;
 		node.bodyLength = info.length;
-	} else if (rawContent && typeof (rawContent as unknown as Promise<string>).then === "function") {
+	} else if (isPromiseLike<string>(rawContent)) {
 		// async path: warm contentCache so Phase 3 collectInlineRelations hits cache.
-		(rawContent as Promise<string>)
+		rawContent
 			.then((text) => {
 				contentCache.set(file.path, text);
 				const info = extractBodyInfo(text, 100);
@@ -598,7 +599,7 @@ export function buildSunburstData(app: App, groupField: string): SunburstData {
 	for (const file of files) {
 		const cache = app.metadataCache.getFileCache(file);
 		const frontmatter = cache?.frontmatter;
-		const group = (frontmatter?.[groupField] as string) ?? "Uncategorized";
+		const group = frontmatterString(frontmatter, groupField) ?? "Uncategorized";
 
 		pushToMapArray(groups, group, {
 			name: file.basename,

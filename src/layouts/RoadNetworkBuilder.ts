@@ -132,10 +132,11 @@ export class RoadNetworkBuilder {
 				const g = gg.guide;
 				if (!g) continue;
 
-				const coordGuide = g.type === GUIDE_TYPE_COORDINATE ? (g as CoordinateGuide) : null;
-				if (coordGuide?.gridInfo) {
+				const coordGuide = g.type === GUIDE_TYPE_COORDINATE ? g : null;
+				const gridInfo = coordGuide?.gridInfo;
+				if (coordGuide && gridInfo) {
 					coordGuides.push({
-						guide: coordGuide as CoordinateGuide & { gridInfo: ResolvedGridInfo },
+						guide: { ...coordGuide, gridInfo },
 						centerX: gg.centerX,
 						centerY: gg.centerY,
 					});
@@ -160,7 +161,7 @@ export class RoadNetworkBuilder {
 	/** Phantom node-based road network from simulation phantom nodes */
 	private _buildFromPhantoms(allNodes: GraphNode[]): boolean {
 		const sim = this.host.getSimulation();
-		const simNodes = sim?.nodes?.() as GraphNode[] | undefined;
+		const simNodes = sim?.nodes?.();
 		const phantomNodes = simNodes?.filter((n) => n.isPhantom && (Math.abs(n.x) > 1 || Math.abs(n.y) > 1));
 		if (!phantomNodes || phantomNodes.length === 0) return false;
 
@@ -187,7 +188,7 @@ export class RoadNetworkBuilder {
 		allNodes: GraphNode[],
 	): boolean {
 		if (g.type !== "concentric") return false;
-		const cg = g as { type: "concentric"; rings: number[] };
+		const cg = g;
 		if (cg.rings.length === 0) return false;
 
 		const spokeCount = Math.min(16, Math.max(8, Math.ceil(Math.sqrt(allNodes.length / 5))));
@@ -217,14 +218,8 @@ export class RoadNetworkBuilder {
 		allNodes: GraphNode[],
 	): boolean {
 		if (g.type !== "grid") return false;
-		const gg2 = g as {
-			type: "grid";
-			verticals: number[];
-			horizontals: number[];
-			bounds: { xMin: number; yMin: number; xMax: number; yMax: number };
-		};
-		const verts = (gg2.verticals ?? []).sort((a: number, b: number) => a - b);
-		const horiz = (gg2.horizontals ?? []).sort((a: number, b: number) => a - b);
+		const verts = (g.verticals ?? []).sort((a: number, b: number) => a - b);
+		const horiz = (g.horizontals ?? []).sort((a: number, b: number) => a - b);
 		this.trayData = buildRoadNetwork({
 			system: "cartesian",
 			axis1Lines: verts.map((v) => ({ position: v })),
@@ -233,7 +228,7 @@ export class RoadNetworkBuilder {
 			axis2Shape: "line",
 			cx: 0,
 			cy: 0,
-			bounds: gg2.bounds ?? this.host.computeNodeBounds(allNodes),
+			bounds: g.bounds ?? this.host.computeNodeBounds(allNodes),
 			nodes: allNodes,
 		});
 		this.finish(allNodes);

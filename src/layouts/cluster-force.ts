@@ -47,6 +47,7 @@ import {
 } from "../constants";
 import { timelineOffsetsV2 } from "./timeline-layout";
 import { pushToMapArray } from "../utils/map-helpers";
+import { edgeEndpointId } from "../utils/type-guards";
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -2412,8 +2413,8 @@ function splitByConnectedComponents(groups: Map<string, GraphNode[]>, edges: Gra
 		const adj = new Map<string, string[]>();
 		for (const id of idSet) adj.set(id, []);
 		for (const e of edges) {
-			const sid = typeof e.source === "string" ? e.source : (e.source as unknown as GraphNode).id;
-			const tid = typeof e.target === "string" ? e.target : (e.target as unknown as GraphNode).id;
+			const sid = edgeEndpointId(e.source);
+			const tid = edgeEndpointId(e.target);
 			if (idSet.has(sid) && idSet.has(tid)) {
 				adj.get(sid)!.push(tid);
 				adj.get(tid)!.push(sid);
