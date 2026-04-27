@@ -11,22 +11,43 @@
  *
  * No side effects. No Obsidian API dependencies.
  */
-import type {
-	ClusterArrangement,
-	ClusterGroupArrangement,
-	EdgeCardinalityMode,
-	NodeDisplayMode,
-	SortKey,
-	SortOrder,
-	ViewMode,
-} from "../types";
 import { TAG_DISPLAY_ENCLOSURE } from "../constants";
 import type { PanelState } from "./PanelBuilder";
 
+type FilterDefaults = Pick<
+	PanelState,
+	| "excludeNodes"
+	| "autoFitOnFilter"
+	| "minDegreeFilter"
+	| "maxDegreeFilter"
+	| "includeTagsInData"
+	| "showAttachments"
+	| "existingOnly"
+	| "showOrphans"
+	| "searchQuery"
+	| "searchMode"
+	| "commonQueries"
+	| "dataviewQuery"
+	| "groupFilter"
+	| "timelineRangeMin"
+	| "timelineRangeMax"
+	| "localGraphCenter"
+	| "localGraphHops"
+	| "edgeDirectionFilter"
+	| "searchHistory"
+	| "orphanClusterField"
+	| "highlightMissingNeighbors"
+	| "savedSearchQueries"
+	| "multiSelectNodeIds"
+	| "subgraphNodeIds"
+	| "subgraphStack"
+	| "expandedNodes"
+>;
+
 /** Filter-related defaults: search, degree bounds, subgraph scoping,
  *  timeline range, local graph, saved queries, and data inclusion flags. */
-export const DEFAULT_FILTER_STATE = () => ({
-	excludeNodes: [] as string[],
+export const DEFAULT_FILTER_STATE = (): FilterDefaults => ({
+	excludeNodes: [],
 	autoFitOnFilter: false,
 	minDegreeFilter: 0,
 	maxDegreeFilter: 0,
@@ -35,33 +56,125 @@ export const DEFAULT_FILTER_STATE = () => ({
 	existingOnly: false,
 	showOrphans: true,
 	searchQuery: "",
-	searchMode: "filter" as const,
-	commonQueries: [] as { query: string; recursive: boolean }[],
+	searchMode: "filter",
+	commonQueries: [],
 	dataviewQuery: "",
 	groupFilter: "",
 	timelineRangeMin: 0,
 	timelineRangeMax: 1,
-	localGraphCenter: null as string | null,
+	localGraphCenter: null,
 	localGraphHops: 2,
-	edgeDirectionFilter: "all" as const,
-	searchHistory: [] as string[],
+	edgeDirectionFilter: "all",
+	searchHistory: [],
 	orphanClusterField: "",
 	highlightMissingNeighbors: false,
-	savedSearchQueries: [] as { name: string; query: string }[],
-	multiSelectNodeIds: [] as string[],
-	subgraphNodeIds: [] as string[],
-	subgraphStack: [] as PanelState["subgraphStack"],
-	expandedNodes: [] as string[],
+	savedSearchQueries: [],
+	multiSelectNodeIds: [],
+	subgraphNodeIds: [],
+	subgraphStack: [],
+	expandedNodes: [],
 });
+
+type DisplayDefaults = Pick<
+	PanelState,
+	| "textFadeThreshold"
+	| "nodeSize"
+	| "showArrows"
+	| "colorEdgesByRelation"
+	| "nodeColorMode"
+	| "nodeColorField"
+	| "customColorPalette"
+	| "showInheritance"
+	| "showAggregation"
+	| "showTagNodes"
+	| "tagDisplay"
+	| "showSimilar"
+	| "showSibling"
+	| "showSequence"
+	| "showInlineRelation"
+	| "showNamedRelation"
+	| "showLinks"
+	| "showTagEdges"
+	| "showCategoryEdges"
+	| "showSemanticEdges"
+	| "fadeEdgesByDegree"
+	| "edgeBundleStrength"
+	| "hoverHops"
+	| "hoverHighlightTypes"
+	| "hoverEdgeTypes"
+	| "nodeShapeRules"
+	| "showEdgeLabels"
+	| "edgeLabelPlacement"
+	| "showMinimap"
+	| "showDotGrid"
+	| "showDurationBars"
+	| "showTimelineRoutes"
+	| "timelineKey"
+	| "timelineEndKey"
+	| "timelineOrderFields"
+	| "ringChartMode"
+	| "gridShowHeaders"
+	| "showAxisTitles"
+	| "showTimelineTickLabels"
+	| "gridCellShading"
+	| "gridStyle"
+	| "gridLabelPlacement"
+	| "nodeDisplayMode"
+	| "cardDisplayConfig"
+	| "donutDisplayConfig"
+	| "edgeCardinalityMode"
+	| "cardinalityRules"
+	| "cableBundleMode"
+	| "cableTrunkWidth"
+	| "cableTrunkAlpha"
+	| "cableSpacing"
+	| "cableFanWidth"
+	| "cableFanAlpha"
+	| "edgeWeightThickness"
+	| "edgeLayerMode"
+	| "showPathfinderOverlay"
+	| "showLegend"
+	| "showOutOfBoundsIndicator"
+	| "showGraphStats"
+	| "showAncestryBreadcrumb"
+	| "nodeSubLabelFields"
+	| "hoverTooltipFields"
+	| "hoverShowTitle"
+	| "hoverShowMeta"
+	| "hoverShowBody"
+	| "semanticZoom"
+	| "showTagBadges"
+	| "highContrastMode"
+	| "showImportanceRing"
+	| "importanceMetric"
+	| "showRecencyMarker"
+	| "recencyDays"
+	| "definitionField"
+	| "clusterLabelDetail"
+	| "highlightPatterns"
+	| "showBridgeNodes"
+	| "showHierarchyBreadcrumb"
+	| "showSimilarSuggestions"
+	| "showStructureQuestions"
+	| "showEntropyOverlay"
+	| "showClusterCompare"
+	| "showRelationMatrix"
+	| "showNodeThumbnails"
+	| "nodeIconField"
+	| "nodeIconMap"
+	| "focusConeEnabled"
+	| "analysisOverlay"
+	| "showOntologyBackbone"
+>;
 
 /** Display-related defaults: colors, shapes, edge visibility,
  *  hover behavior, labels, cards, grids, overlays, and thresholds. */
-export const DEFAULT_DISPLAY_STATE = () => ({
+export const DEFAULT_DISPLAY_STATE = (): DisplayDefaults => ({
 	textFadeThreshold: 0.5,
 	nodeSize: 20,
 	showArrows: false,
 	colorEdgesByRelation: true,
-	nodeColorMode: "category" as const,
+	nodeColorMode: "category",
 	nodeColorField: "",
 	customColorPalette: "",
 	showInheritance: false,
@@ -100,9 +213,9 @@ export const DEFAULT_DISPLAY_STATE = () => ({
 	nodeShapeRules: [
 		{ match: "isTag", shape: "triangle" },
 		{ match: "default", shape: "circle" },
-	] as PanelState["nodeShapeRules"],
+	],
 	showEdgeLabels: false,
-	edgeLabelPlacement: "center" as const,
+	edgeLabelPlacement: "center",
 	showMinimap: true,
 	showDotGrid: true,
 	showDurationBars: true,
@@ -115,14 +228,14 @@ export const DEFAULT_DISPLAY_STATE = () => ({
 	showAxisTitles: true,
 	showTimelineTickLabels: true,
 	gridCellShading: false,
-	gridStyle: "lines" as const,
-	gridLabelPlacement: "on-line" as const,
-	nodeDisplayMode: "node" as NodeDisplayMode,
-	cardDisplayConfig: { fields: [] as string[], maxWidth: 120, showIcon: false },
+	gridStyle: "lines",
+	gridLabelPlacement: "on-line",
+	nodeDisplayMode: "node",
+	cardDisplayConfig: { fields: [], maxWidth: 120, showIcon: false },
 	donutDisplayConfig: { innerRadius: 0.6 },
-	edgeCardinalityMode: "none" as EdgeCardinalityMode,
-	cardinalityRules: [] as PanelState["cardinalityRules"],
-	cableBundleMode: "auto" as const,
+	edgeCardinalityMode: "none",
+	cardinalityRules: [],
+	cableBundleMode: "auto",
 	cableTrunkWidth: 12,
 	cableTrunkAlpha: 0.25,
 	cableSpacing: 14,
@@ -144,11 +257,11 @@ export const DEFAULT_DISPLAY_STATE = () => ({
 	showTagBadges: false,
 	highContrastMode: false,
 	showImportanceRing: false,
-	importanceMetric: "degree" as const,
+	importanceMetric: "degree",
 	showRecencyMarker: false,
 	recencyDays: 7,
 	definitionField: "",
-	clusterLabelDetail: "standard" as const,
+	clusterLabelDetail: "standard",
 	highlightPatterns: false,
 	showBridgeNodes: false,
 	showHierarchyBreadcrumb: false,
@@ -159,17 +272,52 @@ export const DEFAULT_DISPLAY_STATE = () => ({
 	showRelationMatrix: false,
 	showNodeThumbnails: false,
 	nodeIconField: "",
-	nodeIconMap: {} as Record<string, string>,
+	nodeIconMap: {},
 	focusConeEnabled: true,
-	analysisOverlay: "off" as const,
+	analysisOverlay: "off",
 	showOntologyBackbone: false,
 });
 
+type LayoutDefaults = Pick<
+	PanelState,
+	| "viewMode"
+	| "matrixSortMode"
+	| "centerForce"
+	| "repelForce"
+	| "linkForce"
+	| "linkDistance"
+	| "concentricMinRadius"
+	| "concentricRadiusStep"
+	| "showOrbitRings"
+	| "orbitAutoRotate"
+	| "enclosureSpacing"
+	| "directionalGravityRules"
+	| "clusterGroupRules"
+	| "clusterArrangement"
+	| "clusterGroupArrangement"
+	| "clusterNodeSpacing"
+	| "clusterGroupScale"
+	| "clusterGroupSpacing"
+	| "clusterGravity"
+	| "clusterFollowsGroupBy"
+	| "coordinateLayout"
+	| "sortRules"
+	| "nodeRules"
+	| "groups"
+	| "groupBy"
+	| "groupByRules"
+	| "groupMinSize"
+	| "collapsedGroups"
+	| "pinnedPositions"
+	| "focusLayout"
+	| "autoFit"
+>;
+
 /** Layout-related defaults: forces, arrangement, clustering, groups,
  *  pinned positions, and view-mode-bound sort rules. */
-export const DEFAULT_LAYOUT_STATE = () => ({
-	viewMode: "graph" as ViewMode,
-	matrixSortMode: "degree" as const,
+export const DEFAULT_LAYOUT_STATE = (): LayoutDefaults => ({
+	viewMode: "graph",
+	matrixSortMode: "degree",
 	centerForce: 0.03,
 	repelForce: 500,
 	linkForce: 0.01,
@@ -179,44 +327,61 @@ export const DEFAULT_LAYOUT_STATE = () => ({
 	showOrbitRings: true,
 	orbitAutoRotate: true,
 	enclosureSpacing: 1.5,
-	directionalGravityRules: [] as PanelState["directionalGravityRules"],
-	clusterGroupRules: [] as PanelState["clusterGroupRules"],
-	clusterArrangement: "inherit" as ClusterArrangement,
-	clusterGroupArrangement: "auto" as ClusterGroupArrangement,
+	directionalGravityRules: [],
+	clusterGroupRules: [],
+	clusterArrangement: "inherit",
+	clusterGroupArrangement: "auto",
 	clusterNodeSpacing: 3.0,
 	clusterGroupScale: 3.0,
 	clusterGroupSpacing: 2.0,
 	clusterGravity: { interGroupAttraction: 0.5, intraGroupDensity: 1.0 },
 	clusterFollowsGroupBy: true,
-	coordinateLayout: null as PanelState["coordinateLayout"],
-	sortRules: [{ key: "degree" as SortKey, order: "desc" as SortOrder }],
-	nodeRules: [] as PanelState["nodeRules"],
-	groups: [] as PanelState["groups"],
+	coordinateLayout: null,
+	sortRules: [{ key: "degree", order: "desc" }],
+	nodeRules: [],
+	groups: [],
 	groupBy: "none",
-	groupByRules: null as PanelState["groupByRules"],
+	groupByRules: null,
 	groupMinSize: 2,
 	collapsedGroups: new Set<string>(),
-	pinnedPositions: {} as Record<string, { x: number; y: number }>,
+	pinnedPositions: {},
 	focusLayout: false,
 	autoFit: false,
 });
 
+type ToolbarDefaults = Pick<
+	PanelState,
+	| "activeTab"
+	| "savedViewports"
+	| "presetZoomLevel"
+	| "zoomSensitivity"
+	| "navHistory"
+	| "navHistoryCursor"
+	| "syncWithEditor"
+	| "syncViewId"
+	| "annotations"
+	| "bookmarkedNodes"
+	| "presentationMode"
+	| "focusMode"
+	| "focusNodeId"
+>;
+
 /** Toolbar / UI chrome state: active tab, navigation history, saved
  *  viewports, editor sync, annotations, bookmarks, focus & presentation. */
-export const DEFAULT_TOOLBAR_STATE = () => ({
-	activeTab: "filter" as const,
-	savedViewports: [] as PanelState["savedViewports"],
+export const DEFAULT_TOOLBAR_STATE = (): ToolbarDefaults => ({
+	activeTab: "filter",
+	savedViewports: [],
 	presetZoomLevel: 0,
 	zoomSensitivity: 1.0,
-	navHistory: [] as string[],
+	navHistory: [],
 	navHistoryCursor: -1,
 	syncWithEditor: true,
-	syncViewId: null as string | null,
-	annotations: [] as PanelState["annotations"],
-	bookmarkedNodes: [] as string[],
+	syncViewId: null,
+	annotations: [],
+	bookmarkedNodes: [],
 	presentationMode: false,
 	focusMode: false,
-	focusNodeId: null as string | null,
+	focusNodeId: null,
 });
 
 /** Build a fresh PanelState by spreading all four default buckets.
