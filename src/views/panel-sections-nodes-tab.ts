@@ -241,10 +241,8 @@ export function buildNodesStatsSection(tabEl: HTMLElement, total: number, visibl
 /**
  * Build the per-node degree lookup used by the sort/filter handlers.
  * Pure — derives the map from `entries` + `cb` without mutating either.
- * Separated so the orchestrator (and tests) can construct it independently
- * of DOM-producing section builders.
  */
-export function buildNodesDegreeSection(entries: NodeTreeEntry[], cb: PanelCallbacks): Map<string, number> {
+function buildNodesDegreeSection(entries: NodeTreeEntry[], cb: PanelCallbacks): Map<string, number> {
 	const degreeLookup = new Map<string, number>();
 	for (const e of entries) {
 		degreeLookup.set(e.id, cb.getForwardLinks(e.id).length + cb.getBacklinks(e.id).length);
