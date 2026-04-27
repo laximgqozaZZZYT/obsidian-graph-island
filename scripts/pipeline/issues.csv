@@ -204,4 +204,4 @@ id,priority,reported,completed,status,source,parent,depends,superseded_by,summar
 1413-settimeout-leaks,high,2026-04-28,,decomposed,auto-discovered,none,none,,setTimeout 43個 vs clearTimeout 25個 — 18個が未クリア,3,scripts/pipeline/descriptions/1413-settimeout-leaks.md,2026-04-28T03:00:16+09:00,2026-04-28T03:43:12+09:00
 1417-type-assertions,low,2026-04-28,,pending,auto-discovered,none,none,,230個の型アサーション (as T) — 型安全性リスク,0,scripts/pipeline/descriptions/1417-type-assertions.md,2026-04-28T03:20:16+09:00,2026-04-28T03:20:16+09:00
 1420-dead-exports,medium,2026-04-28,,done,auto-discovered,none,none,,111個のdead exports (使われていないpublic API),1,scripts/pipeline/descriptions/1420-dead-exports.md,2026-04-28T03:40:16+09:00,2026-04-28T03:54:16+09:00
-1423-dead-exports,medium,2026-04-28,,pending,auto-discovered,none,none,,111個のdead exports (使われていないpublic API),0,scripts/pipeline/descriptions/1423-dead-exports.md,2026-04-28T04:00:16+09:00,2026-04-28T04:00:16+09:00
+1423-dead-exports,medium,2026-04-28,,decomposed,auto-discovered,none,none,,111個のdead exports (使われていないpublic API),1,scripts/pipeline/descriptions/1423-dead-exports.md,2026-04-28T04:00:16+09:00,2026-04-28T04:02:47+09:00
