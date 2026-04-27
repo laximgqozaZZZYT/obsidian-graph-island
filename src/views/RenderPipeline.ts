@@ -52,21 +52,7 @@ import {
 	GLOW_P90_FRACTION,
 	LABEL_Y_OFFSET_FACTOR,
 } from "./render-pipeline-utils";
-export {
-	darkenColor,
-	lightenColor,
-	blendColors,
-	desaturateColor,
-	computeGlowParams,
-	computeLabelColors,
-	isDensityTooClose,
-	computeZonePlacementFromAngles,
-	GLOW_ATTENUATE_THRESHOLD,
-	GLOW_ATTENUATE_RANGE,
-	GLOW_RADIUS_ATTENUATE_FACTOR,
-	GLOW_P90_FRACTION,
-	LABEL_Y_OFFSET_FACTOR,
-};
+export { darkenColor, lightenColor, blendColors, desaturateColor };
 import {
 	computeZoomNodeBoost,
 	computeBaseStrokeWidth,
