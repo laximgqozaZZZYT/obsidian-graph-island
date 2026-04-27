@@ -1,0 +1,434 @@
+src/constants.ts:50 - VIEW_MODE_GRAPH
+src/constants.ts:51 - VIEW_MODE_SUNBURST
+src/constants.ts:52 - VIEW_MODE_TIMELINE
+src/constants.ts:53 - VIEW_MODE_TREE
+src/constants.ts:54 - VIEW_MODE_MATRIX
+src/constants.ts:395 - NODE_DECO_BADGE_RADIUS_PX
+src/constants.ts:397 - NODE_DECO_BADGE_MAX_COUNT
+src/constants.ts:399 - NODE_DECO_BADGE_PAD_FACTOR
+src/constants.ts:401 - NODE_DECO_RING_WIDTH
+src/constants.ts:403 - NODE_DECO_RING_PAD
+src/constants.ts:405 - NODE_DECO_RING_ALPHA
+src/constants.ts:407 - NODE_DECO_DASH_SEGMENTS
+src/constants.ts:409 - NODE_DECO_DASH_GAP_FRACTION
+src/constants.ts:411 - NODE_DECO_HALO_ALPHA_BASE
+src/constants.ts:413 - NODE_DECO_HALO_ALPHA_FACTOR
+src/constants.ts:415 - NODE_DECO_BOOKMARK_STAR_SPIKES
+src/constants.ts:466 - OUTLINE_PAD_MIN
+src/constants.ts:468 - OUTLINE_PAD_FACTOR
+src/constants.ts:470 - HULL_SAMPLES
+src/constants.ts:472 - OVERLAP_RECOMPUTE_FRAMES
+src/constants.ts:474 - SIZE_FADE_DIVISOR
+src/constants.ts:476 - FILL_ALPHA_BASE
+src/constants.ts:478 - FILL_ALPHA_OVERLAP
+src/constants.ts:480 - LABEL_COLLISION_MAX_ATTEMPTS
+src/constants.ts:482 - STROKE_ALPHA_NO_OVERLAP
+src/constants.ts:484 - STROKE_ALPHA_OVERLAP_MIN
+src/constants.ts:486 - STROKE_ALPHA_OVERLAP_BASE
+src/constants.ts:488 - STROKE_WIDTH_NO_OVERLAP
+src/constants.ts:490 - STROKE_WIDTH_OVERLAP_BASE
+src/constants.ts:492 - STROKE_WIDTH_OVERLAP_MIN
+src/constants.ts:494 - BORDER_OUTER_WIDTH
+src/constants.ts:496 - BORDER_OUTER_ALPHA_FACTOR
+src/constants.ts:498 - SIZE_FADE_MIN
+src/constants.ts:500 - FILL_ALPHA_VISIBILITY_THRESHOLD
+src/constants.ts:502 - LABEL_DARKEN_FACTOR
+src/constants.ts:504 - LABEL_PILL_PAD_X
+src/constants.ts:506 - LABEL_PILL_PAD_Y
+src/constants.ts:508 - COLLISION_ESCAPE_MARGIN
+src/constants.ts:510 - ZOOM_OUT_THRESHOLD
+src/constants.ts:735 - PATHFINDER_COLOR
+src/constants.ts:737 - PATHFINDER_COLOR_CSS
+src/constants.ts:747 - PATHFINDER_GLOW_STROKE_WIDTH
+src/constants.ts:749 - PATHFINDER_SOLID_STROKE_WIDTH
+src/constants.ts:751 - PATHFINDER_DOT_RADIUS
+src/constants.ts:753 - PATHFINDER_LABEL_FONT_SIZE
+src/i18n.ts:2057 - _getTranslationKeys
+src/obsidian-internals.ts:105 - ObsidianSearchView (used in module)
+src/settings.ts:139 - HELP (used in module)
+src/settings.ts:139 - HelpModal (used in module)
+src/settings.ts:140 - HelpEntry (used in module)
+src/analysis/graph-analysis.ts:67 - countConnectedComponents (used in module)
+src/layouts/cable-tray.ts:326 - findShortestPath (used in module)
+src/layouts/cable-tray.ts:380 - pathToWaypoints (used in module)
+src/layouts/cable-tray.ts:523 - findNearestIntersection
+src/layouts/cable-tray.ts:589 - cachedFindShortestPath
+src/layouts/cluster-force.ts:945 - getSpacing (used in module)
+src/layouts/cluster-force.ts:952 - computeGroupGap (used in module)
+src/layouts/cluster-force.ts:960 - pairwiseGap (used in module)
+src/layouts/cluster-force.ts:973 - estimateLabelExtent (used in module)
+src/layouts/cluster-force.ts:1538 - computeEffectiveColumnSpacing (used in module)
+src/layouts/cluster-force.ts:2294 - estimateGroupRadius (used in module)
+src/layouts/cluster-force.ts:2356 - partitionNodes (used in module)
+src/layouts/cluster-force.ts:2452 - backlinkBucket (used in module)
+src/layouts/cluster-force.ts:2753 - concentricOffsets (used in module)
+src/layouts/cluster-force.ts:2863 - gridOffsets (used in module)
+src/layouts/cluster-force.ts:2914 - triangleOffsets (used in module)
+src/layouts/cluster-force.ts:3091 - randomOffsets (used in module)
+src/layouts/cluster-force.ts:3171 - estimateLabelWidth (used in module)
+src/layouts/cluster-force.ts:1052 - ArrangementParams (used in module)
+src/layouts/coordinate-engine.ts:398 - resolveAxisValues (used in module)
+src/layouts/coordinate-engine.ts:648 - applyTransform (used in module)
+src/layouts/coordinate-engine.ts:729 - toCartesian (used in module)
+src/layouts/coordinate-engine.ts:1080 - resolveAxisCategories (used in module)
+src/layouts/coordinate-engine.ts:1322 - formatGridValue (used in module)
+src/layouts/coordinate-presets.ts:237 - resolveArrangementFromLayout
+src/layouts/coordinate-presets.ts:278 - isExactPreset
+src/layouts/ego-sector.ts:41 - classifyEgoNeighbors (used in module)
+src/layouts/road-network-metrics.ts:13 - pointToSegmentDist (used in module)
+src/layouts/road-network-metrics.ts:28 - pointToNearestRoad
+src/layouts/sunburst.ts:128 - collectFilePaths (used in module)
+src/layouts/sunburst.ts:140 - countDirectChildren (used in module)
+src/layouts/sunburst.ts:149 - buildSunburstFromGraphNodes (used in module)
+src/layouts/sunburst.ts:208 - getGroupingPath (used in module)
+src/layouts/sunburst.ts:233 - computeSunburstArcs (used in module)
+src/layouts/sunburst.ts:269 - assignValues (used in module)
+src/layouts/sunburst.ts:282 - maxDepth (used in module)
+src/layouts/timeline-layout.ts:211 - timelinePartitionNodes (used in module)
+src/layouts/timeline-layout.ts:280 - timelineSortAndBuildSteps (used in module)
+src/layouts/timeline-layout.ts:306 - timelineComputeSpacing (used in module)
+src/layouts/timeline-layout.ts:329 - timelinePlaceTimedNodes (used in module)
+src/layouts/timeline-layout.ts:393 - timelineAlignHierarchy (used in module)
+src/layouts/timeline-layout.ts:429 - timelinePlaceUntimedNodes (used in module)
+src/layouts/timeline-layout.ts:451 - timelineCenterOffsets (used in module)
+src/layouts/timeline-layout.ts:537 - timelineAssignBarLanes (used in module)
+src/layouts/timeline-layout.ts:603 - timelineEnforceColumnGaps (used in module)
+src/layouts/timeline-layout.ts:644 - timelineRecenterY (used in module)
+src/layouts/timeline-layout.ts:663 - timelineBuildSequenceEdges (used in module)
+src/layouts/timeline-layout.ts:754 - buildLinkChainOrder (used in module)
+src/layouts/timeline-layout.ts:820 - buildHierarchyOrder (used in module)
+src/layouts/timeline-layout.ts:889 - resolveTimeKey (used in module)
+src/layouts/timeline.ts:60 - defaultTimeComparator (used in module)
+src/layouts/timeline.ts:68 - buildTimelineDAG (used in module)
+src/layouts/timeline.ts:83 - assignLanes (used in module)
+src/layouts/tree.ts:21 - applyTreeLayout
+src/parsers/metadata-parser.ts:33 - classifyRelation (used in module)
+src/parsers/metadata-parser.ts:463 - collectAllTags (used in module)
+src/parsers/metadata-parser.ts:658 - simpleHash (used in module)
+src/parsers/metadata-parser.ts:727 - parseInlineRelationLinksRaw (used in module)
+src/parsers/metadata-parser.ts:771 - defineLazyMeta (used in module)
+src/parsers/metadata-parser.ts:793 - snapshotMeta (used in module)
+src/parsers/metadata-parser.ts:828 - extractBodyInfo (used in module)
+src/utils/color.ts:16 - hexBrightness
+src/utils/color.ts:22 - adjustBrightness
+src/utils/color.ts:32 - wcagRelativeLuminance (used in module)
+src/utils/git-status-emit.ts:14 - assertGitStatusShortInput (used in module)
+src/utils/git-status-emit.ts:23 - buildGitStatusShortResult (used in module)
+src/utils/git-status-emit.ts:34 - emitGitStatusShortResult
+src/utils/git-status-emit.ts:8 - GitStatusShortEmitInput (used in module)
+src/utils/git-status-formatter.ts:1 - GitStatusShortResultStatus (used in module)
+src/utils/graph-filter.ts:14 - filterOrphans (used in module)
+src/utils/graph-filter.ts:43 - filterAttachments (used in module)
+src/utils/graph-filter.ts:54 - filterTagNodes (used in module)
+src/utils/graph-filter.ts:62 - filterSimilarEdges (used in module)
+src/utils/graph-filter.ts:67 - filterNamedRelationEdges (used in module)
+src/utils/graph-helpers.ts:136 - bfsShortestPath (used in module)
+src/utils/graph-helpers.ts:185 - shiftHue
+src/utils/graph-helpers.ts:435 - buildPositionMap (used in module)
+src/utils/graph-helpers.ts:446 - computeSvgViewBox (used in module)
+src/utils/graph-helpers.ts:478 - nodeColorHex (used in module)
+src/utils/graph-helpers.ts:578 - truncateBreadcrumb
+src/utils/graph-helpers.ts:862 - computeAutoFitBoundsTrimmed (used in module)
+src/utils/graph-helpers.ts:905 - autoFitVisibleThreshold (used in module)
+src/utils/graph-helpers.ts:998 - computeTimelineFilteredIds
+src/utils/gvc-helpers.ts:16 - deriveOneRule (used in module)
+src/utils/gvc-helpers.ts:103 - heatmapColor
+src/utils/gvc-helpers.ts:121 - findMatchingGroupPreset
+src/utils/gvc-helpers.ts:139 - resolveNodeColor
+src/utils/gvc-helpers.ts:112 - COMMUNITY_PALETTE
+src/utils/louvain.ts:11 - LouvainEdge (used in module)
+src/utils/node-grouping.ts:43 - resolveFrontmatterField (used in module)
+src/utils/node-grouping.ts:56 - pickLargestGroup (used in module)
+src/utils/node-grouping.ts:70 - groupNodesByTag
+src/utils/node-grouping.ts:237 - expandGroup
+src/utils/snapshot.ts:17 - fnv1a (used in module)
+src/utils/snapshot.ts:44 - hashMeta (used in module)
+src/utils/snapshot.ts:92 - edgeKey (used in module)
+src/utils/timer-registry.ts:10 - TimerRegistry
+src/utils/tooltip-position.ts:56 - tooltipNeedsFlip (used in module)
+src/utils/tooltip-position.ts:84 - computeFlippedOffset (used in module)
+src/utils/transform-expr.ts:356 - getTransformExprSuggestions
+src/views/animation-controller.ts:35 - startCancellableRAF (used in module)
+src/views/animation-controller.ts:66 - cancelAllHandles
+src/views/animation-controller.ts:88 - fadeNodeAlphaCancellable
+src/views/animation-controller.ts:13 - RAFHandle (used in module)
+src/views/animation-controller.ts:17 - RAFApi (used in module)
+src/views/animation-controller.ts:75 - FadeableNode (used in module)
+src/views/CableTrayRenderer.ts:185 - buildManhattanPath (used in module)
+src/views/CableTrayRenderer.ts:208 - buildHorizontalTrunkPath (used in module)
+src/views/CableTrayRenderer.ts:223 - buildVerticalTrunkPath (used in module)
+src/views/CableTrayRenderer.ts:241 - buildPolarTrunkPath (used in module)
+src/views/CableTrayRenderer.ts:302 - computeCablePath
+src/views/CableTrayRenderer.ts:410 - computePolarJunctionGrid (used in module)
+src/views/CableTrayRenderer.ts:488 - filterPolarGridForPort (used in module)
+src/views/CableTrayRenderer.ts:566 - routeViaPolarGrid (used in module)
+src/views/CableTrayRenderer.ts:629 - computeRadialPort (used in module)
+src/views/CableTrayRenderer.ts:654 - estimateNodeSpacingMargin (used in module)
+src/views/CableTrayRenderer.ts:37 - BBoxFace (used in module)
+src/views/CableTrayRenderer.ts:151 - HIGHLIGHT_CABLE_TRUNK_WIDTH
+src/views/CableTrayRenderer.ts:152 - CABLE_FAN_CROWD_THRESHOLD
+src/views/CableTrayRenderer.ts:153 - CABLE_FAN_CROWD_MIN_FRACTION
+src/views/CableTrayRenderer.ts:158 - MAX_CONDUIT_WIDTH
+src/views/CableTrayRenderer.ts:162 - DEFAULT_CLUSTER_RADIUS (used in module)
+src/views/card-renderer.ts:35 - isCardText (used in module)
+src/views/card-renderer.ts:40 - markAsCardText (used in module)
+src/views/card-renderer.ts:85 - wrapTextToLines (used in module)
+src/views/card-renderer.ts:405 - estimateBodyLineCount (used in module)
+src/views/card-renderer.ts:73 - CARD_ICON (used in module)
+src/views/card-renderer.ts:102 - PLAIN_CARD (used in module)
+src/views/coord-panel.ts:22 - evalSource (used in module)
+src/views/coord-panel.ts:63 - evalTransform (used in module)
+src/views/coord-panel.ts:119 - plotCurve (used in module)
+src/views/coord-panel.ts:670 - syncUserVarsFromLayout (used in module)
+src/views/coord-panel.ts:784 - parseAxisSourceString
+src/views/coord-panel.ts:784 - axisSourceToString
+src/views/DiffOverlay.ts:490 - layoutGhostNodes (used in module)
+src/views/DiffOverlay.ts:517 - ghostLabel (used in module)
+src/views/donut-renderer.ts:82 - renderDonutBreakdown (used in module)
+src/views/donut-renderer.ts:17 - RING_STROKE_DARKEN (used in module)
+src/views/donut-renderer.ts:19 - RING_STROKE_ALPHA (used in module)
+src/views/donut-renderer.ts:21 - SUNBURST_SEGMENT_ARC_DEG (used in module)
+src/views/EdgeLabelRenderer.ts:43 - a11yEdgeLabelFill (used in module)
+src/views/EdgeLabelRenderer.ts:53 - getEdgeLabel (used in module)
+src/views/EdgeLabelRenderer.ts:78 - collectLabelableEdges (used in module)
+src/views/EdgeLabelRenderer.ts:91 - trimLabelsByDegree (used in module)
+src/views/EdgeLabelRenderer.ts:112 - seedNodeRects (used in module)
+src/views/EdgeLabelRenderer.ts:135 - computeLabelPosition (used in module)
+src/views/EdgeLabelRenderer.ts:30 - EDGE_LABEL_FONT_SIZE_DEFAULT (used in module)
+src/views/EdgeLabelRenderer.ts:30 - EDGE_LABEL_BG_ALPHA (used in module)
+src/views/EdgeLabelRenderer.ts:30 - MAX_EDGE_LABELS (used in module)
+src/views/EdgeRenderer.ts:300 - buildBidirectionalSet (used in module)
+src/views/EdgeRenderer.ts:335 - defaultColor (used in module)
+src/views/EdgeRenderer.ts:421 - normalizeAngle (used in module)
+src/views/EdgeRenderer.ts:497 - isOntologyEdge (used in module)
+src/views/EdgeRenderer.ts:508 - classifyEdgePort
+src/views/EdgeRenderer.ts:516 - portLaneKey
+src/views/EdgeRenderer.ts:674 - findPerimeterBranchPoint
+src/views/EdgeRenderer.ts:848 - findGapBetween (used in module)
+src/views/EdgeRenderer.ts:879 - pushSrcEntry (used in module)
+src/views/EdgeRenderer.ts:884 - pushTgtExit (used in module)
+src/views/EdgeRenderer.ts:889 - computeJunctionWaypoints (used in module)
+src/views/EdgeRenderer.ts:1654 - resolveEdgeStyle (used in module)
+src/views/EdgeRenderer.ts:1721 - getDashPattern (used in module)
+src/views/EdgeRenderer.ts:1944 - computeDensityScale (used in module)
+src/views/EdgeRenderer.ts:1974 - buildPairCounts (used in module)
+src/views/EdgeRenderer.ts:70 - STRUCTURAL_EDGE_ALPHA (used in module)
+src/views/EdgeRenderer.ts:71 - NON_STRUCTURAL_EDGE_ALPHA (used in module)
+src/views/EdgeRenderer.ts:72 - DEFAULT_LINE_THICKNESS (used in module)
+src/views/EdgeRenderer.ts:75 - RELATION_COLOR_ALPHA (used in module)
+src/views/EdgeRenderer.ts:76 - HIGHLIGHT_THICKNESS_MULTIPLIER (used in module)
+src/views/EdgeRenderer.ts:77 - DENSITY_FULL_ALPHA_THRESHOLD (used in module)
+src/views/EdgeRenderer.ts:78 - DENSITY_GENTLE_THRESHOLD (used in module)
+src/views/EdgeRenderer.ts:79 - DENSITY_AGGRESSIVE_THRESHOLD (used in module)
+src/views/EdgeRenderer.ts:80 - DENSITY_MIN_ALPHA (used in module)
+src/views/EdgeRenderer.ts:81 - ZOOM_FADE_THRESHOLD (used in module)
+src/views/EdgeRenderer.ts:82 - ZOOM_FADE_MIN_ALPHA (used in module)
+src/views/EdgeRenderer.ts:83 - DEFAULT_DENSITY_FLOOR (used in module)
+src/views/EdgeRenderer.ts:118 - GroupPort (used in module)
+src/views/EdgeRenderer.ts:119 - Trunk (used in module)
+src/views/EdgeRenderer.ts:120 - TrunkCable (used in module)
+src/views/EdgeRenderer.ts:121 - NodePort (used in module)
+src/views/EdgeRenderer.ts:122 - IntraGroupCable (used in module)
+src/views/EdgeRenderer.ts:123 - CableRouteOpts (used in module)
+src/views/EdgeRenderer.ts:124 - GroupPerimInfo (used in module)
+src/views/EdgeRenderer.ts:125 - PolarJunctionGrid (used in module)
+src/views/EdgeRenderer.ts:126 - PortLaneInfo (used in module)
+src/views/EdgeRenderer.ts:127 - PortColorLanes (used in module)
+src/views/EdgeRenderer.ts:128 - CablePrepResult (used in module)
+src/views/EdgeRenderer.ts:349 - EDGE_TYPE_SPECS (used in module)
+src/views/EdgeRenderer.ts:371 - EDGE_TYPE_FALLBACK_COLORS (used in module)
+src/views/EnclosureRenderer.ts:628 - drawSmoothHull (used in module)
+src/views/EnclosureRenderer.ts:637 - drawCapsule (used in module)
+src/views/EnclosureRenderer.ts:674 - filterOutliers (used in module)
+src/views/export-orchestrator.ts:61 - resolveSvgExportOptions (used in module)
+src/views/export-orchestrator.ts:78 - buildExportTimestamp (used in module)
+src/views/export-orchestrator.ts:86 - buildExportFilename (used in module)
+src/views/export-orchestrator.ts:110 - resolveExportCounts (used in module)
+src/views/export-orchestrator.ts:132 - orchestrateSvgExport
+src/views/export-orchestrator.ts:32 - SvgExportOverrides (used in module)
+src/views/export-orchestrator.ts:41 - ResolvedSvgExportOptions (used in module)
+src/views/export-orchestrator.ts:50 - DEFAULT_SVG_EXPORT_OPTIONS (used in module)
+src/views/export-orchestrator.ts:102 - ExportCounts (used in module)
+src/views/export-orchestrator.ts:122 - ExportOrchestratorHost (used in module)
+src/views/ExportManager.ts:90 - exportPng
+src/views/ExportManager.ts:108 - exportFullGraph
+src/views/GraphViewContainer.ts:305 - PixiNode (used in module)
+src/views/group-label-manager.ts:67 - AggregateHitRegion (used in module)
+src/views/group-label-manager.ts:630 - parseGroupByFields
+src/views/GuideRenderer.ts:41 - findCellIndex (used in module)
+src/views/hover-helpers.ts:13 - HoverTooltipInput (used in module)
+src/views/hover-helpers.ts:22 - HoverTooltipOptions (used in module)
+src/views/inertia-pan.ts:1 - FRICTION (used in module)
+src/views/inertia-pan.ts:12 - InertiaPan
+src/views/InteractionManager.ts:216 - computeZoomFactor (used in module)
+src/views/InteractionManager.ts:226 - clampScale (used in module)
+src/views/InteractionManager.ts:201 - ZOOM_IN_FACTOR (used in module)
+src/views/InteractionManager.ts:202 - ZOOM_OUT_FACTOR (used in module)
+src/views/InteractionManager.ts:205 - ZOOM_SCALE_MIN (used in module)
+src/views/InteractionManager.ts:206 - ZOOM_SCALE_MAX (used in module)
+src/views/LabelManager.ts:634 - computePriorityScores
+src/views/LabelManager.ts:687 - extractInitials (used in module)
+src/views/LabelManager.ts:705 - estimateTextWidth (used in module)
+src/views/LabelManager.ts:718 - computeRotatedAABB (used in module)
+src/views/LabelManager.ts:735 - smartTruncateLabel (used in module)
+src/views/LabelManager.ts:763 - selectLabelMode
+src/views/layout-compute.ts:164 - detectTimeKey (used in module)
+src/views/layout-compute.ts:187 - buildTimelineBars (used in module)
+src/views/layout-compute.ts:218 - resolveBarOverlaps (used in module)
+src/views/layout-compute.ts:237 - computeWorkGroupRanges (used in module)
+src/views/LayoutController.ts:43 - resolveGroupLayoutMode (used in module)
+src/views/LayoutTransition.ts:111 - easeInOutCubic (used in module)
+src/views/LayoutTransition.ts:116 - LAYOUT_TRANSITION_DURATION_MS
+src/views/LayoutTransition.ts:117 - LAYOUT_LARGE_GRAPH_THRESHOLD
+src/views/matrix-renderer.ts:58 - buildMatrixData (used in module)
+src/views/matrix-renderer.ts:123 - matrixNodeLabel (used in module)
+src/views/node-coloring.ts:15 - COMMUNITY_PALETTE (used in module)
+src/views/NodeComparisonView.ts:36 - bfsShortestPath (used in module)
+src/views/NodeComparisonView.ts:69 - classifyNeighbors (used in module)
+src/views/NodeComparisonView.ts:90 - classifyTags (used in module)
+src/views/NodeComparisonView.ts:110 - computeComparison (used in module)
+src/views/pan-inertia-controller.ts:1 - PanInertiaController
+src/views/panel-defaults.ts:28 - DEFAULT_FILTER_STATE (used in module)
+src/views/panel-defaults.ts:59 - DEFAULT_DISPLAY_STATE (used in module)
+src/views/panel-defaults.ts:170 - DEFAULT_LAYOUT_STATE (used in module)
+src/views/panel-defaults.ts:206 - DEFAULT_TOOLBAR_STATE (used in module)
+src/views/panel-helpers.ts:3 - setPanelValue
+src/views/panel-helpers.ts:7 - getPanelValue
+src/views/panel-sections-filter-logic.ts:186 - countActiveHoverHighlights
+src/views/panel-sections-filter-logic.ts:42 - CardPreset (used in module)
+src/views/panel-sections-filter-logic.ts:166 - HoverHighlightTypes (used in module)
+src/views/panel-sections-filter-logic.ts:173 - DEFAULT_HOVER_HIGHLIGHT_TYPES (used in module)
+src/views/panel-sections-filter.ts:49 - buildBookmarkSection
+src/views/panel-sections-filter.ts:206 - buildNodeDecorationSection
+src/views/panel-sections-filter.ts:324 - buildStructureAnalysisSection
+src/views/panel-sections-filter.ts:438 - buildDiscoverySection
+src/views/panel-sections-filter.ts:522 - buildInteractionSection
+src/views/panel-sections-filter.ts:872 - buildRenderThresholdsSection
+src/views/panel-sections-layout.ts:89 - buildGraphSyncSection
+src/views/panel-sections-layout.ts:141 - buildPluginSettingsSection
+src/views/panel-sections-layout.ts:283 - buildCustomMappingsSection
+src/views/panel-sections-layout.ts:557 - buildTimelineControls
+src/views/panel-sections-layout.ts:776 - buildForceParameters
+src/views/panel-sections-layout.ts:857 - buildClusterGroupRules
+src/views/panel-sections-layout.ts:46 - getPreset (used in module)
+src/views/panel-sections-nodes-tab.ts:230 - buildNodesStatsSection (used in module)
+src/views/panel-sections-nodes-tab.ts:247 - buildNodesDegreeSection (used in module)
+src/views/panel-sections-nodes-tab.ts:256 - buildNodesFilterSection (used in module)
+src/views/panel-sections-nodes-tab.ts:290 - buildNodesTreeSection (used in module)
+src/views/panel-sections-nodes-tab.ts:359 - buildNodesLegendSection (used in module)
+src/views/panel-sections.ts:243 - buildNodeDisplaySection
+src/views/panel-sections.ts:382 - buildEdgeDisplaySection
+src/views/panel-sections.ts:940 - buildNodesTab
+src/views/panel-widgets.ts:18 - updateSliderProgress (used in module)
+src/views/panel-widgets.ts:244 - getGroupByOptions (used in module)
+src/views/panel-widgets.ts:347 - addMultiValueInput
+src/views/panel-widgets.ts:400 - parseGroupByRules (used in module)
+src/views/panel-widgets.ts:423 - deriveClusterRulesFromGroupBy (used in module)
+src/views/panel-widgets.ts:432 - serializeGroupByRules (used in module)
+src/views/panel-widgets.ts:707 - getQueryOptions (used in module)
+src/views/panel-widgets.ts:750 - resolvePrefix (used in module)
+src/views/panel-widgets.ts:761 - parseActiveToken (used in module)
+src/views/panel-widgets.ts:882 - _insertTextAtCursor (used in module)
+src/views/panel-widgets.ts:896 - _replaceTokenAtPosition (used in module)
+src/views/panel-widgets.ts:909 - _updateHintSelection (used in module)
+src/views/panel-widgets.ts:917 - _buildQueryHintContainer (used in module)
+src/views/panel-widgets.ts:1285 - renderGroupList (used in module)
+src/views/panel-widgets.ts:1327 - getSortKeyOptions (used in module)
+src/views/panel-widgets.ts:1552 - getGravityDirOptions (used in module)
+src/views/panel-widgets.ts:1563 - angleToPreset (used in module)
+src/views/panel-widgets.ts:1745 - renderNodeRuleList (used in module)
+src/views/PanelBuilder.ts:1719 - parseAxisSourceString
+src/views/PanelBuilder.ts:1719 - axisSourceToString
+src/views/pathfinder-overlay.ts:57 - computePathfinderPulse (used in module)
+src/views/pathfinder-overlay.ts:70 - buildPathSegments (used in module)
+src/views/pathfinder-overlay.ts:16 - PATHFINDER_PULSE_SPEED (used in module)
+src/views/pathfinder-overlay.ts:17 - PATHFINDER_PULSE_AMPLITUDE (used in module)
+src/views/pathfinder-overlay.ts:18 - PATHFINDER_GLOW_ALPHA_BASE (used in module)
+src/views/pathfinder-overlay.ts:19 - PATHFINDER_SOLID_ALPHA_BASE (used in module)
+src/views/pathfinder-overlay.ts:20 - PATHFINDER_LABEL_OFFSET_X (used in module)
+src/views/pathfinder-overlay.ts:21 - PATHFINDER_LABEL_OFFSET_Y (used in module)
+src/views/render-pipeline-utils.ts:145 - computeTimelineFilteredSet
+src/views/renderer-factory.ts:19 - detectBackend (used in module)
+src/views/RenderHelpers.ts:49 - generatePhantomNodes (used in module)
+src/views/RenderHelpers.ts:36 - setFrontmatterField (used in module)
+src/views/RenderHelpers.ts:39 - addFrontmatterTag (used in module)
+src/views/RenderPipeline.ts:127 - computeZoomFadeAlpha (used in module)
+src/views/RenderPipeline.ts:144 - computeLodLevel (used in module)
+src/views/RenderPipeline.ts:170 - computeDensityScale (used in module)
+src/views/RenderPipeline.ts:186 - computeDensityMinDist (used in module)
+src/views/RenderPipeline.ts:199 - generateDisplacementOffsets (used in module)
+src/views/RenderPipeline.ts:379 - quickSelect (used in module)
+src/views/RenderPipeline.ts:56 - lightenColor (used in module)
+src/views/RenderPipeline.ts:57 - blendColors (used in module)
+src/views/RenderPipeline.ts:58 - desaturateColor (used in module)
+src/views/RenderPipeline.ts:59 - computeGlowParams (used in module)
+src/views/RenderPipeline.ts:60 - computeLabelColors (used in module)
+src/views/RenderPipeline.ts:61 - isDensityTooClose (used in module)
+src/views/RenderPipeline.ts:62 - computeZonePlacementFromAngles (used in module)
+src/views/RenderPipeline.ts:63 - GLOW_ATTENUATE_THRESHOLD (used in module)
+src/views/RenderPipeline.ts:64 - GLOW_ATTENUATE_RANGE (used in module)
+src/views/RenderPipeline.ts:65 - GLOW_RADIUS_ATTENUATE_FACTOR (used in module)
+src/views/RenderPipeline.ts:66 - GLOW_P90_FRACTION (used in module)
+src/views/RenderPipeline.ts:67 - LABEL_Y_OFFSET_FACTOR (used in module)
+src/views/SearchOrchestrator.ts:62 - parseHopFilters
+src/views/SearchOrchestrator.ts:86 - computeHopSet
+src/views/SearchOrchestrator.ts:140 - filterBySearchExpr
+src/views/SearchOrchestrator.ts:177 - classifySearchMatch (used in module)
+src/views/SearchOrchestrator.ts:190 - countSearchMatches
+src/views/SearchOrchestrator.ts:217 - expandLocalGraphNeighbors
+src/views/SearchOrchestrator.ts:260 - capNodesByDegree
+src/views/SearchOrchestrator.ts:296 - buildRichStatus
+src/views/SearchOrchestrator.ts:343 - computePathfinderBFS
+src/views/SearchOrchestrator.ts:404 - computeEntropyScores
+src/views/SearchOrchestrator.ts:435 - computeCardHaloGeometry
+src/views/SnapshotManager.ts:48 - showSnapshotMenu
+src/views/SnapshotManager.ts:111 - saveSnapshot (used in module)
+src/views/SnapshotManager.ts:147 - compareWithSnapshot (used in module)
+src/views/SnapshotManager.ts:173 - deleteSnapshot (used in module)
+src/views/SnapshotManager.ts:185 - showSnapshotTimeline (used in module)
+src/views/SnapshotManager.ts:276 - clearDiffOverlay (used in module)
+src/views/SnapshotManager.ts:291 - createAutoSnapshot
+src/views/SnapshotManager.ts:17 - SnapshotHost (used in module)
+src/views/SnapshotManager.ts:287 - AUTO_SNAP_PREFIX (used in module)
+src/views/SnapshotManager.ts:288 - AUTO_SNAP_MAX (used in module)
+src/views/soft-render.ts:18 - applySoftRender
+src/views/timeline-bar-renderer.ts:16 - TimelineBarHost (used in module)
+src/views/canvas2d/CanvasContainer.ts:5 - CanvasChild (used in module)
+src/views/canvas2d/interfaces.ts:22 - IScale (used in module)
+src/views/canvas2d/interfaces.ts:32 - IChild (used in module)
+src/views/canvas2d/interfaces.ts:112 - IAnchor (used in module)
+src/views/export/ExportOrchestrator.ts:104 - buildSvgExportArgs
+src/views/export/ExportOrchestrator.ts:143 - buildPngExportArgs
+src/views/export/ExportOrchestrator.ts:170 - buildPresetJson
+src/views/export/ExportOrchestrator.ts:209 - safeExport
+src/views/export/ExportOrchestrator.ts:32 - exportGraphSVG (used in module)
+src/views/export/ExportOrchestrator.ts:38 - SvgExportGraph (used in module)
+src/views/export/ExportOrchestrator.ts:43 - SvgExportSettings (used in module)
+src/views/export/ExportOrchestrator.ts:50 - SvgExportViewState (used in module)
+src/views/export/ExportOrchestrator.ts:58 - SvgExportArgs (used in module)
+src/views/export/ExportOrchestrator.ts:71 - PngExportCanvasLike (used in module)
+src/views/export/ExportOrchestrator.ts:76 - PngExportSettings (used in module)
+src/views/export/ExportOrchestrator.ts:81 - PngExportArgs (used in module)
+src/views/export/ExportOrchestrator.ts:88 - PresetMetadata (used in module)
+src/views/export/ExportOrchestrator.ts:202 - SafeExportResult (used in module)
+src/views/snapshot/GraphSnapshot.ts:39 - serializeState (used in module)
+src/views/snapshot/GraphSnapshot.ts:52 - restoreState
+src/views/snapshot/GraphSnapshot.ts:72 - buildAutoSnapshotName (used in module)
+src/views/snapshot/GraphSnapshot.ts:80 - pruneAutoSnapshots (used in module)
+src/views/snapshot/GraphSnapshot.ts:99 - appendAutoSnapshot (used in module)
+src/views/snapshot/GraphSnapshot.ts:13 - AUTO_SNAP_PREFIX (used in module)
+src/views/snapshot/GraphSnapshot.ts:16 - AUTO_SNAP_MAX (used in module)
+src/views/snapshot/GraphSnapshot.ts:19 - SnapshotContext (used in module)
+src/views/snapshot/GraphSnapshot.ts:26 - RestoredSnapshotState (used in module)
+src/views/snapshot/GraphSnapshot.ts:117 - AutoSnapshotHost (used in module)
+src/views/snapshot/GraphSnapshot.ts:136 - TimerHooks (used in module)
+src/views/webgl/buffer-pool.ts:5 - BufferHandle (used in module)
+src/views/webgl/buffer-pool.ts:14 - BufferPool
+src/views/webgl/mat3.ts:16 - mat3Identity
+src/views/webgl/mat3.ts:25 - mat3Translate
+src/views/webgl/mat3.ts:36 - mat3Scale
+src/views/webgl/mat3.ts:54 - mat3MultiplyInto (used in module)
+src/views/webgl/shaders.ts:62 - compileShader (used in module)
+src/views/webgl/shaders.ts:79 - createProgram (used in module)
+src/views/webgl/shaders.ts:124 - ShaderCache
+src/views/webgl/WebGLApp.ts:31 - WebGLAppOptions (used in module)
