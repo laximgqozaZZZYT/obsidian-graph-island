@@ -9,24 +9,24 @@
  * This preserves the invariant noted in PanelBuilder: spreading a shared
  * default would leak mutations back into "defaults".
  *
+ * Each factory's return type is annotated `Partial<PanelState>` so that
+ * TypeScript's contextual typing flows into the object literal and
+ * narrows field types automatically (e.g. `[]` → `string[]`,
+ * `"filter"` → `"filter" | "highlight"`). This avoids per-field
+ * `as const` / `as TypeName` casts. Excess-property checks still catch
+ * misspelled keys, and the disjoint-keys snapshot test in
+ * tests/views/panel-defaults.test.ts ensures all PanelState fields are
+ * covered exactly once across the four buckets.
+ *
  * No side effects. No Obsidian API dependencies.
  */
-import type {
-	ClusterArrangement,
-	ClusterGroupArrangement,
-	EdgeCardinalityMode,
-	NodeDisplayMode,
-	SortKey,
-	SortOrder,
-	ViewMode,
-} from "../types";
 import { TAG_DISPLAY_ENCLOSURE } from "../constants";
 import type { PanelState } from "./PanelBuilder";
 
 /** Filter-related defaults: search, degree bounds, subgraph scoping,
  *  timeline range, local graph, saved queries, and data inclusion flags. */
-export const DEFAULT_FILTER_STATE = () => ({
-	excludeNodes: [] as string[],
+export const DEFAULT_FILTER_STATE = (): Partial<PanelState> => ({
+	excludeNodes: [],
 	autoFitOnFilter: false,
 	minDegreeFilter: 0,
 	maxDegreeFilter: 0,
@@ -35,33 +35,33 @@ export const DEFAULT_FILTER_STATE = () => ({
 	existingOnly: false,
 	showOrphans: true,
 	searchQuery: "",
-	searchMode: "filter" as const,
-	commonQueries: [] as { query: string; recursive: boolean }[],
+	searchMode: "filter",
+	commonQueries: [],
 	dataviewQuery: "",
 	groupFilter: "",
 	timelineRangeMin: 0,
 	timelineRangeMax: 1,
-	localGraphCenter: null as string | null,
+	localGraphCenter: null,
 	localGraphHops: 2,
-	edgeDirectionFilter: "all" as const,
-	searchHistory: [] as string[],
+	edgeDirectionFilter: "all",
+	searchHistory: [],
 	orphanClusterField: "",
 	highlightMissingNeighbors: false,
-	savedSearchQueries: [] as { name: string; query: string }[],
-	multiSelectNodeIds: [] as string[],
-	subgraphNodeIds: [] as string[],
-	subgraphStack: [] as PanelState["subgraphStack"],
-	expandedNodes: [] as string[],
+	savedSearchQueries: [],
+	multiSelectNodeIds: [],
+	subgraphNodeIds: [],
+	subgraphStack: [],
+	expandedNodes: [],
 });
 
 /** Display-related defaults: colors, shapes, edge visibility,
  *  hover behavior, labels, cards, grids, overlays, and thresholds. */
-export const DEFAULT_DISPLAY_STATE = () => ({
+export const DEFAULT_DISPLAY_STATE = (): Partial<PanelState> => ({
 	textFadeThreshold: 0.5,
 	nodeSize: 20,
 	showArrows: false,
 	colorEdgesByRelation: true,
-	nodeColorMode: "category" as const,
+	nodeColorMode: "category",
 	nodeColorField: "",
 	customColorPalette: "",
 	showInheritance: false,
@@ -100,9 +100,9 @@ export const DEFAULT_DISPLAY_STATE = () => ({
 	nodeShapeRules: [
 		{ match: "isTag", shape: "triangle" },
 		{ match: "default", shape: "circle" },
-	] as PanelState["nodeShapeRules"],
+	],
 	showEdgeLabels: false,
-	edgeLabelPlacement: "center" as const,
+	edgeLabelPlacement: "center",
 	showMinimap: true,
 	showDotGrid: true,
 	showDurationBars: true,
@@ -115,14 +115,14 @@ export const DEFAULT_DISPLAY_STATE = () => ({
 	showAxisTitles: true,
 	showTimelineTickLabels: true,
 	gridCellShading: false,
-	gridStyle: "lines" as const,
-	gridLabelPlacement: "on-line" as const,
-	nodeDisplayMode: "node" as NodeDisplayMode,
-	cardDisplayConfig: { fields: [] as string[], maxWidth: 120, showIcon: false },
+	gridStyle: "lines",
+	gridLabelPlacement: "on-line",
+	nodeDisplayMode: "node",
+	cardDisplayConfig: { fields: [], maxWidth: 120, showIcon: false },
 	donutDisplayConfig: { innerRadius: 0.6 },
-	edgeCardinalityMode: "none" as EdgeCardinalityMode,
-	cardinalityRules: [] as PanelState["cardinalityRules"],
-	cableBundleMode: "auto" as const,
+	edgeCardinalityMode: "none",
+	cardinalityRules: [],
+	cableBundleMode: "auto",
 	cableTrunkWidth: 12,
 	cableTrunkAlpha: 0.25,
 	cableSpacing: 14,
@@ -144,11 +144,11 @@ export const DEFAULT_DISPLAY_STATE = () => ({
 	showTagBadges: false,
 	highContrastMode: false,
 	showImportanceRing: false,
-	importanceMetric: "degree" as const,
+	importanceMetric: "degree",
 	showRecencyMarker: false,
 	recencyDays: 7,
 	definitionField: "",
-	clusterLabelDetail: "standard" as const,
+	clusterLabelDetail: "standard",
 	highlightPatterns: false,
 	showBridgeNodes: false,
 	showHierarchyBreadcrumb: false,
@@ -159,17 +159,17 @@ export const DEFAULT_DISPLAY_STATE = () => ({
 	showRelationMatrix: false,
 	showNodeThumbnails: false,
 	nodeIconField: "",
-	nodeIconMap: {} as Record<string, string>,
+	nodeIconMap: {},
 	focusConeEnabled: true,
-	analysisOverlay: "off" as const,
+	analysisOverlay: "off",
 	showOntologyBackbone: false,
 });
 
 /** Layout-related defaults: forces, arrangement, clustering, groups,
  *  pinned positions, and view-mode-bound sort rules. */
-export const DEFAULT_LAYOUT_STATE = () => ({
-	viewMode: "graph" as ViewMode,
-	matrixSortMode: "degree" as const,
+export const DEFAULT_LAYOUT_STATE = (): Partial<PanelState> => ({
+	viewMode: "graph",
+	matrixSortMode: "degree",
 	centerForce: 0.03,
 	repelForce: 500,
 	linkForce: 0.01,
@@ -179,54 +179,61 @@ export const DEFAULT_LAYOUT_STATE = () => ({
 	showOrbitRings: true,
 	orbitAutoRotate: true,
 	enclosureSpacing: 1.5,
-	directionalGravityRules: [] as PanelState["directionalGravityRules"],
-	clusterGroupRules: [] as PanelState["clusterGroupRules"],
-	clusterArrangement: "inherit" as ClusterArrangement,
-	clusterGroupArrangement: "auto" as ClusterGroupArrangement,
+	directionalGravityRules: [],
+	clusterGroupRules: [],
+	clusterArrangement: "inherit",
+	clusterGroupArrangement: "auto",
 	clusterNodeSpacing: 3.0,
 	clusterGroupScale: 3.0,
 	clusterGroupSpacing: 2.0,
 	clusterGravity: { interGroupAttraction: 0.5, intraGroupDensity: 1.0 },
 	clusterFollowsGroupBy: true,
-	coordinateLayout: null as PanelState["coordinateLayout"],
-	sortRules: [{ key: "degree" as SortKey, order: "desc" as SortOrder }],
-	nodeRules: [] as PanelState["nodeRules"],
-	groups: [] as PanelState["groups"],
+	coordinateLayout: null,
+	sortRules: [{ key: "degree", order: "desc" }],
+	nodeRules: [],
+	groups: [],
 	groupBy: "none",
-	groupByRules: null as PanelState["groupByRules"],
+	groupByRules: null,
 	groupMinSize: 2,
 	collapsedGroups: new Set<string>(),
-	pinnedPositions: {} as Record<string, { x: number; y: number }>,
+	pinnedPositions: {},
 	focusLayout: false,
 	autoFit: false,
 });
 
 /** Toolbar / UI chrome state: active tab, navigation history, saved
  *  viewports, editor sync, annotations, bookmarks, focus & presentation. */
-export const DEFAULT_TOOLBAR_STATE = () => ({
-	activeTab: "filter" as const,
-	savedViewports: [] as PanelState["savedViewports"],
+export const DEFAULT_TOOLBAR_STATE = (): Partial<PanelState> => ({
+	activeTab: "filter",
+	savedViewports: [],
 	presetZoomLevel: 0,
 	zoomSensitivity: 1.0,
-	navHistory: [] as string[],
+	navHistory: [],
 	navHistoryCursor: -1,
 	syncWithEditor: true,
-	syncViewId: null as string | null,
-	annotations: [] as PanelState["annotations"],
-	bookmarkedNodes: [] as string[],
+	syncViewId: null,
+	annotations: [],
+	bookmarkedNodes: [],
 	presentationMode: false,
 	focusMode: false,
-	focusNodeId: null as string | null,
+	focusNodeId: null,
 });
 
 /** Build a fresh PanelState by spreading all four default buckets.
  *  Equivalent to PanelBuilder.createDefaultPanel() — every invocation
- *  returns a new object graph with no shared mutable references. */
+ *  returns a new object graph with no shared mutable references.
+ *
+ *  The `as PanelState` is required because each bucket is typed
+ *  `Partial<PanelState>` (so contextual typing can narrow literals);
+ *  TypeScript cannot statically prove the four buckets together cover
+ *  all required fields. The disjoint-keys test in
+ *  tests/views/panel-defaults.test.ts enforces that invariant at runtime.
+ */
 export function createDefaultPanelState(): PanelState {
 	return {
 		...DEFAULT_FILTER_STATE(),
 		...DEFAULT_DISPLAY_STATE(),
 		...DEFAULT_LAYOUT_STATE(),
 		...DEFAULT_TOOLBAR_STATE(),
-	};
+	} as PanelState;
 }
