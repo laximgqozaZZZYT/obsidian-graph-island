@@ -1713,7 +1713,3 @@ function _buildStatsBar(container: HTMLElement, panel: PanelState, ctx: PanelCon
 		}
 	});
 }
-// ---------------------------------------------------------------------------
-// Axis source string ↔ AxisSource conversion (extracted to utils/axis-source.ts)
-// ---------------------------------------------------------------------------
-export { parseAxisSourceString, axisSourceToString } from "../utils/axis-source";
