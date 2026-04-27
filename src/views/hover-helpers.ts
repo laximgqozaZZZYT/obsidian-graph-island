@@ -5,6 +5,8 @@
 import type { ClusterArrangement, GraphEdge, GraphNode } from "../types";
 import { edgeTypeSummary, collapsedGroupSummary } from "../utils/graph-helpers";
 import { computeSimilarNodes, type SimilarNode } from "../analysis/graph-analysis";
+import { findTopSimilarNodes } from "../utils/find-similar-nodes";
+import { t } from "../i18n";
 
 // ---------------------------------------------------------------------------
 // Hover tooltip text building
@@ -63,6 +65,17 @@ export function buildHoverTooltipText(node: HoverTooltipInput, opts: HoverToolti
 	// Similar suggestions
 	if (opts.showSimilarSuggestions) {
 		tooltipText = appendSimilarSuggestions(tooltipText, node.id, opts);
+	}
+
+	// (subtask-3 of 1376) Top-3 Jaccard-similar nodes integration via findTopSimilarNodes.
+	// Inline tail append: "Similar: <name1> (0.85), <name2> (0.72), <name3> (0.50)".
+	const targetNode = opts.allNodes?.find((n) => n.id === node.id);
+	if (targetNode && opts.graphEdges) {
+		const top3 = findTopSimilarNodes(targetNode, opts.allNodes, opts.graphEdges, 3);
+		if (top3.length > 0) {
+			const parts = top3.map((s) => `${s.node.label} (${s.score.toFixed(2)})`).join(", ");
+			tooltipText += `\n${t("tooltip.similarHeader")} ${parts}`;
+		}
 	}
 
 	return tooltipText;
