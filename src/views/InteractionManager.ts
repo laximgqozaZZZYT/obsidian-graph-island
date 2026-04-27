@@ -446,7 +446,7 @@ export class InteractionManager {
 		clearTimeout(this._zoomCullTimer);
 		this._zoomCullTimer = window.setTimeout(() => {
 			this.host.updateLabelsForZoom?.();
-		}, 50) as unknown as number;
+		}, 50);
 		this.host.updateZoomIndicator?.(s);
 		const zoomDelta = Math.abs(s - this._lastLayoutZoom) / (this._lastLayoutZoom || 1);
 		if (zoomDelta >= ZOOM_LAYOUT_DELTA_THRESHOLD) {
@@ -454,7 +454,7 @@ export class InteractionManager {
 			this._zoomLayoutTimer = window.setTimeout(() => {
 				this._lastLayoutZoom = s;
 				this.host.onZoomLayoutUpdate?.(s);
-			}, ZOOM_LAYOUT_DEBOUNCE_MS) as unknown as number;
+			}, ZOOM_LAYOUT_DEBOUNCE_MS);
 		}
 	}
 

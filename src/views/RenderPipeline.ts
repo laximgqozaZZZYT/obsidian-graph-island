@@ -1842,12 +1842,12 @@ export class RenderPipeline {
 		// expected ~2s to >2 minutes. setTimeout(0) runs as a macrotask between
 		// rAF ticks, breaking the contention and also yielding to input events
 		// between batches.
-		this.deferredBatchId = setTimeout(this.processDeferredBatch, 0) as unknown as ReturnType<typeof setTimeout>;
+		this.deferredBatchId = setTimeout(this.processDeferredBatch, 0);
 	}
 
 	cancelDeferredBatch() {
 		if (this.deferredBatchId !== null) {
-			clearTimeout(this.deferredBatchId as unknown as ReturnType<typeof setTimeout>);
+			clearTimeout(this.deferredBatchId);
 			this.deferredBatchId = null;
 		}
 		this.pendingNodes = [];
@@ -2193,7 +2193,7 @@ export class RenderPipeline {
 		const isHoverLabel = !!(pn.hoverLabel && pn.hoverLabel.visible);
 		const label = isHoverLabel ? pn.hoverLabel : pn.label;
 		if (!label || !label.text || !label.visible) return null;
-		const fontSize = (label.style.fontSize as number) ?? 11;
+		const fontSize = label.style.fontSize ?? 11;
 		const boldFactor = isHoverLabel ? 1.1 : 1.0;
 		const charW = fontSize * LABEL_CHAR_WIDTH_FACTOR * boldFactor;
 		const { w, h } = this._measureLabelDims(label, fontSize, charW, zoom, maxScreenW, maxScreenH);
@@ -2250,7 +2250,7 @@ export class RenderPipeline {
 			.sort((a, b) => b.score - a.score);
 
 		// Compute normBase for AP-1 displacement cap
-		const fontSize = (r.label.style.fontSize as number) ?? 11;
+		const fontSize = r.label.style.fontSize ?? 11;
 		const charW = fontSize * LABEL_CHAR_WIDTH_FACTOR;
 		const scaleX = r.label.scale?.x ?? 1;
 		const visualW = (r.label.text?.length ?? 0) * charW * scaleX;

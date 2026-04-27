@@ -12,6 +12,7 @@
 import type { CanvasGraphics } from "./canvas2d";
 import type { PixiNode } from "./InteractionManager";
 import type { ShapeRule } from "../utils/node-shapes";
+import type { CardRenderConfig, RenderThresholds } from "../types";
 import { getNodeShape, drawShapeAt } from "../utils/node-shapes";
 import { darkenColor } from "./render-pipeline-utils";
 import { contrastColor } from "../utils/color";
@@ -27,6 +28,30 @@ import {
 	FULL_CARD_FONT_BASE,
 	FULL_CARD_FONT_MIN,
 } from "./card-renderer";
+
+// ---------------------------------------------------------------------------
+// Narrow input shapes — exactly the fields this module reads, all required
+// numbers. Using Pick<Required<...>> means a removed/renamed source field
+// surfaces here at compile time rather than as a runtime `undefined`.
+// ---------------------------------------------------------------------------
+
+type SemanticZoomCRC = Pick<
+	Required<CardRenderConfig>,
+	| "filteredNodeAlpha"
+	| "strokeDarken"
+	| "strokeAlpha"
+	| "semanticCardFillAlpha"
+	| "cardSubTextAlpha"
+	| "semanticCardFullFillAlpha"
+	| "semanticCardHeaderHeightRatio"
+	| "semanticCardHeaderFillAlpha"
+	| "cardBodyPreviewAlpha"
+>;
+
+type SemanticZoomRT = Pick<
+	Required<RenderThresholds>,
+	"semanticZoomDotPx" | "semanticZoomCompactPx" | "semanticZoomFullPx" | "labelMaxChars"
+>;
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -49,13 +74,13 @@ export function renderSemanticZoomMode(
 		worldScale: number;
 		minWorldRadius: number;
 	},
-	crc: Record<string, number>,
-	rt: Record<string, number | boolean | string>,
+	crc: SemanticZoomCRC,
+	rt: SemanticZoomRT,
 ): void {
 	const { visible, tlFilteredOut, alpha, shapeRules, worldScale, minWorldRadius } = ctx;
-	const dotPx = rt.semanticZoomDotPx as number;
-	const compactPx = rt.semanticZoomCompactPx as number;
-	const fullPx = rt.semanticZoomFullPx as number;
+	const dotPx = rt.semanticZoomDotPx;
+	const compactPx = rt.semanticZoomCompactPx;
+	const fullPx = rt.semanticZoomFullPx;
 	const defField = host.getDefinitionField?.() ?? "";
 	const hcSem = host.isHighContrastMode?.() ? 2 : 1;
 	const labelColor = host.getLabelColor();
@@ -63,8 +88,7 @@ export function renderSemanticZoomMode(
 	for (const pn of visible) {
 		const effR = Math.max(pn.radius, minWorldRadius);
 		const screenPx = effR * 2 * worldScale;
-		const nodeAlpha =
-			tlFilteredOut && tlFilteredOut.has(pn.data.id) ? alpha * (crc.filteredNodeAlpha as number) : alpha;
+		const nodeAlpha = tlFilteredOut && tlFilteredOut.has(pn.data.id) ? alpha * crc.filteredNodeAlpha : alpha;
 
 		if (screenPx < dotPx) {
 			// Tier 1: colored dot
@@ -76,8 +100,8 @@ export function renderSemanticZoomMode(
 		} else if (screenPx < compactPx) {
 			// Tier 2: circle + label
 			const shape = getNodeShape(pn.data, shapeRules);
-			const strokeColor = darkenColor(pn.color, crc.strokeDarken as number);
-			g.lineStyle(hcSem, strokeColor, nodeAlpha * (crc.strokeAlpha as number));
+			const strokeColor = darkenColor(pn.color, crc.strokeDarken);
+			g.lineStyle(hcSem, strokeColor, nodeAlpha * crc.strokeAlpha);
 			g.beginFill(pn.color, nodeAlpha);
 			drawShapeAt(g, shape, pn.data.x, pn.data.y, effR);
 			g.endFill();
@@ -101,8 +125,8 @@ function _renderCompactCard(
 	effR: number,
 	worldScale: number,
 	nodeAlpha: number,
-	crc: Record<string, number>,
-	rt: Record<string, number | boolean | string>,
+	crc: SemanticZoomCRC,
+	rt: SemanticZoomRT,
 	defField: string,
 	hcSem: number,
 	labelColor: number,
@@ -111,9 +135,9 @@ function _renderCompactCard(
 	const cardH = effR * 2;
 	const halfW = cardW / 2;
 	const halfH = cardH / 2;
-	const strokeColor = darkenColor(pn.color, crc.strokeDarken as number);
-	g.lineStyle(hcSem, strokeColor, nodeAlpha * (crc.strokeAlpha as number));
-	g.beginFill(pn.color, nodeAlpha * (crc.semanticCardFillAlpha as number));
+	const strokeColor = darkenColor(pn.color, crc.strokeDarken);
+	g.lineStyle(hcSem, strokeColor, nodeAlpha * crc.strokeAlpha);
+	g.beginFill(pn.color, nodeAlpha * crc.semanticCardFillAlpha);
 	g.drawRoundedRect(pn.data.x - halfW, pn.data.y - halfH, cardW, cardH, 2 / worldScale);
 	g.endFill();
 
@@ -123,12 +147,7 @@ function _renderCompactCard(
 		Math.max(COMPACT_CARD_FONT_MIN, COMPACT_CARD_FONT_BASE / worldScale),
 		COMPACT_CARD_FONT_BASE * CARD_SCALE_CAP,
 	);
-	const nameText = createCardText(
-		truncateLabel(pn.data.label, rt.labelMaxChars as number),
-		fontSize,
-		labelColor,
-		"bold",
-	);
+	const nameText = createCardText(truncateLabel(pn.data.label, rt.labelMaxChars), fontSize, labelColor, "bold");
 	nameText.x = -halfW + 2 / worldScale;
 	nameText.y = -halfH + 2 / worldScale;
 	nameText.maxWidth = cardW - 4 / worldScale;
@@ -138,7 +157,7 @@ function _renderCompactCard(
 		defText.x = -halfW + 2 / worldScale;
 		defText.y = -halfH + fontSize * CARD_LINE_HEIGHT + 2 / worldScale;
 		defText.maxWidth = cardW - 4 / worldScale;
-		defText.alpha = crc.cardSubTextAlpha as number;
+		defText.alpha = crc.cardSubTextAlpha;
 		gfx.addChild(defText);
 	}
 }
@@ -153,8 +172,8 @@ function _renderFullCard(
 	effR: number,
 	worldScale: number,
 	nodeAlpha: number,
-	crc: Record<string, number>,
-	rt: Record<string, number | boolean | string>,
+	crc: SemanticZoomCRC,
+	rt: SemanticZoomRT,
 	defField: string,
 	hcSem: number,
 	labelColor: number,
@@ -163,14 +182,14 @@ function _renderFullCard(
 	const cardH = effR * 3;
 	const halfW = cardW / 2;
 	const halfH = cardH / 2;
-	const strokeColor = darkenColor(pn.color, crc.strokeDarken as number);
-	g.lineStyle(hcSem, strokeColor, nodeAlpha * (crc.strokeAlpha as number));
-	g.beginFill(pn.color, nodeAlpha * (crc.semanticCardFullFillAlpha as number));
+	const strokeColor = darkenColor(pn.color, crc.strokeDarken);
+	g.lineStyle(hcSem, strokeColor, nodeAlpha * crc.strokeAlpha);
+	g.beginFill(pn.color, nodeAlpha * crc.semanticCardFullFillAlpha);
 	g.drawRoundedRect(pn.data.x - halfW, pn.data.y - halfH, cardW, cardH, 3 / worldScale);
 	g.endFill();
 	// Header bar
-	const headerH = effR * (crc.semanticCardHeaderHeightRatio as number);
-	g.beginFill(pn.color, nodeAlpha * (crc.semanticCardHeaderFillAlpha as number));
+	const headerH = effR * crc.semanticCardHeaderHeightRatio;
+	g.beginFill(pn.color, nodeAlpha * crc.semanticCardHeaderFillAlpha);
 	g.drawRoundedRect(pn.data.x - halfW, pn.data.y - halfH, cardW, headerH, 3 / worldScale);
 	g.endFill();
 
@@ -183,7 +202,7 @@ function _renderFullCard(
 	const smallFont = fontSize * CARD_SUB_FONT_RATIO;
 	let curY = -halfH + 3 / worldScale;
 	const nameText = createCardText(
-		truncateLabel(pn.data.label, rt.labelMaxChars as number),
+		truncateLabel(pn.data.label, rt.labelMaxChars),
 		fontSize,
 		contrastColor(pn.color),
 		"bold",
@@ -207,7 +226,7 @@ function _renderFullCard(
 		previewText.x = -halfW + 3 / worldScale;
 		previewText.y = curY;
 		previewText.maxWidth = cardW - 6 / worldScale;
-		previewText.alpha = crc.cardBodyPreviewAlpha as number;
+		previewText.alpha = crc.cardBodyPreviewAlpha;
 		gfx.addChild(previewText);
 	}
 }
