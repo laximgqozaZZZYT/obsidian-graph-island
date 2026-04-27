@@ -122,3 +122,31 @@ export function asGraphView(leaf: WorkspaceLeaf): GraphViewInternal | null {
 	if (!view || !("pixiNodes" in view)) return null;
 	return view as unknown as GraphViewInternal;
 }
+
+// ---------------------------------------------------------------------------
+// Internal sub-component host casts (compile-time only)
+// ---------------------------------------------------------------------------
+
+/**
+ * Cast `this`/value to a sub-component host interface.
+ * Used where the host interface is structurally compatible but the type system
+ * cannot prove it (e.g. circular type imports or `this` binding).
+ */
+export function asHost<T>(value: unknown): T {
+	return value as T;
+}
+
+/** Get a workspace leaf's internal id (not in public Obsidian types). */
+export function getLeafId(leaf: WorkspaceLeaf): string {
+	return (leaf as unknown as { id: string }).id;
+}
+
+/** Cast a panel-state object to Record<string, unknown> for dynamic key access. */
+export function panelAsRecord(panel: object): Record<string, unknown> {
+	return panel as Record<string, unknown>;
+}
+
+/** Convert browser/node setTimeout return to number for storage in number-typed fields. */
+export function asTimerId(id: unknown): number {
+	return id as number;
+}

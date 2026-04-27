@@ -144,7 +144,7 @@ import { renderGraphStats, renderBreadcrumb, renderRelationMatrix } from "./Stat
 import { buildPanelCallbacks, type PanelCallbackHost } from "./panel-callbacks";
 import { renderLegend, type LegendHost, type LegendPanel } from "./LegendRenderer";
 import { renderTimelineBars } from "./timeline-bar-renderer";
-import { asInternalWorkspace } from "../obsidian-internals";
+import { asInternalWorkspace, asHost, getLeafId, panelAsRecord, asTimerId } from "../obsidian-internals";
 import { generatePhantomNodes } from "./phantom-node-generator";
 import { adjustTooltipPosition, type PanelRect } from "../utils/tooltip-position";
 import { handleShortcutKey, type KeyboardHost } from "./KeyboardHandler";
@@ -697,7 +697,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 					this.panel.groupByRules = null;
 				} else {
 					// Safe: key is validated against DEFAULT_PANEL keys above
-					(this.panel as unknown as Record<string, unknown>)[key] = saved[key];
+					panelAsRecord(this.panel)[key] = saved[key];
 				}
 			}
 		}
@@ -1435,7 +1435,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 					},
 				},
 				{
-					setTimeout: (cb, ms) => window.setTimeout(cb, ms) as unknown as number,
+					setTimeout: (cb, ms) => asTimerId(window.setTimeout(cb, ms)),
 					clearTimeout: (id) => window.clearTimeout(id),
 				},
 			);
@@ -1462,7 +1462,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 				const data = args[0] as { senderId: string; panel: Record<string, unknown> } | null;
 				if (!data || !this.panel.syncViewId) return;
 				// 自分自身が送信元の場合は無視
-				if (data.senderId === (this.leaf as unknown as { id: string }).id) return;
+				if (data.senderId === getLeafId(this.leaf)) return;
 				this._syncReceiving = true;
 				try {
 					this._applySyncedPanel(data.panel);
@@ -1518,11 +1518,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		if (!this.panel.syncViewId || this._syncReceiving) return;
 		const payload: Record<string, unknown> = {};
 		for (const key of GraphViewContainer.SYNC_FIELDS) {
-			payload[key] = (this.panel as unknown as Record<string, unknown>)[key];
+			payload[key] = panelAsRecord(this.panel)[key];
 		}
 		// workspace.trigger でカスタムイベントを発火
 		asInternalWorkspace(this.app.workspace).trigger(EVENT_SYNC_PANEL, {
-			senderId: (this.leaf as unknown as { id: string }).id,
+			senderId: getLeafId(this.leaf),
 			panel: payload,
 		});
 	}
@@ -1532,10 +1532,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		let needsRender = false;
 		for (const key of GraphViewContainer.SYNC_FIELDS) {
 			if (!(key in incoming)) continue;
-			const cur = (this.panel as unknown as Record<string, unknown>)[key];
+			const cur = panelAsRecord(this.panel)[key];
 			const next = incoming[key];
 			if (cur !== next) {
-				(this.panel as unknown as Record<string, unknown>)[key] = next;
+				panelAsRecord(this.panel)[key] = next;
 				needsRender = true;
 			}
 		}
@@ -2013,7 +2013,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	private _wireCanvasManagers(canvas: HTMLCanvasElement, world: CanvasContainer): void {
 		// Set up interaction handling (pointer events, drag, pan, hover, marquee)
 		this.interactionManager?.detach();
-		this.interactionManager = new InteractionManager(this as unknown as InteractionHost, canvas, world);
+		this.interactionManager = new InteractionManager(asHost<InteractionHost>(this), canvas, world);
 
 		// Group label hover: highlight group members on pointermove
 		canvas.addEventListener("pointermove", (e) => {
@@ -2098,7 +2098,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		this.labelManager = new LabelManager(this);
 
 		// Set up guide / grid renderer
-		this.guideRenderer = new GuideRenderer(this as unknown as GuideRendererHost);
+		this.guideRenderer = new GuideRenderer(asHost<GuideRendererHost>(this));
 
 		// Set up minimap overlay
 		this.minimap?.destroy();
@@ -2204,9 +2204,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	// ---- C1: Hover preview toast helpers ----
 	private _scheduleHoverPreview(nodeId: string): void {
 		this._cancelHoverPreview();
-		this._hoverPreviewTimer = window.setTimeout(() => {
-			this._showHoverPreview(nodeId);
-		}, HOVER_PREVIEW_DELAY_MS) as unknown as number;
+		this._hoverPreviewTimer = asTimerId(
+			window.setTimeout(() => {
+				this._showHoverPreview(nodeId);
+			}, HOVER_PREVIEW_DELAY_MS),
+		);
 	}
 
 	private _cancelHoverPreview(): void {
@@ -3232,7 +3234,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
 	/** Export an N-hop subgraph around a node as a JSON download. */
 	exportSubgraph(nodeId: string): void {
-		ExportManager.exportSubgraph(this as unknown as ExportManager.ExportHost, nodeId);
+		ExportManager.exportSubgraph(asHost<ExportManager.ExportHost>(this), nodeId);
 	}
 
 	setSearchQuery(query: string): void {
@@ -3309,19 +3311,19 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	}
 
 	exportPng(): void {
-		orchestratePngExport(this as unknown as ExportManager.ExportHost);
+		orchestratePngExport(asHost<ExportManager.ExportHost>(this));
 	}
 
 	exportFullGraph(): void {
-		orchestrateJsonExport(this as unknown as ExportManager.ExportHost);
+		orchestrateJsonExport(asHost<ExportManager.ExportHost>(this));
 	}
 
 	exportGraphAsCSV(): void {
-		ExportManager.exportGraphAsCSV(this as unknown as ExportManager.ExportHost);
+		ExportManager.exportGraphAsCSV(asHost<ExportManager.ExportHost>(this));
 	}
 
 	exportGraphAsMermaid(): void {
-		ExportManager.exportGraphAsMermaid(this as unknown as ExportManager.ExportHost);
+		ExportManager.exportGraphAsMermaid(asHost<ExportManager.ExportHost>(this));
 	}
 
 	// =========================================================================
@@ -5240,7 +5242,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	// Timeline duration bars
 	// =========================================================================
 	drawTimelineBars() {
-		renderTimelineBars(this as unknown as import("./timeline-bar-renderer").TimelineBarHost);
+		renderTimelineBars(asHost<import("./timeline-bar-renderer").TimelineBarHost>(this));
 	}
 
 	drawRouteLines() {
@@ -5299,7 +5301,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	/** Ensure the road builder is initialized and return it. */
 	private _ensureRoadBuilder(): RoadNetworkBuilder {
 		if (!this.roadBuilder) {
-			this.roadBuilder = new RoadNetworkBuilder(this as unknown as RoadNetworkHost);
+			this.roadBuilder = new RoadNetworkBuilder(asHost<RoadNetworkHost>(this));
 		}
 		return this.roadBuilder;
 	}
@@ -6045,7 +6047,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	/** Build the callbacks object wiring panel UI actions to graph view methods.
 	 *  Delegates to panel-callbacks.ts for the actual construction. */
 	private _buildPanelCallbacks(): PanelCallbacks {
-		const host = this as unknown as PanelCallbackHost;
+		const host = asHost<PanelCallbackHost>(this);
 		host.allPresets = ALL_PRESETS;
 		return buildPanelCallbacks(host);
 	}
@@ -6184,13 +6186,13 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		if (!template) return;
 
 		// テンプレートのパネルデータを適用（Set フィールドの復元を含む）
-		const src = this.panel as unknown as Record<string, unknown>;
+		const src = panelAsRecord(this.panel);
 		for (const [key, value] of Object.entries(template.panel)) {
 			// 一時的フィールドはスキップ（念のため）
 			if (GraphViewContainer.TEMPLATE_TRANSIENT_KEYS.has(key)) continue;
 			// 現在値が Set で、テンプレート値が Array の場合は Set に変換
 			if (src[key] instanceof Set && Array.isArray(value)) {
-				src[key] = new Set(value as unknown[]);
+				src[key] = new Set(value as Iterable<unknown>);
 			} else {
 				src[key] = value;
 			}
@@ -6559,7 +6561,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			this.legendEl.style.display = "none";
 			return;
 		}
-		renderLegend(this.legendEl, this.panel as unknown as LegendPanel, this._legendHost);
+		renderLegend(this.legendEl, asHost<LegendPanel>(this.panel), this._legendHost);
 	}
 
 	// =========================================================================
@@ -6621,7 +6623,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	): Float32Array {
 		const grid = new Float32Array(cols * rows);
 		for (const [, pn] of this.pixiNodes) {
-			const gfx = (pn as unknown as { graphics?: CanvasContainer }).graphics ?? pn.gfx;
+			const gfx = asHost<{ graphics?: CanvasContainer }>(pn).graphics ?? pn.gfx;
 			if (!gfx || !gfx.visible) continue;
 			const sx = gfx.x * ws + wx;
 			const sy = gfx.y * ws + wy;
@@ -6926,7 +6928,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		const now = performance.now();
 		if (this._lastDoRenderTime && now - this._lastDoRenderTime < 50) {
 			clearTimeout(this._doRenderDebounceTimer);
-			this._doRenderDebounceTimer = window.setTimeout(() => this.doRender(), 50) as unknown as number;
+			this._doRenderDebounceTimer = asTimerId(window.setTimeout(() => this.doRender(), 50));
 			return true;
 		}
 		if (this._doRenderDebounceTimer) {
@@ -7771,7 +7773,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
 	/** Copy the current graph view as PNG to clipboard */
 	private async copyGraphToClipboard() {
-		await ExportManager.copyGraphToClipboard(this as unknown as ExportManager.ExportHost);
+		await ExportManager.copyGraphToClipboard(asHost<ExportManager.ExportHost>(this));
 	}
 
 	/**
@@ -7779,7 +7781,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	 * ツールバーボタンおよびコマンドパレットから呼び出される。
 	 */
 	public async embedGraphInNote(): Promise<void> {
-		await ExportManager.embedGraphInNote(this as unknown as ExportManager.ExportHost);
+		await ExportManager.embedGraphInNote(asHost<ExportManager.ExportHost>(this));
 	}
 
 	/**
@@ -7787,7 +7789,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	 * コマンドパレットからの呼び出し用。
 	 */
 	public async exportCanvasAsBlob(): Promise<Blob | null> {
-		return ExportManager.exportCanvasAsBlob(this as unknown as ExportManager.ExportHost);
+		return ExportManager.exportCanvasAsBlob(asHost<ExportManager.ExportHost>(this));
 	}
 
 	/** Collect all unique tag names from graph nodes */
@@ -8208,7 +8210,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		// HE: Tint card title text
 		if (isCardMode && pn.gfx.children.length > 0) {
 			for (const child of pn.gfx.children) {
-				const ct = child as unknown as { _isCardText?: boolean; style?: { fill: string } };
+				const ct = asHost<{ _isCardText?: boolean; style?: { fill: string } }>(child);
 				if (ct._isCardText && ct.style) {
 					ct.style.fill = "#" + searchHitColor.toString(16).padStart(6, "0");
 					break;
