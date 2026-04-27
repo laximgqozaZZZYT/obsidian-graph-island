@@ -189,3 +189,4 @@ id,priority,reported,completed,status,source,parent,depends,superseded_by,summar
 1370-dead-exports,medium,2026-04-27,,decomposed,auto-discovered,none,none,,111個のdead exports (使われていないpublic API),1,scripts/pipeline/descriptions/1370-dead-exports.md,2026-04-27T22:40:21+09:00,2026-04-27T23:02:52+09:00
 1371-type-assertions,low,2026-04-27,,pending,auto-discovered,none,none,,230個の型アサーション (as T) — 型安全性リスク,0,scripts/pipeline/descriptions/1371-type-assertions.md,2026-04-27T22:40:21+09:00,2026-04-27T22:40:21+09:00
 1372-settimeout-leaks,high,2026-04-27,,decomposed,auto-discovered,none,none,,setTimeout 43個 vs clearTimeout 25個 — 18個が未クリア,1,scripts/pipeline/descriptions/1372-settimeout-leaks.md,2026-04-27T22:40:22+09:00,2026-04-27T22:43:30+09:00
+1376-hover-similar-suggest-top3,medium,2026-04-27,,pending,feature-proposal,,,,ホバー時に類似ノードTop3をサジェスト表示（Jaccard類似度）,0,descriptions/1376-hover-similar-suggest-top3.md,2026-04-27T23:04:44+09:00,2026-04-27T23:04:44+09:00
