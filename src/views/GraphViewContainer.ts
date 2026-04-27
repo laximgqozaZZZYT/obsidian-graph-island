@@ -629,8 +629,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	private requestSave() {
 		// ビュー同期ブロードキャスト
 		this._broadcastPanelSync();
-		if (this._saveTimer) clearTimeout(this._saveTimer);
-		this._saveTimer = setTimeout(() => {
+		if (this._saveTimer) this.timers.clear(this._saveTimer);
+		this._saveTimer = this.timers.setTimeout(() => {
 			this.app.workspace.requestSaveLayout();
 			this._saveTimer = null;
 		}, SAVE_DEBOUNCE_MS);
@@ -1435,8 +1435,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 					},
 				},
 				{
-					setTimeout: (cb, ms) => window.setTimeout(cb, ms) as unknown as number,
-					clearTimeout: (id) => window.clearTimeout(id),
+					setTimeout: (cb, ms) => this.timers.setTimeout(cb, ms) as unknown as number,
+					clearTimeout: (id) => this.timers.clear(id as unknown as ReturnType<typeof setTimeout>),
 				},
 			);
 			this.registerEvent(this.app.metadataCache.on("changed", autoSnap.trigger));
@@ -2204,7 +2204,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	// ---- C1: Hover preview toast helpers ----
 	private _scheduleHoverPreview(nodeId: string): void {
 		this._cancelHoverPreview();
-		this._hoverPreviewTimer = window.setTimeout(() => {
+		this._hoverPreviewTimer = this.timers.setTimeout(() => {
 			this._showHoverPreview(nodeId);
 		}, HOVER_PREVIEW_DELAY_MS) as unknown as number;
 	}
@@ -6926,7 +6926,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		const now = performance.now();
 		if (this._lastDoRenderTime && now - this._lastDoRenderTime < 50) {
 			clearTimeout(this._doRenderDebounceTimer);
-			this._doRenderDebounceTimer = window.setTimeout(() => this.doRender(), 50) as unknown as number;
+			this._doRenderDebounceTimer = this.timers.setTimeout(() => this.doRender(), 50) as unknown as number;
 			return true;
 		}
 		if (this._doRenderDebounceTimer) {
@@ -7579,12 +7579,12 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		if (resetPositions && this.canvasWrap) {
 			const wrap = this.canvasWrap;
 			clearTimeout(this._autoFitTimer);
-			this._autoFitTimer = window.setTimeout(() => {
+			this._autoFitTimer = this.timers.setTimeout(() => {
 				if (!this._suppressAutoFit) {
 					this.autoFitView(wrap.clientWidth, wrap.clientHeight);
 					this.markDirty();
 				}
-			}, AUTOFIT_DELAY_MS);
+			}, AUTOFIT_DELAY_MS) as unknown as number;
 		}
 	}
 	private _autoFitTimer: number = 0;
