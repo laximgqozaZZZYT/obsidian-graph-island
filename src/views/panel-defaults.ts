@@ -21,6 +21,7 @@ import type {
 	ViewMode,
 } from "../types";
 import { TAG_DISPLAY_ENCLOSURE } from "../constants";
+import { ALL_SHAPES, type NodeShape } from "../utils/node-shapes";
 import type { PanelState } from "./PanelBuilder";
 
 /** Filter-related defaults: search, degree bounds, subgraph scoping,
@@ -229,4 +230,17 @@ export function createDefaultPanelState(): PanelState {
 		...DEFAULT_LAYOUT_STATE(),
 		...DEFAULT_TOOLBAR_STATE(),
 	};
+}
+
+// ---------------------------------------------------------------------------
+// Boundary-of-trust type guards: narrow loose UI strings to PanelState unions.
+// ---------------------------------------------------------------------------
+const NODE_COLOR_MODES = ["default", "category", "heatmap", "community", "field"] as const;
+
+export function isNodeShape(v: string): v is NodeShape {
+	return (ALL_SHAPES as readonly string[]).includes(v);
+}
+
+export function isNodeColorMode(v: string): v is PanelState["nodeColorMode"] {
+	return (NODE_COLOR_MODES as readonly string[]).includes(v);
 }
