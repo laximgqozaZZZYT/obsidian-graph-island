@@ -13,6 +13,7 @@ import { t } from "../i18n";
 import { addSlider, addToggle, addSelect } from "./panel-widgets";
 import type { PanelState, PanelCallbacks } from "./PanelBuilder";
 import { ensureRT } from "./PanelBuilder";
+import { setPanelKey } from "./panel-state-helpers";
 
 // ---------------------------------------------------------------------------
 // Style controls — opacity, fade, density, hover falloff
@@ -183,7 +184,7 @@ export function buildEdgeColorControls(parent: HTMLElement, panel: PanelState, c
 // ---------------------------------------------------------------------------
 // Visibility controls — layer mode, direction filter, edge type toggles, solo
 // ---------------------------------------------------------------------------
-const EDGE_TYPE_KEYS: (keyof PanelState)[] = [
+const EDGE_TYPE_KEYS: readonly (keyof PanelState)[] = [
 	"showLinks",
 	"showTagEdges",
 	"showCategoryEdges",
@@ -229,7 +230,7 @@ export function buildEdgeVisibilityControls(
 	);
 
 	const edgeToggle = (label: string, key: keyof PanelState, after: () => void) => (v: boolean) => {
-		(panel as unknown as Record<string, unknown>)[key] = v;
+		setPanelKey(panel, key, v);
 		after();
 		cb.announceA11y?.(`${label}: ${v ? "on" : "off"}`);
 	};
@@ -269,14 +270,14 @@ export function buildEdgeVisibilityControls(
 			const idx = EDGE_TYPE_KEYS.indexOf(onKeys[0]);
 			const nextIdx = (idx + 1) % EDGE_TYPE_KEYS.length;
 			if (nextIdx === 0) {
-				for (const k of EDGE_TYPE_KEYS) (panel as unknown as Record<string, unknown>)[k] = true;
+				for (const k of EDGE_TYPE_KEYS) setPanelKey(panel, k, true);
 			} else {
-				for (const k of EDGE_TYPE_KEYS) (panel as unknown as Record<string, unknown>)[k] = false;
-				(panel as unknown as Record<string, unknown>)[EDGE_TYPE_KEYS[nextIdx]] = true;
+				for (const k of EDGE_TYPE_KEYS) setPanelKey(panel, k, false);
+				setPanelKey(panel, EDGE_TYPE_KEYS[nextIdx], true);
 			}
 		} else {
-			for (const k of EDGE_TYPE_KEYS) (panel as unknown as Record<string, unknown>)[k] = false;
-			(panel as unknown as Record<string, unknown>)[EDGE_TYPE_KEYS[0]] = true;
+			for (const k of EDGE_TYPE_KEYS) setPanelKey(panel, k, false);
+			setPanelKey(panel, EDGE_TYPE_KEYS[0], true);
 		}
 		cb.markDirty();
 		cb.rebuildPanel();
