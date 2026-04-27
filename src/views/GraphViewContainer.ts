@@ -2092,7 +2092,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		});
 
 		// Set up render pipeline (render loop, Canvas 2D node creation, batch drawing)
-		this.renderPipeline = new RenderPipeline(this);
+		this.renderPipeline = new RenderPipeline(this, this.timers);
 
 		// Set up label manager (LOD, truncation, scaling pipeline)
 		this.labelManager = new LabelManager(this);
