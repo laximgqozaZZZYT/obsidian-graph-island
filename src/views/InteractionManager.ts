@@ -319,6 +319,8 @@ export class InteractionManager {
 	private _lastLayoutZoom = 1;
 	// Debounced label cull (expensive overlap detection) during rapid zoom
 	private _zoomCullTimer = 0;
+	// Deferred timer for "Search in vault" command — runs after the global-search command settles. Cleared in detach() so a closed view can't push a stale query into the search leaf.
+	private _searchInVaultTimer: ReturnType<typeof setTimeout> | null = null;
 
 	// Smooth zoom interpolation state
 	private _targetScale = 1;
@@ -370,6 +372,10 @@ export class InteractionManager {
 		this._smoothZoomId = 0;
 		clearTimeout(this._zoomLayoutTimer);
 		clearTimeout(this._zoomCullTimer);
+		if (this._searchInVaultTimer !== null) {
+			clearTimeout(this._searchInVaultTimer);
+			this._searchInVaultTimer = null;
+		}
 		this.canvas.removeEventListener("wheel", this._onWheel);
 		this.canvas.removeEventListener("pointerdown", this._onPointerDown);
 		this.canvas.removeEventListener("pointermove", this._onPointerMove);
@@ -1052,7 +1058,9 @@ export class InteractionManager {
 				.onClick(() => {
 					const obsApp = this.host.getApp();
 					asInternalApp(obsApp).commands?.executeCommandById("global-search:open");
-					setTimeout(() => {
+					if (this._searchInVaultTimer !== null) clearTimeout(this._searchInVaultTimer);
+					this._searchInVaultTimer = setTimeout(() => {
+						this._searchInVaultTimer = null;
 						const searchLeaf = obsApp.workspace.getLeavesOfType("search")[0];
 						if (searchLeaf) {
 							asSearchView(searchLeaf.view).setQuery?.(node.data.label);

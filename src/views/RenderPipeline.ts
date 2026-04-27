@@ -477,6 +477,8 @@ export class RenderPipeline {
 	private _cachedMaxDeg = 1;
 	private _cachedMaxBodyLength = 0;
 	private deferredBatchId: ReturnType<typeof setTimeout> | null = null;
+	private _postBatchKickTimer: ReturnType<typeof setTimeout> | null = null;
+	private _enrichKickTimer: ReturnType<typeof setTimeout> | null = null;
 	/** FPS tracking */
 	private _fpsFrames = 0;
 	private _fpsLastTime = 0;
@@ -1481,11 +1483,11 @@ export class RenderPipeline {
 			this.scheduleDeferredBatch();
 		} else {
 			this.cullOverlappingLabels();
-			// Defer onAllPixiNodesCreated so any post-createPixiNodes setup
-			// in the host (alpha(0).stop(), force application) completes before
-			// the callback restarts the simulation. Without this, the sync path
-			// would restart the sim before the host has finished configuring it.
-			setTimeout(() => this.host.onAllPixiNodesCreated?.(), 0);
+			// Defer onAllPixiNodesCreated so post-createPixiNodes host setup completes before sim-restart. Tracked for view-close cancellation.
+			this._postBatchKickTimer = setTimeout(() => {
+				this._postBatchKickTimer = null;
+				this.host.onAllPixiNodesCreated?.();
+			}, 0);
 		}
 	}
 
@@ -1778,12 +1780,11 @@ export class RenderPipeline {
 			this.cullOverlappingLabels();
 			this.markDirty(true); // single full redraw when all nodes are in
 			this.host.onAllPixiNodesCreated?.();
-			// Kick the label-enrichment pass after the simulation has had a
-			// chance to settle. 2.5 s is long enough for a typical large-
-			// graph force simulation to reach alphaMin; if the user hovers
-			// a labelless node before then, LabelManager's hoverForcedLabel
-			// path still works via null-label-tolerant checks.
-			setTimeout(() => this.enrichLabelsDeferred(), 2500);
+			// Kick label-enrichment ~2.5s after the last batch (lets sim settle); tracked for view-close cancellation.
+			this._enrichKickTimer = setTimeout(() => {
+				this._enrichKickTimer = null;
+				this.enrichLabelsDeferred();
+			}, 2500);
 		}
 	};
 
@@ -1846,13 +1847,12 @@ export class RenderPipeline {
 	}
 
 	cancelDeferredBatch() {
-		if (this.deferredBatchId !== null) {
-			clearTimeout(this.deferredBatchId as unknown as ReturnType<typeof setTimeout>);
-			this.deferredBatchId = null;
+		for (const id of [this.deferredBatchId, this._postBatchKickTimer, this._enrichKickTimer, this._enrichmentCancelId]) {
+			if (id !== null) clearTimeout(id);
 		}
+		this.deferredBatchId = this._postBatchKickTimer = this._enrichKickTimer = this._enrichmentCancelId = null;
 		this.pendingNodes = [];
-		this.pendingNodeR = null;
-		this.pendingNodeColor = null;
+		this.pendingNodeR = this.pendingNodeColor = null;
 	}
 
 	// =========================================================================

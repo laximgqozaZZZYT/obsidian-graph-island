@@ -1435,8 +1435,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 					},
 				},
 				{
-					setTimeout: (cb, ms) => asTimerId(window.setTimeout(cb, ms)),
-					clearTimeout: (id) => window.clearTimeout(id),
+					setTimeout: (cb, ms) => asTimerId(this.timers.setTimeout(cb, ms)),
+					clearTimeout: (id) => this.timers.clear(id as unknown as ReturnType<typeof setTimeout>),
 				},
 			);
 			this.registerEvent(this.app.metadataCache.on("changed", autoSnap.trigger));
