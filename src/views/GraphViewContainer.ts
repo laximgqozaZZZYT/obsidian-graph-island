@@ -629,8 +629,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	private requestSave() {
 		// ビュー同期ブロードキャスト
 		this._broadcastPanelSync();
-		if (this._saveTimer) clearTimeout(this._saveTimer);
-		this._saveTimer = setTimeout(() => {
+		if (this._saveTimer) this.timers.clear(this._saveTimer);
+		this._saveTimer = this.timers.setTimeout(() => {
 			this.app.workspace.requestSaveLayout();
 			this._saveTimer = null;
 		}, SAVE_DEBOUNCE_MS);
@@ -1435,8 +1435,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 					},
 				},
 				{
-					setTimeout: (cb, ms) => window.setTimeout(cb, ms) as unknown as number,
-					clearTimeout: (id) => window.clearTimeout(id),
+					setTimeout: (cb, ms) => this.timers.setTimeout(cb, ms) as unknown as number,
+					clearTimeout: (id) => this.timers.clear(id as unknown as ReturnType<typeof setTimeout>),
 				},
 			);
 			this.registerEvent(this.app.metadataCache.on("changed", autoSnap.trigger));
@@ -1678,9 +1678,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	}
 
 	async onClose() {
-		clearTimeout(this._autoFitTimer);
-		clearTimeout(this._doRenderDebounceTimer);
-		if (this._saveTimer) clearTimeout(this._saveTimer);
 		cancelAnimationFrame(this._zoomAnimId);
 		this.timers.clearAll();
 		// C1: Clear hover preview
@@ -2204,14 +2201,14 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	// ---- C1: Hover preview toast helpers ----
 	private _scheduleHoverPreview(nodeId: string): void {
 		this._cancelHoverPreview();
-		this._hoverPreviewTimer = window.setTimeout(() => {
+		this._hoverPreviewTimer = this.timers.setTimeout(() => {
 			this._showHoverPreview(nodeId);
 		}, HOVER_PREVIEW_DELAY_MS) as unknown as number;
 	}
 
 	private _cancelHoverPreview(): void {
 		if (this._hoverPreviewTimer) {
-			clearTimeout(this._hoverPreviewTimer);
+			this.timers.clear(this._hoverPreviewTimer as unknown as ReturnType<typeof setTimeout>);
 			this._hoverPreviewTimer = 0;
 		}
 		if (this._hoverPreviewEl) {
@@ -6925,12 +6922,12 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	private _shouldDebounceRender(): boolean {
 		const now = performance.now();
 		if (this._lastDoRenderTime && now - this._lastDoRenderTime < 50) {
-			clearTimeout(this._doRenderDebounceTimer);
-			this._doRenderDebounceTimer = window.setTimeout(() => this.doRender(), 50) as unknown as number;
+			this.timers.clear(this._doRenderDebounceTimer as unknown as ReturnType<typeof setTimeout>);
+			this._doRenderDebounceTimer = this.timers.setTimeout(() => this.doRender(), 50) as unknown as number;
 			return true;
 		}
 		if (this._doRenderDebounceTimer) {
-			clearTimeout(this._doRenderDebounceTimer);
+			this.timers.clear(this._doRenderDebounceTimer as unknown as ReturnType<typeof setTimeout>);
 			this._doRenderDebounceTimer = 0;
 		}
 		this._lastDoRenderTime = now;
@@ -7578,13 +7575,13 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		// Schedule auto-fit after arrangement changes so layout fills the viewport
 		if (resetPositions && this.canvasWrap) {
 			const wrap = this.canvasWrap;
-			clearTimeout(this._autoFitTimer);
-			this._autoFitTimer = window.setTimeout(() => {
+			this.timers.clear(this._autoFitTimer as unknown as ReturnType<typeof setTimeout>);
+			this._autoFitTimer = this.timers.setTimeout(() => {
 				if (!this._suppressAutoFit) {
 					this.autoFitView(wrap.clientWidth, wrap.clientHeight);
 					this.markDirty();
 				}
-			}, AUTOFIT_DELAY_MS);
+			}, AUTOFIT_DELAY_MS) as unknown as number;
 		}
 	}
 	private _autoFitTimer: number = 0;
