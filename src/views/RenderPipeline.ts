@@ -10,11 +10,11 @@ import type {
 } from "../types";
 import { DEFAULT_CARD_RENDER_CONFIG, mergeRenderThresholds } from "../types";
 import type { PixiNode } from "./InteractionManager";
-import { getNodeShape, drawShape, drawShapeAt } from "../utils/node-shapes";
-import type { ShapeRule } from "../utils/node-shapes";
+import { getNodeShape, drawShape, drawShapeAt, type ShapeRule } from "../utils/node-shapes";
 import { effectiveRadius } from "../layouts/cluster-force";
 import { Platform } from "obsidian";
 import { clamp } from "../utils/geometry";
+import { ManagedTimers } from "../utils/managed-timers";
 import {
 	LABEL_CHAR_WIDTH_FACTOR,
 	EDGE_REDRAW_SKIP,
@@ -477,13 +477,13 @@ export class RenderPipeline {
 	private _cachedMaxDeg = 1;
 	private _cachedMaxBodyLength = 0;
 	private deferredBatchId: ReturnType<typeof setTimeout> | null = null;
+	private readonly _timers = new ManagedTimers();
 	/** FPS tracking */
 	private _fpsFrames = 0;
 	private _fpsLastTime = 0;
 	currentFps = 0;
 	/** Last frame render duration in milliseconds */
 	lastFrameMs = 0;
-
 	// Cached render thresholds — recomputed only when dirty, not every frame
 	private _cachedRT: Required<import("../types").RenderThresholds> | null = null;
 	private _cachedRTSource: Partial<import("../types").RenderThresholds> | undefined = undefined;
@@ -623,6 +623,7 @@ export class RenderPipeline {
 			app.ticker.remove(this.renderTick, this);
 			this._tickerBound = false;
 		}
+		this._timers.clearAll();
 	}
 
 	get isTickerBound(): boolean {
@@ -1485,7 +1486,7 @@ export class RenderPipeline {
 			// in the host (alpha(0).stop(), force application) completes before
 			// the callback restarts the simulation. Without this, the sync path
 			// would restart the sim before the host has finished configuring it.
-			setTimeout(() => this.host.onAllPixiNodesCreated?.(), 0);
+			this._timers.setTimeout(() => this.host.onAllPixiNodesCreated?.(), 0);
 		}
 	}
 
@@ -1783,7 +1784,7 @@ export class RenderPipeline {
 			// graph force simulation to reach alphaMin; if the user hovers
 			// a labelless node before then, LabelManager's hoverForcedLabel
 			// path still works via null-label-tolerant checks.
-			setTimeout(() => this.enrichLabelsDeferred(), 2500);
+			this._timers.setTimeout(() => this.enrichLabelsDeferred(), 2500);
 		}
 	};
 
@@ -1797,7 +1798,7 @@ export class RenderPipeline {
 	private _enrichmentCancelId: ReturnType<typeof setTimeout> | null = null;
 	private enrichLabelsDeferred(): void {
 		if (this._enrichmentCancelId !== null) {
-			clearTimeout(this._enrichmentCancelId);
+			this._timers.clear(this._enrichmentCancelId);
 			this._enrichmentCancelId = null;
 		}
 		const pixiNodes = this.host.getPixiNodes();
@@ -1825,13 +1826,13 @@ export class RenderPipeline {
 				}
 			}
 			if (todo.length > 0) {
-				this._enrichmentCancelId = setTimeout(processNext, 0);
+				this._enrichmentCancelId = this._timers.setTimeout(processNext, 0);
 			} else {
 				this.cullOverlappingLabels();
 				this.markDirty(true);
 			}
 		};
-		this._enrichmentCancelId = setTimeout(processNext, 0);
+		this._enrichmentCancelId = this._timers.setTimeout(processNext, 0);
 	}
 
 	private scheduleDeferredBatch() {
@@ -1842,12 +1843,12 @@ export class RenderPipeline {
 		// expected ~2s to >2 minutes. setTimeout(0) runs as a macrotask between
 		// rAF ticks, breaking the contention and also yielding to input events
 		// between batches.
-		this.deferredBatchId = setTimeout(this.processDeferredBatch, 0) as unknown as ReturnType<typeof setTimeout>;
+		this.deferredBatchId = this._timers.setTimeout(this.processDeferredBatch, 0);
 	}
 
 	cancelDeferredBatch() {
 		if (this.deferredBatchId !== null) {
-			clearTimeout(this.deferredBatchId as unknown as ReturnType<typeof setTimeout>);
+			this._timers.clear(this.deferredBatchId);
 			this.deferredBatchId = null;
 		}
 		this.pendingNodes = [];
@@ -2653,5 +2654,3 @@ interface CullLabelRect {
 	degree: number;
 	isSuper: boolean;
 }
-
-// CullOverlapGrid interface removed — using SpatialHashGrid<CullLabelRect> directly
