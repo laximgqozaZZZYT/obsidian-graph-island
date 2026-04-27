@@ -15,6 +15,7 @@ import type { ShapeRule } from "../utils/node-shapes";
 import { effectiveRadius } from "../layouts/cluster-force";
 import { Platform } from "obsidian";
 import { clamp } from "../utils/geometry";
+import type { ManagedTimers } from "../utils/managed-timers";
 import {
 	LABEL_CHAR_WIDTH_FACTOR,
 	EDGE_REDRAW_SKIP,
@@ -238,6 +239,8 @@ export function truncateLabel(label: string, maxChars: number): string {
 // RenderHost — the interface the RenderPipeline needs from its parent
 // ---------------------------------------------------------------------------
 export interface RenderHost {
+	/** Shared timer registry — single-shot timers cleared on host teardown */
+	timers: ManagedTimers;
 	/** Get the renderer app instance */
 	getPixiApp(): IApp | null;
 	/** Get the PIXI node map */
@@ -370,9 +373,6 @@ export interface RenderHost {
 	getStructuralGaps?(): { from: string; to: string }[] | null;
 }
 
-// ---------------------------------------------------------------------------
-// RenderPipeline — owns the PIXI render loop, node creation, and batch drawing
-// ---------------------------------------------------------------------------
 // ---------------------------------------------------------------------------
 // quickSelect — O(n) average k-th smallest element (Hoare's selection algorithm)
 // ---------------------------------------------------------------------------
@@ -1485,7 +1485,7 @@ export class RenderPipeline {
 			// in the host (alpha(0).stop(), force application) completes before
 			// the callback restarts the simulation. Without this, the sync path
 			// would restart the sim before the host has finished configuring it.
-			setTimeout(() => this.host.onAllPixiNodesCreated?.(), 0);
+			this.host.timers.setTimeout(() => this.host.onAllPixiNodesCreated?.(), 0);
 		}
 	}
 
@@ -1783,7 +1783,7 @@ export class RenderPipeline {
 			// graph force simulation to reach alphaMin; if the user hovers
 			// a labelless node before then, LabelManager's hoverForcedLabel
 			// path still works via null-label-tolerant checks.
-			setTimeout(() => this.enrichLabelsDeferred(), 2500);
+			this.host.timers.setTimeout(() => this.enrichLabelsDeferred(), 2500);
 		}
 	};
 
@@ -1797,7 +1797,7 @@ export class RenderPipeline {
 	private _enrichmentCancelId: ReturnType<typeof setTimeout> | null = null;
 	private enrichLabelsDeferred(): void {
 		if (this._enrichmentCancelId !== null) {
-			clearTimeout(this._enrichmentCancelId);
+			this.host.timers.clear(this._enrichmentCancelId);
 			this._enrichmentCancelId = null;
 		}
 		const pixiNodes = this.host.getPixiNodes();
@@ -1825,13 +1825,13 @@ export class RenderPipeline {
 				}
 			}
 			if (todo.length > 0) {
-				this._enrichmentCancelId = setTimeout(processNext, 0);
+				this._enrichmentCancelId = this.host.timers.setTimeout(processNext, 0);
 			} else {
 				this.cullOverlappingLabels();
 				this.markDirty(true);
 			}
 		};
-		this._enrichmentCancelId = setTimeout(processNext, 0);
+		this._enrichmentCancelId = this.host.timers.setTimeout(processNext, 0);
 	}
 
 	private scheduleDeferredBatch() {
@@ -1842,12 +1842,12 @@ export class RenderPipeline {
 		// expected ~2s to >2 minutes. setTimeout(0) runs as a macrotask between
 		// rAF ticks, breaking the contention and also yielding to input events
 		// between batches.
-		this.deferredBatchId = setTimeout(this.processDeferredBatch, 0) as unknown as ReturnType<typeof setTimeout>;
+		this.deferredBatchId = this.host.timers.setTimeout(this.processDeferredBatch, 0);
 	}
 
 	cancelDeferredBatch() {
 		if (this.deferredBatchId !== null) {
-			clearTimeout(this.deferredBatchId as unknown as ReturnType<typeof setTimeout>);
+			this.host.timers.clear(this.deferredBatchId);
 			this.deferredBatchId = null;
 		}
 		this.pendingNodes = [];
