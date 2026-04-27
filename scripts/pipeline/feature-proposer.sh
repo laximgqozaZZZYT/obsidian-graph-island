@@ -186,21 +186,87 @@ echo "=== claude output (first 30 lines) ==="
 head -30 "$OUT"
 echo "  ... ($(wc -l < "$OUT") total lines)"
 
-# ── Parse + file ──
+# ── Phase R2 (2026-04-27): self-scoring quality gate ──
+# Generated proposals are sometimes incremental polish that doesn't deserve
+# user attention. Ask Claude to score each proposal on three axes
+# (specificity / drama / novelty) and reject low-scoring ones to a
+# "rejected" archive instead of filing them as issues. The user only sees
+# the strong ones.
+SCORE_PROMPT_FILE=$(mktemp)
+{
+  cat "$OUT"
+  cat <<'EOF'
+
+---
+
+You are now a critic. For EACH proposal block above, output one block in
+the following format. No prose between or around the blocks. Three scores
+each on 1-10 (1=poor, 10=excellent), then a verdict:
+
+---SCORE---
+slug: <copy slug from the proposal>
+specificity: <1-10>     # files/APIs named, behavior precise, observable
+drama: <1-10>           # would a power user notice and tell a friend?
+novelty: <1-10>         # not already obviously possible with existing UI
+verdict: ACCEPT | REJECT
+reason: <one sentence in Japanese>
+---END---
+
+Reject when ANY of:
+  - specificity < 6 (vague handwave)
+  - drama < 6 (incremental polish only)
+  - duplicate of obvious existing capability
+  - acceptance criteria are not observable
+EOF
+} > "$SCORE_PROMPT_FILE"
+
+SCORES=$(mktemp)
+claude -p "$(cat "$SCORE_PROMPT_FILE")" --max-turns 1 > "$SCORES" 2>&1 || true
+echo ""
+echo "=== claude self-score (first 30 lines) ==="
+head -30 "$SCORES"
+
+# ── Parse + score-gate + file/reject ──
 FILED=0
-python3 - "$OUT" "$APPLY" "$MAX_PROPOSALS_PER_RUN" <<'PY'
+python3 - "$OUT" "$SCORES" "$APPLY" "$MAX_PROPOSALS_PER_RUN" <<'PY'
 import sys, re, subprocess, os, datetime
-out_path, apply_str, cap_str = sys.argv[1], sys.argv[2], sys.argv[3]
+out_path, scores_path, apply_str, cap_str = sys.argv[1:5]
 APPLY = (apply_str == "1")
 CAP = int(cap_str)
+
 content = open(out_path).read()
+scores  = open(scores_path).read()
 proposals = re.findall(r'---PROPOSAL---(.*?)---END---', content, re.DOTALL)
 if not proposals:
     print(f"NO PROPOSALS in claude output ({len(content)} bytes)")
     sys.exit(0)
 
-today = datetime.date.today().isoformat()
-filed = 0
+# Parse scores by slug
+score_blocks = re.findall(r'---SCORE---(.*?)---END---', scores, re.DOTALL)
+score_map = {}
+for sb in score_blocks:
+    sm = re.search(r'^slug:\s*(.+)', sb, re.MULTILINE)
+    if not sm: continue
+    slug = sm.group(1).strip()
+    def grab_int(key):
+        m = re.search(rf'^{key}:\s*(\d+)', sb, re.MULTILINE)
+        return int(m.group(1)) if m else 0
+    verdict_m = re.search(r'^verdict:\s*(ACCEPT|REJECT)', sb, re.MULTILINE)
+    reason_m  = re.search(r'^reason:\s*(.+)', sb, re.MULTILINE)
+    score_map[slug] = {
+        'specificity': grab_int('specificity'),
+        'drama':       grab_int('drama'),
+        'novelty':     grab_int('novelty'),
+        'verdict':     (verdict_m.group(1) if verdict_m else 'REJECT'),
+        'reason':      (reason_m.group(1).strip() if reason_m else 'no reason'),
+    }
+
+today  = datetime.date.today().isoformat()
+filed  = 0
+rejected = 0
+REJ_DIR = 'scripts/pipeline/descriptions/rejected'
+os.makedirs(REJ_DIR, exist_ok=True)
+
 for raw in proposals[:CAP]:
     block = raw.strip()
     def grab(key):
@@ -212,12 +278,41 @@ for raw in proposals[:CAP]:
     if not slug or not title:
         print(f"  SKIP: malformed block (slug={slug} title={title})")
         continue
-    # Sanitize slug — id space is hyphen-separated, no spaces / paren / etc.
+    # Sanitize slug
+    raw_slug = slug
     slug = re.sub(r'[^a-z0-9\-]', '-', slug.lower()).strip('-')
     if not slug:
         print("  SKIP: slug empty after sanitize")
         continue
 
+    score = score_map.get(raw_slug) or score_map.get(slug)
+    if score is None:
+        # No score returned by the critic — default to REJECT (fail-closed).
+        score = {'verdict': 'REJECT', 'reason': 'critic returned no score',
+                 'specificity': 0, 'drama': 0, 'novelty': 0}
+
+    s_summary = f"S={score['specificity']}/D={score['drama']}/N={score['novelty']}"
+
+    # Reject branch ─────────────────────────────────────────────────────
+    if score['verdict'] != 'ACCEPT':
+        rej_path = f"{REJ_DIR}/{today}-{slug}.md"
+        if APPLY:
+            with open(rej_path, 'w') as f:
+                f.write(f"---\n")
+                f.write(f"rejected_on: {today}\n")
+                f.write(f"slug: {slug}\n")
+                f.write(f"persona: {persona or '-'}\n")
+                f.write(f"score: {s_summary}\n")
+                f.write(f"reason: {score['reason']}\n")
+                f.write(f"---\n\n")
+                f.write(f"## Original proposal\n\n```\n{block}\n```\n")
+            print(f"  REJECTED: {slug}  [{s_summary}]  reason={score['reason'][:70]}")
+        else:
+            print(f"  [dry-run] WOULD REJECT: {slug}  [{s_summary}]  reason={score['reason'][:70]}")
+        rejected += 1
+        continue
+
+    # Accept branch ─────────────────────────────────────────────────────
     nid = subprocess.check_output(
         ['python3','scripts/pipeline/csv_lib.py','next_id_num']
     ).decode().strip()
@@ -234,8 +329,10 @@ for raw in proposals[:CAP]:
             f.write(f"source: feature-proposal\n")
             f.write(f"summary: {title}\n")
             f.write(f"persona: {persona or '-'}\n")
+            f.write(f"score: {s_summary}\n")
             f.write(f"---\n\n")
             f.write(f"## Persona\n{persona or 'unspecified'}\n\n")
+            f.write(f"## Self-score (critic pass)\n{s_summary} — {score['reason']}\n\n")
             f.write(f"## Full proposal\n\n```\n{block}\n```\n")
         subprocess.check_call([
             'python3','scripts/pipeline/csv_lib.py','insert','issues', issue_id,
@@ -244,23 +341,24 @@ for raw in proposals[:CAP]:
             f'summary={title[:240]}',
             f'description_path=descriptions/{issue_id}.md',
         ])
-        print(f"  FILED: #{issue_id}  [{persona}]  {title[:80]}")
+        print(f"  FILED: #{issue_id}  [{persona}/{s_summary}]  {title[:70]}")
     else:
-        print(f"  [dry-run] WOULD FILE: #{issue_id}  [{persona}]  {title[:80]}")
+        print(f"  [dry-run] WOULD FILE: #{issue_id}  [{persona}/{s_summary}]  {title[:70]}")
     filed += 1
 
-print(f"\nDone. ({filed} proposals processed)")
+print(f"\nDone. (filed={filed}, rejected={rejected})")
 PY
 
 if [[ $APPLY -eq 1 && $? -eq 0 ]]; then
   if [[ -n "$(git status --porcelain scripts/pipeline/issues.csv scripts/pipeline/descriptions/)" ]]; then
     git add scripts/pipeline/issues.csv scripts/pipeline/descriptions/
-    git commit -m "chore(proposer): file feature-proposal issues
+    git commit -m "chore(proposer): file feature-proposal issues + archive rejects
 
 Generated by scripts/pipeline/feature-proposer.sh.
-Source = feature-proposal. The user can review and accept/close before
-the autonomous gate picks them up." || true
+Accepted proposals filed as priority=medium / source=feature-proposal.
+Rejected proposals archived under descriptions/rejected/<date>-<slug>.md
+with the critic's score and reason for future tuning." || true
   fi
 fi
 
-rm -f "$CONTEXT_FILE" "$PROMPT_FILE" "$OUT"
+rm -f "$CONTEXT_FILE" "$PROMPT_FILE" "$OUT" "$SCORE_PROMPT_FILE" "$SCORES"

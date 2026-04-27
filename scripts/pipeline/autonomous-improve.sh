@@ -249,8 +249,65 @@ cd "$PROJECT_DIR" || exit 1
 if [[ -n "$(git status --porcelain)" ]]; then
   log "SKIP: Main working directory dirty"
   git status --short | head -5 | while IFS= read -r line; do log "  $line"; done
+
+  # ── Phase R2 (2026-04-27): consecutive-dirty-SKIP watchdog ──
+  # On 2026-04-27 the autonomous gate SKIP-ed for 22 hours straight because
+  # the operator left an uncommitted chmod / ratchet update on main and
+  # nothing alerted them. Track consecutive SKIPs in a state file; after
+  # the threshold, file a *critical* issue so the next status report (or a
+  # human glance at issues.csv) surfaces the stall immediately.
+  DIRTY_STATE="/tmp/graph-island-dirty-skip-count"
+  DIRTY_THRESHOLD=3   # 3 cycles ≈ 1 hour at */20
+  prev=$(cat "$DIRTY_STATE" 2>/dev/null || echo 0)
+  prev=${prev//[^0-9]/}; prev=${prev:-0}
+  cur=$((prev + 1))
+  echo "$cur" > "$DIRTY_STATE"
+  log "DIRTY-SKIP COUNT: $cur (threshold=$DIRTY_THRESHOLD)"
+  if [[ $cur -eq $DIRTY_THRESHOLD ]]; then
+    # Only file once at the threshold — don't spam.
+    DIRTY_FILES=$(git status --porcelain | head -5 | tr '\n' '|' | sed 's/|$//')
+    NEXT_ID=$(python3 scripts/pipeline/csv_lib.py next_id_num 2>/dev/null || echo 9999)
+    ISSUE_ID="${NEXT_ID}-autonomous-stalled-dirty-skip"
+    DESC="scripts/pipeline/descriptions/${ISSUE_ID}.md"
+    mkdir -p "$(dirname "$DESC")"
+    {
+      echo "---"
+      echo "priority: critical"
+      echo "reported: $(date -I)"
+      echo "status: pending"
+      echo "source: auto-discovered"
+      echo "summary: autonomous-improve has SKIP-ed ${DIRTY_THRESHOLD}+ consecutive cycles (working tree dirty)"
+      echo "---"
+      echo ""
+      echo "## Detected"
+      echo "autonomous-improve.sh has skipped $cur cycles in a row because"
+      echo "main has uncommitted changes. The pipeline is effectively halted."
+      echo ""
+      echo "## Working-tree contents (first 5)"
+      echo "\`\`\`"
+      git status --short | head -5
+      echo "\`\`\`"
+      echo ""
+      echo "## Recovery"
+      echo "1. Inspect changes: \`git -C $PROJECT_DIR diff\`"
+      echo "2. Either commit or stash so working tree is clean"
+      echo "3. Counter clears automatically on the next non-SKIP cycle"
+    } > "$DESC"
+    python3 scripts/pipeline/csv_lib.py insert issues "$ISSUE_ID" \
+      priority=critical \
+      source=auto-discovered \
+      "summary=autonomous-improve has SKIP-ed ${DIRTY_THRESHOLD}+ consecutive cycles (dirty: ${DIRTY_FILES})" \
+      "description_path=descriptions/${ISSUE_ID}.md" 2>/dev/null \
+      && git add scripts/pipeline/issues.csv "$DESC" \
+      && git commit -m "chore(alert): autonomous stalled — ${cur} consecutive dirty SKIPs" --no-verify 2>/dev/null \
+      && log "ALERT FILED: critical issue #${ISSUE_ID}" \
+      || log "ALERT: failed to file dirty-skip issue (csv lock or duplicate?)"
+  fi
+
   exit 0
 fi
+# Clear the dirty-skip counter on any non-SKIP cycle.
+rm -f /tmp/graph-island-dirty-skip-count 2>/dev/null
 
 # ── Create isolated worktree ──
 WORKTREE_DIR="$PROJECT_DIR/.autonomous-worktrees/$SESSION_ID"
