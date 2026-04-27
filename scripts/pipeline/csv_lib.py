@@ -79,7 +79,7 @@ VALID_TASK_STATUSES = {"pending", "in-progress", "decomposed", "blocked",
 # source = how the row was created. Legacy md uses these spellings; new
 # rows should pick from the active set.
 VALID_ISSUE_SOURCES = {"auto-discovered", "kaizen", "e2e-patrol", "user",
-                       "decomposed", "manual"}
+                       "decomposed", "manual", "feature-proposal"}
 VALID_TASK_SOURCES = {"decomposed", "user", "manual"}
 
 ACTIVE_ISSUE_STATUSES = {"pending", "in-progress", "decomposed"}
