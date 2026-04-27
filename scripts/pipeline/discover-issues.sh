@@ -512,7 +512,20 @@ fi
 # ============================================================
 # 24. SCATTERED CONSTANTS — not in constants.ts
 # ============================================================
-SCATTERED=$(grep -rn "const [A-Z_]\{3,\}\s*=" src/ --include="*.ts" 2>/dev/null | grep -v "constants.ts\|types.ts\|i18n.ts\|__mocks__\|\.test\." | wc -l || echo "0")
+# 2026-04-27 (#1354 fix): the previous regex counted *every* SCREAMING_CASE
+# const declaration, which mixed three categories that should NOT be moved:
+#   - function-scope locals (e.g. const BASE_RADIUS = 30 inside a parser fn)
+#   - algorithm-intrinsic constants (FNV_OFFSET, FNV_PRIME, MAX_PASSES, ...)
+#   - module-private lookup Set/Map (BOOL_OPS, METRIC_NAMES, VALID_KEYS, ...)
+#   - already-organized export Set/Object literals (Set<...>, new Map(...))
+#
+# CLAUDE.md's "No hardcoded magic numbers" rule is about render/layout
+# thresholds, not algorithm internals. The metric we actually care about is:
+# *exported, top-level, numeric-literal* constants that should live in
+# `constants.ts` or `RenderThresholds`. Filter to those alone.
+SCATTERED=$(grep -rnE '^export const [A-Z_][A-Z_0-9]{2,}\s*=\s*-?[0-9]+(\.[0-9]+)?(e[+-]?[0-9]+)?\s*[;)]' src/ --include='*.ts' 2>/dev/null \
+  | grep -v "constants.ts\|types.ts\|i18n.ts\|__mocks__\|\.test\." \
+  | wc -l || echo "0")
 SCATTERED=${SCATTERED//[^0-9]/}; SCATTERED=${SCATTERED:-0}
 if [[ $SCATTERED -gt 100 ]]; then
   file_issue "scattered-constants" "low" \
