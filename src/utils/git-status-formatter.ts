@@ -1,4 +1,4 @@
-export type GitStatusShortResultStatus = "ok" | "warning";
+type GitStatusShortResultStatus = "ok" | "warning";
 export type GitStatusShortTargetMark = "M" | "missing";
 
 export interface GitStatusShortInput {
