@@ -11,17 +11,15 @@
  *
  * No side effects. No Obsidian API dependencies.
  */
-import type {
-	ClusterArrangement,
-	ClusterGroupArrangement,
-	EdgeCardinalityMode,
-	NodeDisplayMode,
-	SortKey,
-	SortOrder,
-	ViewMode,
-} from "../types";
 import { TAG_DISPLAY_ENCLOSURE } from "../constants";
 import type { PanelState } from "./PanelBuilder";
+
+// Typed empty-container factories. The return-type annotation supplies
+// contextual typing so the inline `{}` literal is inferred as the matching
+// PanelState property type rather than the loose top `{}` shape (which is
+// not assignable to `Record<…>` under strict mode without an `as` cast).
+const createEmptyNodeIconMap = (): PanelState["nodeIconMap"] => ({});
+const createEmptyPinnedPositions = (): PanelState["pinnedPositions"] => ({});
 
 /** Filter-related defaults: search, degree bounds, subgraph scoping,
  *  timeline range, local graph, saved queries, and data inclusion flags. */
@@ -50,7 +48,7 @@ export const DEFAULT_FILTER_STATE = () => ({
 	savedSearchQueries: [] as { name: string; query: string }[],
 	multiSelectNodeIds: [] as string[],
 	subgraphNodeIds: [] as string[],
-	subgraphStack: [] as PanelState["subgraphStack"],
+	subgraphStack: [],
 	expandedNodes: [] as string[],
 });
 
@@ -98,9 +96,9 @@ export const DEFAULT_DISPLAY_STATE = () => ({
 		aggregation: true,
 	},
 	nodeShapeRules: [
-		{ match: "isTag", shape: "triangle" },
-		{ match: "default", shape: "circle" },
-	] as PanelState["nodeShapeRules"],
+		{ match: "isTag" as const, shape: "triangle" as const },
+		{ match: "default" as const, shape: "circle" as const },
+	],
 	showEdgeLabels: false,
 	edgeLabelPlacement: "center" as const,
 	showMinimap: true,
@@ -117,11 +115,11 @@ export const DEFAULT_DISPLAY_STATE = () => ({
 	gridCellShading: false,
 	gridStyle: "lines" as const,
 	gridLabelPlacement: "on-line" as const,
-	nodeDisplayMode: "node" as NodeDisplayMode,
+	nodeDisplayMode: "node" as const,
 	cardDisplayConfig: { fields: [] as string[], maxWidth: 120, showIcon: false },
 	donutDisplayConfig: { innerRadius: 0.6 },
-	edgeCardinalityMode: "none" as EdgeCardinalityMode,
-	cardinalityRules: [] as PanelState["cardinalityRules"],
+	edgeCardinalityMode: "none" as const,
+	cardinalityRules: [],
 	cableBundleMode: "auto" as const,
 	cableTrunkWidth: 12,
 	cableTrunkAlpha: 0.25,
@@ -159,7 +157,7 @@ export const DEFAULT_DISPLAY_STATE = () => ({
 	showRelationMatrix: false,
 	showNodeThumbnails: false,
 	nodeIconField: "",
-	nodeIconMap: {} as Record<string, string>,
+	nodeIconMap: createEmptyNodeIconMap(),
 	focusConeEnabled: true,
 	analysisOverlay: "off" as const,
 	showOntologyBackbone: false,
@@ -168,7 +166,7 @@ export const DEFAULT_DISPLAY_STATE = () => ({
 /** Layout-related defaults: forces, arrangement, clustering, groups,
  *  pinned positions, and view-mode-bound sort rules. */
 export const DEFAULT_LAYOUT_STATE = () => ({
-	viewMode: "graph" as ViewMode,
+	viewMode: "graph" as const,
 	matrixSortMode: "degree" as const,
 	centerForce: 0.03,
 	repelForce: 500,
@@ -179,24 +177,24 @@ export const DEFAULT_LAYOUT_STATE = () => ({
 	showOrbitRings: true,
 	orbitAutoRotate: true,
 	enclosureSpacing: 1.5,
-	directionalGravityRules: [] as PanelState["directionalGravityRules"],
-	clusterGroupRules: [] as PanelState["clusterGroupRules"],
-	clusterArrangement: "inherit" as ClusterArrangement,
-	clusterGroupArrangement: "auto" as ClusterGroupArrangement,
+	directionalGravityRules: [],
+	clusterGroupRules: [],
+	clusterArrangement: "inherit" as const,
+	clusterGroupArrangement: "auto" as const,
 	clusterNodeSpacing: 3.0,
 	clusterGroupScale: 3.0,
 	clusterGroupSpacing: 2.0,
 	clusterGravity: { interGroupAttraction: 0.5, intraGroupDensity: 1.0 },
 	clusterFollowsGroupBy: true,
-	coordinateLayout: null as PanelState["coordinateLayout"],
-	sortRules: [{ key: "degree" as SortKey, order: "desc" as SortOrder }],
-	nodeRules: [] as PanelState["nodeRules"],
-	groups: [] as PanelState["groups"],
+	coordinateLayout: null,
+	sortRules: [{ key: "degree" as const, order: "desc" as const }],
+	nodeRules: [],
+	groups: [],
 	groupBy: "none",
-	groupByRules: null as PanelState["groupByRules"],
+	groupByRules: null,
 	groupMinSize: 2,
 	collapsedGroups: new Set<string>(),
-	pinnedPositions: {} as Record<string, { x: number; y: number }>,
+	pinnedPositions: createEmptyPinnedPositions(),
 	focusLayout: false,
 	autoFit: false,
 });
@@ -205,14 +203,14 @@ export const DEFAULT_LAYOUT_STATE = () => ({
  *  viewports, editor sync, annotations, bookmarks, focus & presentation. */
 export const DEFAULT_TOOLBAR_STATE = () => ({
 	activeTab: "filter" as const,
-	savedViewports: [] as PanelState["savedViewports"],
+	savedViewports: [],
 	presetZoomLevel: 0,
 	zoomSensitivity: 1.0,
 	navHistory: [] as string[],
 	navHistoryCursor: -1,
 	syncWithEditor: true,
 	syncViewId: null as string | null,
-	annotations: [] as PanelState["annotations"],
+	annotations: [],
 	bookmarkedNodes: [] as string[],
 	presentationMode: false,
 	focusMode: false,
