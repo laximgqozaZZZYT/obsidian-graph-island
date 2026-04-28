@@ -164,7 +164,7 @@ export function buildNodeDisplayModeSection(
 		tabEl,
 		t("display.nodeDisplayMode"),
 		(body) => {
-			const modeOptions = [
+			const modeOptions: { value: NodeDisplayMode; label: string }[] = [
 				{ value: "node", label: t("display.modeNode") },
 				{ value: "card", label: t("display.modeCard") },
 				{ value: "donut", label: t("display.modeDonut") },
@@ -176,7 +176,7 @@ export function buildNodeDisplayModeSection(
 				modeOptions,
 				panel.nodeDisplayMode,
 				(v) => {
-					panel.nodeDisplayMode = v as NodeDisplayMode;
+					panel.nodeDisplayMode = v;
 					cb.doRenderKeepPanel();
 					cb.rebuildPanel(); // Progressive disclosure: card/donut sub-settings
 					// HF: Announce display mode change for screen readers
@@ -446,21 +446,22 @@ export function buildDiscoverySection(
 		t("section.discovery"),
 		(body) => {
 			// R2: Consolidated analysis overlay dropdown
+			const analysisOverlayOptions: { value: NonNullable<PanelState["analysisOverlay"]>; label: string }[] = [
+				{ value: "off", label: t("analysis.off") },
+				{ value: "bridges", label: t("analysis.bridges") },
+				{ value: "entropy", label: t("analysis.entropy") },
+				{ value: "gaps", label: t("analysis.gaps") },
+				{ value: "missing", label: t("analysis.missing") },
+				{ value: "density", label: t("analysis.density") },
+				{ value: "all", label: t("analysis.all") },
+			];
 			addSelect(
 				body,
 				t("display.analysisOverlay"),
-				[
-					{ value: "off", label: t("analysis.off") },
-					{ value: "bridges", label: t("analysis.bridges") },
-					{ value: "entropy", label: t("analysis.entropy") },
-					{ value: "gaps", label: t("analysis.gaps") },
-					{ value: "missing", label: t("analysis.missing") },
-					{ value: "density", label: t("analysis.density") },
-					{ value: "all", label: t("analysis.all") },
-				],
+				analysisOverlayOptions,
 				panel.analysisOverlay ?? "off",
 				(v) => {
-					panel.analysisOverlay = v as PanelState["analysisOverlay"];
+					panel.analysisOverlay = v;
 					// doRender() so GVC._applyAnalysisOverlay() runs (sets _showDensityHeatmap)
 					cb.doRender();
 				},
