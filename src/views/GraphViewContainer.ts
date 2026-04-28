@@ -2013,7 +2013,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	private _wireCanvasManagers(canvas: HTMLCanvasElement, world: CanvasContainer): void {
 		// Set up interaction handling (pointer events, drag, pan, hover, marquee)
 		this.interactionManager?.detach();
-		this.interactionManager = new InteractionManager(this as unknown as InteractionHost, canvas, world);
+		this.interactionManager = new InteractionManager(this, canvas, world);
 
 		// Group label hover: highlight group members on pointermove
 		canvas.addEventListener("pointermove", (e) => {
