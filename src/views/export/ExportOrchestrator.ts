@@ -4,12 +4,10 @@
  * subtask; this file only provides the pure building blocks.
  *
  * The underlying pure converter `exportGraphSVG` lives in
- * `src/utils/graph-helpers.ts` and is re-exported here for convenience. Its
- * implementation is intentionally untouched.
+ * `src/utils/graph-helpers.ts`.
  */
 
 import type { GraphNode, GraphEdge } from "../../types";
-import { exportGraphSVG } from "../../utils/graph-helpers";
 
 // ---------------------------------------------------------------------------
 // Named constants (CLAUDE.md: no hardcoded magic numbers)
@@ -27,27 +25,23 @@ const MIN_CANVAS_DIMENSION = 1;
 
 const JSON_INDENT_SPACES = 2;
 
-// Shared: re-export the underlying pure SVG converter so callers importing
-// from this module get everything in one place without reaching into utils.
-export { exportGraphSVG };
-
 // ---------------------------------------------------------------------------
 // Input shapes (kept minimal + structural so tests can pass plain objects)
 // ---------------------------------------------------------------------------
 
-export interface SvgExportGraph {
+interface SvgExportGraph {
 	nodes: GraphNode[];
 	edges: GraphEdge[];
 }
 
-export interface SvgExportSettings {
+interface SvgExportSettings {
 	nodeSize?: number;
 	showLabels?: boolean;
 	edgeAlpha?: number;
 	background?: string;
 }
 
-export interface SvgExportViewState {
+interface SvgExportViewState {
 	width?: number;
 	height?: number;
 	/** If provided, overrides settings.background. Empty string = transparent. */
@@ -55,7 +49,7 @@ export interface SvgExportViewState {
 	showLabels?: boolean;
 }
 
-export interface SvgExportArgs {
+interface SvgExportArgs {
 	nodes: GraphNode[];
 	edges: GraphEdge[];
 	options: {
@@ -68,24 +62,24 @@ export interface SvgExportArgs {
 	};
 }
 
-export interface PngExportCanvasLike {
+interface PngExportCanvasLike {
 	width: number;
 	height: number;
 }
 
-export interface PngExportSettings {
+interface PngExportSettings {
 	background?: string;
 	scale?: number;
 }
 
-export interface PngExportArgs {
+interface PngExportArgs {
 	width: number;
 	height: number;
 	background: string;
 	scale: number;
 }
 
-export interface PresetMetadata {
+interface PresetMetadata {
 	version?: string;
 	exportedAt?: string;
 }
@@ -199,7 +193,7 @@ function normalisePresetValue(value: unknown): unknown {
 // safeExport
 // ---------------------------------------------------------------------------
 
-export type SafeExportResult<T> = { ok: true; data: T } | { ok: false; error: Error };
+type SafeExportResult<T> = { ok: true; data: T } | { ok: false; error: Error };
 
 /**
  * Run an export-producing function and wrap the outcome in a discriminated

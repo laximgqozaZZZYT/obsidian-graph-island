@@ -64,7 +64,7 @@ interface HullCache {
 	hull: { x: number; y: number }[];
 }
 
-export interface AggregateHitRegion {
+interface AggregateHitRegion {
 	x: number;
 	y: number;
 	w: number;

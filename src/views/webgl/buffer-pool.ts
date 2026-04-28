@@ -2,7 +2,7 @@
 // BufferPool — reusable WebGL buffer allocation
 // ---------------------------------------------------------------------------
 
-export interface BufferHandle {
+interface BufferHandle {
 	vbo: WebGLBuffer;
 	data: Float32Array;
 }

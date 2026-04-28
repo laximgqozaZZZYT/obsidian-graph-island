@@ -914,7 +914,7 @@ export function _updateHintSelection(container: HTMLElement, selectedIdx: number
 }
 
 /** Build the DOM container for query hint suggestions. */
-export function _buildQueryHintContainer(
+function _buildQueryHintContainer(
 	headerText: string,
 	items: { text: string; onSelect: () => void }[],
 	onHover: (index: number) => void,
