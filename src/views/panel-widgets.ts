@@ -203,10 +203,24 @@ function attachAutocomplete(input: HTMLInputElement, suggestions: string[]) {
 		selected = -1;
 	}
 
-	input.addEventListener("focus", show);
+	let blurHideTimer: ReturnType<typeof setTimeout> | null = null;
+	const cancelBlurHide = () => {
+		if (blurHideTimer !== null) {
+			clearTimeout(blurHideTimer);
+			blurHideTimer = null;
+		}
+	};
+	input.addEventListener("focus", () => {
+		cancelBlurHide();
+		show();
+	});
 	input.addEventListener("input", show);
 	input.addEventListener("blur", () => {
-		setTimeout(() => (popup.style.display = "none"), 150);
+		cancelBlurHide();
+		blurHideTimer = setTimeout(() => {
+			blurHideTimer = null;
+			popup.style.display = "none";
+		}, 150);
 	});
 	input.addEventListener("keydown", (e) => {
 		const items = popup.querySelectorAll(".gi-ac-item");
@@ -848,7 +862,15 @@ export function attachQueryHint(input: HTMLInputElement, getSuggestions: (field:
 		}
 	};
 
+	let pendingDismiss: ReturnType<typeof setTimeout> | null = null;
+	const cancelPendingDismiss = () => {
+		if (pendingDismiss !== null) {
+			clearTimeout(pendingDismiss);
+			pendingDismiss = null;
+		}
+	};
 	const dismissHint = () => {
+		cancelPendingDismiss();
 		hintEl?.remove();
 		hintEl = null;
 		selectedIdx = -1;
@@ -856,10 +878,15 @@ export function attachQueryHint(input: HTMLInputElement, getSuggestions: (field:
 	};
 
 	_setupQueryHintListeners(input, {
-		show: () => rebuildHint(),
+		show: () => {
+			cancelPendingDismiss();
+			rebuildHint();
+		},
 		hide: () => {
 			if (!hintEl) return;
-			setTimeout(() => {
+			cancelPendingDismiss();
+			pendingDismiss = setTimeout(() => {
+				pendingDismiss = null;
 				if (input === document.activeElement) return;
 				dismissHint();
 			}, 150);
@@ -1050,7 +1077,15 @@ function attachFixedHint(
 		anchor.appendChild(hintEl);
 	};
 
+	let pendingBlurDismiss: ReturnType<typeof setTimeout> | null = null;
+	const cancelPendingBlurDismiss = () => {
+		if (pendingBlurDismiss !== null) {
+			clearTimeout(pendingBlurDismiss);
+			pendingBlurDismiss = null;
+		}
+	};
 	const dismissHint = () => {
+		cancelPendingBlurDismiss();
 		hintEl?.remove();
 		hintEl = null;
 		selectedIdx = -1;
@@ -1064,9 +1099,14 @@ function attachFixedHint(
 		renderHint();
 	};
 
-	input.addEventListener("focus", rebuild);
+	input.addEventListener("focus", () => {
+		cancelPendingBlurDismiss();
+		rebuild();
+	});
 	input.addEventListener("blur", () => {
-		setTimeout(() => {
+		cancelPendingBlurDismiss();
+		pendingBlurDismiss = setTimeout(() => {
+			pendingBlurDismiss = null;
 			if (input === document.activeElement) return;
 			dismissHint();
 		}, 150);
@@ -1221,9 +1261,14 @@ function _setupSearchJumpListeners(
 		jumpToSelected: () => void;
 	},
 ) {
+	let rebuildDebounce: ReturnType<typeof setTimeout> | null = null;
 	input.addEventListener("input", () => {
 		// Defer slightly so attachQueryHint processes first
-		setTimeout(ctx.rebuild, 50);
+		if (rebuildDebounce !== null) clearTimeout(rebuildDebounce);
+		rebuildDebounce = setTimeout(() => {
+			rebuildDebounce = null;
+			ctx.rebuild();
+		}, 50);
 	});
 
 	input.addEventListener("keydown", (e: KeyboardEvent) => {
@@ -1256,8 +1301,19 @@ function _setupSearchJumpListeners(
 		}
 	});
 
+	let blurDismissTimer: ReturnType<typeof setTimeout> | null = null;
+	input.addEventListener("focus", () => {
+		if (blurDismissTimer !== null) {
+			clearTimeout(blurDismissTimer);
+			blurDismissTimer = null;
+		}
+	});
 	input.addEventListener("blur", () => {
-		setTimeout(ctx.dismiss, 200);
+		if (blurDismissTimer !== null) clearTimeout(blurDismissTimer);
+		blurDismissTimer = setTimeout(() => {
+			blurDismissTimer = null;
+			ctx.dismiss();
+		}, 200);
 	});
 }
 
