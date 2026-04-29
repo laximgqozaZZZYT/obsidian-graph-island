@@ -14,6 +14,7 @@ import { getNodeShape, drawShape, drawShapeAt } from "../utils/node-shapes";
 import type { ShapeRule } from "../utils/node-shapes";
 import { effectiveRadius } from "../layouts/cluster-force";
 import { Platform } from "obsidian";
+import { OwnedTimers } from "./owned-timers";
 import { clamp } from "../utils/geometry";
 import {
 	LABEL_CHAR_WIDTH_FACTOR,
@@ -477,6 +478,7 @@ export class RenderPipeline {
 	private _cachedMaxDeg = 1;
 	private _cachedMaxBodyLength = 0;
 	private deferredBatchId: ReturnType<typeof setTimeout> | null = null;
+	private readonly _ownedTimers = new OwnedTimers();
 	/** FPS tracking */
 	private _fpsFrames = 0;
 	private _fpsLastTime = 0;
@@ -618,6 +620,18 @@ export class RenderPipeline {
 	/** Detach the ticker callback. Call during cleanup. */
 	detach() {
 		this.cancelDeferredBatch();
+		if (this._onAllNodesCreatedTimer !== null) {
+			clearTimeout(this._onAllNodesCreatedTimer);
+			this._onAllNodesCreatedTimer = null;
+		}
+		if (this._enrichmentKickoffTimer !== null) {
+			clearTimeout(this._enrichmentKickoffTimer);
+			this._enrichmentKickoffTimer = null;
+		}
+		if (this._enrichmentCancelId !== null) {
+			clearTimeout(this._enrichmentCancelId);
+			this._enrichmentCancelId = null;
+		}
 		const app = this.host.getPixiApp();
 		if (this._tickerBound && app) {
 			app.ticker.remove(this.renderTick, this);
@@ -1485,7 +1499,13 @@ export class RenderPipeline {
 			// in the host (alpha(0).stop(), force application) completes before
 			// the callback restarts the simulation. Without this, the sync path
 			// would restart the sim before the host has finished configuring it.
-			setTimeout(() => this.host.onAllPixiNodesCreated?.(), 0);
+			if (this._onAllNodesCreatedTimer !== null) {
+				clearTimeout(this._onAllNodesCreatedTimer);
+			}
+			this._onAllNodesCreatedTimer = setTimeout(() => {
+				this._onAllNodesCreatedTimer = null;
+				this.host.onAllPixiNodesCreated?.();
+			}, 0);
 		}
 	}
 
@@ -1783,7 +1803,13 @@ export class RenderPipeline {
 			// graph force simulation to reach alphaMin; if the user hovers
 			// a labelless node before then, LabelManager's hoverForcedLabel
 			// path still works via null-label-tolerant checks.
-			setTimeout(() => this.enrichLabelsDeferred(), 2500);
+			if (this._enrichmentKickoffTimer !== null) {
+				clearTimeout(this._enrichmentKickoffTimer);
+			}
+			this._enrichmentKickoffTimer = setTimeout(() => {
+				this._enrichmentKickoffTimer = null;
+				this.enrichLabelsDeferred();
+			}, 2500);
 		}
 	};
 
