@@ -264,6 +264,7 @@ import {
 	buildTransitionData,
 	computeTimelineFit,
 } from "./hover-helpers";
+import { countInterClusterEdges, collectMemberTags } from "./cluster-compare-helpers";
 
 // ---------------------------------------------------------------------------
 // StatsHost — interface for future StatsRenderer extraction (Phase 0)
@@ -3589,11 +3590,12 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		// Count inter-cluster edges and find bridge nodes
 		const setA = new Set(membersA);
 		const setB = new Set(membersB);
-		const { interEdges, bridgeNodes } = this._countInterClusterEdges(setA, setB);
+		const { interEdges, bridgeNodes } = countInterClusterEdges(this.graphEdges, setA, setB);
 
 		// Shared tags
-		const tagsA = this._collectMemberTags(membersA);
-		const tagsB = this._collectMemberTags(membersB);
+		const getTags = (id: string) => this.pixiNodes.get(id)?.data.tags;
+		const tagsA = collectMemberTags(membersA, getTags);
+		const tagsB = collectMemberTags(membersB, getTags);
 		const sharedTags = [...tagsA].filter((t) => tagsB.has(t));
 
 		this.applyEphemeralHighlight(bridgeNodes.size > 0 ? bridgeNodes : null);
@@ -3601,35 +3603,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		const msg = `Cluster compare: ${keyA} (${membersA.length}) vs ${keyB} (${membersB.length}) — ${interEdges} edges, ${bridgeNodes.size} bridges, ${sharedTags.length} shared tags`;
 		showToast(msg);
 		this._announceA11y(msg);
-	}
-
-	/** Count edges between two cluster sets and collect bridge node IDs. */
-	private _countInterClusterEdges(
-		setA: Set<string>,
-		setB: Set<string>,
-	): { interEdges: number; bridgeNodes: Set<string> } {
-		let interEdges = 0;
-		const bridgeNodes = new Set<string>();
-		for (const e of this.graphEdges) {
-			const src = edgeSourceId(e);
-			const tgt = edgeTargetId(e);
-			if ((setA.has(src) && setB.has(tgt)) || (setB.has(src) && setA.has(tgt))) {
-				interEdges++;
-				bridgeNodes.add(src);
-				bridgeNodes.add(tgt);
-			}
-		}
-		return { interEdges, bridgeNodes };
-	}
-
-	/** Collect all tags from a list of node IDs. */
-	private _collectMemberTags(memberIds: string[]): Set<string> {
-		const tags = new Set<string>();
-		for (const id of memberIds) {
-			const pn = this.pixiNodes.get(id);
-			if (pn?.data.tags) pn.data.tags.forEach((t) => tags.add(t));
-		}
-		return tags;
 	}
 
 	// =========================================================================
@@ -4529,16 +4502,12 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			const syncBg = rt.labelBgColorSync;
 			for (const pn of this.pixiNodes.values()) {
 				if (pn.label && pn.label.bgColor != null) {
-					pn.label.bgColor = syncBg && pn.color != null ? this._blendThemeLabel(themeBg, pn.color) : themeBg;
+					pn.label.bgColor = syncBg && pn.color != null ? blendThemeLabel(themeBg, pn.color) : themeBg;
 				}
 			}
 		}
 
 		this.markDirty();
-	}
-
-	private _blendThemeLabel(bg: number, nodeColor: number): number {
-		return blendThemeLabel(bg, nodeColor);
 	}
 
 	// =========================================================================
