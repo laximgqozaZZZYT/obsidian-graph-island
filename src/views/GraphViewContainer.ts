@@ -64,6 +64,7 @@ import {
 	incCounter,
 	computeGaps,
 	hitTestTimelineBars,
+	computeNextTimelineBar,
 	computeNodeBBox,
 	computeAvgNodeRadius,
 	computeViewportScaleFactor,
@@ -1051,62 +1052,23 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	private _handleTimelineArrowKey(key: string): void {
 		const bars = this.clusterMeta?.timelineBars;
 		if (!bars || bars.length === 0) return;
+		if (key !== "ArrowLeft" && key !== "ArrowRight" && key !== "ArrowUp" && key !== "ArrowDown") return;
 
-		// Find current selection index
-		const currentId = this.highlightedNodeId;
-		const currentIdx = currentId ? bars.findIndex((b) => b.nodeId === currentId) : -1;
+		const target = computeNextTimelineBar(bars, this.highlightedNodeId, key);
+		if (!target) return;
 
-		// Sort bars by Y then X for navigation order
-		const sorted = bars
-			.map((b, i) => ({ ...b, origIdx: i }))
-			.sort((a, b) => a.yCenter - b.yCenter || a.xStart - b.xStart);
-
-		let sortedIdx = currentIdx >= 0 ? sorted.findIndex((b) => b.origIdx === currentIdx) : -1;
-
-		switch (key) {
-			case "ArrowRight":
-				// Next bar in time order (same Y, next X; or next row)
-				sortedIdx = Math.min(sortedIdx + 1, sorted.length - 1);
-				if (sortedIdx < 0) sortedIdx = 0;
-				break;
-			case "ArrowLeft":
-				sortedIdx = Math.max(sortedIdx - 1, 0);
-				break;
-			case "ArrowDown": {
-				// Jump to next work group (find bar with significantly different Y)
-				const curY = sortedIdx >= 0 ? sorted[sortedIdx].yCenter : 0;
-				const next = sorted.find((b, i) => i > sortedIdx && b.yCenter > curY + 10);
-				if (next) sortedIdx = sorted.indexOf(next);
-				break;
-			}
-			case "ArrowUp": {
-				const curY = sortedIdx >= 0 ? sorted[sortedIdx].yCenter : Infinity;
-				// Find last bar with Y significantly above current
-				for (let i = sortedIdx - 1; i >= 0; i--) {
-					if (sorted[i].yCenter < curY - 10) {
-						sortedIdx = i;
-						break;
-					}
-				}
-				break;
-			}
+		this.setHighlightedNodeId(target.nodeId);
+		// Pan to center the selected bar
+		const world = this.worldContainer;
+		const wrap = this.canvasWrap;
+		if (world && wrap) {
+			const ws = world.scale.x;
+			world.x = wrap.clientWidth / 2 - target.xStart * ws;
+			world.y = wrap.clientHeight / 2 - target.yCenter * ws;
 		}
-
-		if (sortedIdx >= 0 && sortedIdx < sorted.length) {
-			const target = sorted[sortedIdx];
-			this.setHighlightedNodeId(target.nodeId);
-			// Pan to center the selected bar
-			const world = this.worldContainer;
-			const wrap = this.canvasWrap;
-			if (world && wrap) {
-				const ws = world.scale.x;
-				world.x = wrap.clientWidth / 2 - target.xStart * ws;
-				world.y = wrap.clientHeight / 2 - target.yCenter * ws;
-			}
-			this.applyHover();
-			this.drawTimelineBars();
-			this.wakeRenderLoop();
-		}
+		this.applyHover();
+		this.drawTimelineBars();
+		this.wakeRenderLoop();
 	}
 
 	private _handleEscapeKey(): void {

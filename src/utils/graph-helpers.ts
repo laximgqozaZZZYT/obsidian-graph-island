@@ -638,6 +638,62 @@ export function hitTestTimelineBars(
 	return null;
 }
 
+/** Y-distance below which two bars are considered the same row for arrow nav. */
+export const TIMELINE_NAV_Y_THRESHOLD = 10;
+
+export type TimelineNavKey = "ArrowLeft" | "ArrowRight" | "ArrowUp" | "ArrowDown";
+
+/**
+ * Compute the next timeline-bar selection target for arrow-key navigation.
+ *
+ * Bars are sorted by yCenter (then xStart) to define navigation order.
+ * - ArrowLeft / ArrowRight: previous / next bar in that order.
+ * - ArrowUp / ArrowDown: jump to the previous / next bar whose yCenter
+ *   differs by more than {@link TIMELINE_NAV_Y_THRESHOLD} from the current one
+ *   (i.e. a different row).
+ *
+ * Returns the target bar, or null when navigation cannot move (empty bars, or
+ * the chosen direction has no eligible neighbour).
+ */
+export function computeNextTimelineBar<T extends { nodeId: string; xStart: number; yCenter: number }>(
+	bars: readonly T[],
+	currentNodeId: string | null,
+	key: TimelineNavKey,
+): T | null {
+	if (!bars || bars.length === 0) return null;
+
+	const sorted = bars.slice().sort((a, b) => a.yCenter - b.yCenter || a.xStart - b.xStart);
+	let sortedIdx = currentNodeId ? sorted.findIndex((b) => b.nodeId === currentNodeId) : -1;
+
+	switch (key) {
+		case "ArrowRight":
+			sortedIdx = Math.min(sortedIdx + 1, sorted.length - 1);
+			if (sortedIdx < 0) sortedIdx = 0;
+			break;
+		case "ArrowLeft":
+			sortedIdx = Math.max(sortedIdx - 1, 0);
+			break;
+		case "ArrowDown": {
+			const curY = sortedIdx >= 0 ? sorted[sortedIdx].yCenter : 0;
+			const nextIdx = sorted.findIndex((b, i) => i > sortedIdx && b.yCenter > curY + TIMELINE_NAV_Y_THRESHOLD);
+			if (nextIdx >= 0) sortedIdx = nextIdx;
+			break;
+		}
+		case "ArrowUp": {
+			const curY = sortedIdx >= 0 ? sorted[sortedIdx].yCenter : Infinity;
+			for (let i = sortedIdx - 1; i >= 0; i--) {
+				if (sorted[i].yCenter < curY - TIMELINE_NAV_Y_THRESHOLD) {
+					sortedIdx = i;
+					break;
+				}
+			}
+			break;
+		}
+	}
+
+	return sortedIdx >= 0 && sortedIdx < sorted.length ? sorted[sortedIdx] : null;
+}
+
 /**
  * Compute auto edge-bundle strength based on node count.
  * Returns a value between 0.3 and 0.85.

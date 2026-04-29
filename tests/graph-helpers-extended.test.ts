@@ -12,6 +12,7 @@ import {
 	edgeTargetId,
 	autoBundleStrength,
 	hitTestTimelineBars,
+	computeNextTimelineBar,
 	computeGaps,
 	exportGraphCSV,
 	exportGraphMermaid,
@@ -473,5 +474,82 @@ describe("exportGraphMermaid — extended", () => {
 		const mmd = exportGraphMermaid(nodes, []);
 		const nodeLines = mmd.split("\n").filter((l) => l.includes('["'));
 		expect(nodeLines.length).toBeLessThanOrEqual(200);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// computeNextTimelineBar — arrow-key navigation logic
+// ---------------------------------------------------------------------------
+describe("computeNextTimelineBar", () => {
+	type Bar = { nodeId: string; xStart: number; yCenter: number };
+	const bar = (nodeId: string, xStart: number, yCenter: number): Bar => ({ nodeId, xStart, yCenter });
+
+	// Two rows of three bars each (yCenter rows: 100, 200; threshold = 10)
+	const grid: Bar[] = [
+		bar("a", 0, 100),
+		bar("b", 50, 100),
+		bar("c", 100, 100),
+		bar("d", 0, 200),
+		bar("e", 50, 200),
+		bar("f", 100, 200),
+	];
+
+	it("returns null for empty bars", () => {
+		expect(computeNextTimelineBar([], "a", "ArrowRight")).toBeNull();
+	});
+
+	it("ArrowRight from null selection lands on first sorted bar", () => {
+		expect(computeNextTimelineBar(grid, null, "ArrowRight")?.nodeId).toBe("a");
+	});
+
+	it("ArrowRight advances within same row by xStart", () => {
+		expect(computeNextTimelineBar(grid, "a", "ArrowRight")?.nodeId).toBe("b");
+		expect(computeNextTimelineBar(grid, "b", "ArrowRight")?.nodeId).toBe("c");
+	});
+
+	it("ArrowRight crosses row boundary", () => {
+		expect(computeNextTimelineBar(grid, "c", "ArrowRight")?.nodeId).toBe("d");
+	});
+
+	it("ArrowRight clamps at last bar", () => {
+		expect(computeNextTimelineBar(grid, "f", "ArrowRight")?.nodeId).toBe("f");
+	});
+
+	it("ArrowLeft moves backward and clamps at first", () => {
+		expect(computeNextTimelineBar(grid, "b", "ArrowLeft")?.nodeId).toBe("a");
+		expect(computeNextTimelineBar(grid, "a", "ArrowLeft")?.nodeId).toBe("a");
+	});
+
+	it("ArrowDown jumps to first bar of next row regardless of x", () => {
+		// From "a" (row 100) ArrowDown should jump past "b","c" to "d" (row 200)
+		expect(computeNextTimelineBar(grid, "a", "ArrowDown")?.nodeId).toBe("d");
+		expect(computeNextTimelineBar(grid, "c", "ArrowDown")?.nodeId).toBe("d");
+	});
+
+	it("ArrowDown returns same bar when already at last row", () => {
+		expect(computeNextTimelineBar(grid, "d", "ArrowDown")?.nodeId).toBe("d");
+	});
+
+	it("ArrowUp jumps to a bar in a previous row", () => {
+		const result = computeNextTimelineBar(grid, "f", "ArrowUp");
+		// Caller pans to the chosen bar; we only assert the row.
+		expect(result?.yCenter).toBe(100);
+	});
+
+	it("ArrowUp returns same bar when already at first row", () => {
+		expect(computeNextTimelineBar(grid, "a", "ArrowUp")?.nodeId).toBe("a");
+	});
+
+	it("treats bars within Y threshold as same row", () => {
+		// 5 < 10 threshold → same row, sort by xStart
+		const closeRows: Bar[] = [bar("p", 0, 100), bar("q", 50, 105)];
+		expect(computeNextTimelineBar(closeRows, "p", "ArrowDown")?.nodeId).toBe("p");
+		expect(computeNextTimelineBar(closeRows, "p", "ArrowRight")?.nodeId).toBe("q");
+	});
+
+	it("ignores unknown current ID and falls back to relative motion", () => {
+		// currentNodeId not in bars → currentIdx == -1
+		expect(computeNextTimelineBar(grid, "ghost", "ArrowRight")?.nodeId).toBe("a");
+		expect(computeNextTimelineBar(grid, "ghost", "ArrowLeft")?.nodeId).toBe("a");
 	});
 });
