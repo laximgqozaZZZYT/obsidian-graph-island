@@ -17,10 +17,10 @@ export default defineConfig({
         // match actuals after main drifted below the previous ratchet.
         // From this baseline forward, ratchet up only — autonomous test
         // additions should restore the previous floors over time.
-        statements: 54.7,
-        branches: 48.5,
-        functions: 52.7,
-        lines: 55.0,
+        statements: 54.8,
+        branches: 48.6,
+        functions: 53.0,
+        lines: 55.1,
       },
     },
   },
