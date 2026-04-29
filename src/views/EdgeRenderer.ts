@@ -112,6 +112,11 @@ import {
 	cableWeightThickness,
 	buildPortColorLanes,
 	getPortLaneEndpoint,
+	prepareBundles,
+	invalidateCableCacheIfNeeded as _invalidateCableCacheIfNeeded,
+	rebuildTrunkCables as _rebuildTrunkCables,
+	prepareCables,
+	drawCables,
 } from "./CableTrayRenderer";
 // Re-export cable-tray types for external consumers
 export type {
@@ -408,7 +413,7 @@ interface BundleAccum {
 }
 
 /** Resolved bundle group: centroid of midpoints */
-interface BundleGroup {
+export interface BundleGroup {
 	cx: number;
 	cy: number;
 	count: number;
@@ -433,7 +438,7 @@ export function normalizeAngle(a: number): number {
 const _bundleAccumPool = new Map<string, BundleAccum>();
 const _bundleResultPool = new Map<string, BundleGroup>();
 
-function buildDirectionBundles(
+export function buildDirectionBundles(
 	edges: GraphEdge[],
 	resolvePos: (ref: string | object) => Pos | undefined,
 	cfg: EdgeDrawConfig,
@@ -1034,7 +1039,7 @@ export class EdgeRenderCache {
 	}
 }
 
-const _cache = new EdgeRenderCache();
+export const _cache = new EdgeRenderCache();
 
 // computeGroupPorts, buildManhattanPath, buildHorizontalTrunkPath,
 // buildVerticalTrunkPath, buildPolarTrunkPath, buildTrunks
@@ -1184,7 +1189,7 @@ function _drawSingleIntraCableGpb(
 /**
  * Draw intra-group cables in 2 passes: conduits then wires.
  */
-function drawIntraGroupCables(
+export function drawIntraGroupCables(
 	g: CanvasGraphics,
 	cables: IntraGroupCable[],
 	cfg: EdgeDrawConfig,
@@ -1404,7 +1409,7 @@ function _drawSingleTrunk(
  * Draw trunks in 3 passes: conduit background, cable conduits, then wires.
  * Uses existing _drawSmoothPath for all rendering.
  */
-function drawTrunks(
+export function drawTrunks(
 	g: CanvasGraphics,
 	trunks: Trunk[],
 	cfg: EdgeDrawConfig,
@@ -1980,181 +1985,8 @@ export function buildPairCounts(edges: GraphEdge[]): Map<string, number> {
 	return pairCount;
 }
 
-/** Compute direction x color bundles for highway-style edge merging (cached). */
-function prepareBundles(
-	edges: GraphEdge[],
-	resolvePos: (ref: string | object) => Pos | undefined,
-	cfg: EdgeDrawConfig,
-	cache: EdgeRenderCache = _cache,
-): Map<string, BundleGroup> | null {
-	const bundleStrength = cfg.bundleStrength;
-	if (bundleStrength <= 0) return null;
-
-	cache.bundleFrameCount++;
-	if (cache.bundleDirty || !cache.bundle || cache.bundleFrameCount >= BUNDLE_SKIP) {
-		cache.bundle = buildDirectionBundles(edges, resolvePos, cfg);
-		cache.bundleDirty = false;
-		cache.bundleFrameCount = 0;
-	}
-	return cache.bundle;
-}
-
-// computePolarCenter, CablePrepResult moved to CableTrayRenderer.ts
-
-/** Invalidate cable caches when centroid count changes or on bundle skip cycle. */
-function invalidateCableCacheIfNeeded(cfg: EdgeDrawConfig, cache: EdgeRenderCache): void {
-	const curCentroidCount = cfg.clusterCentroids?.size ?? 0;
-	if (curCentroidCount !== cache.cableCentroidCount) {
-		cache.cableDirty = true;
-		cache.intraCableDirty = true;
-		cache.portColorLanes = null;
-		cache.cableCentroidCount = curCentroidCount;
-	}
-	if (cache.bundleFrameCount === 0) {
-		cache.cableDirty = true;
-		cache.intraCableDirty = true;
-		cache.portColorLanes = null;
-	}
-}
-
-/** Rebuild trunk cables and group ports when the cable cache is dirty. */
-function rebuildTrunkCables(
-	edges: GraphEdge[],
-	resolvePos: (ref: string | object) => Pos | undefined,
-	cfg: EdgeDrawConfig,
-	polarCenter: Pos | undefined,
-	cache: EdgeRenderCache,
-): void {
-	const centroids = cfg.clusterCentroids!;
-	const radii = cfg.clusterRadii!;
-	const groupKeys = new Set(cfg.nodeClusterMap!.values());
-	const connections = new Map<string, Set<string>>();
-	for (const e of edges) {
-		const sg = cfg.nodeClusterMap!.get(edgeSourceId(e));
-		const tg = cfg.nodeClusterMap!.get(edgeTargetId(e));
-		if (!sg || !tg || sg === tg) continue;
-		addToMapSet(connections, sg, tg);
-		addToMapSet(connections, tg, sg);
-	}
-	cache.groupBBox.clear();
-	const allGroupPorts = computeGroupPorts(
-		groupKeys,
-		centroids,
-		radii,
-		connections,
-		cfg.coordinateSystem,
-		polarCenter,
-		resolvePos,
-		cfg.nodeClusterMap ?? undefined,
-		cache,
-	);
-	cache.cachedGroupPorts = allGroupPorts;
-	cache.cable = buildTrunks(edges, resolvePos, cfg, allGroupPorts);
-	cache.cableDirty = false;
-}
-
-/**
- * Prepare cable trunks and intra-group cables (cached).
- * Updates cache.cable, cache.intraCable, cache.portColorLanes as needed.
- */
-function prepareCables(
-	edges: GraphEdge[],
-	resolvePos: (ref: string | object) => Pos | undefined,
-	cfg: EdgeDrawConfig,
-	cache: EdgeRenderCache = _cache,
-): CablePrepResult {
-	const clustersAvailable = !!(cfg.nodeClusterMap && cfg.clusterCentroids && cfg.clusterRadii);
-	const cableMode = cfg.cableBundleMode ?? "auto";
-	const hasClusters = cableMode === "never" ? false : cableMode === "always" ? true : clustersAvailable;
-
-	if (!hasClusters) {
-		return { hasClusters: false, cabledEdgeIds: new Set<string>(), intraHandledIds: new Set<string>() };
-	}
-
-	invalidateCableCacheIfNeeded(cfg, cache);
-
-	const polarCenter = computePolarCenter(cfg);
-
-	if (cache.cableDirty || !cache.cable) {
-		rebuildTrunkCables(edges, resolvePos, cfg, polarCenter, cache);
-	}
-
-	const cabledEdgeIds = cache.cable!.cabledEdgeIds;
-
-	// Intra-group cable wiring
-	let intraHandledIds = new Set<string>();
-	if (cache.cable) {
-		if (cache.intraCableDirty || !cache.intraCable) {
-			if (!cache.cachedGroupPorts) {
-				const centroids = cfg.clusterCentroids!;
-				const radii = cfg.clusterRadii!;
-				const connections = new Map<string, Set<string>>();
-				for (const trunk of cache.cable.trunks) {
-					addToMapSet(connections, trunk.srcGroup, trunk.tgtGroup);
-					addToMapSet(connections, trunk.tgtGroup, trunk.srcGroup);
-				}
-				const groupKeys = new Set(cfg.nodeClusterMap!.values());
-				const pc = computePolarCenter(cfg);
-				cache.cachedGroupPorts = computeGroupPorts(
-					groupKeys,
-					centroids,
-					radii,
-					connections,
-					cfg.coordinateSystem,
-					pc,
-					resolvePos,
-					cfg.nodeClusterMap ?? undefined,
-					cache,
-				);
-			}
-			cache.intraCable = buildIntraGroupCables(edges, resolvePos, cfg, cache.cachedGroupPorts, cache);
-			cache.intraCableDirty = false;
-			cache.portColorLanes = null;
-		}
-
-		if (!cache.portColorLanes && cache.cachedGroupPorts) {
-			cache.portColorLanes = buildPortColorLanes(
-				cache.cable.trunks,
-				cache.intraCable.cables,
-				cfg,
-				cache.cachedGroupPorts,
-			);
-		}
-
-		intraHandledIds = cache.intraCable.handledEdgeIds;
-	}
-
-	return { hasClusters, cabledEdgeIds, intraHandledIds };
-}
-
-/**
- * Draw cable trunks and intra-group cables into the graphics context.
- * Separated from prepareCables so that cache computation and drawing are distinct phases.
- */
-function drawCables(
-	g: CanvasGraphics,
-	cfg: EdgeDrawConfig,
-	densityScale: number,
-	cablePrep: CablePrepResult,
-	cache: EdgeRenderCache = _cache,
-): void {
-	if (cablePrep.hasClusters && cache.cable) {
-		// Draw all cable wires. When highlighting, drawTrunks and drawIntraGroupCables
-		// internally do 2-pass (dim first, bright on top) for z-order.
-		if (cache.cable.trunks.length > 0) {
-			drawTrunks(g, cache.cable.trunks, cfg, densityScale, cache.portColorLanes ?? undefined);
-		}
-		if (cache.intraCable && cache.intraCable.cables.length > 0) {
-			drawIntraGroupCables(g, cache.intraCable.cables, cfg, densityScale, cache.portColorLanes ?? undefined);
-		}
-		// Final bright pass: redraw bright trunk wires on top of everything
-		if (cfg.highlightedNodeId && cache.cable.trunks.length > 0) {
-			drawTrunks(g, cache.cable.trunks, cfg, densityScale, cache.portColorLanes ?? undefined, "bright");
-		}
-	} else if (cache.cable && cache.cable.trunks.length > 0) {
-		drawTrunks(g, cache.cable.trunks, cfg, densityScale);
-	}
-}
+// prepareBundles, invalidateCableCacheIfNeeded, rebuildTrunkCables,
+// prepareCables, drawCables moved to CableTrayRenderer.ts
 
 // ---------------------------------------------------------------------------
 // Public API
