@@ -618,6 +618,10 @@ export class RenderPipeline {
 	/** Detach the ticker callback. Call during cleanup. */
 	detach() {
 		this.cancelDeferredBatch();
+		if (this._enrichmentCancelId !== null) clearTimeout(this._enrichmentCancelId);
+		if (this._onAllNodesCreatedHandle !== null) clearTimeout(this._onAllNodesCreatedHandle);
+		if (this._enrichmentTriggerHandle !== null) clearTimeout(this._enrichmentTriggerHandle);
+		this._enrichmentCancelId = this._onAllNodesCreatedHandle = this._enrichmentTriggerHandle = null;
 		const app = this.host.getPixiApp();
 		if (this._tickerBound && app) {
 			app.ticker.remove(this.renderTick, this);
@@ -1485,7 +1489,7 @@ export class RenderPipeline {
 			// in the host (alpha(0).stop(), force application) completes before
 			// the callback restarts the simulation. Without this, the sync path
 			// would restart the sim before the host has finished configuring it.
-			setTimeout(() => this.host.onAllPixiNodesCreated?.(), 0);
+			this._onAllNodesCreatedHandle = setTimeout(() => this.host.onAllPixiNodesCreated?.(), 0);
 		}
 	}
 
@@ -1783,18 +1787,14 @@ export class RenderPipeline {
 			// graph force simulation to reach alphaMin; if the user hovers
 			// a labelless node before then, LabelManager's hoverForcedLabel
 			// path still works via null-label-tolerant checks.
-			setTimeout(() => this.enrichLabelsDeferred(), 2500);
+			this._enrichmentTriggerHandle = setTimeout(() => this.enrichLabelsDeferred(), 2500);
 		}
 	};
 
-	/**
-	 * Fill in labels for nodes that were skipped during the initial sprite
-	 * populate (createPixiNodes uses a high pendingLabelThreshold to cut
-	 * first-load time). Runs as a setTimeout-scheduled chunked pass so UI
-	 * stays responsive while the remaining ~80% of labels are created in
-	 * the background. No-op if all nodes already have labels.
-	 */
+	/** Chunked setTimeout pass for labels skipped during initial populate. No-op if all done. */
 	private _enrichmentCancelId: ReturnType<typeof setTimeout> | null = null;
+	private _onAllNodesCreatedHandle: ReturnType<typeof setTimeout> | null = null;
+	private _enrichmentTriggerHandle: ReturnType<typeof setTimeout> | null = null;
 	private enrichLabelsDeferred(): void {
 		if (this._enrichmentCancelId !== null) {
 			clearTimeout(this._enrichmentCancelId);
