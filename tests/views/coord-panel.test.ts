@@ -1,6 +1,15 @@
 import { describe, it, expect } from "vitest";
-import { evalSource, evalTransform, parseAxisSourceString, axisSourceToString } from "../../src/views/coord-panel";
+import {
+	evalSource,
+	evalTransform,
+	parseAxisSourceString,
+	axisSourceToString,
+	getAxisSourceSuggestions,
+	syncUserVarsFromLayout,
+} from "../../src/views/coord-panel";
+import { validateExpr } from "../../src/utils/expr-eval";
 import type { AxisSource, AxisTransform } from "../../src/types";
+import type { PanelContext, PanelState } from "../../src/views/PanelBuilder";
 
 // ---------------------------------------------------------------------------
 // evalSource
@@ -326,5 +335,91 @@ describe("axisSourceToString", () => {
 			const parsed = parseAxisSourceString(str);
 			expect(parsed).toEqual(src);
 		}
+	});
+});
+
+// ---------------------------------------------------------------------------
+// getAxisSourceSuggestions
+// ---------------------------------------------------------------------------
+describe("getAxisSourceSuggestions", () => {
+	const KEYWORDS = ["index", "degree", "in-degree", "out-degree", "bfs-depth", "sibling-rank", "random", "const"];
+	const BUILTIN_FIELDS = ["path", "file", "tag", "category", "folder", "id", "isTag"];
+
+	function makeCtx(frontmatterKeys: string[] = []): PanelContext {
+		// Only frontmatterKeys is used by the function under test;
+		// other PanelContext members are cast through `unknown` to satisfy the type.
+		return { frontmatterKeys } as unknown as PanelContext;
+	}
+
+	it("starts with the 8 metric/source keywords in fixed order", () => {
+		const result = getAxisSourceSuggestions(makeCtx());
+		expect(result.slice(0, KEYWORDS.length)).toEqual(KEYWORDS);
+	});
+
+	it("includes all built-in field suggestions after the keywords", () => {
+		const result = getAxisSourceSuggestions(makeCtx());
+		for (const f of BUILTIN_FIELDS) {
+			expect(result).toContain(f);
+		}
+	});
+
+	it("appends user frontmatter keys after built-in fields", () => {
+		const result = getAxisSourceSuggestions(makeCtx(["story_order", "node_type"]));
+		expect(result).toContain("story_order");
+		expect(result).toContain("node_type");
+	});
+
+	it("ends with the 'hop:' prefix", () => {
+		const result = getAxisSourceSuggestions(makeCtx(["a", "b"]));
+		expect(result[result.length - 1]).toBe("hop:");
+	});
+
+	it("dedupes user frontmatter keys that collide with built-in fields", () => {
+		// "tag" and "category" are both builtin and may also appear as frontmatter keys;
+		// they should only show up once in the suggestion list.
+		const result = getAxisSourceSuggestions(makeCtx(["tag", "category", "story_order"]));
+		const tagCount = result.filter((s) => s === "tag").length;
+		const catCount = result.filter((s) => s === "category").length;
+		expect(tagCount).toBe(1);
+		expect(catCount).toBe(1);
+		expect(result).toContain("story_order");
+	});
+
+	it("returns 8 keywords + 7 builtins + 'hop:' = 16 entries when no frontmatter keys", () => {
+		const result = getAxisSourceSuggestions(makeCtx([]));
+		expect(result).toHaveLength(KEYWORDS.length + BUILTIN_FIELDS.length + 1);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// syncUserVarsFromLayout
+// ---------------------------------------------------------------------------
+describe("syncUserVarsFromLayout", () => {
+	function makePanel(constants: Record<string, number>): PanelState {
+		return { coordinateLayout: { constants } } as unknown as PanelState;
+	}
+
+	it("registers constants so validateExpr accepts them as variables", () => {
+		syncUserVarsFromLayout(makePanel({ alpha: 1, beta: 2 }));
+		// validateExpr returns null when expression is valid; non-null = error string
+		expect(validateExpr("alpha + beta")).toBeNull();
+	});
+
+	it("clears previously registered names when called with a smaller set", () => {
+		syncUserVarsFromLayout(makePanel({ gamma: 3 }));
+		expect(validateExpr("gamma * 2")).toBeNull();
+		// Now sync with a layout that omits 'gamma' — it should no longer be known.
+		syncUserVarsFromLayout(makePanel({ delta: 4 }));
+		expect(validateExpr("delta")).toBeNull();
+		// The previously known 'gamma' should now be unknown.
+		expect(validateExpr("gamma")).not.toBeNull();
+	});
+
+	it("treats a missing coordinateLayout as an empty constants set", () => {
+		const panel = {} as unknown as PanelState;
+		// Should not throw; equivalent to clearing user-defined variables.
+		expect(() => syncUserVarsFromLayout(panel)).not.toThrow();
+		// After clearing, an unknown identifier should fail validation.
+		expect(validateExpr("zeta")).not.toBeNull();
 	});
 });
