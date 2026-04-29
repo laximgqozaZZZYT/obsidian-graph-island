@@ -444,78 +444,29 @@ export class LabelManager {
 		degrees: Map<string, number>,
 		baseOpacity: number,
 	): void {
-		// Zoom-based dynamic cap: at zoom-out, show fewer labels to prevent overlap
 		const zoom = this.host.getWorldScale();
-		// Small-graph boost: show all labels when few nodes, more labels for medium graphs
-		// Map-style labeling: no maxVisible cap. Show all labels that pass
-		// LOD tier checks. Overlap culling handles density separately.
-		// Mobile lightweight mode: cap labels to 50 for performance
-		const maxVisible = Platform.isMobile ? 50 : 0; // 0 = no cap
+		// Mobile lightweight mode: cap labels to 50 for performance.
+		// Desktop: 0 = no cap (overlap culling handles density separately).
+		const maxVisible = Platform.isMobile ? 50 : 0;
+		const alphaMin = rt.labelAlphaMin ?? 0.7;
 
 		// AP-5 diversity guarantee: promote top non-super nodes if too few
 		this._promoteDiversityNodes(candidates, rt, degrees, baseOpacity);
 
-		// Sort by priority score, apply maxVisible cap
+		// Sort by priority score then apply maxVisible cap
 		candidates.sort((a, b) => b.pn.priorityScore - a.pn.priorityScore);
+		const visCount = applyVisibilityCap(candidates, maxVisible, alphaMin, baseOpacity);
 
-		let visCount = 0;
-		for (const c of candidates) {
-			const { pn, isHovered, isSuper } = c;
-			// Super-nodes and hovered nodes always bypass the maxVisible cap
-			if (isHovered || isSuper) {
-				pn.label!.visible = true;
-				pn.label!.alpha = Math.max(rt.labelAlphaMin ?? 0.7, baseOpacity);
-				pn.labelWasVisible = true;
-				continue;
-			}
-			if (maxVisible > 0 && visCount >= maxVisible) {
-				pn.label!.visible = false;
-				pn.label!.alpha = 0;
-				pn.labelWasVisible = false;
-				if (pn.tagLabel) pn.tagLabel.visible = false;
-				if (pn.subLabels) for (const sl of pn.subLabels) sl.visible = false;
-				continue;
-			}
-			pn.label!.visible = true;
-			pn.label!.alpha = Math.max(rt.labelAlphaMin ?? 0.7, baseOpacity);
-			pn.labelWasVisible = true;
-			visCount++;
-		}
-
-		// Priority-floor guarantee at extreme zoom-out: keep at least
-		// `labelMinVisibleFloor` labels visible so labelReadability stays >= 50.
-		// candidates is already priority-desc sorted above, so we re-enable
-		// hidden candidates from the top until the floor is met.
+		// Priority-floor guarantee at extreme zoom-out
 		const minFloor = rt.labelMinVisibleFloor ?? 0;
 		const hardHideZoom = rt.labelHardHideZoom ?? 0;
 		if (minFloor > 0 && hardHideZoom > 0 && zoom < hardHideZoom && visCount < minFloor) {
-			for (const c of candidates) {
-				if (visCount >= minFloor) break;
-				const { pn, isHovered, isSuper } = c;
-				if (isHovered || isSuper) continue;
-				if (!pn.label || pn.label.visible) continue;
-				pn.label.visible = true;
-				pn.label.alpha = Math.max(rt.labelAlphaMin ?? 0.7, baseOpacity);
-				pn.labelWasVisible = true;
-				visCount++;
-			}
+			restorePriorityFloor(candidates, minFloor, visCount, alphaMin, baseOpacity);
 		}
 
-		// Zoom-out label emphasis: boost background opacity for surviving labels
-		// so they stand out as "important nodes" at low zoom
+		// Zoom-out emphasis: boost background opacity for surviving labels
 		if (zoom < 0.5) {
-			const emphasisBoost = Math.min(0.3, (0.5 - zoom) * 0.6); // up to 0.3 boost
-			for (const c of candidates) {
-				if (!c.pn.label?.visible) continue;
-				const lbl = c.pn.label;
-				if (lbl.bgAlpha != null) {
-					lbl.bgAlpha = Math.min(1.0, lbl.bgAlpha + emphasisBoost);
-				}
-				// Slightly increase padding for better readability
-				if (lbl.bgPadX != null) {
-					lbl.bgPadX = Math.max(lbl.bgPadX, 4 + emphasisBoost * 10);
-				}
-			}
+			applyZoomOutEmphasis(candidates, zoom);
 		}
 	}
 
@@ -790,4 +741,113 @@ function computeMinShowZoom(rankPct: number, tiers: LodTierConfig): number {
 	if (rankPct < tiers.pctTier2) return tiers.zoomTier2;
 	if (rankPct < tiers.pctTier3) return tiers.zoomTier3;
 	return tiers.zoomFloor;
+}
+
+// ---------------------------------------------------------------------------
+// Visibility-cap helpers (extracted from _applyDiversityAndCap to reduce
+// cyclomatic complexity below the project ESLint limit of 25).
+// ---------------------------------------------------------------------------
+
+/** Minimal label shape consumed by the visibility-cap helpers. */
+export interface VisibilityLabel {
+	visible: boolean;
+	alpha: number;
+	bgAlpha?: number | null;
+	bgPadX?: number | null;
+}
+
+/** Minimal candidate shape consumed by the visibility-cap helpers.
+ *  This intentionally omits PixiNode internals (gfx, circle, etc.) so the
+ *  helpers can be unit-tested with plain objects. */
+export interface VisibilityCandidate {
+	pn: {
+		label: VisibilityLabel | null;
+		labelWasVisible: boolean;
+		tagLabel?: { visible: boolean } | null;
+		subLabels?: { visible: boolean }[];
+		priorityScore: number;
+	};
+	isHovered: boolean;
+	isSuper: boolean;
+}
+
+/** Apply the maxVisible visibility cap over a priority-sorted candidate list.
+ *  Hovered + super-nodes always remain visible (bypass cap). When `maxVisible`
+ *  is `0` the cap is disabled (only LOD/diversity decide visibility).
+ *  Returns the number of *non-super, non-hovered* labels left visible. */
+export function applyVisibilityCap(
+	candidates: VisibilityCandidate[],
+	maxVisible: number,
+	alphaMin: number,
+	baseOpacity: number,
+): number {
+	const targetAlpha = Math.max(alphaMin, baseOpacity);
+	let visCount = 0;
+	for (const c of candidates) {
+		const { pn, isHovered, isSuper } = c;
+		if (!pn.label) continue;
+		if (isHovered || isSuper) {
+			pn.label.visible = true;
+			pn.label.alpha = targetAlpha;
+			pn.labelWasVisible = true;
+			continue;
+		}
+		if (maxVisible > 0 && visCount >= maxVisible) {
+			pn.label.visible = false;
+			pn.label.alpha = 0;
+			pn.labelWasVisible = false;
+			if (pn.tagLabel) pn.tagLabel.visible = false;
+			if (pn.subLabels) for (const sl of pn.subLabels) sl.visible = false;
+			continue;
+		}
+		pn.label.visible = true;
+		pn.label.alpha = targetAlpha;
+		pn.labelWasVisible = true;
+		visCount++;
+	}
+	return visCount;
+}
+
+/** Re-enable hidden labels from the priority-desc head until at least
+ *  `minFloor` regular (non-super, non-hovered) labels are visible.
+ *  Used at extreme zoom-out so labelReadability never collapses to 0.
+ *  Returns the new visCount. */
+export function restorePriorityFloor(
+	candidates: VisibilityCandidate[],
+	minFloor: number,
+	currentVisCount: number,
+	alphaMin: number,
+	baseOpacity: number,
+): number {
+	let visCount = currentVisCount;
+	if (visCount >= minFloor) return visCount;
+	const targetAlpha = Math.max(alphaMin, baseOpacity);
+	for (const c of candidates) {
+		if (visCount >= minFloor) break;
+		const { pn, isHovered, isSuper } = c;
+		if (isHovered || isSuper) continue;
+		if (!pn.label || pn.label.visible) continue;
+		pn.label.visible = true;
+		pn.label.alpha = targetAlpha;
+		pn.labelWasVisible = true;
+		visCount++;
+	}
+	return visCount;
+}
+
+/** Boost background opacity + padding for surviving labels at low zoom so
+ *  they stand out as "important nodes". Caller is expected to invoke this
+ *  only when `zoom < 0.5`. */
+export function applyZoomOutEmphasis(candidates: VisibilityCandidate[], zoom: number): void {
+	const emphasisBoost = Math.min(0.3, (0.5 - zoom) * 0.6);
+	for (const c of candidates) {
+		const lbl = c.pn.label;
+		if (!lbl || !lbl.visible) continue;
+		if (lbl.bgAlpha != null) {
+			lbl.bgAlpha = Math.min(1.0, lbl.bgAlpha + emphasisBoost);
+		}
+		if (lbl.bgPadX != null) {
+			lbl.bgPadX = Math.max(lbl.bgPadX, 4 + emphasisBoost * 10);
+		}
+	}
 }
