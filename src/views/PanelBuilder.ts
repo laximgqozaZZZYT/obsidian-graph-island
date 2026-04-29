@@ -1382,7 +1382,7 @@ function _buildSettingsActionButtons(
 				cb.invalidateData();
 				// Restore preset zoom level if specified
 				if (panel.presetZoomLevel > 0) {
-					setTimeout(() => cb.setZoom?.(panel.presetZoomLevel), 500);
+					ctx.timers.setTimeout(() => cb.setZoom?.(panel.presetZoomLevel), 500);
 				}
 				cb.rebuildPanel();
 			} catch (_e) {

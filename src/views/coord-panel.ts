@@ -12,6 +12,7 @@ import { parseTransformExpr, transformExprToString } from "../utils/transform-ex
 import { addSlider, getUnifiedFieldSuggestions } from "./panel-widgets";
 import { syncArrangementFromLayout, getOrCreateCoordLayout } from "./panel-sections-layout";
 import type { PanelState, PanelContext, PanelCallbacks } from "./PanelBuilder";
+import type { ManagedTimers } from "../utils/managed-timers";
 import { mergeRenderThresholds } from "../types";
 
 // ---------------------------------------------------------------------------
@@ -353,7 +354,12 @@ function buildVariableReference(container: HTMLElement): void {
 }
 
 /** Build the expression library UI — collapsible list of preset formulas */
-export function buildExprLibrary(body: HTMLElement, panel: PanelState, cb: PanelCallbacks): void {
+export function buildExprLibrary(
+	body: HTMLElement,
+	panel: PanelState,
+	cb: PanelCallbacks,
+	timers: ManagedTimers,
+): void {
 	const wrapper = body.createDiv({ cls: "gi-expr-library" });
 
 	// Header (collapsible)

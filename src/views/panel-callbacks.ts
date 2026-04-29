@@ -12,6 +12,7 @@ import type { Simulation } from "d3-force";
 import type { GraphNode, GraphEdge, GraphData } from "../types";
 import type { Minimap } from "./Minimap";
 import type { RenderPipeline } from "./RenderPipeline";
+import type { ManagedTimers } from "../utils/managed-timers";
 
 // ---------------------------------------------------------------------------
 // Host interface — narrow contract for the graph view container
@@ -87,6 +88,9 @@ export interface PanelCallbackHost {
 
 	// Preset map
 	allPresets: Record<string, Record<string, unknown>>;
+
+	/** Shared timer registry — auto-cleared on view close to prevent leaks */
+	timers: ManagedTimers;
 }
 
 // ---------------------------------------------------------------------------
@@ -110,7 +114,7 @@ function _buildRenderCallbacks(host: PanelCallbackHost): Partial<PanelCallbacks>
 			invalidateBundleCache(host.edgeCache);
 			host.markDirty(true);
 			host.requestSave();
-			setTimeout(() => {
+			host.timers.setTimeout(() => {
 				host.renderPipeline?.forceRender();
 			}, 100);
 		},
