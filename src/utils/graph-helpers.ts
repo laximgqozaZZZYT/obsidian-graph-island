@@ -680,6 +680,45 @@ export function computeNodeBBox(nodes: readonly { x: number; y: number; radius?:
 }
 
 /**
+ * Compute the average radius across a set of nodes. Nodes without an explicit
+ * radius use `defaultRadius`. Returns `defaultRadius` when the input is empty
+ * (instead of NaN) so downstream math is well-defined.
+ */
+export function computeAvgNodeRadius(nodes: readonly { radius?: number }[], defaultRadius = 12): number {
+	if (nodes.length === 0) return defaultRadius;
+	let sum = 0;
+	for (const n of nodes) sum += n.radius ?? defaultRadius;
+	return sum / nodes.length;
+}
+
+/**
+ * Compute the uniform scale factor that brings the bbox-area / viewport-area
+ * ratio up to `minUtil`, treating each node's radius as a constant pixel-space
+ * footprint. Solves the quadratic
+ *   (posSpanW · k + 2·avgR) · (posSpanH · k + 2·avgR) = minUtil · vpArea
+ * for k, where posSpan{W,H} = max(bbox{W,H} - 2·avgR, 1).
+ *
+ * Falls back to a uniform sqrt(minUtil/util) scale when the discriminant is
+ * negative (e.g. extremely degenerate inputs), so callers never receive NaN.
+ */
+export function computeViewportScaleFactor(
+	bboxW: number,
+	bboxH: number,
+	avgR: number,
+	minUtil: number,
+	vpArea: number,
+	util: number,
+): number {
+	const posSpanW = Math.max(bboxW - 2 * avgR, 1);
+	const posSpanH = Math.max(bboxH - 2 * avgR, 1);
+	const A = posSpanW * posSpanH;
+	const B = 2 * avgR * (posSpanW + posSpanH);
+	const C = 4 * avgR * avgR - minUtil * vpArea;
+	const disc = B * B - 4 * A * C;
+	return disc >= 0 ? (-B + Math.sqrt(disc)) / (2 * A) : Math.sqrt(minUtil / util);
+}
+
+/**
  * Build tag membership map: assigns each non-tag node to its most specific
  * (smallest-count) tag. Also builds tag relationship pairs cache from
  * inheritance/aggregation edges between tag nodes.

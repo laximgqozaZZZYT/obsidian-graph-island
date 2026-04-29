@@ -4,6 +4,8 @@ import {
 	collapsedGroupSummary,
 	truncateBreadcrumb,
 	computeNodeBBox,
+	computeAvgNodeRadius,
+	computeViewportScaleFactor,
 	buildTagMembership,
 	hslToHex,
 	edgeSourceId,
