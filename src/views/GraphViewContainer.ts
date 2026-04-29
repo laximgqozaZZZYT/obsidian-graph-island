@@ -64,7 +64,6 @@ import {
 	incCounter,
 	computeGaps,
 	hitTestTimelineBars,
-	computeNodeBBox,
 	buildTagMembership,
 	buildMissingNeighborSet,
 	parseGroupByFields,
@@ -131,6 +130,7 @@ import { DiffOverlay } from "./DiffOverlay";
 import { createAutoSnapshotHandler } from "./snapshot/GraphSnapshot";
 import { GuideRenderer, type GuideRendererHost } from "./GuideRenderer";
 import { LayoutTransition } from "./LayoutTransition";
+import { ensureViewportUtilization as ensureViewportUtilizationImpl } from "./viewport-utilization";
 import {
 	computePathfinderDrawData,
 	PATHFINDER_COLOR,
@@ -5574,129 +5574,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	 * Called after layout computation, before autoFitView/rendering.
 	 */
 	private ensureViewportUtilization(vpW: number, vpH: number): void {
-		const rt = mergeRenderThresholds(this.panel.renderThresholds);
-		const minUtil = rt.minViewportUtilization;
-		if (minUtil <= 0 || this.pixiNodes.size < 2) return;
-
-		const bbox = this._computeNodeBBox();
-		const bboxW = bbox.maxX - bbox.minX;
-		const bboxH = bbox.maxY - bbox.minY;
-		const bboxArea = bboxW * bboxH;
-		const vpArea = vpW * vpH;
-		if (vpArea <= 0) return;
-
-		const util = bboxArea / vpArea;
-		if (util >= minUtil) return;
-
-		const cx = (bbox.minX + bbox.maxX) / 2;
-		const cy = (bbox.minY + bbox.maxY) / 2;
-
-		if (bboxArea < 1) {
-			// All nodes at same position -- spread in a circle
-			const defaultR = Math.sqrt(vpW * vpH * minUtil) / 2;
-			const nodes = Array.from(this.pixiNodes.values());
-			const n = nodes.length;
-			nodes.forEach((pn, i) => {
-				const angle = (2 * Math.PI * i) / n;
-				pn.data.x = cx + defaultR * Math.cos(angle);
-				pn.data.y = cy + defaultR * Math.sin(angle);
-			});
-			return;
-		}
-
-		// Detect and fix degenerate (line-like) distributions
-		const avgNodeR = this._computeAvgNodeRadius();
-		const degenerateThreshold = avgNodeR * 4;
-		this._spreadDegenerateAxis(cx, cy, vpW, vpH, bboxW, bboxH, degenerateThreshold, minUtil, vpArea);
-
-		// Recompute bbox after degenerate fix
-		const bbox2 = this._computeNodeBBox();
-		const bboxArea2 = (bbox2.maxX - bbox2.minX) * (bbox2.maxY - bbox2.minY);
-		const util2 = bboxArea2 / vpArea;
-		if (util2 >= minUtil) return;
-
-		const cx2 = (bbox2.minX + bbox2.maxX) / 2;
-		const cy2 = (bbox2.minY + bbox2.maxY) / 2;
-		const scaleFactor = this._computeViewportScaleFactor(
-			bbox2.maxX - bbox2.minX,
-			bbox2.maxY - bbox2.minY,
-			minUtil,
-			vpArea,
-			util2,
-		);
-		for (const pn of this.pixiNodes.values()) {
-			pn.data.x = cx2 + (pn.data.x - cx2) * scaleFactor;
-			pn.data.y = cy2 + (pn.data.y - cy2) * scaleFactor;
-		}
-	}
-
-	/** Compute axis-aligned bounding box of all nodes (including radius). */
-	private _computeNodeBBox(): { minX: number; minY: number; maxX: number; maxY: number } {
-		return computeNodeBBox(
-			Array.from(this.pixiNodes.values(), (pn) => ({ x: pn.data.x, y: pn.data.y, radius: pn.radius })),
-		);
-	}
-
-	/** Compute average node radius across all pixiNodes. */
-	private _computeAvgNodeRadius(): number {
-		let sum = 0;
-		for (const pn of this.pixiNodes.values()) sum += pn.radius ?? 12;
-		return sum / this.pixiNodes.size;
-	}
-
-	/**
-	 * Spread nodes along a degenerate (near-zero) axis so the bbox becomes
-	 * roughly square before uniform scaling.
-	 */
-	private _spreadDegenerateAxis(
-		cx: number,
-		cy: number,
-		vpW: number,
-		vpH: number,
-		bboxW: number,
-		bboxH: number,
-		degenerateThreshold: number,
-		minUtil: number,
-		vpArea: number,
-	): void {
-		if (bboxW > degenerateThreshold && bboxH < degenerateThreshold) {
-			const targetH = Math.max(bboxW * 0.3, (minUtil * vpArea) / bboxW);
-			const nodes = Array.from(this.pixiNodes.values());
-			const n = nodes.length;
-			nodes.forEach((pn, i) => {
-				const t = n > 1 ? i / (n - 1) - 0.5 : 0;
-				pn.data.y = cy + t * targetH;
-			});
-		} else if (bboxH > degenerateThreshold && bboxW < degenerateThreshold) {
-			const targetW = Math.max(bboxH * 0.3, (minUtil * vpArea) / bboxH);
-			const nodes = Array.from(this.pixiNodes.values());
-			const n = nodes.length;
-			nodes.forEach((pn, i) => {
-				const t = n > 1 ? i / (n - 1) - 0.5 : 0;
-				pn.data.x = cx + t * targetW;
-			});
-		}
-	}
-
-	/**
-	 * Compute the uniform scale factor via quadratic equation so that
-	 * scaled positions + constant radii meet the minUtil threshold exactly.
-	 */
-	private _computeViewportScaleFactor(
-		bboxW: number,
-		bboxH: number,
-		minUtil: number,
-		vpArea: number,
-		util: number,
-	): number {
-		const avgR = this._computeAvgNodeRadius();
-		const posSpanW = Math.max(bboxW - 2 * avgR, 1);
-		const posSpanH = Math.max(bboxH - 2 * avgR, 1);
-		const A = posSpanW * posSpanH;
-		const B = 2 * avgR * (posSpanW + posSpanH);
-		const C = 4 * avgR * avgR - minUtil * vpArea;
-		const disc = B * B - 4 * A * C;
-		return disc >= 0 ? (-B + Math.sqrt(disc)) / (2 * A) : Math.sqrt(minUtil / util); // fallback
+		const minUtil = mergeRenderThresholds(this.panel.renderThresholds).minViewportUtilization;
+		ensureViewportUtilizationImpl(Array.from(this.pixiNodes.values()), vpW, vpH, minUtil);
 	}
 
 	private autoFitView(W: number, H: number) {

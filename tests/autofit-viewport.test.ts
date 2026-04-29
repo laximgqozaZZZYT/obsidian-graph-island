@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
 import { computeAutoFitTransform, computeVisibleFraction } from "../src/utils/graph-helpers";
+import {
+	computeAvgNodeRadius,
+	computeViewportScaleFactor,
+	ensureViewportUtilization,
+	spreadDegenerateAxis,
+} from "../src/views/viewport-utilization";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -229,10 +235,10 @@ describe("computeVisibleFraction — edge cases", () => {
 
 describe("ensureViewportUtilization — spread degenerate axis logic", () => {
 	/**
-	 * Replicates _spreadDegenerateAxis logic as a pure function for testing.
-	 * Mutates nodes in-place, same as the original.
+	 * Wrapper that adapts flat `{x, y}` test fixtures to the imported helper's
+	 * `{data: {x, y}, radius}` shape, then writes positions back.
 	 */
-	function spreadDegenerateAxis(
+	function spreadDegenerateAxisFlat(
 		nodes: { x: number; y: number }[],
 		cx: number,
 		cy: number,
@@ -242,20 +248,12 @@ describe("ensureViewportUtilization — spread degenerate axis logic", () => {
 		minUtil: number,
 		vpArea: number,
 	): void {
-		const n = nodes.length;
-		if (bboxW > degenerateThreshold && bboxH < degenerateThreshold) {
-			const targetH = Math.max(bboxW * 0.3, (minUtil * vpArea) / bboxW);
-			nodes.forEach((pn, i) => {
-				const t = n > 1 ? i / (n - 1) - 0.5 : 0;
-				pn.y = cy + t * targetH;
-			});
-		} else if (bboxH > degenerateThreshold && bboxW < degenerateThreshold) {
-			const targetW = Math.max(bboxH * 0.3, (minUtil * vpArea) / bboxH);
-			nodes.forEach((pn, i) => {
-				const t = n > 1 ? i / (n - 1) - 0.5 : 0;
-				pn.x = cx + t * targetW;
-			});
-		}
+		const vp = nodes.map((n) => ({ data: { x: n.x, y: n.y }, radius: 10 }));
+		spreadDegenerateAxis(vp, cx, cy, bboxW, bboxH, degenerateThreshold, minUtil, vpArea);
+		nodes.forEach((n, i) => {
+			n.x = vp[i].data.x;
+			n.y = vp[i].data.y;
+		});
 	}
 
 	it("spreads horizontal line distribution vertically", () => {
@@ -272,7 +270,7 @@ describe("ensureViewportUtilization — spread degenerate axis logic", () => {
 		const minUtil = 0.3;
 		const vpArea = 800 * 600;
 
-		spreadDegenerateAxis(nodes, cx, cy, bboxW, bboxH, degenerateThreshold, minUtil, vpArea);
+		spreadDegenerateAxisFlat(nodes, cx, cy, bboxW, bboxH, degenerateThreshold, minUtil, vpArea);
 
 		// After spreading, Y values should span a significant range
 		const ys = nodes.map((n) => n.y);
@@ -299,7 +297,7 @@ describe("ensureViewportUtilization — spread degenerate axis logic", () => {
 		const minUtil = 0.3;
 		const vpArea = 800 * 600;
 
-		spreadDegenerateAxis(nodes, cx, cy, bboxW, bboxH, degenerateThreshold, minUtil, vpArea);
+		spreadDegenerateAxisFlat(nodes, cx, cy, bboxW, bboxH, degenerateThreshold, minUtil, vpArea);
 
 		const xs = nodes.map((n) => n.x);
 		const minX = Math.min(...xs);
@@ -317,7 +315,7 @@ describe("ensureViewportUtilization — spread degenerate axis logic", () => {
 		];
 		const original = nodes.map((n) => ({ ...n }));
 
-		spreadDegenerateAxis(nodes, 250, 250, 500, 500, 40, 0.3, 800 * 600);
+		spreadDegenerateAxisFlat(nodes, 250, 250, 500, 500, 40, 0.3, 800 * 600);
 
 		expect(nodes[0].x).toBe(original[0].x);
 		expect(nodes[0].y).toBe(original[0].y);
@@ -328,7 +326,7 @@ describe("ensureViewportUtilization — spread degenerate axis logic", () => {
 	it("handles single node (t=0, no spread offset)", () => {
 		const nodes = [{ x: 100, y: 50 }];
 
-		spreadDegenerateAxis(nodes, 100, 50, 200, 0, 40, 0.3, 800 * 600);
+		spreadDegenerateAxisFlat(nodes, 100, 50, 200, 0, 40, 0.3, 800 * 600);
 
 		// Single node: t=0, so y = cy + 0 * targetH = cy
 		expect(nodes[0].y).toBe(50);
