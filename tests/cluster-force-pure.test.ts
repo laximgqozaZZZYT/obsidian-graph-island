@@ -5,6 +5,10 @@ import {
 	triangleOffsets,
 	randomOffsets,
 	partitionNodes,
+	getSpacing,
+	backlinkBucket,
+	computeEffectiveColumnSpacing,
+	estimateGroupRadius,
 	type ArrangementParams,
 	type ClusterForceConfig,
 } from "../src/layouts/cluster-force";
@@ -376,5 +380,249 @@ describe("partitionNodes", () => {
 		expect(groups.size).toBe(2);
 		expect(groups.get("x")?.map((n) => n.id)).toEqual(["a"]);
 		expect(groups.get("y")?.map((n) => n.id)).toEqual(["b"]);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// getSpacing — per-id spacing override with default fallback
+// ---------------------------------------------------------------------------
+
+describe("getSpacing", () => {
+	it("returns 1.0 default when map is undefined", () => {
+		expect(getSpacing("any-id")).toBe(1.0);
+	});
+
+	it("returns 1.0 default when map is empty", () => {
+		expect(getSpacing("any-id", new Map())).toBe(1.0);
+	});
+
+	it("returns 1.0 default when id is not in map", () => {
+		const map = new Map([["other", 2.5]]);
+		expect(getSpacing("missing", map)).toBe(1.0);
+	});
+
+	it("returns mapped value when id present", () => {
+		const map = new Map([
+			["a", 0.5],
+			["b", 2.0],
+		]);
+		expect(getSpacing("a", map)).toBe(0.5);
+		expect(getSpacing("b", map)).toBe(2.0);
+	});
+
+	it("returns 0 if explicitly mapped (does not fall back to 1.0 — uses ?? not ||)", () => {
+		// nullish-coalescing operator preserves 0 since it's not nullish
+		const map = new Map([["zero", 0]]);
+		expect(getSpacing("zero", map)).toBe(0);
+	});
+
+	it("handles empty-string id", () => {
+		const map = new Map([["", 1.5]]);
+		expect(getSpacing("", map)).toBe(1.5);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// backlinkBucket — degree → bucket label
+// ---------------------------------------------------------------------------
+
+describe("backlinkBucket", () => {
+	it("returns '0' for zero degree", () => {
+		expect(backlinkBucket(0)).toBe("0");
+	});
+
+	it("returns '1-2' for degrees 1 and 2", () => {
+		expect(backlinkBucket(1)).toBe("1-2");
+		expect(backlinkBucket(2)).toBe("1-2");
+	});
+
+	it("returns '3-5' for degrees 3, 4, 5", () => {
+		expect(backlinkBucket(3)).toBe("3-5");
+		expect(backlinkBucket(4)).toBe("3-5");
+		expect(backlinkBucket(5)).toBe("3-5");
+	});
+
+	it("returns '6-10' for degrees 6 through 10", () => {
+		expect(backlinkBucket(6)).toBe("6-10");
+		expect(backlinkBucket(7)).toBe("6-10");
+		expect(backlinkBucket(10)).toBe("6-10");
+	});
+
+	it("returns '11+' for degrees 11 and above", () => {
+		expect(backlinkBucket(11)).toBe("11+");
+		expect(backlinkBucket(50)).toBe("11+");
+		expect(backlinkBucket(1000)).toBe("11+");
+	});
+
+	it("buckets are mutually exclusive across boundaries", () => {
+		// Boundary check: 2→'1-2' but 3→'3-5'
+		expect(backlinkBucket(2)).not.toBe(backlinkBucket(3));
+		// 5→'3-5' but 6→'6-10'
+		expect(backlinkBucket(5)).not.toBe(backlinkBucket(6));
+		// 10→'6-10' but 11→'11+'
+		expect(backlinkBucket(10)).not.toBe(backlinkBucket(11));
+	});
+
+	it("produces only the documented set of bucket labels", () => {
+		const buckets = new Set<string>();
+		for (let i = 0; i <= 50; i++) buckets.add(backlinkBucket(i));
+		expect(buckets).toEqual(new Set(["0", "1-2", "3-5", "6-10", "11+"]));
+	});
+});
+
+// ---------------------------------------------------------------------------
+// computeEffectiveColumnSpacing — derives column gap from offset map
+// ---------------------------------------------------------------------------
+
+describe("computeEffectiveColumnSpacing", () => {
+	it("returns nodeSize × 2 for an empty offset map", () => {
+		// Empty map → 0 unique X positions → nCols clamped to 1 → return nodeSize * 2
+		expect(computeEffectiveColumnSpacing(new Map(), 10)).toBe(20);
+	});
+
+	it("returns nodeSize × 2 when all nodes share the same X column", () => {
+		const offsets = new Map([
+			["a", { dx: 5, dy: 0 }],
+			["b", { dx: 5, dy: 100 }],
+			["c", { dx: 5, dy: 200 }],
+		]);
+		// 1 unique X position → nCols=1 → fallback to nodeSize * 2
+		expect(computeEffectiveColumnSpacing(offsets, 8)).toBe(16);
+	});
+
+	it("returns (max-min)/(nCols-1) for evenly spaced columns", () => {
+		// 3 columns at dx 0, 50, 100 → (100-0)/(3-1) = 50
+		const offsets = new Map([
+			["a", { dx: 0, dy: 0 }],
+			["b", { dx: 50, dy: 0 }],
+			["c", { dx: 100, dy: 0 }],
+		]);
+		expect(computeEffectiveColumnSpacing(offsets, 10)).toBe(50);
+	});
+
+	it("ignores duplicate X within rounding tolerance (dx*100)", () => {
+		// dx 0 and 0.001 round to the same integer → still 1 unique column
+		const offsets = new Map([
+			["a", { dx: 0, dy: 0 }],
+			["b", { dx: 0.001, dy: 0 }],
+		]);
+		// Both round to 0 → 1 unique column → nodeSize * 2
+		expect(computeEffectiveColumnSpacing(offsets, 12)).toBe(24);
+	});
+
+	it("handles negative dx values correctly", () => {
+		// Columns at -50, 0, 50 → (50 - -50)/(3-1) = 50
+		const offsets = new Map([
+			["a", { dx: -50, dy: 0 }],
+			["b", { dx: 0, dy: 0 }],
+			["c", { dx: 50, dy: 0 }],
+		]);
+		expect(computeEffectiveColumnSpacing(offsets, 10)).toBe(50);
+	});
+
+	it("returns the column-pitch for two-column case", () => {
+		// 2 columns at dx 0, 30 → (30-0)/(2-1) = 30
+		const offsets = new Map([
+			["a", { dx: 0, dy: 0 }],
+			["b", { dx: 30, dy: 0 }],
+		]);
+		expect(computeEffectiveColumnSpacing(offsets, 5)).toBe(30);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// estimateGroupRadius — group footprint estimate
+// ---------------------------------------------------------------------------
+
+describe("estimateGroupRadius", () => {
+	it("scales radius by sqrt(memberCount)", () => {
+		// gap = computeGroupGap(nodeSize, nodeSpacing, groupScale)
+		//     = pairwiseGap(8, 8, max(1, 1)) = 8 * 2 * 1 = 16
+		// radius = (16 * sqrt(4)) / 2 = 16
+		const r4 = estimateGroupRadius(4, 8, 1, 1);
+		// radius = (16 * sqrt(16)) / 2 = 32
+		const r16 = estimateGroupRadius(16, 8, 1, 1);
+		expect(r4).toBe(16);
+		expect(r16).toBe(32);
+		// sqrt scaling: r16/r4 = sqrt(16)/sqrt(4) = 2
+		expect(r16 / r4).toBeCloseTo(2);
+	});
+
+	it("returns zero radius for zero members", () => {
+		expect(estimateGroupRadius(0, 8, 1, 1)).toBe(0);
+	});
+
+	it("uses max(nodeSpacing, groupScale) for the gap calculation", () => {
+		// When groupScale > nodeSpacing, groupScale dominates
+		const rGroupScaleDominates = estimateGroupRadius(1, 10, 1, 3);
+		// gap = pairwiseGap(10, 10, 3) = 10*2*3 = 60 → radius = 60*1/2 = 30
+		expect(rGroupScaleDominates).toBe(30);
+
+		// When nodeSpacing > groupScale, nodeSpacing dominates
+		const rNodeSpacingDominates = estimateGroupRadius(1, 10, 3, 1);
+		expect(rNodeSpacingDominates).toBe(30);
+	});
+
+	it("scales linearly with nodeSize at fixed memberCount", () => {
+		const rSmall = estimateGroupRadius(9, 5, 1, 1);
+		const rLarge = estimateGroupRadius(9, 10, 1, 1);
+		// gap doubles when nodeSize doubles → radius doubles
+		expect(rLarge).toBeCloseTo(rSmall * 2);
+	});
+
+	it("adds super-node bonus when a member has collapsedMembers", () => {
+		const baseR = estimateGroupRadius(1, 8, 1, 1); // no members → no bonus
+		const superMember: GraphNode = {
+			id: "super",
+			label: "super",
+			x: 0,
+			y: 0,
+			vx: 0,
+			vy: 0,
+			collapsedMembers: ["a", "b", "c", "d"],
+		};
+		const withBonus = estimateGroupRadius(1, 8, 1, 1, undefined, [superMember]);
+		// Super bonus = effectiveRadius - nodeSize > 0
+		expect(withBonus).toBeGreaterThan(baseR);
+	});
+
+	it("ignores members without collapsedMembers (no super bonus)", () => {
+		const baseR = estimateGroupRadius(4, 8, 1, 1);
+		const regular: GraphNode = { id: "x", label: "x", x: 0, y: 0, vx: 0, vy: 0 };
+		const withRegular = estimateGroupRadius(4, 8, 1, 1, undefined, [regular, regular]);
+		expect(withRegular).toBe(baseR);
+	});
+
+	it("uses the largest super bonus across multiple super members", () => {
+		const small: GraphNode = {
+			id: "small",
+			label: "s",
+			x: 0,
+			y: 0,
+			vx: 0,
+			vy: 0,
+			collapsedMembers: ["a"],
+		};
+		const big: GraphNode = {
+			id: "big",
+			label: "b",
+			x: 0,
+			y: 0,
+			vx: 0,
+			vy: 0,
+			collapsedMembers: Array.from({ length: 25 }, (_, i) => `m${i}`),
+		};
+		const onlySmall = estimateGroupRadius(1, 8, 1, 1, undefined, [small]);
+		const both = estimateGroupRadius(1, 8, 1, 1, undefined, [small, big]);
+		// "both" should pick the bigger bonus (from `big`), so it's >= onlySmall
+		expect(both).toBeGreaterThan(onlySmall);
+	});
+
+	it("is monotonic non-decreasing in memberCount", () => {
+		const r1 = estimateGroupRadius(1, 8, 1, 1);
+		const r10 = estimateGroupRadius(10, 8, 1, 1);
+		const r100 = estimateGroupRadius(100, 8, 1, 1);
+		expect(r10).toBeGreaterThanOrEqual(r1);
+		expect(r100).toBeGreaterThanOrEqual(r10);
 	});
 });
