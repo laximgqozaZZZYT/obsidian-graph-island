@@ -129,6 +129,13 @@ import { LabelManager } from "./LabelManager";
 import { Minimap, type MinimapHost } from "./Minimap";
 import { DiffOverlay } from "./DiffOverlay";
 import { createAutoSnapshotHandler } from "./snapshot/GraphSnapshot";
+import {
+	applyPanelSettingsMigrations,
+	migrateLegacyLayoutInState,
+	restorePanelFromSavedState,
+	serializePanelForState,
+	syncClusterGroupRulesFromGroupBy,
+} from "./snapshot/snapshot-serializer";
 import { GuideRenderer, type GuideRendererHost } from "./GuideRenderer";
 import { LayoutTransition } from "./LayoutTransition";
 import {
@@ -156,14 +163,9 @@ import { getNodeShape, drawShape } from "../utils/node-shapes";
 import {
 	LAYOUT_FORCE,
 	LAYOUT_CONCENTRIC,
-	LAYOUT_TREE,
-	LAYOUT_ARC,
 	LAYOUT_SUNBURST,
-	LAYOUT_TIMELINE,
 	TAG_DISPLAY_ENCLOSURE,
 	ARRANGEMENT_TIMELINE,
-	ARRANGEMENT_CONCENTRIC,
-	ARRANGEMENT_GRID,
 	EVENT_HOVER_NODE,
 	EVENT_HIGHLIGHT_NODES,
 	EVENT_COMPARE_NODES,
@@ -643,94 +645,25 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			this._inheritResolved = false;
 		}
 		const sup = super.getState();
-		// Serialize panel with special handling for Set (collapsedGroups) and transient fields
-		const panelClone: Record<string, unknown> = {};
-		for (const [k, v] of Object.entries(this.panel)) {
-			if (k === "collapsedGroups") {
-				panelClone[k] = Array.from(v as Set<string>);
-			} else if (k === "groupByRules") {
-				// Transient editing state — don't persist empty-field rules
-				panelClone[k] = null;
-			} else {
-				try {
-					panelClone[k] = JSON.parse(JSON.stringify(v));
-				} catch (_e) {
-					panelClone[k] = v;
-				}
-			}
-		}
 		return {
 			...sup,
 			layout: this.currentLayout,
-			panel: panelClone,
+			panel: serializePanelForState(this.panel),
 		};
 	}
 
 	async setState(state: Record<string, unknown>, result: ViewStateResult): Promise<void> {
 		await super.setState(state, result);
-		// Layout is always "force"; legacy state values are migrated to cluster arrangement
-		if (state.layout && typeof state.layout === "string" && state.layout !== LAYOUT_FORCE) {
-			// Migrate legacy layout type to cluster arrangement pattern where applicable
-			const legacyMap: Record<string, string> = {
-				[LAYOUT_TREE]: ARRANGEMENT_GRID,
-				[LAYOUT_CONCENTRIC]: ARRANGEMENT_CONCENTRIC,
-				[LAYOUT_SUNBURST]: ARRANGEMENT_GRID,
-				[LAYOUT_TIMELINE]: ARRANGEMENT_TIMELINE,
-				[LAYOUT_ARC]: ARRANGEMENT_CONCENTRIC,
-			};
-			const mapped = legacyMap[state.layout];
-			if (mapped && state.panel && typeof state.panel === "object") {
-				(state.panel as Record<string, unknown>).clusterArrangement = mapped;
-			}
-		}
+		// Layout is always "force"; legacy state values migrate to cluster arrangement.
+		migrateLegacyLayoutInState(state);
 		this.currentLayout = LAYOUT_FORCE;
-		if (state.panel && typeof state.panel === "object") {
-			const saved = JSON.parse(JSON.stringify(state.panel)) as Record<string, unknown>;
-			for (const key of Object.keys(DEFAULT_PANEL) as (keyof PanelState)[]) {
-				if (!(key in saved) || saved[key] === undefined) continue;
-				if (key === "collapsedGroups") {
-					// Restore Set from serialized array
-					const arr = Array.isArray(saved[key]) ? saved[key] : [];
-					this.panel.collapsedGroups = new Set<string>(arr);
-				} else if (key === "groupByRules") {
-					// Transient — always re-parse from groupBy string
-					this.panel.groupByRules = null;
-				} else {
-					// Safe: key is validated against DEFAULT_PANEL keys above
-					(this.panel as unknown as Record<string, unknown>)[key] = saved[key];
-				}
-			}
-		}
-		// Sync clusterGroupRules from groupBy when follow-mode is active.
-		// This ensures cable-tray and cluster force use the correct field
-		// after session restore (the sync otherwise only runs on UI interaction).
-		if (this.panel.clusterFollowsGroupBy && this.panel.groupBy && this.panel.groupBy !== "none") {
-			const groupBy = this.panel.groupBy;
-			const withoutOps = groupBy.replace(/\b(AND|OR|XOR|NOR|NAND|NOT)\b/gi, ",");
-			const fields = withoutOps
-				.split(",")
-				.map((s) => s.trim())
-				.filter(Boolean);
-			this.panel.clusterGroupRules = fields.map((f) => ({
-				groupBy: f.endsWith(":?") ? f : f + ":?",
-				recursive: false,
-			}));
-		}
-
-		// Settings migration: ensure new defaults are applied to old saved state
-		if (this.panel.renderThresholds) {
-			// nodeSizeByDegree was added later — old saves have it as false/undefined
-			if (
-				this.panel.renderThresholds.nodeSizeByDegree === undefined ||
-				this.panel.renderThresholds.nodeSizeByDegree === false
-			) {
-				this.panel.renderThresholds.nodeSizeByDegree = true;
-			}
-			// autoLOD was added later
-			if (this.panel.renderThresholds.autoLOD === undefined) {
-				this.panel.renderThresholds.autoLOD = true;
-			}
-		}
+		restorePanelFromSavedState(state.panel, this.panel, Object.keys(DEFAULT_PANEL) as (keyof PanelState)[]);
+		// Sync clusterGroupRules from groupBy when follow-mode is active so cable-tray /
+		// cluster force use the correct field after session restore (otherwise it only
+		// runs on UI interaction).
+		syncClusterGroupRulesFromGroupBy(this.panel);
+		// Apply default values for fields added after old saves were written.
+		applyPanelSettingsMigrations(this.panel);
 		// If already rendered (onOpen completed), rebuild with restored state
 		if (this.panelEl) {
 			this.buildPanel();
