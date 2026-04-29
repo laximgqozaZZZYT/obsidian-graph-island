@@ -18,29 +18,17 @@ import {
 	addCardBodyControls,
 } from "./panel-sections-filter-card-helpers";
 import {
-	applyCardPreset,
 	ensureHoverHighlightTypes,
-	normalizeCardFields,
 	normalizeDefinitionField,
-	normalizeDonutBreakdownField,
 	removeBookmark,
-	removeViewport,
-	shouldShowApplyEgoButton,
-	shouldShowCableSubSettings,
 	shouldShowCardSubSettings,
 	shouldShowClusterLabelDetail,
 	shouldShowDonutSubSettings,
 	shouldShowFocusLayout,
-	shouldShowHierarchyBreadcrumb,
-	shouldShowHierarchyTree,
 	shouldShowImportanceMetric,
-	shouldShowMultiSelectSection,
 	shouldShowOntologyBackbone,
 	shouldShowRecencySlider,
-	shouldShowRelationColorSection,
-	shouldShowRoadSubSettings,
 	shouldShowThumbnailToggle,
-	shouldShowViewportList,
 } from "./panel-sections-filter-logic";
 
 // ---------------------------------------------------------------------------
