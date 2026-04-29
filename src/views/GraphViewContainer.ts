@@ -19,7 +19,6 @@ import type {
 	ViewMode,
 	ShellInfo,
 	DirectionalGravityRule,
-	ClusterArrangement,
 	GraphTemplate,
 } from "../types";
 import { DEFAULT_COLORS, DEFAULT_CARD_RENDER_CONFIG, DEFAULT_ONTOLOGY, mergeRenderThresholds } from "../types";
@@ -32,7 +31,6 @@ import {
 	cleanArcName,
 	areSavedPositionsValid,
 	lightenHex,
-	giDiag,
 } from "../utils/gvc-helpers";
 import {
 	buildGraphFromVault,
