@@ -50,8 +50,7 @@ import {
 } from "../analysis/graph-analysis";
 import type { RoadNetwork } from "../layouts/cable-tray";
 import { RoadNetworkBuilder, getBestRoadNetwork, type RoadNetworkHost } from "../layouts/RoadNetworkBuilder";
-import * as ExportManager from "./ExportManager";
-import { orchestratePngExport, orchestrateJsonExport } from "./export-orchestrator";
+import * as GraphExporter from "./export/graph-exporter";
 import {
 	yieldFrame,
 	buildAdj,
@@ -3232,7 +3231,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
 	/** Export an N-hop subgraph around a node as a JSON download. */
 	exportSubgraph(nodeId: string): void {
-		ExportManager.exportSubgraph(this as unknown as ExportManager.ExportHost, nodeId);
+		GraphExporter.exportSubgraph(this as unknown as GraphExporter.ExportHost, nodeId);
 	}
 
 	setSearchQuery(query: string): void {
@@ -3309,19 +3308,19 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	}
 
 	exportPng(): void {
-		orchestratePngExport(this as unknown as ExportManager.ExportHost);
+		GraphExporter.orchestratePngExport(this as unknown as GraphExporter.ExportHost);
 	}
 
 	exportFullGraph(): void {
-		orchestrateJsonExport(this as unknown as ExportManager.ExportHost);
+		GraphExporter.orchestrateJsonExport(this as unknown as GraphExporter.ExportHost);
 	}
 
 	exportGraphAsCSV(): void {
-		ExportManager.exportGraphAsCSV(this as unknown as ExportManager.ExportHost);
+		GraphExporter.exportGraphAsCSV(this as unknown as GraphExporter.ExportHost);
 	}
 
 	exportGraphAsMermaid(): void {
-		ExportManager.exportGraphAsMermaid(this as unknown as ExportManager.ExportHost);
+		GraphExporter.exportGraphAsMermaid(this as unknown as GraphExporter.ExportHost);
 	}
 
 	// =========================================================================
@@ -7771,7 +7770,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
 	/** Copy the current graph view as PNG to clipboard */
 	private async copyGraphToClipboard() {
-		await ExportManager.copyGraphToClipboard(this as unknown as ExportManager.ExportHost);
+		await GraphExporter.copyGraphToClipboard(this as unknown as GraphExporter.ExportHost);
 	}
 
 	/**
@@ -7779,7 +7778,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	 * ツールバーボタンおよびコマンドパレットから呼び出される。
 	 */
 	public async embedGraphInNote(): Promise<void> {
-		await ExportManager.embedGraphInNote(this as unknown as ExportManager.ExportHost);
+		await GraphExporter.embedGraphInNote(this as unknown as GraphExporter.ExportHost);
 	}
 
 	/**
@@ -7787,7 +7786,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	 * コマンドパレットからの呼び出し用。
 	 */
 	public async exportCanvasAsBlob(): Promise<Blob | null> {
-		return ExportManager.exportCanvasAsBlob(this as unknown as ExportManager.ExportHost);
+		return GraphExporter.exportCanvasAsBlob(this as unknown as GraphExporter.ExportHost);
 	}
 
 	/** Collect all unique tag names from graph nodes */
