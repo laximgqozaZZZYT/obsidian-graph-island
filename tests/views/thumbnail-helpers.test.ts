@@ -12,7 +12,14 @@
  *      the suite).
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { extractFrontmatterImage, isNodeOnScreen, createThumbnailClone } from "../../src/views/thumbnail-helpers";
+import { TFile } from "obsidian";
+import type { Vault } from "obsidian";
+import {
+	extractFrontmatterImage,
+	isNodeOnScreen,
+	createThumbnailClone,
+	resolveThumbnailUrl,
+} from "../../src/views/thumbnail-helpers";
 
 describe("extractFrontmatterImage", () => {
 	it("prefers `image` over `thumbnail` and `cover`", () => {
@@ -140,5 +147,91 @@ describe("createThumbnailClone", () => {
 		const clone = createThumbnailClone(src, 10, 20, 30);
 		expect(clone).not.toBe(src);
 		expect(src).toEqual({ src: "orig.png" });
+	});
+});
+
+describe("resolveThumbnailUrl", () => {
+	// Build a minimal Vault stub: only the two methods resolveThumbnailUrl
+	// touches (`getAbstractFileByPath` and `getResourcePath`). The lookup map
+	// uses the exact path string as key — the function under test is what
+	// decides whether to retry with a leading-slash-trimmed key.
+	function makeVault(files: Record<string, TFile | null>, resourcePathPrefix = "app://local/") {
+		const calls: string[] = [];
+		const vault = {
+			getAbstractFileByPath: (p: string) => {
+				calls.push(p);
+				return Object.prototype.hasOwnProperty.call(files, p) ? files[p] : null;
+			},
+			getResourcePath: (tf: TFile) => `${resourcePathPrefix}${tf.path}`,
+		} as unknown as Vault;
+		return { vault, calls };
+	}
+
+	function makeTFile(path: string): TFile {
+		const tf = new TFile();
+		tf.path = path;
+		return tf;
+	}
+
+	it("passes http:// URLs straight through without touching the vault", () => {
+		const { vault, calls } = makeVault({});
+		expect(resolveThumbnailUrl("http://example.com/img.png", vault)).toBe("http://example.com/img.png");
+		// Vault must NOT be consulted for absolute URLs — even one call would
+		// break the optimization that lets remote images bypass adapter I/O.
+		expect(calls).toEqual([]);
+	});
+
+	it("passes https:// URLs straight through without touching the vault", () => {
+		const { vault, calls } = makeVault({});
+		expect(resolveThumbnailUrl("https://cdn.example.com/x.png", vault)).toBe("https://cdn.example.com/x.png");
+		expect(calls).toEqual([]);
+	});
+
+	it("returns vault.getResourcePath() result when the exact path resolves to a TFile", () => {
+		const tf = makeTFile("attachments/pic.png");
+		const { vault, calls } = makeVault({ "attachments/pic.png": tf });
+		expect(resolveThumbnailUrl("attachments/pic.png", vault)).toBe("app://local/attachments/pic.png");
+		// Only the first lookup should fire — no fallback needed.
+		expect(calls).toEqual(["attachments/pic.png"]);
+	});
+
+	it("retries with leading slashes stripped when the original path misses", () => {
+		const tf = makeTFile("attachments/pic.png");
+		// Only the cleaned key resolves; the original "/attachments/..." key returns null.
+		const { vault, calls } = makeVault({ "attachments/pic.png": tf });
+		expect(resolveThumbnailUrl("/attachments/pic.png", vault)).toBe("app://local/attachments/pic.png");
+		expect(calls).toEqual(["/attachments/pic.png", "attachments/pic.png"]);
+	});
+
+	it("strips multiple leading slashes (regex /^\\/+/) before retrying", () => {
+		const tf = makeTFile("a.png");
+		const { vault, calls } = makeVault({ "a.png": tf });
+		expect(resolveThumbnailUrl("///a.png", vault)).toBe("app://local/a.png");
+		expect(calls).toEqual(["///a.png", "a.png"]);
+	});
+
+	it("returns null when neither the original nor the cleaned path resolves", () => {
+		const { vault, calls } = makeVault({});
+		expect(resolveThumbnailUrl("missing.png", vault)).toBeNull();
+		// Without a leading slash, the cleanPath equals the original — but the
+		// retry still fires once; both calls go to the same key.
+		expect(calls.length).toBeGreaterThanOrEqual(1);
+	});
+
+	it("returns null when getAbstractFileByPath returns a non-TFile (e.g. TFolder)", () => {
+		// Pass a plain object that is NOT a TFile instance — the `instanceof
+		// TFile` guard must reject it. This protects against the function
+		// accidentally calling getResourcePath on a folder.
+		const notATFile = { path: "attachments" } as unknown as TFile;
+		const { vault } = makeVault({ attachments: notATFile, "attachments-clean": notATFile });
+		expect(resolveThumbnailUrl("attachments", vault)).toBeNull();
+	});
+
+	it("does NOT pass through paths starting with other protocols (e.g. ftp://)", () => {
+		// Defensive check: the function only short-circuits on http/https.
+		// `ftp://...` should fall through to the vault path resolution and
+		// return null when no matching file exists.
+		const { vault } = makeVault({});
+		expect(resolveThumbnailUrl("ftp://example.com/x.png", vault)).toBeNull();
 	});
 });
