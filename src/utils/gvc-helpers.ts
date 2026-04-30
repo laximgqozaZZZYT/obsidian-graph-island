@@ -5,6 +5,7 @@
 import type { ClusterGroupRule, GroupPreset } from "../types";
 import { parseQueryExpr, serializeExpr } from "./query-expr";
 import { hexToRgb } from "./color";
+import { edgeSourceId, edgeTargetId } from "./graph-helpers";
 
 // ---- Rendering constants ----
 const BLEND_LABEL_FACTOR = 0.15;
@@ -160,4 +161,54 @@ export function giDiag<T extends { nodes: { length: number }; edges: { length: n
 		console.log(`[graph-island][diag] ${stage} nodes=${data.nodes.length} edges=${data.edges.length}`);
 	}
 	return data;
+}
+
+// ---------------------------------------------------------------------------
+// Cluster-compare helpers (extracted from GraphViewContainer.updateClusterCompare)
+// ---------------------------------------------------------------------------
+
+type ClusterEdgeEndpoint = string | { id: string };
+interface ClusterCompareEdge {
+	source: ClusterEdgeEndpoint;
+	target: ClusterEdgeEndpoint;
+}
+
+/**
+ * Count edges that cross between two cluster sets and collect the bridge node IDs.
+ * Pure function — operates on any iterable of {source,target} edges.
+ */
+export function countInterClusterEdges(
+	edges: Iterable<ClusterCompareEdge>,
+	setA: ReadonlySet<string>,
+	setB: ReadonlySet<string>,
+): { interEdges: number; bridgeNodes: Set<string> } {
+	let interEdges = 0;
+	const bridgeNodes = new Set<string>();
+	for (const e of edges) {
+		const src = edgeSourceId(e);
+		const tgt = edgeTargetId(e);
+		if ((setA.has(src) && setB.has(tgt)) || (setB.has(src) && setA.has(tgt))) {
+			interEdges++;
+			bridgeNodes.add(src);
+			bridgeNodes.add(tgt);
+		}
+	}
+	return { interEdges, bridgeNodes };
+}
+
+/**
+ * Collect the union of `tags` arrays from all members identified by id.
+ * Members without a matching node, or without tags, contribute nothing.
+ * Pure function — `nodeMap` is read-only.
+ */
+export function collectMemberTags(
+	memberIds: Iterable<string>,
+	nodeMap: ReadonlyMap<string, { data: { tags?: string[] } }>,
+): Set<string> {
+	const tags = new Set<string>();
+	for (const id of memberIds) {
+		const pn = nodeMap.get(id);
+		if (pn?.data.tags) pn.data.tags.forEach((t) => tags.add(t));
+	}
+	return tags;
 }
