@@ -114,4 +114,3 @@ export function easeInOutCubic(t: number): number {
 
 /** Exported constants for testing */
 export const LAYOUT_TRANSITION_DURATION_MS = TRANSITION_DURATION_MS;
-export const LAYOUT_LARGE_GRAPH_THRESHOLD = LARGE_GRAPH_THRESHOLD;

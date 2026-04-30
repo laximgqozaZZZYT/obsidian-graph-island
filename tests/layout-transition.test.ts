@@ -1,10 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import {
-	LayoutTransition,
-	easeInOutCubic,
-	LAYOUT_TRANSITION_DURATION_MS,
-	LAYOUT_LARGE_GRAPH_THRESHOLD,
-} from "../src/views/LayoutTransition";
+import { LayoutTransition, easeInOutCubic, LAYOUT_TRANSITION_DURATION_MS } from "../src/views/LayoutTransition";
 
 // ---------------------------------------------------------------------------
 // easeInOutCubic — pure easing function
