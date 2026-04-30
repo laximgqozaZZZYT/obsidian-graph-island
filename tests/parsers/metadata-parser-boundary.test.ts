@@ -370,3 +370,203 @@ describe("simpleHash / applyMonochromeFallback — boundary", () => {
 		expect(fn({ id: "a" })).toBe(fn({ id: "a" }));
 	});
 });
+
+// ---------------------------------------------------------------------------
+// buildSharedMetadataEdges — edges from frontmatter values shared across notes
+// (exercises the previously-untested settings.edgeFields branch)
+// ---------------------------------------------------------------------------
+
+describe("buildGraphFromVault — shared metadata edges via edgeFields", () => {
+	it("does not emit shared edges when edgeFields is empty (default)", () => {
+		const app = mkFakeApp([
+			{ path: "A.md", frontmatter: { author: "Twain" } },
+			{ path: "B.md", frontmatter: { author: "Twain" } },
+		]);
+		// edgeFields defaults to []
+		const g = buildGraphFromVault(app, mkSettings());
+		// No category-typed (shared metadata) edges should exist
+		expect(g.edges.filter((e) => e.label === "author")).toEqual([]);
+	});
+
+	it("builds a 'category' typed edge between notes sharing a single-valued field", () => {
+		const app = mkFakeApp([
+			{ path: "A.md", frontmatter: { author: "Twain" } },
+			{ path: "B.md", frontmatter: { author: "Twain" } },
+		]);
+		const g = buildGraphFromVault(app, mkSettings({ edgeFields: ["author"] }));
+		const shared = g.edges.filter((e) => e.label === "author");
+		expect(shared).toHaveLength(1);
+		// Field is not "tags" → falls back to "category" type
+		expect(shared[0].type).toBe("category");
+		// Endpoints are A.md / B.md (order is sorted by group push order)
+		const ids = [shared[0].source, shared[0].target].sort();
+		expect(ids).toEqual(["A.md", "B.md"]);
+	});
+
+	it("uses 'tag' edge type when the shared field name is 'tags'", () => {
+		// Three notes share tag "fantasy" → C(3,2)=3 pairwise shared-metadata edges.
+		// Note: this is independent of the implicit has-tag virtual nodes.
+		const app = mkFakeApp([
+			{ path: "A.md", frontmatter: { tags: ["fantasy"] } },
+			{ path: "B.md", frontmatter: { tags: ["fantasy"] } },
+			{ path: "C.md", frontmatter: { tags: ["fantasy"] } },
+		]);
+		const g = buildGraphFromVault(app, mkSettings({ edgeFields: ["tags"] }));
+		const shared = g.edges.filter((e) => e.label === "tags");
+		expect(shared).toHaveLength(3);
+		// All shared-metadata edges via the "tags" field get type "tag"
+		for (const e of shared) expect(e.type).toBe("tag");
+	});
+
+	it("does not emit a shared edge for groups of size 1 (no pair to connect)", () => {
+		// Only one node has the field — group size 1 is filtered out by the >=2 check
+		const app = mkFakeApp([
+			{ path: "A.md", frontmatter: { author: "Solo" } },
+			{ path: "B.md", frontmatter: { author: "Other" } },
+			{ path: "C.md" }, // no frontmatter at all
+		]);
+		const g = buildGraphFromVault(app, mkSettings({ edgeFields: ["author"] }));
+		expect(g.edges.filter((e) => e.label === "author")).toEqual([]);
+	});
+
+	it("emits one edge per shared value when frontmatter is array-valued", () => {
+		// Both notes share TWO genre values → 2 shared-metadata edges between them.
+		// Edge IDs include the field name as prefix, so pairs differing by value
+		// are distinct keys: "genre:A.md->B.md" appears twice (once per group),
+		// but edgeSet still dedupes the second one. We expect exactly ONE edge
+		// per (field, A, B) pair regardless of how many values they share.
+		const app = mkFakeApp([
+			{ path: "A.md", frontmatter: { genre: ["sci-fi", "thriller"] } },
+			{ path: "B.md", frontmatter: { genre: ["sci-fi", "thriller"] } },
+		]);
+		const g = buildGraphFromVault(app, mkSettings({ edgeFields: ["genre"] }));
+		const shared = g.edges.filter((e) => e.label === "genre");
+		// Two value-groups both produce edge "genre:A.md->B.md", but edgeSet dedupes.
+		expect(shared).toHaveLength(1);
+		expect([shared[0].source, shared[0].target].sort()).toEqual(["A.md", "B.md"]);
+	});
+
+	it("filters out groups larger than 50 nodes (avoids O(N^2) explosion)", () => {
+		// 51 notes share the same author → group exceeds the 50-cap and is dropped
+		const specs: FakeFileSpec[] = [];
+		for (let i = 0; i < 51; i++) {
+			specs.push({ path: `n${i}.md`, frontmatter: { author: "Prolific" } });
+		}
+		const app = mkFakeApp(specs);
+		const g = buildGraphFromVault(app, mkSettings({ edgeFields: ["author"] }));
+		expect(g.edges.filter((e) => e.label === "author")).toEqual([]);
+	});
+
+	it("processes multiple edgeFields independently (each contributes its own edges)", () => {
+		const app = mkFakeApp([
+			{ path: "A.md", frontmatter: { author: "X", genre: "horror" } },
+			{ path: "B.md", frontmatter: { author: "X", genre: "horror" } },
+		]);
+		const g = buildGraphFromVault(app, mkSettings({ edgeFields: ["author", "genre"] }));
+		// Two distinct edges (one per field) between A and B
+		const labels = g.edges.filter((e) => e.label).map((e) => e.label);
+		expect(labels.sort()).toEqual(["author", "genre"]);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Explicit ontology.tagRelations — tag-to-tag edges without nesting hierarchy
+// (exercises the untested branch in buildTagNodesAndEdges)
+// ---------------------------------------------------------------------------
+
+describe("buildGraphFromVault — explicit ontology.tagRelations", () => {
+	it("creates a tag-to-tag edge from an explicit tagRelation", () => {
+		// Both source and target tags appear on existing notes → tag nodes exist.
+		const ontology: OntologyConfig = {
+			...DEFAULT_ONTOLOGY,
+			useTagHierarchy: false,
+			tagRelations: [{ source: "hero", target: "character", type: "inheritance" }],
+		};
+		const app = mkFakeApp([
+			{ path: "A.md", frontmatter: { tags: ["hero"] } },
+			{ path: "B.md", frontmatter: { tags: ["character"] } },
+		]);
+		const g = buildGraphFromVault(app, mkSettings({ ontology }));
+		const tagEdge = g.edges.find((e) => e.source === "tag:hero" && e.target === "tag:character");
+		expect(tagEdge).toBeDefined();
+		expect(tagEdge!.type).toBe("inheritance");
+		// "is-a" wording reflects inheritance direction
+		expect(tagEdge!.relation).toBe("#hero is-a #character");
+	});
+
+	it("uses 'has' wording for non-inheritance tagRelation types (e.g. aggregation)", () => {
+		const ontology: OntologyConfig = {
+			...DEFAULT_ONTOLOGY,
+			useTagHierarchy: false,
+			tagRelations: [{ source: "wing", target: "bird", type: "aggregation" }],
+		};
+		const app = mkFakeApp([
+			{ path: "A.md", frontmatter: { tags: ["wing"] } },
+			{ path: "B.md", frontmatter: { tags: ["bird"] } },
+		]);
+		const g = buildGraphFromVault(app, mkSettings({ ontology }));
+		const tagEdge = g.edges.find((e) => e.source === "tag:wing" && e.target === "tag:bird");
+		expect(tagEdge).toBeDefined();
+		expect(tagEdge!.type).toBe("aggregation");
+		// Aggregation phrasing puts target first ("#bird has #wing")
+		expect(tagEdge!.relation).toBe("#bird has #wing");
+	});
+
+	it("auto-creates missing virtual tag nodes when tagRelation references unused tags", () => {
+		// Neither "ghost" nor "phantom" appears on any note, so collectAllTags
+		// would not include them. The tagRelations branch must inject these
+		// virtual tag nodes itself or the edge would dangle.
+		const ontology: OntologyConfig = {
+			...DEFAULT_ONTOLOGY,
+			useTagHierarchy: false,
+			tagRelations: [{ source: "ghost", target: "phantom", type: "inheritance" }],
+		};
+		const app = mkFakeApp([{ path: "A.md", frontmatter: { tags: ["unrelated"] } }]);
+		const g = buildGraphFromVault(app, mkSettings({ ontology }));
+		// Both virtual tag nodes were injected even though no note uses them
+		const ghostNode = g.nodes.find((n) => n.id === "tag:ghost");
+		const phantomNode = g.nodes.find((n) => n.id === "tag:phantom");
+		expect(ghostNode).toBeDefined();
+		expect(ghostNode!.isTag).toBe(true);
+		expect(phantomNode).toBeDefined();
+		expect(phantomNode!.isTag).toBe(true);
+		// The edge between them exists too
+		const tagEdge = g.edges.find((e) => e.source === "tag:ghost" && e.target === "tag:phantom");
+		expect(tagEdge).toBeDefined();
+	});
+
+	it("deduplicates the same tagRelation if listed twice (edgeSet guard)", () => {
+		const ontology: OntologyConfig = {
+			...DEFAULT_ONTOLOGY,
+			useTagHierarchy: false,
+			tagRelations: [
+				{ source: "a", target: "b", type: "inheritance" },
+				{ source: "a", target: "b", type: "inheritance" }, // duplicate
+			],
+		};
+		const app = mkFakeApp([{ path: "X.md", frontmatter: { tags: ["a", "b"] } }]);
+		const g = buildGraphFromVault(app, mkSettings({ ontology }));
+		const tagEdges = g.edges.filter((e) => e.source === "tag:a" && e.target === "tag:b");
+		expect(tagEdges).toHaveLength(1);
+	});
+
+	it("nested-hierarchy and explicit tagRelations coexist without conflict", () => {
+		// useTagHierarchy: true → "a/b" → "a" inheritance edge (id starts with tag-hierarchy:)
+		// PLUS an explicit relation a→c (id starts with tag-rel:) — both should appear.
+		const ontology: OntologyConfig = {
+			...DEFAULT_ONTOLOGY,
+			useTagHierarchy: true,
+			tagRelations: [{ source: "a", target: "c", type: "inheritance" }],
+		};
+		const app = mkFakeApp([{ path: "X.md", frontmatter: { tags: ["a/b"] } }]);
+		const g = buildGraphFromVault(app, mkSettings({ ontology }));
+		// Hierarchy edge: a/b → a
+		const hier = g.edges.find((e) => e.source === "tag:a/b" && e.target === "tag:a");
+		expect(hier).toBeDefined();
+		expect(hier!.id.startsWith("tag-hierarchy:")).toBe(true);
+		// Explicit relation edge: a → c
+		const rel = g.edges.find((e) => e.source === "tag:a" && e.target === "tag:c");
+		expect(rel).toBeDefined();
+		expect(rel!.id.startsWith("tag-rel:")).toBe(true);
+	});
+});
