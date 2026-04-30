@@ -18,7 +18,8 @@
     "lint:fix": "eslint src/ --fix",
     "format": "prettier --write src/ tests/",
     "format:check": "prettier --check src/ tests/",
-    "check:dead-exports": "node scripts/check-dead-exports.mjs"
+    "check:dead-exports": "node scripts/check-dead-exports.mjs",
+    "dead-exports": "node scripts/find-dead-exports.mjs"
   },
   "keywords": [
     "obsidian",
