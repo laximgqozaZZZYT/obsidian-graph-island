@@ -114,19 +114,7 @@ import {
 	getPortLaneEndpoint,
 } from "./CableTrayRenderer";
 // Re-export cable-tray types for external consumers
-export type {
-	GroupPort,
-	Trunk,
-	TrunkCable,
-	NodePort,
-	IntraGroupCable,
-	CableRouteOpts,
-	GroupPerimInfo,
-	PolarJunctionGrid,
-	PortLaneInfo,
-	PortColorLanes,
-	CablePrepResult,
-};
+export type { GroupPort, PolarJunctionGrid, PortLaneInfo };
 
 // ---------------------------------------------------------------------------
 // Edge drawing configuration
