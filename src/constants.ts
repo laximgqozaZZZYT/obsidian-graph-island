@@ -386,34 +386,6 @@ export const SUB_LABEL = {
 	GAP: 2,
 } as const;
 
-// ---- Renderer decorations ----
-// Numeric parameters for node-decorations.ts overlay passes (badges, rings,
-// halos, markers). Prefix: NODE_DECO_. Values only — node-decorations.ts is
-// not yet refactored to consume these in this task.
-
-/** Tag badge radius in screen pixels (renderTagBadges minScreenPx) */
-export const NODE_DECO_BADGE_RADIUS_PX = 3;
-/** Maximum tag badges drawn per node before the overflow indicator (renderTagBadges) */
-export const NODE_DECO_BADGE_MAX_COUNT = 4;
-/** Padding fraction between adjacent tag badges (renderTagBadges PAD = BADGE_R × factor) */
-export const NODE_DECO_BADGE_PAD_FACTOR = 0.7;
-/** Default decoration ring stroke width (missing-neighbor / multi-select / bridge / articulation) */
-export const NODE_DECO_RING_WIDTH = 2;
-/** Default radius padding beyond node radius for decoration rings */
-export const NODE_DECO_RING_PAD = 4;
-/** Default alpha for decoration rings (missing-neighbor / multi-select) */
-export const NODE_DECO_RING_ALPHA = 0.85;
-/** Number of dashed segments around a decoration ring (renderMissingNeighborRings) */
-export const NODE_DECO_DASH_SEGMENTS = 10;
-/** Gap fraction within each dashed ring segment (renderMissingNeighborRings) */
-export const NODE_DECO_DASH_GAP_FRACTION = 0.35;
-/** Base alpha for entropy halo overlay (renderEntropyOverlay) */
-export const NODE_DECO_HALO_ALPHA_BASE = 0.15;
-/** Per-entropy-unit alpha boost for halo overlay (renderEntropyOverlay) */
-export const NODE_DECO_HALO_ALPHA_FACTOR = 0.2;
-/** Number of star spikes drawn for bookmark indicators (renderBookmarkStars) */
-export const NODE_DECO_BOOKMARK_STAR_SPIKES = 5;
-
 // ---- Edge labels (EdgeLabelRenderer) ----
 export const EDGE_LABEL_FONT_SIZE_DEFAULT = 10;
 /** A11y: edge label background for contrast (WCAG 1.4.3) */
@@ -460,54 +432,6 @@ export const CABLE_SCREEN_WIDTH = 6;
 export const WIRE_SCREEN_WIDTH = 2.5;
 /** Default fallback cluster radius */
 export const DEFAULT_CLUSTER_RADIUS = 50;
-
-// ---- Enclosure (EnclosureRenderer) ----
-/** Minimum extra padding beyond node radius for the outline. */
-export const OUTLINE_PAD_MIN = 10;
-/** Padding scales with node radius: pad = max(MIN, radius × factor) */
-export const OUTLINE_PAD_FACTOR = 0.8;
-/** Number of sample points around each node circle for hull generation. */
-export const HULL_SAMPLES = 24;
-/** Overlap re-computation interval in frames */
-export const OVERLAP_RECOMPUTE_FRAMES = 30;
-/** Size fade divisor: large groups → lower alpha */
-export const SIZE_FADE_DIVISOR = 200;
-/** Base fill alpha for non-overlapping enclosures (zoomed out) */
-export const FILL_ALPHA_BASE = 0.1;
-/** Base fill alpha for overlapping enclosures (zoomed out) */
-export const FILL_ALPHA_OVERLAP = 0.04;
-/** Maximum label collision resolution attempts */
-export const LABEL_COLLISION_MAX_ATTEMPTS = 6;
-/** Stroke alpha for non-overlapping enclosures — bold border like map boundaries */
-export const STROKE_ALPHA_NO_OVERLAP = 0.85;
-/** Minimum stroke alpha for overlapping enclosures */
-export const STROKE_ALPHA_OVERLAP_MIN = 0.5;
-/** Stroke alpha numerator for overlapping enclosures */
-export const STROKE_ALPHA_OVERLAP_BASE = 0.75;
-/** Stroke line width for non-overlapping enclosures — thick border for map-like appearance */
-export const STROKE_WIDTH_NO_OVERLAP = 4.0;
-/** Stroke line width base for overlapping enclosures */
-export const STROKE_WIDTH_OVERLAP_BASE = 3.5;
-/** Minimum stroke width for overlapping enclosures */
-export const STROKE_WIDTH_OVERLAP_MIN = 2.5;
-/** Outer border width for double-line "map border" effect */
-export const BORDER_OUTER_WIDTH = 7.0;
-/** Outer border alpha (darker, behind main stroke — higher = more visible border) */
-export const BORDER_OUTER_ALPHA_FACTOR = 0.6;
-/** Size fade minimum fraction (large groups don't fully disappear) */
-export const SIZE_FADE_MIN = 0.3;
-/** Fill alpha visibility threshold */
-export const FILL_ALPHA_VISIBILITY_THRESHOLD = 0.005;
-/** Label darken factor for background pill */
-export const LABEL_DARKEN_FACTOR = 0.25;
-/** Label pill padding (horizontal) */
-export const LABEL_PILL_PAD_X = 8;
-/** Label pill padding (vertical) */
-export const LABEL_PILL_PAD_Y = 3;
-/** Collision escape margin factor */
-export const COLLISION_ESCAPE_MARGIN = 0.15;
-/** Zoom threshold: below this worldScale the view is considered "zoomed out". */
-export const ZOOM_OUT_THRESHOLD = 0.45;
 
 // ===========================================================================
 // ---- GraphViewContainer constants ----
@@ -726,15 +650,12 @@ export const GVC_PROGRESSIVE_INTERVAL = 10;
 
 // ===========================================================================
 // ---- Pathfinder overlay ----
-// Drawing constants for the shortest-path overlay renderer.
-// Mirror of values in src/views/pathfinder-overlay.ts; that module will be
-// switched to import from here in a follow-up subtask. Prefix: PATHFINDER_.
+// Animation timing/alpha constants consumed by src/views/pathfinder-overlay.ts.
+// (Color/stroke-width/font-size mirrors lived here previously but were
+// removed because pathfinder-overlay.ts owns its own copies.)
+// Prefix: PATHFINDER_.
 // ===========================================================================
 
-/** Pathfinder line / glow color (PIXI hex) */
-export const PATHFINDER_COLOR = 0x00ced1;
-/** Pathfinder line / glow color (CSS hex) */
-export const PATHFINDER_COLOR_CSS = "#00CED1";
 /** Pulse animation phase increment per frame (radians-equivalent) */
 export const PATHFINDER_PULSE_SPEED = 0.06;
 /** Pulse animation amplitude added/subtracted from base alpha */
@@ -743,14 +664,6 @@ export const PATHFINDER_PULSE_AMPLITUDE = 0.1;
 export const PATHFINDER_GLOW_ALPHA_BASE = 0.45;
 /** Base alpha for the solid foreground stroke */
 export const PATHFINDER_SOLID_ALPHA_BASE = 0.85;
-/** Line width (px) for the wide glow stroke */
-export const PATHFINDER_GLOW_STROKE_WIDTH = 8;
-/** Line width (px) for the solid foreground stroke */
-export const PATHFINDER_SOLID_STROKE_WIDTH = 3;
-/** Radius (px) for per-node path dots */
-export const PATHFINDER_DOT_RADIUS = 5;
-/** Font size (px) for the hop-count label */
-export const PATHFINDER_LABEL_FONT_SIZE = 11;
 /** Horizontal offset (px) of the hop-count label from segment midpoint */
 export const PATHFINDER_LABEL_OFFSET_X = 6;
 /** Vertical offset (px, negative = upward) of the hop-count label */
