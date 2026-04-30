@@ -60,33 +60,64 @@ function parseTsPrune(stdout) {
 }
 
 // Returns true when any tests/**/*.{ts,tsx,js,mjs} imports the given symbol
-// from a path that resolves to the source file.
-function isReferencedFromTests(entry) {
-	const moduleBase = entry.file.replace(/^src\//, "").replace(/\.tsx?$/, "");
-	// We grep for the bare symbol name first (cheap), then verify the import
-	// path mentions the module slug. False positives are acceptable here —
-	// they conservatively keep exports rather than incorrectly drop them.
-	const grep = spawnSync(
-		"grep",
+// from a path that resolves to the source file. Reads files whole so multi-line
+// `import { ... } from "..."` blocks are recognised (a line-by-line grep would
+// miss any symbol that appears on a different line from the `import` keyword).
+let _testFilesCache = null;
+function listTestFiles() {
+	if (_testFilesCache) return _testFilesCache;
+	const find = spawnSync(
+		"find",
 		[
-			"-rE",
-			"--include=*.ts",
-			"--include=*.tsx",
-			"--include=*.js",
-			"--include=*.mjs",
-			`\\b${escapeRegex(entry.symbol)}\\b`,
 			"tests",
+			"-type",
+			"f",
+			"(",
+			"-name",
+			"*.ts",
+			"-o",
+			"-name",
+			"*.tsx",
+			"-o",
+			"-name",
+			"*.js",
+			"-o",
+			"-name",
+			"*.mjs",
+			")",
 		],
 		{ cwd: REPO_ROOT, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] },
 	);
-	if (grep.status !== 0) return false;
-	const lines = grep.stdout.split("\n").filter(Boolean);
+	if (find.status !== 0) {
+		_testFilesCache = [];
+		return _testFilesCache;
+	}
+	_testFilesCache = find.stdout.split("\n").filter(Boolean);
+	return _testFilesCache;
+}
+
+function isReferencedFromTests(entry) {
+	const moduleBase = entry.file.replace(/^src\//, "").replace(/\.tsx?$/, "");
 	const moduleSlug = moduleBase.split("/").pop();
-	return lines.some(
-		(l) =>
-			l.includes("import") &&
-			(l.includes(moduleBase) || l.includes(moduleSlug)),
+	const symbolRe = new RegExp(`\\b${escapeRegex(entry.symbol)}\\b`);
+	const importRe = new RegExp(
+		`import[\\s\\S]*?from\\s*["'][^"']*?(?:${escapeRegex(moduleBase)}|${escapeRegex(moduleSlug)})["']`,
+		"g",
 	);
+	for (const f of listTestFiles()) {
+		let content;
+		try {
+			content = readFileSync(resolve(REPO_ROOT, f), "utf8");
+		} catch {
+			continue;
+		}
+		const blocks = content.match(importRe);
+		if (!blocks) continue;
+		for (const b of blocks) {
+			if (symbolRe.test(b)) return true;
+		}
+	}
+	return false;
 }
 
 function escapeRegex(s) {
