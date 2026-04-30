@@ -16,14 +16,14 @@ export const AUTO_SNAP_PREFIX = "[auto] ";
 export const AUTO_SNAP_MAX = 10;
 
 /** Context fields that travel with a snapshot. */
-export interface SnapshotContext {
+interface SnapshotContext {
 	layout: string;
 	searchQuery: string;
 	groupBy: string;
 }
 
 /** Lightweight state recovered from a snapshot (fingerprint only). */
-export interface RestoredSnapshotState {
+interface RestoredSnapshotState {
 	nodes: Array<{ id: string }>;
 	edges: Array<{ source: string; target: string; type: string }>;
 	context: GraphSnapshot["context"];

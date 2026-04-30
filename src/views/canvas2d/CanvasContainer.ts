@@ -2,7 +2,7 @@ import type { CanvasGraphics } from "./CanvasGraphics";
 import type { CanvasText } from "./CanvasText";
 import type { IContainer } from "./interfaces";
 
-export type CanvasChild = CanvasContainer | CanvasGraphics | CanvasText;
+type CanvasChild = CanvasContainer | CanvasGraphics | CanvasText;
 
 export class CanvasContainer implements IContainer {
 	x = 0;

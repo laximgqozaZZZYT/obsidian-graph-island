@@ -70,7 +70,7 @@ export function createCardText(
 /** Maximum counter-scale factor for card mode (prevents enormous cards at extreme zoom-out) */
 export const CARD_SCALE_CAP = 8;
 
-export const CARD_ICON = {
+const CARD_ICON = {
 	SIZE_RATIO: 0.55,
 	FOLD_RATIO: 0.28,
 	OUTLINE_ALPHA: 0.7,
