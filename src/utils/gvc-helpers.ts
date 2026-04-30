@@ -161,3 +161,40 @@ export function giDiag<T extends { nodes: { length: number }; edges: { length: n
 	}
 	return data;
 }
+
+const DEFAULT_NODE_RADIUS = 12;
+
+/**
+ * Mean of node radii. Falls back to {@link DEFAULT_NODE_RADIUS} when a node has no radius
+ * and to that constant when the input is empty (so callers never divide by zero).
+ */
+export function computeAvgNodeRadius(nodes: ReadonlyArray<{ radius?: number }>): number {
+	if (nodes.length === 0) return DEFAULT_NODE_RADIUS;
+	let sum = 0;
+	for (const n of nodes) sum += n.radius ?? DEFAULT_NODE_RADIUS;
+	return sum / nodes.length;
+}
+
+/**
+ * Solve for the uniform scale factor s such that
+ *   (s·posSpanW + 2·avgR) · (s·posSpanH + 2·avgR) ≥ minUtil · vpArea
+ * where posSpan = bbox - 2·avgR (clamped ≥ 1). Returns the positive root of the
+ * resulting quadratic, or sqrt(minUtil/util) as a safe fallback when the
+ * discriminant is negative.
+ */
+export function computeViewportScaleFactor(
+	bboxW: number,
+	bboxH: number,
+	avgR: number,
+	minUtil: number,
+	vpArea: number,
+	util: number,
+): number {
+	const posSpanW = Math.max(bboxW - 2 * avgR, 1);
+	const posSpanH = Math.max(bboxH - 2 * avgR, 1);
+	const A = posSpanW * posSpanH;
+	const B = 2 * avgR * (posSpanW + posSpanH);
+	const C = 4 * avgR * avgR - minUtil * vpArea;
+	const disc = B * B - 4 * A * C;
+	return disc >= 0 ? (-B + Math.sqrt(disc)) / (2 * A) : Math.sqrt(minUtil / util);
+}

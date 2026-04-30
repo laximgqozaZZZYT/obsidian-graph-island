@@ -33,6 +33,8 @@ import {
 	areSavedPositionsValid,
 	lightenHex,
 	giDiag,
+	computeAvgNodeRadius,
+	computeViewportScaleFactor,
 } from "../utils/gvc-helpers";
 import {
 	buildGraphFromVault,
@@ -4526,16 +4528,12 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			const syncBg = rt.labelBgColorSync;
 			for (const pn of this.pixiNodes.values()) {
 				if (pn.label && pn.label.bgColor != null) {
-					pn.label.bgColor = syncBg && pn.color != null ? this._blendThemeLabel(themeBg, pn.color) : themeBg;
+					pn.label.bgColor = syncBg && pn.color != null ? blendThemeLabel(themeBg, pn.color) : themeBg;
 				}
 			}
 		}
 
 		this.markDirty();
-	}
-
-	private _blendThemeLabel(bg: number, nodeColor: number): number {
-		return blendThemeLabel(bg, nodeColor);
 	}
 
 	// =========================================================================
@@ -5127,7 +5125,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 				const ci = getColorIdx(arc);
 				const css = DEFAULT_COLORS[ci % DEFAULT_COLORS.length];
 				const baseColor = cssColorToHex(css);
-				const color = this.lightenHexColor(baseColor, depth * depthLighten);
+				const color = lightenHex(baseColor, depth * depthLighten);
 				const fillAlpha = Math.max(
 					RING_FILL_ALPHA_FLOOR,
 					RING_FILL_ALPHA_BASE - depth * RING_FILL_ALPHA_DEPTH_DECAY,
@@ -5147,7 +5145,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 				const ci = getColorIdx(arc);
 				const css = DEFAULT_COLORS[ci % DEFAULT_COLORS.length];
 				const baseColor = cssColorToHex(css);
-				const color = this.lightenHexColor(baseColor, depth * depthLighten);
+				const color = lightenHex(baseColor, depth * depthLighten);
 				const fillAlpha = Math.max(
 					SUNBURST_FILL_ALPHA_FLOOR,
 					SUNBURST_FILL_ALPHA_BASE - depth * SUNBURST_FILL_ALPHA_DEPTH_DECAY,
@@ -5176,11 +5174,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 				gfx.lineTo(cx + rOuter * Math.cos(endAngle), cy + rOuter * Math.sin(endAngle));
 			}
 		}
-	}
-
-	/** Lighten a hex color by a factor (0-1). factor=0.2 means 20% lighter. */
-	private lightenHexColor(hex: number, factor: number): number {
-		return lightenHex(hex, factor);
 	}
 
 	/** Draw labels on cluster sunburst arcs (depth ≤ 1 only, wide arcs) */
@@ -5602,7 +5595,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		}
 
 		// Detect and fix degenerate (line-like) distributions
-		const avgNodeR = this._computeAvgNodeRadius();
+		const nodesArr = Array.from(this.pixiNodes.values(), (pn) => ({ radius: pn.radius }));
+		const avgNodeR = computeAvgNodeRadius(nodesArr);
 		const degenerateThreshold = avgNodeR * 4;
 		this._spreadDegenerateAxis(cx, cy, vpW, vpH, bboxW, bboxH, degenerateThreshold, minUtil, vpArea);
 
@@ -5614,9 +5608,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
 		const cx2 = (bbox2.minX + bbox2.maxX) / 2;
 		const cy2 = (bbox2.minY + bbox2.maxY) / 2;
-		const scaleFactor = this._computeViewportScaleFactor(
+		const scaleFactor = computeViewportScaleFactor(
 			bbox2.maxX - bbox2.minX,
 			bbox2.maxY - bbox2.minY,
+			avgNodeR,
 			minUtil,
 			vpArea,
 			util2,
@@ -5632,13 +5627,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		return computeNodeBBox(
 			Array.from(this.pixiNodes.values(), (pn) => ({ x: pn.data.x, y: pn.data.y, radius: pn.radius })),
 		);
-	}
-
-	/** Compute average node radius across all pixiNodes. */
-	private _computeAvgNodeRadius(): number {
-		let sum = 0;
-		for (const pn of this.pixiNodes.values()) sum += pn.radius ?? 12;
-		return sum / this.pixiNodes.size;
 	}
 
 	/**
@@ -5673,27 +5661,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 				pn.data.x = cx + t * targetW;
 			});
 		}
-	}
-
-	/**
-	 * Compute the uniform scale factor via quadratic equation so that
-	 * scaled positions + constant radii meet the minUtil threshold exactly.
-	 */
-	private _computeViewportScaleFactor(
-		bboxW: number,
-		bboxH: number,
-		minUtil: number,
-		vpArea: number,
-		util: number,
-	): number {
-		const avgR = this._computeAvgNodeRadius();
-		const posSpanW = Math.max(bboxW - 2 * avgR, 1);
-		const posSpanH = Math.max(bboxH - 2 * avgR, 1);
-		const A = posSpanW * posSpanH;
-		const B = 2 * avgR * (posSpanW + posSpanH);
-		const C = 4 * avgR * avgR - minUtil * vpArea;
-		const disc = B * B - 4 * A * C;
-		return disc >= 0 ? (-B + Math.sqrt(disc)) / (2 * A) : Math.sqrt(minUtil / util); // fallback
 	}
 
 	private autoFitView(W: number, H: number) {

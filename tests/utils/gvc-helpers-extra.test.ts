@@ -10,6 +10,8 @@ import {
 	resolveNodeColor,
 	deriveClusterRules,
 	COMMUNITY_PALETTE,
+	computeAvgNodeRadius,
+	computeViewportScaleFactor,
 } from "../../src/utils/gvc-helpers";
 import type { GroupPreset } from "../../src/types";
 
@@ -331,5 +333,65 @@ describe("resolveNodeColor — empty tags branch", () => {
 	it("falls through from category to tag when category not in map", () => {
 		// category exists but missing → falls to tag fallback
 		expect(resolveNodeColor({ category: "ghost", tags: ["action"] }, colorMap, "#default")).toBe("#00ff00");
+	});
+});
+
+// ---------------------------------------------------------------------------
+// computeAvgNodeRadius — viewport-fit helper extracted from GVC
+// ---------------------------------------------------------------------------
+describe("computeAvgNodeRadius", () => {
+	it("returns the arithmetic mean of node radii", () => {
+		expect(computeAvgNodeRadius([{ radius: 4 }, { radius: 8 }, { radius: 12 }])).toBe(8);
+	});
+
+	it("falls back to 12 for nodes missing a radius", () => {
+		// average of (12 default, 24) = 18
+		expect(computeAvgNodeRadius([{}, { radius: 24 }])).toBe(18);
+	});
+
+	it("returns the default radius for an empty input (no division by zero)", () => {
+		expect(computeAvgNodeRadius([])).toBe(12);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// computeViewportScaleFactor — quadratic-equation viewport fit
+// ---------------------------------------------------------------------------
+describe("computeViewportScaleFactor", () => {
+	it("returns a scale factor that brings utilization to (or above) minUtil", () => {
+		// 100x100 bbox in a 1000x1000 viewport (1% util) → target 50% util
+		const bboxW = 100;
+		const bboxH = 100;
+		const avgR = 5;
+		const minUtil = 0.5;
+		const vpArea = 1000 * 1000;
+		const util = (bboxW * bboxH) / vpArea;
+		const s = computeViewportScaleFactor(bboxW, bboxH, avgR, minUtil, vpArea, util);
+		// Scaled bbox = (s * (bboxW - 2·avgR) + 2·avgR) per axis
+		const scaledW = s * (bboxW - 2 * avgR) + 2 * avgR;
+		const scaledH = s * (bboxH - 2 * avgR) + 2 * avgR;
+		const newUtil = (scaledW * scaledH) / vpArea;
+		// quadratic root targets exactly minUtil — allow a small numerical epsilon
+		expect(newUtil).toBeGreaterThanOrEqual(minUtil - 1e-9);
+		expect(newUtil).toBeLessThan(minUtil + 1e-3);
+	});
+
+	it("clamps tiny pos-spans to 1 to avoid divide-by-zero in the quadratic", () => {
+		// bbox <= 2·avgR makes posSpan negative — function clamps to 1.
+		const s = computeViewportScaleFactor(0, 0, 5, 0.5, 100_000, 0);
+		expect(Number.isFinite(s)).toBe(true);
+	});
+
+	it("falls back to sqrt(minUtil/util) when the discriminant is negative", () => {
+		// Choose params so 4·avgR² > minUtil·vpArea  ⇒ C > 0, and B²-4AC can go negative.
+		// avgR=100, posSpans=1 (bbox≤2avgR clamp), minUtil=0.001, vpArea=1
+		// A=1, B=2*100*(1+1)=400, C=4*10000 - 0.001 ≈ 40000-0.001 > 0
+		// disc = 160000 - 4*1*40000 ≈ 0 → use small to push negative
+		const minUtil = 0.0001;
+		const vpArea = 1;
+		const util = 0.5; // arbitrary
+		const s = computeViewportScaleFactor(0, 0, 100, minUtil, vpArea, util);
+		// fallback sqrt(0.0001/0.5) ≈ 0.01414
+		expect(s).toBeCloseTo(Math.sqrt(minUtil / util), 6);
 	});
 });
