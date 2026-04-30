@@ -8,6 +8,9 @@ import {
 	smartTruncateLabel,
 	selectLabelMode,
 	type LabelMode,
+	computeMaxVisibleLabels,
+	computeLabelEmphasisBoost,
+	shouldApplyMinFloorGuarantee,
 } from "../src/views/LabelManager";
 
 // ---------------------------------------------------------------------------
