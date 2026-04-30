@@ -1,0 +1,23 @@
+## Description (subtask of 1561-dead-exports)
+
+`tmp/dead-exports-report.md` の Category C (完全未使用) のうち、
+  `src/constants.ts` 内の以下38個の export 定数を削除する。
+
+  対象シンボル (line 50-753):
+  - VIEW_MODE_GRAPH / VIEW_MODE_SUNBURST / VIEW_MODE_TIMELINE / VIEW_MODE_TREE / VIEW_MODE_MATRIX (lines 50-54)
+  - NODE_DECO_BADGE_RADIUS_PX / NODE_DECO_BADGE_MAX_COUNT / NODE_DECO_BADGE_PAD_FACTOR / NODE_DECO_RING_WIDTH / NODE_DECO_RING_PAD / NODE_DECO_RING_ALPHA / NODE_DECO_DASH_SEGMENTS / NODE_DECO_DASH_GAP_FRACTION / NODE_DECO_HALO_ALPHA_BASE / NODE_DECO_HALO_ALPHA_FACTOR / NODE_DECO_BOOKMARK_STAR_SPIKES (lines 395-415)
+  - OUTLINE_PAD_MIN / OUTLINE_PAD_FACTOR / HULL_SAMPLES / OVERLAP_RECOMPUTE_FRAMES / SIZE_FADE_DIVISOR / FILL_ALPHA_BASE / FILL_ALPHA_OVERLAP / LABEL_COLLISION_MAX_ATTEMPTS / STROKE_ALPHA_NO_OVERLAP / STROKE_ALPHA_OVERLAP_MIN / STROKE_ALPHA_OVERLAP_BASE / STROKE_WIDTH_NO_OVERLAP / STROKE_WIDTH_OVERLAP_BASE / STROKE_WIDTH_OVERLAP_MIN / BORDER_OUTER_WIDTH / BORDER_OUTER_ALPHA_FACTOR / SIZE_FADE_MIN / FILL_ALPHA_VISIBILITY_THRESHOLD / LABEL_DARKEN_FACTOR / LABEL_PILL_PAD_X / LABEL_PILL_PAD_Y / COLLISION_ESCAPE_MARGIN / ZOOM_OUT_THRESHOLD (lines 466-510)
+  - PATHFINDER_COLOR / PATHFINDER_COLOR_CSS / PATHFINDER_GLOW_STROKE_WIDTH / PATHFINDER_SOLID_STROKE_WIDTH / PATHFINDER_DOT_RADIUS / PATHFINDER_LABEL_FONT_SIZE (lines 735-753)
+
+  手順:
+  1. 各シンボルを `grep -rn "シンボル名" src/ tests/` で検索し、参照ゼロを確認
+  2. 参照ゼロのもののみ `src/constants.ts` から定数定義を削除
+  3. テスト/型チェックでビルドが通ることを確認: `pnpm test` / `pnpm lint`
+  4. `node scripts/list-dead-exports.mjs` でCategory C件数が約38減少していることを確認
+
+  注意: false positiveの可能性があるため、削除前に必ず grep で参照ゼロを再確認すること。
+  RenderThresholds 経由で参照されている可能性のある定数は CLAUDE.md ポリシーに従い慎重に扱う。
+
+## Acceptance criteria
+- [ ] 実装が完了し、テストが通ること
+- [ ] CLAUDE.md のルールに違反しないこと
