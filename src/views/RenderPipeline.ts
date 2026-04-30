@@ -45,9 +45,6 @@ import {
 	computeLabelColors,
 	isDensityTooClose,
 	computeZonePlacementFromAngles,
-	GLOW_ATTENUATE_THRESHOLD,
-	GLOW_ATTENUATE_RANGE,
-	GLOW_RADIUS_ATTENUATE_FACTOR,
 	GLOW_P90_FRACTION,
 	LABEL_Y_OFFSET_FACTOR,
 } from "./render-pipeline-utils";
