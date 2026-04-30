@@ -264,6 +264,8 @@ import {
 	computeCardBBox,
 	buildTransitionData,
 	computeTimelineFit,
+	addLinkNeighbors,
+	capHoverLabels,
 } from "./hover-helpers";
 
 // ---------------------------------------------------------------------------
@@ -4201,7 +4203,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
 		// Forward links + backlinks via BFS on hoverAdj
 		if (hht.forwardLinks || hht.backlinks) {
-			this._addLinkNeighbors(result, hId, hht);
+			addLinkNeighbors(result, hId, hht, this.hoverAdj, this.panel.hoverHops, this.graphEdges);
 		}
 
 		// Shared tags / same folder: both consume the same node projection - build once
@@ -4221,42 +4223,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			}
 		}
 
-		return this._capHoverLabels(result, hId);
-	}
-
-	/** Add link neighbors (forward/back) to the result set via BFS. */
-	private _addLinkNeighbors(
-		result: Set<string>,
-		hId: string,
-		hht: { forwardLinks: boolean; backlinks: boolean },
-	): void {
-		const bfsResult = bfsNeighborSet(this.hoverAdj, hId, this.panel.hoverHops);
-		if (hht.forwardLinks && hht.backlinks) {
-			for (const id of bfsResult) result.add(id);
-			return;
-		}
-		// Directional filter
-		const forwardIds = new Set<string>();
-		const backlinkIds = new Set<string>();
-		for (const e of this.graphEdges) {
-			const src = edgeSourceId(e);
-			const tgt = edgeTargetId(e);
-			if (src === hId && bfsResult.has(tgt)) forwardIds.add(tgt);
-			if (tgt === hId && bfsResult.has(src)) backlinkIds.add(src);
-		}
-		if (hht.forwardLinks) for (const id of forwardIds) result.add(id);
-		if (hht.backlinks) for (const id of backlinkIds) result.add(id);
-	}
-
-	/** Cap the hover highlight set to maxHoverNeighborLabels, keeping highest-degree nodes. */
-	private _capHoverLabels(result: Set<string>, hId: string): Set<string> {
 		const maxNeighborLabels = this.panel.renderThresholds?.maxHoverNeighborLabels ?? 30;
-		if (result.size <= maxNeighborLabels + 1) return result;
-		const sorted = [...result]
-			.filter((id) => id !== hId)
-			.sort((a, b) => (this.degrees.get(b) ?? 0) - (this.degrees.get(a) ?? 0))
-			.slice(0, maxNeighborLabels);
-		return new Set([hId, ...sorted]);
+		return capHoverLabels(result, hId, maxNeighborLabels, this.degrees);
 	}
 
 	/** フォーカスモードのハイライトを適用 (クリック時に呼ばれる) */

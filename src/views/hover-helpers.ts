@@ -3,7 +3,13 @@
  * Extracted from GraphViewContainer to reduce complexity.
  */
 import type { ClusterArrangement, GraphEdge, GraphNode } from "../types";
-import { edgeTypeSummary, collapsedGroupSummary } from "../utils/graph-helpers";
+import {
+	bfsNeighborSet,
+	collapsedGroupSummary,
+	edgeSourceId,
+	edgeTargetId,
+	edgeTypeSummary,
+} from "../utils/graph-helpers";
 import { computeSimilarNodes, type SimilarNode } from "../analysis/graph-analysis";
 
 // ---------------------------------------------------------------------------
@@ -234,6 +240,61 @@ export function findSameFolderNodes(
 		if (n.filePath?.split("/")[0] === hoveredFolder) result.push(n.id);
 	}
 	return result;
+}
+
+/**
+ * Add link neighbors (forward / back) to the result set via BFS over the hover
+ * adjacency map. When both `forwardLinks` and `backlinks` are enabled the BFS
+ * frontier is added wholesale; otherwise the BFS result is filtered against
+ * `graphEdges` to keep only the requested direction(s).
+ *
+ * Pure function: caller supplies adjacency, hop count, and edges so the
+ * traversal logic is fully testable without GraphViewContainer state.
+ */
+export function addLinkNeighbors(
+	result: Set<string>,
+	hId: string,
+	hht: { forwardLinks: boolean; backlinks: boolean },
+	hoverAdj: Map<string, Set<string>>,
+	hoverHops: number,
+	graphEdges: ReadonlyArray<GraphEdge>,
+): void {
+	const bfsResult = bfsNeighborSet(hoverAdj, hId, hoverHops);
+	if (hht.forwardLinks && hht.backlinks) {
+		for (const id of bfsResult) result.add(id);
+		return;
+	}
+	const forwardIds = new Set<string>();
+	const backlinkIds = new Set<string>();
+	for (const e of graphEdges) {
+		const src = edgeSourceId(e);
+		const tgt = edgeTargetId(e);
+		if (src === hId && bfsResult.has(tgt)) forwardIds.add(tgt);
+		if (tgt === hId && bfsResult.has(src)) backlinkIds.add(src);
+	}
+	if (hht.forwardLinks) for (const id of forwardIds) result.add(id);
+	if (hht.backlinks) for (const id of backlinkIds) result.add(id);
+}
+
+/**
+ * Cap the hover highlight set to `maxNeighborLabels`, always retaining the
+ * hovered node and keeping the highest-degree neighbours when truncating.
+ *
+ * Pure function: degrees lookup is supplied so the cap policy can be tested
+ * against arbitrary degree distributions.
+ */
+export function capHoverLabels(
+	result: Set<string>,
+	hId: string,
+	maxNeighborLabels: number,
+	degrees: Map<string, number>,
+): Set<string> {
+	if (result.size <= maxNeighborLabels + 1) return result;
+	const sorted = [...result]
+		.filter((id) => id !== hId)
+		.sort((a, b) => (degrees.get(b) ?? 0) - (degrees.get(a) ?? 0))
+		.slice(0, maxNeighborLabels);
+	return new Set([hId, ...sorted]);
 }
 
 // ---------------------------------------------------------------------------

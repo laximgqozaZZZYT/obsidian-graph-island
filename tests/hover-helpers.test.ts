@@ -10,6 +10,8 @@ import {
 	computeCardBBox,
 	buildTransitionData,
 	computeTimelineFit,
+	addLinkNeighbors,
+	capHoverLabels,
 	type HoverTooltipInput,
 	type HoverTooltipOptions,
 	type OffScreenNodeInfo,
@@ -1006,5 +1008,206 @@ describe("clearNonGraphLayers - coverage for all branch paths", () => {
 		clearNonGraphLayers("sunburst", layers);
 		expect(sunburstCalls).toHaveLength(0);
 		expect(otherCalls).toHaveLength(2);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Tests: addLinkNeighbors
+// ---------------------------------------------------------------------------
+
+describe("addLinkNeighbors", () => {
+	function makeAdj(pairs: ReadonlyArray<[string, string]>): Map<string, Set<string>> {
+		const adj = new Map<string, Set<string>>();
+		for (const [a, b] of pairs) {
+			if (!adj.has(a)) adj.set(a, new Set());
+			adj.get(a)!.add(b);
+			if (!adj.has(b)) adj.set(b, new Set());
+			adj.get(b)!.add(a);
+		}
+		return adj;
+	}
+
+	it("adds full BFS frontier when both directions are enabled", () => {
+		const adj = makeAdj([
+			["h", "a"],
+			["a", "b"],
+		]);
+		const result = new Set<string>(["h"]);
+		addLinkNeighbors(result, "h", { forwardLinks: true, backlinks: true }, adj, 2, []);
+		expect(result.has("a")).toBe(true);
+		expect(result.has("b")).toBe(true);
+	});
+
+	it("filters to forward-only when backlinks disabled", () => {
+		const adj = makeAdj([
+			["h", "a"],
+			["b", "h"],
+		]);
+		const edges: GraphEdge[] = [
+			{ source: "h", target: "a", type: "link" } as GraphEdge,
+			{ source: "b", target: "h", type: "link" } as GraphEdge,
+		];
+		const result = new Set<string>(["h"]);
+		addLinkNeighbors(result, "h", { forwardLinks: true, backlinks: false }, adj, 1, edges);
+		expect(result.has("a")).toBe(true);
+		expect(result.has("b")).toBe(false);
+	});
+
+	it("filters to backlinks-only when forwardLinks disabled", () => {
+		const adj = makeAdj([
+			["h", "a"],
+			["b", "h"],
+		]);
+		const edges: GraphEdge[] = [
+			{ source: "h", target: "a", type: "link" } as GraphEdge,
+			{ source: "b", target: "h", type: "link" } as GraphEdge,
+		];
+		const result = new Set<string>(["h"]);
+		addLinkNeighbors(result, "h", { forwardLinks: false, backlinks: true }, adj, 1, edges);
+		expect(result.has("a")).toBe(false);
+		expect(result.has("b")).toBe(true);
+	});
+
+	it("respects hop limit", () => {
+		const adj = makeAdj([
+			["h", "a"],
+			["a", "b"],
+			["b", "c"],
+		]);
+		const result = new Set<string>(["h"]);
+		addLinkNeighbors(result, "h", { forwardLinks: true, backlinks: true }, adj, 1, []);
+		expect(result.has("a")).toBe(true);
+		expect(result.has("b")).toBe(false);
+		expect(result.has("c")).toBe(false);
+	});
+
+	it("handles isolated start node with empty adjacency", () => {
+		const adj = new Map<string, Set<string>>();
+		const result = new Set<string>(["h"]);
+		addLinkNeighbors(result, "h", { forwardLinks: true, backlinks: true }, adj, 3, []);
+		expect(result.size).toBe(1);
+		expect(result.has("h")).toBe(true);
+	});
+
+	it("only includes BFS-reachable directional matches", () => {
+		// b is in BFS reach (1 hop), but also has a backlink to h. Forward-only
+		// should still exclude b since the edge is b→h, not h→b.
+		const adj = makeAdj([
+			["h", "a"],
+			["b", "h"],
+		]);
+		const edges: GraphEdge[] = [
+			{ source: "h", target: "a", type: "link" } as GraphEdge,
+			{ source: "b", target: "h", type: "link" } as GraphEdge,
+		];
+		const result = new Set<string>(["h"]);
+		addLinkNeighbors(result, "h", { forwardLinks: true, backlinks: false }, adj, 1, edges);
+		expect(result.has("b")).toBe(false);
+	});
+
+	it("ignores edges whose endpoint is outside the BFS frontier", () => {
+		const adj = makeAdj([["h", "a"]]);
+		const edges: GraphEdge[] = [
+			// edge to "z" exists but z is unreachable in 1 hop via adj
+			{ source: "h", target: "z", type: "link" } as GraphEdge,
+		];
+		const result = new Set<string>(["h"]);
+		addLinkNeighbors(result, "h", { forwardLinks: true, backlinks: false }, adj, 1, edges);
+		expect(result.has("z")).toBe(false);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Tests: capHoverLabels
+// ---------------------------------------------------------------------------
+
+describe("capHoverLabels", () => {
+	it("returns set unchanged when within cap", () => {
+		const result = new Set(["h", "a", "b"]);
+		const degrees = new Map<string, number>();
+		const out = capHoverLabels(result, "h", 30, degrees);
+		expect(out).toBe(result);
+	});
+
+	it("retains hovered node when truncating", () => {
+		const result = new Set(["h", "a", "b", "c", "d", "e"]);
+		const degrees = new Map([
+			["a", 1],
+			["b", 2],
+			["c", 3],
+			["d", 4],
+			["e", 5],
+		]);
+		const out = capHoverLabels(result, "h", 2, degrees);
+		expect(out.has("h")).toBe(true);
+		expect(out.size).toBe(3); // h + 2 highest-degree
+	});
+
+	it("keeps highest-degree neighbours when truncating", () => {
+		const result = new Set(["h", "low", "mid", "high"]);
+		const degrees = new Map([
+			["low", 1],
+			["mid", 5],
+			["high", 10],
+		]);
+		const out = capHoverLabels(result, "h", 1, degrees);
+		expect(out.has("high")).toBe(true);
+		expect(out.has("low")).toBe(false);
+		expect(out.has("mid")).toBe(false);
+	});
+
+	it("treats missing degree as zero", () => {
+		const result = new Set(["h", "known", "unknown"]);
+		const degrees = new Map([["known", 3]]);
+		const out = capHoverLabels(result, "h", 1, degrees);
+		expect(out.has("known")).toBe(true);
+		expect(out.has("unknown")).toBe(false);
+	});
+
+	it("handles edge case where size equals cap+1 (no truncation)", () => {
+		const result = new Set(["h", "a", "b"]);
+		const degrees = new Map([
+			["a", 1],
+			["b", 2],
+		]);
+		const out = capHoverLabels(result, "h", 2, degrees);
+		expect(out).toBe(result);
+		expect(out.size).toBe(3);
+	});
+
+	it("triggers truncation when size exceeds cap+1", () => {
+		const result = new Set(["h", "a", "b", "c"]);
+		const degrees = new Map([
+			["a", 1],
+			["b", 2],
+			["c", 3],
+		]);
+		const out = capHoverLabels(result, "h", 2, degrees);
+		expect(out).not.toBe(result);
+		expect(out.size).toBe(3);
+		expect(out.has("c")).toBe(true);
+		expect(out.has("b")).toBe(true);
+	});
+
+	it("returns new set instance distinct from input when truncating", () => {
+		const result = new Set(["h", "a", "b", "c"]);
+		const degrees = new Map<string, number>();
+		const out = capHoverLabels(result, "h", 1, degrees);
+		expect(out).not.toBe(result);
+	});
+
+	it("excludes hovered node from degree-sort (always retained as anchor)", () => {
+		const result = new Set(["h", "a", "b", "c"]);
+		const degrees = new Map([
+			["h", 100], // hovered has highest degree
+			["a", 1],
+			["b", 2],
+			["c", 3],
+		]);
+		const out = capHoverLabels(result, "h", 1, degrees);
+		expect(out.has("h")).toBe(true);
+		// highest-degree non-hovered = c
+		expect(out.has("c")).toBe(true);
+		expect(out.size).toBe(2);
 	});
 });
