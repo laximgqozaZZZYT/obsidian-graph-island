@@ -4,12 +4,10 @@
  * subtask; this file only provides the pure building blocks.
  *
  * The underlying pure converter `exportGraphSVG` lives in
- * `src/utils/graph-helpers.ts` and is re-exported here for convenience. Its
- * implementation is intentionally untouched.
+ * `src/utils/graph-helpers.ts`; callers should import it directly from there.
  */
 
 import type { GraphNode, GraphEdge } from "../../types";
-import { exportGraphSVG } from "../../utils/graph-helpers";
 
 // ---------------------------------------------------------------------------
 // Named constants (CLAUDE.md: no hardcoded magic numbers)
@@ -26,10 +24,6 @@ const DEFAULT_PNG_BACKGROUND = "";
 const MIN_CANVAS_DIMENSION = 1;
 
 const JSON_INDENT_SPACES = 2;
-
-// Shared: re-export the underlying pure SVG converter so callers importing
-// from this module get everything in one place without reaching into utils.
-export { exportGraphSVG };
 
 // ---------------------------------------------------------------------------
 // Input shapes (kept minimal + structural so tests can pass plain objects)
