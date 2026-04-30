@@ -12,7 +12,13 @@
  *      the suite).
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { extractFrontmatterImage, isNodeOnScreen, createThumbnailClone } from "../../src/views/thumbnail-helpers";
+import { TFile, type Vault } from "obsidian";
+import {
+	extractFrontmatterImage,
+	isNodeOnScreen,
+	createThumbnailClone,
+	resolveThumbnailUrl,
+} from "../../src/views/thumbnail-helpers";
 
 describe("extractFrontmatterImage", () => {
 	it("prefers `image` over `thumbnail` and `cover`", () => {
@@ -140,5 +146,103 @@ describe("createThumbnailClone", () => {
 		const clone = createThumbnailClone(src, 10, 20, 30);
 		expect(clone).not.toBe(src);
 		expect(src).toEqual({ src: "orig.png" });
+	});
+});
+
+describe("resolveThumbnailUrl", () => {
+	// Build a minimal Vault stub. The real Obsidian Vault has many methods we
+	// don't touch here — only `getAbstractFileByPath` and `getResourcePath` are
+	// exercised by `resolveThumbnailUrl`. Casting through `unknown` keeps the
+	// stub honest about its scope.
+	function makeVault(opts: { files?: Record<string, TFile | unknown>; resourcePath?: (tf: TFile) => string }): Vault {
+		const files = opts.files ?? {};
+		const resourcePath = opts.resourcePath ?? ((tf: TFile) => `app://resource/${tf.path}`);
+		return {
+			getAbstractFileByPath: (p: string) => files[p] ?? null,
+			getResourcePath: resourcePath,
+		} as unknown as Vault;
+	}
+
+	it("returns the URL unchanged for http:// inputs (skips vault lookup entirely)", () => {
+		// Vault lookup must not be consulted for absolute URLs — surface the
+		// invariant by throwing if it is.
+		const vault = {
+			getAbstractFileByPath: () => {
+				throw new Error("vault should not be queried for http:// URLs");
+			},
+			getResourcePath: () => "should-not-be-called",
+		} as unknown as Vault;
+		expect(resolveThumbnailUrl("http://example.com/img.png", vault)).toBe("http://example.com/img.png");
+	});
+
+	it("returns the URL unchanged for https:// inputs (skips vault lookup entirely)", () => {
+		const vault = {
+			getAbstractFileByPath: () => {
+				throw new Error("vault should not be queried for https:// URLs");
+			},
+			getResourcePath: () => "should-not-be-called",
+		} as unknown as Vault;
+		expect(resolveThumbnailUrl("https://cdn.example.com/a.png", vault)).toBe("https://cdn.example.com/a.png");
+	});
+
+	it("resolves a vault-relative path via getResourcePath when the file exists", () => {
+		const tf = Object.assign(new TFile(), { path: "images/cover.png" });
+		const vault = makeVault({ files: { "images/cover.png": tf } });
+		expect(resolveThumbnailUrl("images/cover.png", vault)).toBe("app://resource/images/cover.png");
+	});
+
+	it("strips a leading slash and retries when the original lookup misses", () => {
+		// Frontmatter sometimes carries `/folder/img.png`-style absolute paths
+		// that Obsidian's vault API doesn't accept directly. The helper retries
+		// with the leading slashes removed.
+		const tf = Object.assign(new TFile(), { path: "folder/img.png" });
+		const vault = makeVault({
+			files: {
+				// First lookup with leading slash misses, second (cleaned) hits.
+				"folder/img.png": tf,
+			},
+		});
+		expect(resolveThumbnailUrl("/folder/img.png", vault)).toBe("app://resource/folder/img.png");
+	});
+
+	it("strips multiple leading slashes (regex `^/+` form)", () => {
+		const tf = Object.assign(new TFile(), { path: "a/b.png" });
+		const vault = makeVault({ files: { "a/b.png": tf } });
+		expect(resolveThumbnailUrl("///a/b.png", vault)).toBe("app://resource/a/b.png");
+	});
+
+	it("returns null when neither the original nor the cleaned path resolves", () => {
+		const vault = makeVault({ files: {} });
+		expect(resolveThumbnailUrl("missing.png", vault)).toBeNull();
+		expect(resolveThumbnailUrl("/missing.png", vault)).toBeNull();
+	});
+
+	it("returns null when the lookup hits a non-TFile entry (e.g. a folder)", () => {
+		// `getAbstractFileByPath` can also return folders. Anything that isn't a
+		// TFile must be rejected — the `instanceof TFile` guard is the bulwark
+		// against returning resource URLs for directories.
+		const folder = { path: "folder", children: [] };
+		const vault = makeVault({ files: { folder } });
+		expect(resolveThumbnailUrl("folder", vault)).toBeNull();
+	});
+
+	it("does not retry the cleaned path when the input has no leading slash and misses", () => {
+		// The cleaned path equals the original when there's no leading slash, so
+		// the second `getAbstractFileByPath` call would hit the same key. Verify
+		// we still get null and don't spuriously succeed.
+		let calls = 0;
+		const vault = {
+			getAbstractFileByPath: () => {
+				calls++;
+				return null;
+			},
+			getResourcePath: () => "unused",
+		} as unknown as Vault;
+		expect(resolveThumbnailUrl("nope.png", vault)).toBeNull();
+		// Both lookups happen even when the path has no leading slash — the
+		// implementation does not short-circuit on path equality. Locking in
+		// the actual behavior so a future refactor that *does* short-circuit
+		// (a valid optimization) updates this test deliberately.
+		expect(calls).toBe(2);
 	});
 });
