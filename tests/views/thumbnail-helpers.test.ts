@@ -12,7 +12,13 @@
  *      the suite).
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { extractFrontmatterImage, isNodeOnScreen, createThumbnailClone } from "../../src/views/thumbnail-helpers";
+import { TFile, type Vault } from "obsidian";
+import {
+	extractFrontmatterImage,
+	isNodeOnScreen,
+	createThumbnailClone,
+	resolveThumbnailUrl,
+} from "../../src/views/thumbnail-helpers";
 
 describe("extractFrontmatterImage", () => {
 	it("prefers `image` over `thumbnail` and `cover`", () => {
@@ -140,5 +146,87 @@ describe("createThumbnailClone", () => {
 		const clone = createThumbnailClone(src, 10, 20, 30);
 		expect(clone).not.toBe(src);
 		expect(src).toEqual({ src: "orig.png" });
+	});
+});
+
+describe("resolveThumbnailUrl", () => {
+	// Build a minimal Vault stub. We accept a map of path → TFile|null; missing
+	// keys resolve to null. `getResourcePath` echoes the file's path with a
+	// scheme so we can assert which lookup path won.
+	function makeVault(files: Record<string, TFile | null>): Vault {
+		return {
+			getAbstractFileByPath: (p: string) => (p in files ? files[p] : null),
+			getResourcePath: (f: TFile) => `app://local/${f.path}`,
+		} as unknown as Vault;
+	}
+
+	function makeFile(path: string): TFile {
+		const f = new TFile();
+		f.path = path;
+		return f;
+	}
+
+	it("returns http:// URLs unchanged without consulting the vault", () => {
+		// Vault would throw if touched: confirms the early-return branch.
+		const vault = {
+			getAbstractFileByPath: () => {
+				throw new Error("should not be called");
+			},
+			getResourcePath: () => {
+				throw new Error("should not be called");
+			},
+		} as unknown as Vault;
+		expect(resolveThumbnailUrl("http://example.com/i.png", vault)).toBe("http://example.com/i.png");
+	});
+
+	it("returns https:// URLs unchanged without consulting the vault", () => {
+		const vault = {
+			getAbstractFileByPath: () => {
+				throw new Error("should not be called");
+			},
+			getResourcePath: () => {
+				throw new Error("should not be called");
+			},
+		} as unknown as Vault;
+		expect(resolveThumbnailUrl("https://example.com/i.png", vault)).toBe("https://example.com/i.png");
+	});
+
+	it("resolves a direct vault path via getAbstractFileByPath + getResourcePath", () => {
+		const tf = makeFile("folder/img.png");
+		const vault = makeVault({ "folder/img.png": tf });
+		expect(resolveThumbnailUrl("folder/img.png", vault)).toBe("app://local/folder/img.png");
+	});
+
+	it("strips a leading slash and retries when the direct lookup fails", () => {
+		// First lookup ("/img.png") returns null; cleaned lookup ("img.png") hits.
+		const tf = makeFile("img.png");
+		const vault = makeVault({ "/img.png": null, "img.png": tf });
+		expect(resolveThumbnailUrl("/img.png", vault)).toBe("app://local/img.png");
+	});
+
+	it("strips multiple leading slashes via the /^\\/+/ regex", () => {
+		const tf = makeFile("img.png");
+		const vault = makeVault({ "///img.png": null, "img.png": tf });
+		expect(resolveThumbnailUrl("///img.png", vault)).toBe("app://local/img.png");
+	});
+
+	it("returns null when neither the direct nor the cleaned path resolves to a TFile", () => {
+		const vault = makeVault({});
+		expect(resolveThumbnailUrl("missing/img.png", vault)).toBeNull();
+		expect(resolveThumbnailUrl("/missing.png", vault)).toBeNull();
+	});
+
+	it("returns null when getAbstractFileByPath returns a non-TFile (e.g., a folder)", () => {
+		// instanceof TFile must guard against folders/AbstractFile siblings.
+		const notATFile = { path: "img.png" } as unknown as TFile;
+		const vault = makeVault({ "img.png": notATFile });
+		expect(resolveThumbnailUrl("img.png", vault)).toBeNull();
+	});
+
+	it("does not strip slashes that are not at the start (path with internal slashes preserved)", () => {
+		// Confirms the regex only anchors at ^; internal "/" stays put.
+		const tf = makeFile("a/b/c.png");
+		const vault = makeVault({ "a/b/c.png": tf });
+		expect(resolveThumbnailUrl("a/b/c.png", vault)).toBe("app://local/a/b/c.png");
 	});
 });
