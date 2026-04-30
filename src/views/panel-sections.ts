@@ -112,7 +112,7 @@ function _buildHoverEdgeTypeControls(adv: HTMLElement, panel: PanelState, cb: Pa
 		},
 		t("desc.hoverHops"),
 	);
-	const het = panel.hoverEdgeTypes ?? {
+	const het: PanelState["hoverEdgeTypes"] = panel.hoverEdgeTypes ?? {
 		link: true,
 		semantic: false,
 		tag: false,
@@ -123,7 +123,7 @@ function _buildHoverEdgeTypeControls(adv: HTMLElement, panel: PanelState, cb: Pa
 		inheritance: true,
 		aggregation: true,
 	};
-	const hoverTypeEntries: [string, string][] = [
+	const hoverTypeEntries: [keyof PanelState["hoverEdgeTypes"], string][] = [
 		["link", t("hover.link") ?? "Link"],
 		["semantic", t("hover.semantic") ?? "Semantic"],
 		["tag", t("hover.tag") ?? "Tag"],
@@ -135,10 +135,9 @@ function _buildHoverEdgeTypeControls(adv: HTMLElement, panel: PanelState, cb: Pa
 		["sequence", t("hover.sequence") ?? "Sequence"],
 	];
 	for (const [key, label] of hoverTypeEntries) {
-		const hetRec = het as Record<string, boolean>;
-		addToggle(adv, label, hetRec[key] ?? false, (v) => {
+		addToggle(adv, label, het[key] ?? false, (v) => {
 			if (!panel.hoverEdgeTypes) panel.hoverEdgeTypes = { ...het };
-			(panel.hoverEdgeTypes as Record<string, boolean>)[key] = v;
+			panel.hoverEdgeTypes[key] = v;
 			cb.rebuildHoverAdj();
 			cb.applyHover();
 			cb.markDirty();
