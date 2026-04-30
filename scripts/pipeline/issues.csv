@@ -270,4 +270,4 @@ id,priority,reported,completed,status,source,parent,depends,superseded_by,summar
 1564-dead-exports,medium,2026-04-30,,done,auto-discovered,none,none,,111個のdead exports (使われていないpublic API),2,scripts/pipeline/descriptions/1564-dead-exports.md,2026-04-30T12:20:17+09:00,2026-04-30T12:37:34+09:00
 1567-dead-exports,medium,2026-04-30,,done,auto-discovered,none,none,,111個のdead exports (使われていないpublic API),1,scripts/pipeline/descriptions/1567-dead-exports.md,2026-04-30T12:40:15+09:00,2026-04-30T13:06:45+09:00
 1571-dead-exports,medium,2026-04-30,,done,auto-discovered,none,none,,111個のdead exports (使われていないpublic API),2,scripts/pipeline/descriptions/1571-dead-exports.md,2026-04-30T13:20:16+09:00,2026-04-30T14:10:15+09:00
-1574-dead-exports,medium,2026-04-30,,pending,auto-discovered,none,none,,146個のdead exports (使われていないpublic API),1,scripts/pipeline/descriptions/1574-dead-exports.md,2026-04-30T15:00:15+09:00,2026-04-30T16:00:02+09:00
+1574-dead-exports,medium,2026-04-30,,decomposed,auto-discovered,none,none,,146個のdead exports (使われていないpublic API),2,scripts/pipeline/descriptions/1574-dead-exports.md,2026-04-30T15:00:15+09:00,2026-04-30T16:02:50+09:00
