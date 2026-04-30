@@ -5,7 +5,7 @@ import {
 	GitStatusShortTargetMark,
 } from "./git-status-formatter";
 
-export interface GitStatusShortEmitInput extends GitStatusShortInput {
+interface GitStatusShortEmitInput extends GitStatusShortInput {
 	gitOpsPerformed?: boolean;
 }
 
