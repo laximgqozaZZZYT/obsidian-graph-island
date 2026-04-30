@@ -24,7 +24,10 @@ MAX_TURNS=30
 
 # ── Token-saving knobs (kaizen 2026-04-24) ──
 # These were added to prevent rate-limit burning from */5 cron + 4-way parallel.
-DEBUG_RETRY_COUNT=1          # was 3 — systematic-debugging retries on gate fail
+DEBUG_RETRY_COUNT=0          # 2026-04-30 token-reduction (Phase R3): was 1
+                              # No retry on gate fail — the second attempt almost
+                              # never succeeds when the first failed, so it's
+                              # mostly token waste. Failed tasks block immediately.
 SIMPLIFY_ENABLED=false       # was implicit true — simplify step after review findings
 KAIZEN_PENDING_THRESHOLD=0   # was 5 — only run kaizen when pending==0
 
@@ -156,11 +159,11 @@ log "Active sessions: $ACTIVE_COUNT/$MAX_SESSIONS — proceeding"
 # go straight to `blocked` and the cycle moves on.
 #
 # FIX B (2026-04-25): Issues track `decompose_attempts:` in frontmatter and are
-# blocked after MAX_ISSUE_ATTEMPTS=3 failed rounds. Previously issue
+# blocked after MAX_ISSUE_ATTEMPTS=2 failed rounds (was 3, lowered for token reduction). Previously issue
 # `144-coverage-drop` was picked 86 times in 24h — each time tasks/ drained,
 # the issue got re-decomposed, always failed, and re-entered the queue.
 # CSV state lives in scripts/pipeline/{issues,tasks}.csv + descriptions/.
-MAX_ISSUE_ATTEMPTS=3
+MAX_ISSUE_ATTEMPTS=2  # 2026-04-30 token-reduction (Phase R3): was 3
 
 NOW=$(date +%s)
 # CSV-mode timed-out scan: walk both kinds via CSV instead of glob+stat.
@@ -684,11 +687,14 @@ $ISSUE_CONTENT
 - God Objects: $GODOBJ_STATUS
 
 ## 手順
-1. /research: 関連ファイルを読んで理解する
+1. /research: タスク文に明示されたファイルだけを読む（探索拡大は厳禁）
 2. 実装: 最小限の変更で acceptance criteria を満たす
 3. 実装後は何もせず終了（検証はシェルが行う）
 
-## ルール
+## ルール (token-reduction、2026-04-30 Phase R3)
+- **タスク文に明示されたファイル以外は読まない・編集しない**
+- **\`Glob\` での全域検索を避ける**（明示パスを直接 Read）
+- 不要な \`grep -r\`/\`find\` を打たない（範囲を絞る）
 - CLAUDE.md厳守
 - God Object肥大化禁止
 - テストを壊さない
