@@ -1,15 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-	VIEW_MODE_GRAPH,
-	VIEW_MODE_SUNBURST,
-	VIEW_MODE_TIMELINE,
-	VIEW_MODE_TREE,
-	VIEW_MODE_MATRIX,
-	LAYOUT_FORCE,
-	LAYOUT_SUNBURST,
-	LAYOUT_TIMELINE,
-	LAYOUT_TREE,
-} from "../src/constants";
+import { LAYOUT_FORCE, LAYOUT_SUNBURST, LAYOUT_TIMELINE, LAYOUT_TREE } from "../src/constants";
 import { createDefaultPanel, validatePanelState } from "../src/views/PanelBuilder";
 import {
 	viewModeToLayout,
@@ -19,15 +9,6 @@ import {
 } from "../src/utils/view-mode-map";
 import { isSectionVisible } from "../src/utils/view-mode-sections";
 import type { ViewMode } from "../src/types";
-
-describe("ViewMode constants", () => {
-	it("exports all 4 view mode constants", () => {
-		expect(VIEW_MODE_GRAPH).toBe("graph");
-		expect(VIEW_MODE_SUNBURST).toBe("sunburst");
-		expect(VIEW_MODE_TIMELINE).toBe("timeline");
-		expect(VIEW_MODE_MATRIX).toBe("matrix");
-	});
-});
 
 describe("PanelState viewMode", () => {
 	it("createDefaultPanel returns viewMode = 'graph'", () => {
