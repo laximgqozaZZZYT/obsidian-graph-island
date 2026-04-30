@@ -265,3 +265,4 @@ id,priority,reported,completed,status,source,parent,depends,superseded_by,summar
 1552-type-assertions,low,2026-04-30,,undecomposable,auto-discovered,none,none,,230個の型アサーション (as T) — 型安全性リスク,2,scripts/pipeline/descriptions/1552-type-assertions.md,2026-04-30T10:00:15+09:00,2026-04-30T10:26:56+09:00
 1555-dead-exports,medium,2026-04-30,,done,auto-discovered,none,none,,111個のdead exports (使われていないpublic API),1,scripts/pipeline/descriptions/1555-dead-exports.md,2026-04-30T10:40:14+09:00,2026-04-30T10:54:55+09:00
 1557-dead-exports,medium,2026-04-30,,done,auto-discovered,none,none,,111個のdead exports (使われていないpublic API),1,scripts/pipeline/descriptions/1557-dead-exports.md,2026-04-30T11:00:15+09:00,2026-04-30T11:08:08+09:00
+1559-dead-exports,medium,2026-04-30,,pending,auto-discovered,none,none,,111個のdead exports (使われていないpublic API),0,scripts/pipeline/descriptions/1559-dead-exports.md,2026-04-30T11:20:15+09:00,2026-04-30T11:20:15+09:00
