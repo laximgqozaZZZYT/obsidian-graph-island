@@ -76,6 +76,7 @@ import {
 	resolveViewportSize,
 } from "../utils/graph-helpers";
 import { pushToMapArray, addToMapSet } from "../utils/map-helpers";
+import { countInterClusterEdges, collectMemberTags } from "../utils/cluster-compare";
 import {
 	applyVisibilityFilters,
 	filterByDegree,
