@@ -4529,16 +4529,12 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			const syncBg = rt.labelBgColorSync;
 			for (const pn of this.pixiNodes.values()) {
 				if (pn.label && pn.label.bgColor != null) {
-					pn.label.bgColor = syncBg && pn.color != null ? this._blendThemeLabel(themeBg, pn.color) : themeBg;
+					pn.label.bgColor = syncBg && pn.color != null ? blendThemeLabel(themeBg, pn.color) : themeBg;
 				}
 			}
 		}
 
 		this.markDirty();
-	}
-
-	private _blendThemeLabel(bg: number, nodeColor: number): number {
-		return blendThemeLabel(bg, nodeColor);
 	}
 
 	// =========================================================================
