@@ -66,22 +66,7 @@ import {
 	DEFAULT_DENSITY_FLOOR,
 } from "../constants";
 // Re-export for public API (tests and other modules import these from here)
-export {
-	STRUCTURAL_EDGE_ALPHA,
-	NON_STRUCTURAL_EDGE_ALPHA,
-	DEFAULT_LINE_THICKNESS,
-	WEIGHT_THICKNESS_FACTOR,
-	FADE_BY_DEGREE_MIN_ALPHA,
-	RELATION_COLOR_ALPHA,
-	HIGHLIGHT_THICKNESS_MULTIPLIER,
-	DENSITY_FULL_ALPHA_THRESHOLD,
-	DENSITY_GENTLE_THRESHOLD,
-	DENSITY_AGGRESSIVE_THRESHOLD,
-	DENSITY_MIN_ALPHA,
-	ZOOM_FADE_THRESHOLD,
-	ZOOM_FADE_MIN_ALPHA,
-	DEFAULT_DENSITY_FLOOR,
-} from "../constants";
+export { WEIGHT_THICKNESS_FACTOR, FADE_BY_DEGREE_MIN_ALPHA } from "../constants";
 import {
 	type GroupPort,
 	type Trunk,
@@ -113,21 +98,6 @@ import {
 	buildPortColorLanes,
 	getPortLaneEndpoint,
 } from "./CableTrayRenderer";
-// Re-export cable-tray types for external consumers
-export type {
-	GroupPort,
-	Trunk,
-	TrunkCable,
-	NodePort,
-	IntraGroupCable,
-	CableRouteOpts,
-	GroupPerimInfo,
-	PolarJunctionGrid,
-	PortLaneInfo,
-	PortColorLanes,
-	CablePrepResult,
-};
-
 // ---------------------------------------------------------------------------
 // Edge drawing configuration
 // ---------------------------------------------------------------------------
@@ -297,7 +267,7 @@ export function shouldSkipEdge(e: GraphEdge, cfg: EdgeDrawConfig): boolean {
  */
 const _bidirForwardBuf = new Set<string>();
 const _bidirResultBuf = new Set<string>();
-export function buildBidirectionalSet(edges: GraphEdge[]): Set<string> {
+function buildBidirectionalSet(edges: GraphEdge[]): Set<string> {
 	_bidirForwardBuf.clear();
 	_bidirResultBuf.clear();
 	for (const e of edges) {
@@ -332,7 +302,7 @@ export function shouldSkipByDirection(
 // Edge type colors — see constants.ts for the palette values
 // ---------------------------------------------------------------------------
 // Theme-aware edge colors
-export function defaultColor(isDark: boolean) {
+function defaultColor(isDark: boolean) {
 	return isDark ? 0x666666 : 0x999999;
 }
 
@@ -346,7 +316,7 @@ interface EdgeTypeSpec {
 	color: number | null;
 }
 
-export const EDGE_TYPE_SPECS: ReadonlyMap<string, EdgeTypeSpec> = new Map<string, EdgeTypeSpec>([
+const EDGE_TYPE_SPECS: ReadonlyMap<string, EdgeTypeSpec> = new Map<string, EdgeTypeSpec>([
 	[EDGE_TYPE_LINK, { visibilityField: "showLinks", color: null }],
 	[EDGE_TYPE_TAG, { visibilityField: "showTagEdges", color: null }],
 	["category", { visibilityField: "showCategoryEdges", color: null }],
@@ -368,7 +338,7 @@ export const EDGE_TYPE_SPECS: ReadonlyMap<string, EdgeTypeSpec> = new Map<string
 // Edge color helper (shared between pre-computation and draw loop)
 // ---------------------------------------------------------------------------
 /** Edge type fallback colors used when colorEdgesByRelation is on but e.relation is unset */
-export const EDGE_TYPE_FALLBACK_COLORS: ReadonlyMap<string, number> = new Map([
+const EDGE_TYPE_FALLBACK_COLORS: ReadonlyMap<string, number> = new Map([
 	["link", LINK_COLOR],
 	["tag", TAG_EDGE_COLOR],
 	["category", CATEGORY_EDGE_COLOR],
@@ -418,7 +388,7 @@ interface BundleGroup {
  * Normalize an angle to [0, π) — treating opposite directions as the same
  * "highway" since an edge A→B and B→A share the same visual band.
  */
-export function normalizeAngle(a: number): number {
+function normalizeAngle(a: number): number {
 	if (a < 0) a += Math.PI;
 	if (a >= Math.PI) a -= Math.PI;
 	return a;
@@ -494,7 +464,7 @@ function buildDirectionBundles(
 type PortDirection = "N" | "S" | "E" | "W";
 
 /** オントロジー型エッジかどうか */
-export function isOntologyEdge(e: GraphEdge): boolean {
+function isOntologyEdge(e: GraphEdge): boolean {
 	return e.type === EDGE_TYPE_INHERITANCE || e.type === EDGE_TYPE_AGGREGATION || e.type === EDGE_TYPE_SEQUENCE;
 }
 
@@ -667,43 +637,6 @@ export function buildPerimeterPath(
 	}
 }
 
-/**
- * Find the point on the perimeter path closest to the target position.
- * Returns the segment index and the projected point on that segment.
- */
-export function findPerimeterBranchPoint(
-	perimeterPath: { x: number; y: number }[],
-	targetX: number,
-	targetY: number,
-): { index: number; point: { x: number; y: number } } {
-	let bestDist = Infinity;
-	let bestIdx = 0;
-	let bestPt = perimeterPath[0];
-
-	for (let i = 0; i < perimeterPath.length - 1; i++) {
-		const a = perimeterPath[i];
-		const b = perimeterPath[i + 1];
-		// Project target onto segment a→b
-		const abx = b.x - a.x,
-			aby = b.y - a.y;
-		const apx = targetX - a.x,
-			apy = targetY - a.y;
-		const ab2 = abx * abx + aby * aby;
-		if (ab2 < 0.01) continue;
-		let t = (apx * abx + apy * aby) / ab2;
-		t = Math.max(0, Math.min(1, t));
-		const px = a.x + abx * t;
-		const py = a.y + aby * t;
-		const d = (px - targetX) ** 2 + (py - targetY) ** 2;
-		if (d < bestDist) {
-			bestDist = d;
-			bestIdx = i;
-			bestPt = { x: px, y: py };
-		}
-	}
-	return { index: bestIdx, point: bestPt };
-}
-
 /** Junction grid: row gap midpoints (Y) and column gap midpoints (X) between nodes */
 export interface JunctionGrid {
 	/** Sorted unique row Y values of nodes */
@@ -845,7 +778,7 @@ export function findNearestGap(gaps: number[], target: number): number | null {
  * Find a gap BETWEEN two coordinates (strictly between minV and maxV).
  * If none found strictly between, fall back to nearest gap overall.
  */
-export function findGapBetween(gaps: number[], a: number, b: number): number | null {
+function findGapBetween(gaps: number[], a: number, b: number): number | null {
 	if (gaps.length === 0) return null;
 	const lo = Math.min(a, b),
 		hi = Math.max(a, b);
@@ -876,17 +809,17 @@ interface JunctionGaps {
 	midRow: number | null;
 }
 
-export function pushSrcEntry(pts: [number, number][], fx: number, fy: number, col: number, row: number | null): void {
+function pushSrcEntry(pts: [number, number][], fx: number, fy: number, col: number, row: number | null): void {
 	if (row !== null) pts.push([fx, row]);
 	pts.push([col, row ?? fy]);
 }
 
-export function pushTgtExit(pts: [number, number][], tx: number, ty: number, col: number, row: number | null): void {
+function pushTgtExit(pts: [number, number][], tx: number, ty: number, col: number, row: number | null): void {
 	if (row !== null) pts.push([col, row]);
 	pts.push([tx, row ?? ty]);
 }
 
-export function computeJunctionWaypoints(
+function computeJunctionWaypoints(
 	from: { x: number; y: number },
 	to: { x: number; y: number },
 	g: JunctionGaps,
@@ -1651,7 +1584,7 @@ function computeStrengthGlow(e: GraphEdge, tgt: Pos, cfg: EdgeDrawConfig): numbe
  * Compute alpha and line thickness for a single edge based on type,
  * relation coloring, degree fading, edge weight, and hover highlight.
  */
-export function resolveEdgeStyle(
+function resolveEdgeStyle(
 	e: GraphEdge,
 	src: Pos,
 	tgt: Pos,
@@ -1718,7 +1651,7 @@ export function resolveEdgeStyle(
 
 /** Apply a dash pattern based on edge type. Returns true if a dash was set. */
 /** Get the dash pattern multipliers for an edge type. Returns null for solid lines. */
-export function getDashPattern(edgeType: string): number[] | null {
+function getDashPattern(edgeType: string): number[] | null {
 	switch (edgeType) {
 		case "semantic":
 			return [4, 4]; // .... even dots
@@ -1941,7 +1874,7 @@ function drawEdgeDecorations(
  * Reduces edge opacity as edge count grows to keep the graph readable.
  * Also applies zoom-out fade at extreme zoom levels.
  */
-export function computeDensityScale(
+function computeDensityScale(
 	cfg: Pick<EdgeDrawConfig, "worldScale" | "edgeDensityFloor">,
 	edgeCount: number,
 ): number {
@@ -1971,7 +1904,7 @@ export function computeDensityScale(
 // ---------------------------------------------------------------------------
 
 /** Build edge pair counts for weight-based thickness rendering. */
-export function buildPairCounts(edges: GraphEdge[]): Map<string, number> {
+function buildPairCounts(edges: GraphEdge[]): Map<string, number> {
 	const pairCount = new Map<string, number>();
 	for (const e of edges) {
 		const key = [e.source, e.target].sort().join(":");
