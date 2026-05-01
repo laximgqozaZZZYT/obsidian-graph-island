@@ -59,17 +59,16 @@ function parseTsPrune(stdout) {
 	return entries;
 }
 
-// Returns true when any tests/**/*.{ts,tsx,js,mjs} imports the given symbol
-// from a path that resolves to the source file.
+// Returns true when any tests/**/*.{ts,tsx,js,mjs} mentions the symbol.
+// Conservative: a bare-symbol grep match is treated as "in use", which keeps
+// the export rather than incorrectly dropping it when imports span multiple
+// lines (the previous heuristic missed those because it required `import`
+// and the module path on the same line as the symbol).
 function isReferencedFromTests(entry) {
-	const moduleBase = entry.file.replace(/^src\//, "").replace(/\.tsx?$/, "");
-	// We grep for the bare symbol name first (cheap), then verify the import
-	// path mentions the module slug. False positives are acceptable here —
-	// they conservatively keep exports rather than incorrectly drop them.
 	const grep = spawnSync(
 		"grep",
 		[
-			"-rE",
+			"-rlE",
 			"--include=*.ts",
 			"--include=*.tsx",
 			"--include=*.js",
@@ -79,14 +78,7 @@ function isReferencedFromTests(entry) {
 		],
 		{ cwd: REPO_ROOT, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] },
 	);
-	if (grep.status !== 0) return false;
-	const lines = grep.stdout.split("\n").filter(Boolean);
-	const moduleSlug = moduleBase.split("/").pop();
-	return lines.some(
-		(l) =>
-			l.includes("import") &&
-			(l.includes(moduleBase) || l.includes(moduleSlug)),
-	);
+	return grep.status === 0 && grep.stdout.trim().length > 0;
 }
 
 function escapeRegex(s) {
