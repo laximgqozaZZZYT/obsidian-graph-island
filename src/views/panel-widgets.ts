@@ -1,5 +1,6 @@
 import { setIcon } from "obsidian";
 import { t } from "../i18n";
+import type { ManagedTimers } from "../utils/managed-timers";
 import type { PanelCallbacks, PanelContext, PanelState, GroupByRule } from "./PanelBuilder";
 import type {
 	SortKey,
@@ -14,6 +15,12 @@ import type {
 import { DEFAULT_COLORS } from "../types";
 import { EDGE_TYPE_INHERITANCE } from "../constants";
 import { parseQueryExpr, serializeExpr } from "../utils/query-expr";
+
+/** Use `timers.setTimeout` when available (auto-cancel on view close); fall back to global `setTimeout` only when an external caller has not yet been migrated. */
+function _setT(timers: ManagedTimers | undefined, fn: () => void, ms: number): void {
+	if (timers) timers.setTimeout(fn, ms);
+	else setTimeout(fn, ms);
+}
 
 export function updateSliderProgress(el: HTMLInputElement) {
 	const min = parseFloat(el.min) || 0;
@@ -167,7 +174,7 @@ export function addTextInput(
 }
 
 /** Custom filtered autocomplete popup (replaces native datalist) */
-function attachAutocomplete(input: HTMLInputElement, suggestions: string[]) {
+function attachAutocomplete(input: HTMLInputElement, suggestions: string[], timers?: ManagedTimers) {
 	const popup = document.createElement("div");
 	popup.className = "gi-ac-popup";
 	popup.style.display = "none";
@@ -206,7 +213,7 @@ function attachAutocomplete(input: HTMLInputElement, suggestions: string[]) {
 	input.addEventListener("focus", show);
 	input.addEventListener("input", show);
 	input.addEventListener("blur", () => {
-		setTimeout(() => (popup.style.display = "none"), 150);
+		_setT(timers, () => (popup.style.display = "none"), 150);
 	});
 	input.addEventListener("keydown", (e) => {
 		const items = popup.querySelectorAll(".gi-ac-item");
@@ -230,8 +237,8 @@ function attachAutocomplete(input: HTMLInputElement, suggestions: string[]) {
 }
 
 /** Legacy alias — other inputs still call this */
-export function attachDatalist(input: HTMLInputElement, suggestions: string[]) {
-	attachAutocomplete(input, suggestions);
+export function attachDatalist(input: HTMLInputElement, suggestions: string[], timers?: ManagedTimers) {
+	attachAutocomplete(input, suggestions, timers);
 }
 
 /** Unified field suggestion list: built-in fields + all frontmatter keys (including nested) */
@@ -351,6 +358,7 @@ export function addMultiValueInput(
 	placeholder: string,
 	suggestions: string[],
 	onChange: (values: string[]) => void,
+	timers?: ManagedTimers,
 ) {
 	const row = container.createDiv({ cls: "setting-item gi-full-width-row" });
 	const info = row.createDiv({ cls: "setting-item-info" });
@@ -366,7 +374,7 @@ export function addMultiValueInput(
 			const itemRow = listEl.createDiv({ cls: "gi-multivalue-row" });
 			const input = itemRow.createEl("input", { type: "text", placeholder, cls: "gi-multivalue-field" });
 			input.value = val;
-			attachDatalist(input, suggestions);
+			attachDatalist(input, suggestions, timers);
 			input.addEventListener("change", () => {
 				values[i] = input.value.trim();
 				onChange(values.filter(Boolean));
