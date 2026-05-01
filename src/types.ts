@@ -309,7 +309,7 @@ export interface GroupPreset {
 // Sort
 // ---------------------------------------------------------------------------
 export type SortKey = "degree" | "in-degree" | "tag" | "category" | "label" | "importance";
-export type SortOrder = "asc" | "desc";
+type SortOrder = "asc" | "desc";
 export interface SortRule {
 	key: SortKey;
 	order: SortOrder;
