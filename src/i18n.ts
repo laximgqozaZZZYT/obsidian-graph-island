@@ -2056,6 +2056,7 @@ const translations: Record<string, TranslationMap> = { en, ja };
 const helpTranslations: Record<string, TranslationMap> = { en: helpEn, ja: helpJa };
 
 /** Exposed for testing — returns all translation keys for a locale */
+// ts-prune-ignore-next
 export function _getTranslationKeys(locale: string): string[] {
 	return Object.keys(translations[locale] ?? {});
 }
