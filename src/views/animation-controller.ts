@@ -72,7 +72,7 @@ export function cancelAllHandles(handles: Set<RAFHandle>): void {
  * Structural subset of PixiNode that fadeNodeAlphaCancellable touches. Using
  * a narrow interface keeps tests from needing to fabricate a full PixiNode.
  */
-export interface FadeableNode {
+interface FadeableNode {
 	gfx: { alpha: number };
 }
 
