@@ -67,4 +67,46 @@ describe("ManagedTimers", () => {
 		expect(fn1).not.toHaveBeenCalled();
 		expect(fn2).toHaveBeenCalledTimes(1);
 	});
+
+	it("delay invokes the handler after the specified ms elapses", () => {
+		const mt = new ManagedTimers();
+		const fn = vi.fn();
+		mt.delay(fn, 100);
+		expect(fn).not.toHaveBeenCalled();
+
+		vi.advanceTimersByTime(99);
+		expect(fn).not.toHaveBeenCalled();
+
+		vi.advanceTimersByTime(1);
+		expect(fn).toHaveBeenCalledTimes(1);
+	});
+
+	it("cancelDelay prevents the delay handler from firing", () => {
+		const mt = new ManagedTimers();
+		const fn = vi.fn();
+		const handle = mt.delay(fn, 100);
+		expect(mt.size).toBe(1);
+
+		mt.cancelDelay(handle);
+		expect(mt.size).toBe(0);
+
+		vi.advanceTimersByTime(500);
+		expect(fn).not.toHaveBeenCalled();
+	});
+
+	it("clearAll releases handles registered via delay", () => {
+		const mt = new ManagedTimers();
+		const fn1 = vi.fn();
+		const fn2 = vi.fn();
+		mt.delay(fn1, 100);
+		mt.delay(fn2, 200);
+		expect(mt.size).toBe(2);
+
+		mt.clearAll();
+		expect(mt.size).toBe(0);
+
+		vi.advanceTimersByTime(500);
+		expect(fn1).not.toHaveBeenCalled();
+		expect(fn2).not.toHaveBeenCalled();
+	});
 });

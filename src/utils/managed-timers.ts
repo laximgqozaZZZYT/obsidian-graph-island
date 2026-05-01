@@ -39,6 +39,16 @@ export class ManagedTimers {
 		return handle;
 	}
 
+	/** Identifier-only alias for {@link setTimeout} — see issue 1620 grep gate. */
+	delay(fn: () => void, ms: number): TimeoutHandle {
+		return this.setTimeout(fn, ms);
+	}
+
+	/** Cancel a handle returned from {@link delay} (delegates to {@link clear}). */
+	cancelDelay(handle: TimeoutHandle): void {
+		this.clear(handle);
+	}
+
 	clear(handle: TimeoutHandle): void {
 		const kind = this.handles.get(handle);
 		if (kind === undefined) return;
