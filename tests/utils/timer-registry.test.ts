@@ -18,10 +18,10 @@ describe("TimerRegistry", () => {
 		vi.useRealTimers();
 	});
 
-	it("set() fires the handler after ms elapses", () => {
+	it("setTimeout() fires the handler after ms elapses", () => {
 		const reg = new TimerRegistry();
 		const handler = vi.fn();
-		reg.set(handler, 100);
+		reg.setTimeout(handler, 100);
 		expect(handler).not.toHaveBeenCalled();
 		vi.advanceTimersByTime(99);
 		expect(handler).not.toHaveBeenCalled();
@@ -31,8 +31,8 @@ describe("TimerRegistry", () => {
 
 	it("auto-cleanup: size decreases after each timer fires", () => {
 		const reg = new TimerRegistry();
-		reg.set(() => {}, 50);
-		reg.set(() => {}, 100);
+		reg.setTimeout(() => {}, 50);
+		reg.setTimeout(() => {}, 100);
 		expect(reg.size).toBe(2);
 		vi.advanceTimersByTime(50);
 		expect(reg.size).toBe(1);
@@ -40,12 +40,12 @@ describe("TimerRegistry", () => {
 		expect(reg.size).toBe(0);
 	});
 
-	it("clear(id) prevents the handler from firing and removes from registry", () => {
+	it("clearTimeout(id) prevents the handler from firing and removes from registry", () => {
 		const reg = new TimerRegistry();
 		const handler = vi.fn();
-		const id = reg.set(handler, 100);
+		const id = reg.setTimeout(handler, 100);
 		expect(reg.size).toBe(1);
-		reg.clear(id);
+		reg.clearTimeout(id);
 		expect(reg.size).toBe(0);
 		vi.advanceTimersByTime(500);
 		expect(handler).not.toHaveBeenCalled();
@@ -56,9 +56,9 @@ describe("TimerRegistry", () => {
 		const a = vi.fn();
 		const b = vi.fn();
 		const c = vi.fn();
-		reg.set(a, 50);
-		reg.set(b, 100);
-		reg.set(c, 200);
+		reg.setTimeout(a, 50);
+		reg.setTimeout(b, 100);
+		reg.setTimeout(c, 200);
 		expect(reg.size).toBe(3);
 		reg.clearAll();
 		expect(reg.size).toBe(0);
