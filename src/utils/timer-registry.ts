@@ -12,7 +12,7 @@ export class TimerRegistry {
 
 	set(handler: () => void, ms: number): number {
 		let id = 0;
-		id = window.setTimeout(() => {
+		id = window.setTimeout(() => { // timer:A
 			handler();
 			this._ids.delete(id);
 		}, ms) as unknown as number;

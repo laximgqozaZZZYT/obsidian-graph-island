@@ -206,7 +206,7 @@ function attachAutocomplete(input: HTMLInputElement, suggestions: string[]) {
 	input.addEventListener("focus", show);
 	input.addEventListener("input", show);
 	input.addEventListener("blur", () => {
-		setTimeout(() => (popup.style.display = "none"), 150);
+		setTimeout(() => (popup.style.display = "none"), 150); // timer:C
 	});
 	input.addEventListener("keydown", (e) => {
 		const items = popup.querySelectorAll(".gi-ac-item");
@@ -859,7 +859,7 @@ export function attachQueryHint(input: HTMLInputElement, getSuggestions: (field:
 		show: () => rebuildHint(),
 		hide: () => {
 			if (!hintEl) return;
-			setTimeout(() => {
+			setTimeout(() => { // timer:C
 				if (input === document.activeElement) return;
 				dismissHint();
 			}, 150);
@@ -1066,7 +1066,7 @@ function attachFixedHint(
 
 	input.addEventListener("focus", rebuild);
 	input.addEventListener("blur", () => {
-		setTimeout(() => {
+		setTimeout(() => { // timer:C
 			if (input === document.activeElement) return;
 			dismissHint();
 		}, 150);
@@ -1223,7 +1223,7 @@ function _setupSearchJumpListeners(
 ) {
 	input.addEventListener("input", () => {
 		// Defer slightly so attachQueryHint processes first
-		setTimeout(ctx.rebuild, 50);
+		setTimeout(ctx.rebuild, 50); // timer:C
 	});
 
 	input.addEventListener("keydown", (e: KeyboardEvent) => {
@@ -1257,7 +1257,7 @@ function _setupSearchJumpListeners(
 	});
 
 	input.addEventListener("blur", () => {
-		setTimeout(ctx.dismiss, 200);
+		setTimeout(ctx.dismiss, 200); // timer:C
 	});
 }
 

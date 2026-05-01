@@ -160,7 +160,7 @@ export function createAutoSnapshotHandler(
 			const debounceMs = mins * 60 * 1000;
 			if (debounceMs <= 0) return;
 			if (timer) timers.clearTimeout(timer);
-			timer = timers.setTimeout(async () => {
+			timer = timers.setTimeout(async () => { // timer:A
 				timer = 0;
 				if (!host.hasGraphData()) return;
 				const snapshots = await host.getSnapshots();

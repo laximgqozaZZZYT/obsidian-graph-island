@@ -810,7 +810,7 @@ export function buildPanel(panelEl: HTMLElement, panel: PanelState, ctx: PanelCo
 			panel.searchQuery = searchBar.value;
 			searchClearBtn.style.display = searchBar.value ? "flex" : "none";
 			if (searchDebounce) clearTimeout(searchDebounce);
-			searchDebounce = setTimeout(() => {
+			searchDebounce = setTimeout(() => { // timer:B
 				// 非空クエリが変化した場合に履歴に追加
 				const q = searchBar.value.trim();
 				if (q && q !== lastCommittedQuery) {
@@ -837,7 +837,7 @@ export function buildPanel(panelEl: HTMLElement, panel: PanelState, ctx: PanelCo
 	});
 	searchBar.addEventListener("blur", () => {
 		// 少し遅延させてクリックイベントが先に処理されるようにする
-		ctx.timers.setTimeout(() => {
+		ctx.timers.setTimeout(() => { // timer:A
 			historyDropdown.style.display = "none";
 			searchBar.setAttribute("aria-expanded", "false");
 		}, 150);
@@ -1327,7 +1327,7 @@ function _buildSettingsActionButtons(
 		try {
 			await navigator.clipboard.writeText(json);
 			exportBtn.textContent = t("preset.exported");
-			ctx.timers.setTimeout(() => {
+			ctx.timers.setTimeout(() => { // timer:A
 				exportBtn.textContent = t("preset.export");
 			}, 2000);
 		} catch (_e) {
@@ -1343,7 +1343,7 @@ function _buildSettingsActionButtons(
 		try {
 			await navigator.clipboard.writeText(json);
 			diffExportBtn.textContent = t("preset.exported");
-			ctx.timers.setTimeout(() => {
+			ctx.timers.setTimeout(() => { // timer:A
 				diffExportBtn.textContent = t("preset.exportDiff");
 			}, 2000);
 		} catch (_e) {
@@ -1382,7 +1382,7 @@ function _buildSettingsActionButtons(
 				cb.invalidateData();
 				// Restore preset zoom level if specified
 				if (panel.presetZoomLevel > 0) {
-					ctx.timers.setTimeout(() => cb.setZoom?.(panel.presetZoomLevel), 500);
+					ctx.timers.setTimeout(() => cb.setZoom?.(panel.presetZoomLevel), 500); // timer:A
 				}
 				cb.rebuildPanel();
 			} catch (_e) {

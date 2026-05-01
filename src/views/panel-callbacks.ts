@@ -114,7 +114,7 @@ function _buildRenderCallbacks(host: PanelCallbackHost): Partial<PanelCallbacks>
 			invalidateBundleCache(host.edgeCache);
 			host.markDirty(true);
 			host.requestSave();
-			host.timers.setTimeout(() => {
+			host.timers.setTimeout(() => { // timer:A
 				host.renderPipeline?.forceRender();
 			}, 100);
 		},

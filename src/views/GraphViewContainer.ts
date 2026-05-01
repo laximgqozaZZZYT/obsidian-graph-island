@@ -618,7 +618,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
 	/** Schedule a one-shot timer that is auto-tracked and cleared on close. */
 	private _scheduleTimer(cb: () => void, ms: number): ReturnType<typeof setTimeout> {
-		return this.timers.setTimeout(cb, ms);
+		return this.timers.setTimeout(cb, ms); // timer:A
 	}
 
 	/** C1: Hover preview toast state */
@@ -630,7 +630,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		// ビュー同期ブロードキャスト
 		this._broadcastPanelSync();
 		if (this._saveTimer) this.timers.clear(this._saveTimer);
-		this._saveTimer = this.timers.setTimeout(() => {
+		this._saveTimer = this.timers.setTimeout(() => { // timer:A
 			this.app.workspace.requestSaveLayout();
 			this._saveTimer = null;
 		}, SAVE_DEBOUNCE_MS);
@@ -1435,7 +1435,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 					},
 				},
 				{
-					setTimeout: (cb, ms) => this.timers.setTimeout(cb, ms) as unknown as number,
+					setTimeout: (cb, ms) => this.timers.setTimeout(cb, ms) as unknown as number, // timer:A
 					clearTimeout: (id) => this.timers.clear(id as unknown as ReturnType<typeof setTimeout>),
 				},
 			);
@@ -2201,7 +2201,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	// ---- C1: Hover preview toast helpers ----
 	private _scheduleHoverPreview(nodeId: string): void {
 		this._cancelHoverPreview();
-		this._hoverPreviewTimer = this.timers.setTimeout(() => {
+		this._hoverPreviewTimer = this.timers.setTimeout(() => { // timer:A
 			this._showHoverPreview(nodeId);
 		}, HOVER_PREVIEW_DELAY_MS) as unknown as number;
 	}
@@ -6923,7 +6923,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		const now = performance.now();
 		if (this._lastDoRenderTime && now - this._lastDoRenderTime < 50) {
 			this.timers.clear(this._doRenderDebounceTimer as unknown as ReturnType<typeof setTimeout>);
-			this._doRenderDebounceTimer = this.timers.setTimeout(() => this.doRender(), 50) as unknown as number;
+			this._doRenderDebounceTimer = this.timers.setTimeout(() => this.doRender(), 50) as unknown as number; // timer:A
 			return true;
 		}
 		if (this._doRenderDebounceTimer) {
@@ -7315,7 +7315,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			this.updatePositions(true);
 
 			// --- PHASE B (next tick): light bookkeeping ---
-			this.timers.setTimeout(() => {
+			this.timers.setTimeout(() => { // timer:A
 				const isFirstLaunch = !localStorage.getItem(SR_GUIDE_KEY);
 				if (isFirstLaunch) localStorage.setItem(SR_GUIDE_KEY, "1");
 				this._announceA11y(
@@ -7336,7 +7336,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			}, 0);
 
 			// --- PHASE C (after B): viewport fit + road network ---
-			this.timers.setTimeout(() => {
+			this.timers.setTimeout(() => { // timer:A
 				const wrap = this.canvasWrap;
 				{
 					const renderer = this.pixiApp?.renderer;
@@ -7365,14 +7365,14 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			}, 0);
 
 			// --- PHASE D (after C): heavy label-culling work (was the 15-s offender) ---
-			this.timers.setTimeout(() => {
+			this.timers.setTimeout(() => { // timer:A
 				this.updateLabelsForZoom();
 				this.recalcNodeRadii();
 				this._autoOptimizeLabelOverlapOnce();
 			}, 0);
 
 			// --- PHASE E (after D): auto-focus + position persistence ---
-			this.timers.setTimeout(() => {
+			this.timers.setTimeout(() => { // timer:A
 				this._autoFocusActiveFile();
 				this._suppressAutoFit = false;
 				this._persistAllPositions();
@@ -7576,7 +7576,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		if (resetPositions && this.canvasWrap) {
 			const wrap = this.canvasWrap;
 			this.timers.clear(this._autoFitTimer as unknown as ReturnType<typeof setTimeout>);
-			this._autoFitTimer = this.timers.setTimeout(() => {
+			this._autoFitTimer = this.timers.setTimeout(() => { // timer:A
 				if (!this._suppressAutoFit) {
 					this.autoFitView(wrap.clientWidth, wrap.clientHeight);
 					this.markDirty();

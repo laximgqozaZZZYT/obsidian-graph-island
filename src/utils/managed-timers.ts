@@ -20,7 +20,7 @@ export class ManagedTimers {
 		// but the handle is only returned after `setTimeout` is invoked. Wrap
 		// it in a mutable slot so the closure can read it post-assignment.
 		const slot: { handle: TimeoutHandle | null } = { handle: null };
-		slot.handle = globalThis.setTimeout(() => {
+		slot.handle = globalThis.setTimeout(() => { // timer:A
 			try {
 				fn();
 			} finally {

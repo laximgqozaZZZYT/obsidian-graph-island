@@ -369,7 +369,7 @@ export default class GraphViewsPlugin extends Plugin {
 		});
 		this.app.workspace.revealLeaf(leaf);
 		// Configure the new view after creation
-		this.timers.setTimeout(() => {
+		this.timers.setTimeout(() => { // timer:A
 			const view = asGraphView(leaf);
 			if (view?.panel) {
 				view.panel.subgraphNodeIds = [...nodeIds];
