@@ -179,76 +179,6 @@ export function cssColorToHex(css: string): number {
 }
 
 /**
- * Shift the hue of a 0xRRGGBB color by `degrees` (0–360).
- * Used to generate enclosure colors that are visually distinct from node colors.
- */
-export function shiftHue(hex: number, degrees: number): number {
-	const { r: ri, g: gi, b: bi } = hexToRgb(hex);
-	const r = ri / 255;
-	const g = gi / 255;
-	const b = bi / 255;
-
-	const max = Math.max(r, g, b),
-		min = Math.min(r, g, b);
-	const d = max - min;
-	let h = 0;
-	const s = max === 0 ? 0 : d / max;
-	const v = max;
-
-	if (d > 0) {
-		if (max === r) h = ((g - b) / d + (g < b ? 6 : 0)) / 6;
-		else if (max === g) h = ((b - r) / d + 2) / 6;
-		else h = ((r - g) / d + 4) / 6;
-	}
-
-	h = ((h * 360 + degrees) % 360) / 360;
-	if (h < 0) h += 1;
-
-	// HSV to RGB
-	const i = Math.floor(h * 6);
-	const f = h * 6 - i;
-	const p = v * (1 - s);
-	const q = v * (1 - f * s);
-	const t = v * (1 - (1 - f) * s);
-
-	let ro: number, go: number, bo: number;
-	switch (i % 6) {
-		case 0:
-			ro = v;
-			go = t;
-			bo = p;
-			break;
-		case 1:
-			ro = q;
-			go = v;
-			bo = p;
-			break;
-		case 2:
-			ro = p;
-			go = v;
-			bo = t;
-			break;
-		case 3:
-			ro = p;
-			go = q;
-			bo = v;
-			break;
-		case 4:
-			ro = t;
-			go = p;
-			bo = v;
-			break;
-		default:
-			ro = v;
-			go = p;
-			bo = q;
-			break;
-	}
-
-	return (Math.round(ro * 255) << 16) | (Math.round(go * 255) << 8) | Math.round(bo * 255);
-}
-
-/**
  * Convert HSL values to a 0xRRGGBB hex color.
  * h: 0–360, s: 0–1, l: 0–1.
  */
@@ -989,33 +919,6 @@ export function parseGroupByFields(groupBy: string | null | undefined): string[]
 		.filter(Boolean)
 		.map((raw) => (raw.endsWith(":?") ? raw.slice(0, -2) : raw))
 		.filter(Boolean);
-}
-
-/**
- * Given a set of node x-coordinates and a relative timeline range [min, max] ∈ [0,1],
- * return the set of node IDs that fall OUTSIDE the range.
- */
-export function computeTimelineFilteredIds(
-	allX: { id: string; x: number }[],
-	visibleIds: { id: string; x: number }[],
-	rangeMin: number,
-	rangeMax: number,
-): Set<string> {
-	let globalMinX = Infinity,
-		globalMaxX = -Infinity;
-	for (const n of allX) {
-		if (n.x < globalMinX) globalMinX = n.x;
-		if (n.x > globalMaxX) globalMaxX = n.x;
-	}
-	const xSpan = globalMaxX - globalMinX;
-	if (xSpan <= 0) return new Set();
-	const tlMinX = globalMinX + xSpan * rangeMin;
-	const tlMaxX = globalMinX + xSpan * rangeMax;
-	const filtered = new Set<string>();
-	for (const n of visibleIds) {
-		if (n.x < tlMinX || n.x > tlMaxX) filtered.add(n.id);
-	}
-	return filtered;
 }
 
 // ---------------------------------------------------------------------------

@@ -30,10 +30,3 @@ export function buildGitStatusShortResult(input: GitStatusShortEmitInput): GitSt
 	}
 	return formatted;
 }
-
-export function emitGitStatusShortResult(input: GitStatusShortEmitInput): GitStatusShortResult {
-	const result = buildGitStatusShortResult(input);
-	// eslint-disable-next-line no-console
-	console.log(JSON.stringify(result));
-	return result;
-}
