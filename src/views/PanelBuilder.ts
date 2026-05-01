@@ -49,6 +49,7 @@ import {
 	renderGroupByRules,
 	attachQueryHint,
 	setCachedFieldSuggestions,
+	setWidgetTimers,
 	attachSearchJump,
 } from "./panel-widgets";
 import {

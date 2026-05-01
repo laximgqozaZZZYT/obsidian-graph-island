@@ -14,6 +14,22 @@ import type {
 import { DEFAULT_COLORS } from "../types";
 import { EDGE_TYPE_INHERITANCE } from "../constants";
 import { parseQueryExpr, serializeExpr } from "../utils/query-expr";
+import type { ManagedTimers } from "../utils/managed-timers";
+
+// Shared timer registry (set by PanelBuilder.buildPanel via setWidgetTimers).
+// Auto-cleared on view close to prevent leaked DOM-touching callbacks firing
+// after the panel is detached. Falls back to window.setTimeout if unset (tests).
+let _widgetTimers: ManagedTimers | null = null;
+export function setWidgetTimers(timers: ManagedTimers | null) {
+	_widgetTimers = timers;
+}
+export function getWidgetTimers(): ManagedTimers | null {
+	return _widgetTimers;
+}
+function widgetSetTimeout(fn: () => void, ms: number): void {
+	if (_widgetTimers) _widgetTimers.setTimeout(fn, ms);
+	else window.setTimeout(fn, ms);
+}
 
 export function updateSliderProgress(el: HTMLInputElement) {
 	const min = parseFloat(el.min) || 0;
@@ -206,7 +222,7 @@ function attachAutocomplete(input: HTMLInputElement, suggestions: string[]) {
 	input.addEventListener("focus", show);
 	input.addEventListener("input", show);
 	input.addEventListener("blur", () => {
-		setTimeout(() => (popup.style.display = "none"), 150);
+		widgetSetTimeout(() => (popup.style.display = "none"), 150);
 	});
 	input.addEventListener("keydown", (e) => {
 		const items = popup.querySelectorAll(".gi-ac-item");
@@ -859,7 +875,7 @@ export function attachQueryHint(input: HTMLInputElement, getSuggestions: (field:
 		show: () => rebuildHint(),
 		hide: () => {
 			if (!hintEl) return;
-			setTimeout(() => {
+			widgetSetTimeout(() => {
 				if (input === document.activeElement) return;
 				dismissHint();
 			}, 150);
@@ -1066,7 +1082,7 @@ function attachFixedHint(
 
 	input.addEventListener("focus", rebuild);
 	input.addEventListener("blur", () => {
-		setTimeout(() => {
+		widgetSetTimeout(() => {
 			if (input === document.activeElement) return;
 			dismissHint();
 		}, 150);
@@ -1223,7 +1239,7 @@ function _setupSearchJumpListeners(
 ) {
 	input.addEventListener("input", () => {
 		// Defer slightly so attachQueryHint processes first
-		setTimeout(ctx.rebuild, 50);
+		widgetSetTimeout(ctx.rebuild, 50);
 	});
 
 	input.addEventListener("keydown", (e: KeyboardEvent) => {
@@ -1257,7 +1273,7 @@ function _setupSearchJumpListeners(
 	});
 
 	input.addEventListener("blur", () => {
-		setTimeout(ctx.dismiss, 200);
+		widgetSetTimeout(ctx.dismiss, 200);
 	});
 }
 
