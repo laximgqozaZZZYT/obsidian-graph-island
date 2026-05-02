@@ -1,0 +1,266 @@
+#!/usr/bin/env node
+// find-dead-exports.mjs — Inventory all dead exports under src/ for triage.
+//
+// Generates docs/dead-exports-inventory.md with per-symbol details:
+//   file path, symbol name, line, category, primary judgment (削除可能 /
+//   export 解除のみ可 / テスト等で間接利用).
+//
+// Categories are derived from file path:
+//   utility / constants / types / views / parsers / layouts / hooks /
+//   i18n / rendering / other.
+//
+// Primary judgment heuristics (best-effort first pass):
+//   - "テスト等で間接利用" if symbol appears in tests/ or e2e/.
+//   - "export 解除のみ可" if symbol appears more than once in its source
+//     file (used internally — only the `export` keyword is unused).
+//   - "削除可能" otherwise.
+//
+// Reuses the same knip --reporter json invocation as
+// scripts/check-dead-exports.mjs, but emits the full per-symbol breakdown
+// instead of a single threshold gate.
+//
+// Usage: node scripts/find-dead-exports.mjs
+
+import { spawnSync } from "node:child_process";
+import { readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+
+const ROOT = process.cwd();
+const OUTPUT_REL = "docs/dead-exports-inventory.md";
+
+function runKnip() {
+	const res = spawnSync("npx", ["--yes", "knip", "--reporter", "json"], {
+		encoding: "utf8",
+		stdio: ["ignore", "pipe", "pipe"],
+		maxBuffer: 64 * 1024 * 1024,
+	});
+	if (res.error) throw new Error(`knip spawn failed: ${res.error.message}`);
+	if (!res.stdout) {
+		throw new Error(`knip failed: ${res.stderr?.trim() || "no output"}`);
+	}
+	return res.stdout;
+}
+
+function categorize(filePath) {
+	if (filePath.includes("/utils/")) return "utility";
+	if (/\/constants(\.ts$|\/)/.test(filePath)) return "constants";
+	if (/\/types(\.ts$|\/)/.test(filePath)) return "types";
+	if (filePath.includes("/views/")) return "views";
+	if (filePath.includes("/parsers/")) return "parsers";
+	if (filePath.includes("/layouts/")) return "layouts";
+	if (filePath.includes("/hooks/")) return "hooks";
+	if (filePath.includes("/i18n")) return "i18n";
+	if (filePath.includes("/render")) return "rendering";
+	return "other";
+}
+
+function walkConcat(dir, accRef) {
+	let entries;
+	try {
+		entries = readdirSync(dir);
+	} catch {
+		return;
+	}
+	for (const name of entries) {
+		const p = join(dir, name);
+		let s;
+		try {
+			s = statSync(p);
+		} catch {
+			continue;
+		}
+		if (s.isDirectory()) {
+			walkConcat(p, accRef);
+		} else if (/\.(test|spec)\.(ts|tsx|js|mjs)$/.test(name)) {
+			try {
+				accRef.value += "\n" + readFileSync(p, "utf8");
+			} catch {
+				/* ignore */
+			}
+		}
+	}
+}
+
+function readAllTestContent() {
+	const acc = { value: "" };
+	walkConcat(join(ROOT, "tests"), acc);
+	walkConcat(join(ROOT, "e2e"), acc);
+	return acc.value;
+}
+
+const sourceCache = new Map();
+function readSource(filePath) {
+	if (sourceCache.has(filePath)) return sourceCache.get(filePath);
+	let content = "";
+	try {
+		content = readFileSync(join(ROOT, filePath), "utf8");
+	} catch {
+		/* ignore */
+	}
+	sourceCache.set(filePath, content);
+	return content;
+}
+
+function escapeRegex(s) {
+	return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function countOccurrences(content, name) {
+	if (!content || !name) return 0;
+	const re = new RegExp(`\\b${escapeRegex(name)}\\b`, "g");
+	return (content.match(re) || []).length;
+}
+
+function appearsIn(content, name) {
+	if (!content || !name) return false;
+	const re = new RegExp(`\\b${escapeRegex(name)}\\b`);
+	return re.test(content);
+}
+
+function judgmentFor(filePath, name, testContent) {
+	if (appearsIn(testContent, name)) return "テスト等で間接利用";
+	const count = countOccurrences(readSource(filePath), name);
+	if (count > 1) return "export 解除のみ可";
+	return "削除可能";
+}
+
+function normalizeItem(it) {
+	if (typeof it === "string") return { name: it, line: null };
+	if (it && typeof it === "object") {
+		const name = it.symbol ?? it.name ?? it.identifier ?? String(it);
+		const line = it.line ?? it.row ?? null;
+		return { name, line };
+	}
+	return { name: String(it), line: null };
+}
+
+function collectRows(issues, testContent) {
+	const rows = [];
+	for (const i of issues) {
+		if (typeof i?.file !== "string") continue;
+		if (!i.file.startsWith("src/")) continue;
+		const file = i.file;
+		const category = categorize(file);
+		const buckets = [
+			{ key: "exports", kind: "export" },
+			{ key: "types", kind: "type" },
+		];
+		for (const { key, kind } of buckets) {
+			const arr = i[key];
+			if (!Array.isArray(arr)) continue;
+			for (const raw of arr) {
+				const { name, line } = normalizeItem(raw);
+				if (!name) continue;
+				rows.push({
+					file,
+					name,
+					line,
+					category,
+					kind,
+					judgment: judgmentFor(file, name, testContent),
+				});
+			}
+		}
+	}
+	return rows;
+}
+
+function tally(rows, key) {
+	const m = new Map();
+	for (const r of rows) m.set(r[key], (m.get(r[key]) || 0) + 1);
+	return [...m.entries()].sort((a, b) => b[1] - a[1]);
+}
+
+function renderMarkdown(rows) {
+	const lines = [];
+	lines.push("# Dead Exports Inventory");
+	lines.push("");
+	lines.push(
+		"> Auto-generated by `scripts/find-dead-exports.mjs`. Do not edit by hand.",
+	);
+	lines.push(
+		"> Regenerate with `node scripts/find-dead-exports.mjs`. Source: `npx knip --reporter json`.",
+	);
+	lines.push("");
+	lines.push("## Summary");
+	lines.push("");
+	lines.push(`Total dead exports under \`src/\`: **${rows.length}**`);
+	lines.push("");
+	lines.push("### By category");
+	lines.push("");
+	lines.push("| Category | Count |");
+	lines.push("|---|---:|");
+	for (const [k, v] of tally(rows, "category")) {
+		lines.push(`| ${k} | ${v} |`);
+	}
+	lines.push("");
+	lines.push("### By kind");
+	lines.push("");
+	lines.push("| Kind | Count |");
+	lines.push("|---|---:|");
+	for (const [k, v] of tally(rows, "kind")) {
+		lines.push(`| ${k} | ${v} |`);
+	}
+	lines.push("");
+	lines.push("### By primary judgment");
+	lines.push("");
+	lines.push(
+		"Heuristic — actual deletability requires per-symbol verification.",
+	);
+	lines.push("");
+	lines.push("| Judgment | Count |");
+	lines.push("|---|---:|");
+	for (const [k, v] of tally(rows, "judgment")) {
+		lines.push(`| ${k} | ${v} |`);
+	}
+	lines.push("");
+	lines.push("## Inventory");
+	lines.push("");
+	lines.push("Sorted by category, then file path, then line.");
+	lines.push("");
+	lines.push("| Category | File | Symbol | Kind | Line | Primary judgment |");
+	lines.push("|---|---|---|---|---:|---|");
+	const sorted = rows.slice().sort((a, b) => {
+		if (a.category !== b.category) return a.category.localeCompare(b.category);
+		if (a.file !== b.file) return a.file.localeCompare(b.file);
+		const al = a.line ?? Number.MAX_SAFE_INTEGER;
+		const bl = b.line ?? Number.MAX_SAFE_INTEGER;
+		if (al !== bl) return al - bl;
+		return a.name.localeCompare(b.name);
+	});
+	for (const r of sorted) {
+		const line = r.line == null ? "" : String(r.line);
+		lines.push(
+			`| ${r.category} | \`${r.file}\` | \`${r.name}\` | ${r.kind} | ${line} | ${r.judgment} |`,
+		);
+	}
+	lines.push("");
+	return lines.join("\n");
+}
+
+function main() {
+	let stdout;
+	try {
+		stdout = runKnip();
+	} catch (err) {
+		console.error(err.message);
+		process.exit(2);
+	}
+
+	let data;
+	try {
+		data = JSON.parse(stdout);
+	} catch (err) {
+		console.error(`Failed to parse knip JSON output: ${err.message}`);
+		process.exit(2);
+	}
+
+	const issues = Array.isArray(data?.issues) ? data.issues : [];
+	const testContent = readAllTestContent();
+	const rows = collectRows(issues, testContent);
+	const md = renderMarkdown(rows);
+	writeFileSync(join(ROOT, OUTPUT_REL), md);
+	console.log(`Wrote ${rows.length} entries to ${OUTPUT_REL}`);
+}
+
+main();
