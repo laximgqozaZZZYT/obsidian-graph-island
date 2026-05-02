@@ -95,64 +95,6 @@ export function lightenHex(hex: number, factor: number): number {
 	return (lr << 16) | (lg << 8) | lb;
 }
 
-/**
- * Heatmap color ramp: cold (blue 0x3b82f6) → warm (red 0xef4444).
- * @param degree - node degree
- * @param maxDegree - maximum degree in the graph (for normalization)
- */
-export function heatmapColor(degree: number, maxDegree: number): number {
-	const t = Math.min(1, degree / Math.max(1, maxDegree));
-	const r = Math.round(59 + t * (239 - 59));
-	const g = Math.round(130 - t * (130 - 68));
-	const b = Math.round(246 - t * (246 - 68));
-	return (r << 16) | (g << 8) | b;
-}
-
-/** 20-color deterministic palette for community coloring (Tableau 20-inspired). */
-export const COMMUNITY_PALETTE: readonly number[] = [
-	0x1f77b4, 0xff7f0e, 0x2ca02c, 0xd62728, 0x9467bd, 0x8c564b, 0xe377c2, 0x7f7f7f, 0xbcbd22, 0x17becf, 0xaec7e8,
-	0xffbb78, 0x98df8a, 0xff9896, 0xc5b0d5, 0xc49c94, 0xf7b6d2, 0xc7c7c7, 0xdbdb8d, 0x9edae5,
-];
-
-/**
- * Find the first GroupPreset whose condition matches the current layout + tagDisplay.
- * Returns the matching preset or null.
- */
-export function findMatchingGroupPreset(
-	presets: GroupPreset[],
-	currentLayout: string,
-	tagDisplay: string,
-): GroupPreset | null {
-	for (const preset of presets) {
-		const cond = preset.condition;
-		if (cond.layout && cond.layout !== currentLayout) continue;
-		if (cond.tagDisplay && cond.tagDisplay !== tagDisplay) continue;
-		return preset;
-	}
-	return null;
-}
-
-/**
- * Resolve node color from a colorMap + node data.
- * Pure lookup: category → tag fallback → default.
- */
-export function resolveNodeColor(
-	node: { category?: string; tags?: string[] },
-	colorMap: Map<string, string>,
-	defaultColor: string,
-): string {
-	if (node.category) {
-		const css = colorMap.get(node.category);
-		if (css) return css;
-	}
-	if (node.tags && node.tags.length > 0) {
-		const tagKey = `tag:${node.tags[0]}`;
-		const css = colorMap.get(tagKey);
-		if (css) return css;
-	}
-	return defaultColor;
-}
-
 export function giDiag<T extends { nodes: { length: number }; edges: { length: number } }>(stage: string, data: T): T {
 	const w = typeof window !== "undefined" ? (window as { __GI_DIAG__?: boolean }) : null;
 	const env = typeof process !== "undefined" && process.env?.NODE_ENV !== "production";

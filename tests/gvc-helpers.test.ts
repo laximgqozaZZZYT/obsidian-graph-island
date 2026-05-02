@@ -7,9 +7,6 @@ import {
 	cleanArcName,
 	areSavedPositionsValid,
 	lightenHex,
-	heatmapColor,
-	findMatchingGroupPreset,
-	resolveNodeColor,
 } from "../src/utils/gvc-helpers";
 import type { GroupPreset } from "../src/types";
 
