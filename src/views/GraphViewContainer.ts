@@ -1,6 +1,7 @@
 import { ItemView, WorkspaceLeaf, Platform, TFile, FileView, setIcon, Notice, type ViewStateResult } from "obsidian";
 import { CanvasContainer, CanvasGraphics, CanvasText } from "./canvas2d";
 import { drawArcLine, drawArcPath, createSunburstArcLabel } from "./arc-drawing";
+import { drawOrbitRings as drawOrbitRingsImpl } from "./orbit-rings";
 import {
 	extractFrontmatterImage,
 	isNodeOnScreen,
@@ -4526,16 +4527,12 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			const syncBg = rt.labelBgColorSync;
 			for (const pn of this.pixiNodes.values()) {
 				if (pn.label && pn.label.bgColor != null) {
-					pn.label.bgColor = syncBg && pn.color != null ? this._blendThemeLabel(themeBg, pn.color) : themeBg;
+					pn.label.bgColor = syncBg && pn.color != null ? blendThemeLabel(themeBg, pn.color) : themeBg;
 				}
 			}
 		}
 
 		this.markDirty();
-	}
-
-	private _blendThemeLabel(bg: number, nodeColor: number): number {
-		return blendThemeLabel(bg, nodeColor);
 	}
 
 	// =========================================================================
@@ -4580,20 +4577,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		if (!g) return;
 		g.clear();
 		if (!this.panel.showOrbitRings || this.currentLayout !== LAYOUT_CONCENTRIC || this.shells.length === 0) return;
-
-		const ringColor = this.isDarkTheme() ? 0x888888 : 0xaaaaaa;
-		const n = this.shells.length;
-
-		for (let i = 0; i < n; i++) {
-			const shell = this.shells[i];
-			if (shell.radius <= 0) continue;
-			// Inner rings slightly more visible, outer rings fade
-			const t = n > 1 ? i / (n - 1) : 0;
-			const ringAlpha = 0.3 - t * 0.15; // 0.30 → 0.15
-			const lineWidth = 1.5 - t * 0.5; // 1.5 → 1.0
-			g.lineStyle(lineWidth, ringColor, ringAlpha);
-			g.drawCircle(shell.centerX, shell.centerY, shell.radius);
-		}
+		drawOrbitRingsImpl(g, this.shells, this.isDarkTheme());
 	}
 
 	getLabelColor(): number {
