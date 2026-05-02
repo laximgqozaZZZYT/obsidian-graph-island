@@ -12,12 +12,14 @@ export function getLuminance(r: number, g: number, b: number): number {
 	return r * 0.299 + g * 0.587 + b * 0.114;
 }
 
+// ts-prune-ignore-next — test-only export (color contrast test surface)
 /** Convenience: hex number → perceived brightness (0–255). */
 export function hexBrightness(hex: number): number {
 	const { r, g, b } = hexToRgb(hex);
 	return getLuminance(r, g, b);
 }
 
+// ts-prune-ignore-next — test-only export (color contrast test surface)
 /** V3: Adjust brightness of a hex color by a multiplicative factor. */
 export function adjustBrightness(hex: number, factor: number): number {
 	const { r, g, b } = hexToRgb(hex);
@@ -28,6 +30,7 @@ export function adjustBrightness(hex: number, factor: number): number {
 	);
 }
 
+// ts-prune-ignore-next — used internally by wcagContrastRatio + tested directly
 /** WCAG 2.1 relative luminance (0–1 range, sRGB linearized). */
 export function wcagRelativeLuminance(hex: number): number {
 	const { r, g, b } = hexToRgb(hex);

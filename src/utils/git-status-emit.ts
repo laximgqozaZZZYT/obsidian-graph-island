@@ -11,6 +11,7 @@ interface GitStatusShortEmitInput extends GitStatusShortInput {
 
 const VALID_TARGET_MARKS: readonly GitStatusShortTargetMark[] = ["M", "missing"];
 
+// ts-prune-ignore-next — test-only export (helper for tests, used internally)
 export function assertGitStatusShortInput(input: GitStatusShortEmitInput): void {
 	if (input.gitOpsPerformed === true) {
 		throw new Error("git mv/add/commit must not be performed by this task");
@@ -20,6 +21,7 @@ export function assertGitStatusShortInput(input: GitStatusShortEmitInput): void 
 	}
 }
 
+// ts-prune-ignore-next — test-only export (helper for tests, used internally)
 export function buildGitStatusShortResult(input: GitStatusShortEmitInput): GitStatusShortResult {
 	assertGitStatusShortInput(input);
 	const formatted = formatGitStatusShortResult(input);
@@ -31,6 +33,7 @@ export function buildGitStatusShortResult(input: GitStatusShortEmitInput): GitSt
 	return formatted;
 }
 
+// ts-prune-ignore-next — pipeline entry point used by tests + scripts
 export function emitGitStatusShortResult(input: GitStatusShortEmitInput): GitStatusShortResult {
 	const result = buildGitStatusShortResult(input);
 	// eslint-disable-next-line no-console

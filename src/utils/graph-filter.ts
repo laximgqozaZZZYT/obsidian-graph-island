@@ -10,6 +10,7 @@ import { EDGE_TYPE_HAS_TAG, EDGE_TYPE_NAMED_RELATION, EDGE_TYPE_SIMILAR, TAG_DIS
 import { incCounter } from "./graph-helpers";
 import { addToMapSet } from "./map-helpers";
 
+// ts-prune-ignore-next — used internally by applyVisibilityFilters + tested directly
 /** Remove orphan nodes (nodes with no edges). */
 export function filterOrphans(nodes: GraphNode[], edges: GraphEdge[]): GraphNode[] {
 	const connected = new Set<string>();
@@ -40,6 +41,7 @@ const ATTACHMENT_EXTS = new Set([
 	".docx",
 ]);
 
+// ts-prune-ignore-next — used internally by applyVisibilityFilters + tested directly
 export function filterAttachments(nodes: GraphNode[]): GraphNode[] {
 	return nodes.filter((n) => {
 		const p = n.filePath ?? n.id;
@@ -50,6 +52,7 @@ export function filterAttachments(nodes: GraphNode[]): GraphNode[] {
 	});
 }
 
+// ts-prune-ignore-next — used internally by applyVisibilityFilters + tested directly
 /** Remove tag nodes and has-tag edges. */
 export function filterTagNodes(nodes: GraphNode[], edges: GraphEdge[]): { nodes: GraphNode[]; edges: GraphEdge[] } {
 	return {
@@ -58,11 +61,13 @@ export function filterTagNodes(nodes: GraphNode[], edges: GraphEdge[]): { nodes:
 	};
 }
 
+// ts-prune-ignore-next — used internally by applyVisibilityFilters + tested directly
 /** Remove similar-type edges. */
 export function filterSimilarEdges(edges: GraphEdge[]): GraphEdge[] {
 	return edges.filter((e) => e.type !== EDGE_TYPE_SIMILAR);
 }
 
+// ts-prune-ignore-next — used internally by applyVisibilityFilters + tested directly
 /** Remove named-relation edges. */
 export function filterNamedRelationEdges(edges: GraphEdge[]): GraphEdge[] {
 	return edges.filter((e) => e.type !== EDGE_TYPE_NAMED_RELATION);
