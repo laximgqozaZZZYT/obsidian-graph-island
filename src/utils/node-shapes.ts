@@ -3,8 +3,7 @@
 // ---------------------------------------------------------------------------
 import type { GraphNode, DisplayConfig } from "../types";
 
-const NODE_SHAPES = ["circle", "triangle", "diamond", "hexagon", "square"] as const;
-export type NodeShape = (typeof NODE_SHAPES)[number];
+export type NodeShape = "circle" | "triangle" | "diamond" | "hexagon" | "square";
 
 /** Minimal graphics interface for shape drawing (compatible with both CanvasGraphics and PIXI.Graphics) */
 interface ShapeGraphics {
