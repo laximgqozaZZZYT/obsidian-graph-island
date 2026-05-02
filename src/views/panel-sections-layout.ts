@@ -43,7 +43,7 @@ import {
 } from "./panel-sections-layout-helpers";
 
 // Re-export for internal consumption by PanelBuilder call sites
-export { syncArrangementFromLayout, getPreset, getOrCreateCoordLayout };
+export { syncArrangementFromLayout, getOrCreateCoordLayout };
 
 // ---------------------------------------------------------------------------
 // Shared context for cluster-arrangement helpers
