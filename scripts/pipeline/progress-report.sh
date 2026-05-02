@@ -245,6 +245,40 @@ cat <<EOF
 ### 直近変更コミット
 EOF
 printf '%s' "$GO_COMMITS"
+
+# Phase R5 (2026-05-02): CI trend block. Pulls last 30 GitHub Actions
+# runs and computes success / failure / pending rates so a long CI
+# regression is visible in the periodic report instead of only when
+# auto-merge starts rejecting things.
+CI_BLOCK=""
+if command -v gh >/dev/null 2>&1; then
+  CI_JSON=$(gh run list --limit 30 --json conclusion,status 2>/dev/null || echo "[]")
+  CI_BLOCK=$(printf '%s' "$CI_JSON" | python3 -c "
+import json, sys
+try:
+    runs = json.load(sys.stdin)
+except Exception:
+    runs = []
+if not runs:
+    print('| - | - | - | - |')
+    sys.exit()
+total = len(runs)
+succ = sum(1 for r in runs if r.get('conclusion') == 'success')
+fail = sum(1 for r in runs if r.get('conclusion') == 'failure')
+pending = sum(1 for r in runs if r.get('status') in ('in_progress','queued'))
+rate = (succ * 100.0 / total) if total else 0.0
+print(f'| {total} | {succ} ({rate:.0f}%) | {fail} | {pending} |')
+")
+fi
+
+cat <<EOF
+
+## CI trend (last 30 runs)
+
+| total | success | failure | in_progress |
+|-------|---------|---------|-------------|
+$CI_BLOCK
+EOF
 } > "$OUT"
 
 echo "Wrote ${OUT} ($(wc -l < "$OUT") lines)"

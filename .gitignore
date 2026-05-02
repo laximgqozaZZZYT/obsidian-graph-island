@@ -8,7 +8,18 @@ data.json
 .worktrees/
 .playwright-mcp/
 .serena/
-.claude/
+# Phase R5 (2026-05-02): pin which .claude paths are tracked. Project-specific
+# skills (e.g. /accept, /reject for the feature-proposal queue) and hooks
+# (pre-edit-guard, guardian-check, run-on-stop) belong in version control so a
+# fresh clone has them. Per-machine state (worktrees, scheduled-task lock,
+# local settings, run-tests helper) stays ignored.
+.claude/*
+!.claude/skills/
+!.claude/hooks/
+.claude/worktrees/
+.claude/scheduled_tasks.lock
+.claude/settings.local.json
+.claude/run-tests.sh
 test-results/
 playwright-report/
 logs/

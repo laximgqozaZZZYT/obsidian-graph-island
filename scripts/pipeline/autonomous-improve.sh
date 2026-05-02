@@ -265,7 +265,14 @@ if [[ -n "$(git status --porcelain)" ]]; then
   cur=$((prev + 1))
   echo "$cur" > "$DIRTY_STATE"
   log "DIRTY-SKIP COUNT: $cur (threshold=$DIRTY_THRESHOLD)"
-  if [[ $cur -eq $DIRTY_THRESHOLD ]]; then
+  # Phase R5 (2026-05-02): dedupe. Only file a critical issue if there is
+  # NOT already a pending `*-autonomous-stalled-dirty-skip` issue. Prior
+  # implementation filed at the threshold once per stall, but consecutive
+  # stalls (e.g. one fix, then another dirty event) accumulated 9 critical
+  # issues (#1500-1654) that all said the same thing.
+  EXISTING_DIRTY_ALERT=$(python3 scripts/pipeline/csv_lib.py select_pending issues 2>/dev/null \
+    | grep -E -- "-autonomous-stalled-dirty-skip$" | head -1)
+  if [[ $cur -eq $DIRTY_THRESHOLD && -z "$EXISTING_DIRTY_ALERT" ]]; then
     # Only file once at the threshold — don't spam.
     DIRTY_FILES=$(git status --porcelain | head -5 | tr '\n' '|' | sed 's/|$//')
     NEXT_ID=$(python3 scripts/pipeline/csv_lib.py next_id_num 2>/dev/null || echo 9999)
@@ -304,6 +311,8 @@ if [[ -n "$(git status --porcelain)" ]]; then
       && git commit -m "chore(alert): autonomous stalled — ${cur} consecutive dirty SKIPs" --no-verify 2>/dev/null \
       && log "ALERT FILED: critical issue #${ISSUE_ID}" \
       || log "ALERT: failed to file dirty-skip issue (csv lock or duplicate?)"
+  elif [[ $cur -eq $DIRTY_THRESHOLD && -n "$EXISTING_DIRTY_ALERT" ]]; then
+    log "ALERT SUPPRESSED: pending dirty-skip alert already exists ($EXISTING_DIRTY_ALERT)"
   fi
 
   exit 0
