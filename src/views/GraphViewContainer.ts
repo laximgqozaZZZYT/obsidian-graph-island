@@ -23,7 +23,7 @@ import type {
 	GraphTemplate,
 } from "../types";
 import { DEFAULT_COLORS, DEFAULT_CARD_RENDER_CONFIG, DEFAULT_ONTOLOGY, mergeRenderThresholds } from "../types";
-import { buildSearchHopSet, evaluateExpr, parseQueryExpr, serializeExpr } from "../utils/query-expr";
+import { buildSearchHopSet, serializeExpr } from "../utils/query-expr";
 import { ManagedTimers } from "../utils/managed-timers";
 import {
 	deriveClusterRulesFromQueries,
@@ -75,15 +75,14 @@ import {
 	buildSimEndA11yMessage,
 	resolveViewportSize,
 } from "../utils/graph-helpers";
-import { pushToMapArray, addToMapSet } from "../utils/map-helpers";
+import { pushToMapArray } from "../utils/map-helpers";
 import {
-	applyVisibilityFilters,
 	filterByDegree,
 	filterExcludedNodes,
 	filterEdgesByNodeSet,
 	filterBySubgraph,
-	filterByLocalGraph,
 } from "../utils/graph-filter";
+import { runLocalGraphFilter, runVisibilityFilter, runQueryFilter } from "./graph-filter-pipeline";
 import { pointInPolygon, hitTestAggregateRegions, computeGroupMemberBounds } from "../utils/geometry";
 import type { AggregateHitRegion } from "../utils/geometry";
 import {
@@ -6651,9 +6650,12 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			target: edgeTargetId(e),
 		}));
 
-		({ nodes, edges } = this._filterLocalGraph(nodes, edges));
-		({ nodes, edges } = this._filterNodeVisibility(nodes, edges));
-		({ nodes, edges } = this._filterByQuery(nodes, edges));
+		({ nodes, edges } = runLocalGraphFilter(nodes, edges, this.panel));
+		({ nodes, edges } = runVisibilityFilter(this.app, nodes, edges, this.panel));
+		const queryResult = runQueryFilter(this.app, nodes, edges, this.panel);
+		nodes = queryResult.nodes;
+		edges = queryResult.edges;
+		this._searchHighlightSet = queryResult.highlightSet;
 
 		// Nodes tab: exclude manually hidden nodes
 		({ nodes, edges } = filterExcludedNodes(nodes, edges, this.panel.excludeNodes ?? []));
@@ -6684,93 +6686,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			return { nodes, edges };
 		}
 		return this._applyGroupCollapse({ nodes, edges });
-	}
-
-	/** BFS N-hop filter for local graph mode. Delegates core BFS to pure function. */
-	private _filterLocalGraph(nodes: GraphNode[], edges: GraphEdge[]): { nodes: GraphNode[]; edges: GraphEdge[] } {
-		if (!this.panel.localGraphCenter) return { nodes, edges };
-
-		// Core BFS hop filter (pure function)
-		let result = filterByLocalGraph(nodes, edges, this.panel.localGraphCenter, this.panel.localGraphHops);
-
-		// D1: Also include neighbors of manually expanded nodes
-		if (this.panel.expandedNodes?.length) {
-			const adj = new Map<string, Set<string>>();
-			for (const e of edges) {
-				addToMapSet(adj, e.source, e.target);
-				addToMapSet(adj, e.target, e.source);
-			}
-			const reachable = new Set(result.nodes.map((n) => n.id));
-			for (const expandedId of this.panel.expandedNodes) {
-				if (!reachable.has(expandedId)) continue;
-				const neighbors = adj.get(expandedId);
-				if (neighbors) {
-					for (const nbId of neighbors) reachable.add(nbId);
-				}
-			}
-			result = {
-				nodes: nodes.filter((n) => reachable.has(n.id)),
-				edges: edges.filter((e) => reachable.has(e.source) && reachable.has(e.target)),
-			};
-		}
-
-		return result;
-	}
-
-	/** Filter nodes by orphan/existing/attachment/tag visibility settings. */
-	private _filterNodeVisibility(nodes: GraphNode[], edges: GraphEdge[]): { nodes: GraphNode[]; edges: GraphEdge[] } {
-		// Pure filters delegated to graph-filter.ts
-		({ nodes, edges } = applyVisibilityFilters(nodes, edges, {
-			showOrphans: this.panel.showOrphans,
-			showAttachments: this.panel.showAttachments ?? true,
-			includeTagsInData: this.panel.includeTagsInData ?? true,
-			showTagNodes: this.panel.showTagNodes ?? true,
-			tagDisplay: this.panel.tagDisplay ?? "node",
-			showSimilar: this.panel.showSimilar ?? true,
-			showNamedRelation: this.panel.showNamedRelation ?? false,
-		}));
-
-		// existingOnly requires vault access — kept in GVC
-		if (this.panel.existingOnly) {
-			const existing = new Set(this.app.vault.getMarkdownFiles().map((f) => f.path));
-			nodes = nodes.filter((n) => n.isTag || existing.has(n.id));
-		}
-
-		return { nodes, edges };
-	}
-
-	/** Apply dataview and search query filters. */
-	private _filterByQuery(nodes: GraphNode[], edges: GraphEdge[]): { nodes: GraphNode[]; edges: GraphEdge[] } {
-		// Reset highlight set at start of each data build
-		this._searchHighlightSet = null;
-
-		if (this.panel.dataviewQuery.trim()) {
-			const matchingPaths = queryDataviewPages(this.app, this.panel.dataviewQuery.trim());
-			if (matchingPaths.size > 0) {
-				nodes = filterNodesByDataview(nodes, matchingPaths, this.panel.showTagNodes);
-			}
-		}
-
-		const raw = this.panel.searchQuery;
-		const remaining = raw
-			.replace(/hop:[^:,]+:\d+/gi, "")
-			.replace(/,/g, " ")
-			.trim();
-		if (remaining) {
-			const searchExpr = parseQueryExpr(remaining);
-			if (searchExpr) {
-				const matchedIds = new Set(nodes.filter((n) => evaluateExpr(searchExpr, n)).map((n) => n.id));
-				if (this.panel.searchMode === "highlight") {
-					// N2: Highlight mode — keep all nodes, store matched IDs for visual dimming
-					this._searchHighlightSet = matchedIds;
-				} else {
-					// Default filter mode — remove non-matching nodes
-					nodes = nodes.filter((n) => matchedIds.has(n.id));
-				}
-			}
-		}
-
-		return { nodes, edges };
 	}
 
 	/** Apply group collapse (fold groups into super nodes). */
