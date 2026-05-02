@@ -18,7 +18,9 @@ PROJECT_DIR="/home/ubuntu/obsidian-plugins/obsidian-graph-island"
 LOG_FILE="/tmp/graph-island-improve.log"
 RESULT_DIR="/tmp/graph-island-improve-results"
 MAX_LOG_SIZE=$((10 * 1024 * 1024))
-MAX_SESSIONS=2
+MAX_SESSIONS=1  # 2026-05-02 Phase R4: was 2 — disabling parallel cycles entirely
+                 # belt-and-suspenders alongside csv_atomic_*. With cron at
+                 # `0 */1` (R3), there is no throughput cost to dropping to 1.
 MAX_ITERATIONS=3
 MAX_TURNS=30
 
@@ -180,9 +182,8 @@ for kind in tasks issues; do
     if [[ "$kind" == "tasks" ]]; then
       # FIX A: Timed-out task → straight to blocked. No re-SUBDIVIDE.
       log "BLOCKED: $ID timed out after ${FILE_AGE}s (no re-SUBDIVIDE)"
-      csv_set_status tasks "$ID" blocked 2>/dev/null || true
-      (cd "$PROJECT_DIR" && git add scripts/pipeline/ && \
-        git commit -m "chore: block timed-out task $ID" --no-verify 2>/dev/null) || true
+      csv_atomic_set_status tasks "$ID" blocked \
+        "chore: block timed-out task $ID" 2>/dev/null || true
     else
       # Issue timed out → bump decompose_attempts, or block if exhausted.
       ORPHANED=false
@@ -196,20 +197,20 @@ for kind in tasks issues; do
         DECOMPOSE_ATTEMPTS=${DECOMPOSE_ATTEMPTS:-0}
         if [[ "$DECOMPOSE_ATTEMPTS" -ge "$MAX_ISSUE_ATTEMPTS" ]]; then
           log "BLOCKED: $ID — $DECOMPOSE_ATTEMPTS attempts exhausted (max $MAX_ISSUE_ATTEMPTS)"
-          csv_set_status issues "$ID" blocked 2>/dev/null || true
-          (cd "$PROJECT_DIR" && git add scripts/pipeline/ && \
-            git commit -m "chore: block exhausted issue $ID ($DECOMPOSE_ATTEMPTS attempts)" --no-verify 2>/dev/null) || true
+          csv_atomic_set_status issues "$ID" blocked \
+            "chore: block exhausted issue $ID ($DECOMPOSE_ATTEMPTS attempts)" 2>/dev/null || true
           continue
         fi
         NEXT_ATTEMPT=$((DECOMPOSE_ATTEMPTS + 1))
+        # set_field + append_attempt + set_status: bundle them under one
+        # commit instead of three separate windows.
         csv_set_field issues "$ID" decompose_attempts "$NEXT_ATTEMPT" 2>/dev/null || true
         csv_append_attempt issues "$ID" \
           "Continue from where the last session left off. Do not repeat already-attempted approaches." \
           "timed out after 1h" >/dev/null 2>&1 || true
-        csv_set_status issues "$ID" pending 2>/dev/null || true
+        csv_atomic_set_status issues "$ID" pending \
+          "chore: carryover stale issue $ID (attempt $NEXT_ATTEMPT)" 2>/dev/null || true
         log "CARRYOVER: $ID → pending (attempt $NEXT_ATTEMPT/$MAX_ISSUE_ATTEMPTS, age: ${FILE_AGE}s)"
-        (cd "$PROJECT_DIR" && git add scripts/pipeline/ && \
-          git commit -m "chore: carryover stale issue $ID (attempt $NEXT_ATTEMPT)" --no-verify 2>/dev/null) || true
       fi
     fi
   done
@@ -236,14 +237,12 @@ for ID in $(csv_select_by_status issues decomposed 2>/dev/null); do
   ATTEMPTS=${ATTEMPTS:-0}
   if [[ "$ATTEMPTS" -ge "$MAX_ISSUE_ATTEMPTS" ]]; then
     log "BLOCKED: $ID — no live children & $ATTEMPTS attempts exhausted"
-    csv_set_status issues "$ID" blocked 2>/dev/null || true
-    (cd "$PROJECT_DIR" && git add scripts/pipeline/ && \
-      git commit -m "chore: block exhausted issue $ID ($ATTEMPTS attempts)" --no-verify 2>/dev/null) || true
+    csv_atomic_set_status issues "$ID" blocked \
+      "chore: block exhausted issue $ID ($ATTEMPTS attempts)" 2>/dev/null || true
   else
     log "REVIVE: $ID — no live children, decomposed→pending (attempts=$ATTEMPTS/$MAX_ISSUE_ATTEMPTS)"
-    csv_set_status issues "$ID" pending 2>/dev/null || true
-    (cd "$PROJECT_DIR" && git add scripts/pipeline/ && \
-      git commit -m "chore: revive stuck issue $ID (all children blocked, attempts=$ATTEMPTS)" --no-verify 2>/dev/null) || true
+    csv_atomic_set_status issues "$ID" pending \
+      "chore: revive stuck issue $ID (all children blocked, attempts=$ATTEMPTS)" 2>/dev/null || true
   fi
 done
 
@@ -573,18 +572,16 @@ for iter in $(seq 1 "$MAX_ITERATIONS"); do
     ATTEMPT_COUNT=${ATTEMPT_COUNT:-0}
     if [[ "$ATTEMPT_COUNT" -ge 2 ]]; then
       log "BLOCKED: $ISSUE_ID exhausted ($ATTEMPT_COUNT attempts, 0 commits) — marking blocked"
-      csv_set_status tasks "$ISSUE_ID" blocked 2>/dev/null || true
-      (cd "$PROJECT_DIR" && git add scripts/pipeline/ && \
-        git commit -m "chore: block exhausted task $ISSUE_ID" --no-verify 2>/dev/null) || true
+      csv_atomic_set_status tasks "$ISSUE_ID" blocked \
+        "chore: block exhausted task $ISSUE_ID" 2>/dev/null || true
       exit 0
     fi
     FOCUS="task"
     ISSUE_NAME="$ISSUE_ID"
     ISSUE_CONTENT=$(csv_to_prompt_text tasks "$ISSUE_ID")
     log "TASK: $ISSUE_NAME (attempt $((ATTEMPT_COUNT + 1)))"
-    csv_set_status tasks "$ISSUE_ID" in-progress 2>/dev/null || true
-    (cd "$PROJECT_DIR" && git add scripts/pipeline/ && \
-      git commit -m "chore: start task $ISSUE_NAME" --no-verify 2>/dev/null) || true
+    csv_atomic_set_status tasks "$ISSUE_ID" in-progress \
+      "chore: start task $ISSUE_NAME" 2>/dev/null || true
   else
     # Step 2: Check issues for pending → decompose into tasks
     # FIX B: skip issues that have already been decomposed MAX_ISSUE_ATTEMPTS
@@ -618,8 +615,10 @@ for iter in $(seq 1 "$MAX_ITERATIONS"); do
       fi
       if [[ $DECOMPOSE_EXIT -eq 4 ]]; then
         log "ABORT: task queue at cap (MAX_TOTAL_TASKS=$MAX_TOTAL_TASKS) — skipping decomposition this cycle"
-        # Roll back the attempts increment so the issue isn't penalized
-        csv_set_field issues "$ISSUE_NAME" decompose_attempts "$CUR_ATTEMPTS" 2>/dev/null || true
+        # Roll back the attempts increment so the issue isn't penalized.
+        # Atomic so we don't leave the bumped attempt as a dirty file.
+        csv_atomic_set_field issues "$ISSUE_NAME" decompose_attempts "$CUR_ATTEMPTS" \
+          "chore: rollback decompose attempt for $ISSUE_NAME (queue at cap)" 2>/dev/null || true
         exit 0
       fi
 
@@ -631,9 +630,8 @@ for iter in $(seq 1 "$MAX_ITERATIONS"); do
         ISSUE_NAME="$ISSUE_ID"
         ISSUE_CONTENT=$(csv_to_prompt_text tasks "$ISSUE_ID")
         log "FIRST TASK: $ISSUE_NAME"
-        csv_set_status tasks "$ISSUE_ID" in-progress 2>/dev/null || true
-        (cd "$PROJECT_DIR" && git add scripts/pipeline/ && \
-          git commit -m "chore: start task $ISSUE_NAME" --no-verify 2>/dev/null) || true
+        csv_atomic_set_status tasks "$ISSUE_ID" in-progress \
+          "chore: start task $ISSUE_NAME" 2>/dev/null || true
       else
         log "WARN: decomposition produced no tasks, falling back to auto-focus"
         HOUR=$(date +%-H)
