@@ -301,9 +301,6 @@ export interface StatsHost {
 
 export const VIEW_TYPE_GRAPH = "graph-view";
 
-// Re-export PixiNode so other modules can import from either location
-export type { PixiNode } from "./InteractionManager";
-
 // ---------------------------------------------------------------------------
 // View
 // ---------------------------------------------------------------------------

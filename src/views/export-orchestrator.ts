@@ -29,7 +29,7 @@ const FILENAME_PREFIX = "graph-island";
 // Option types
 // ---------------------------------------------------------------------------
 
-export interface SvgExportOverrides {
+interface SvgExportOverrides {
 	width?: number;
 	height?: number;
 	background?: string;
@@ -38,7 +38,7 @@ export interface SvgExportOverrides {
 	edgeAlpha?: number;
 }
 
-export interface ResolvedSvgExportOptions {
+interface ResolvedSvgExportOptions {
 	width: number;
 	height: number;
 	background: string;
@@ -99,7 +99,7 @@ function sanitiseFilenameSegment(segment: string): string {
 // Empty-graph guard
 // ---------------------------------------------------------------------------
 
-export interface ExportCounts {
+interface ExportCounts {
 	nodeCount: number;
 	edgeCount: number;
 	empty: boolean;
