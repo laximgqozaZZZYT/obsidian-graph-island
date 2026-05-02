@@ -5,6 +5,7 @@ import type { GraphNode, DisplayConfig } from "../types";
 
 const NODE_SHAPES = ["circle", "triangle", "diamond", "hexagon", "square"] as const;
 export type NodeShape = (typeof NODE_SHAPES)[number];
+export const ALL_SHAPES: NodeShape[] = [...NODE_SHAPES];
 
 /** Minimal graphics interface for shape drawing (compatible with both CanvasGraphics and PIXI.Graphics) */
 interface ShapeGraphics {
@@ -16,8 +17,6 @@ interface ShapeGraphics {
 	lineTo(x: number, y: number): void;
 	closePath(): void;
 }
-
-export const ALL_SHAPES: NodeShape[] = ["circle", "triangle", "diamond", "hexagon", "square"];
 
 export interface ShapeRule {
 	match: "isTag" | "category" | "default";
