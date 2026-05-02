@@ -196,6 +196,87 @@ interface SunburstLabelDrawParams {
 	cullOverlappingRotatedLabels: (labels: Map<string, CanvasText>) => void;
 }
 
+/** Shared context for label drawing helpers. */
+interface SunburstLabelContext {
+	cx: number;
+	cy: number;
+	container: CanvasContainer;
+	gfx: CanvasGraphics | null;
+	worldScale: number;
+	isSunburstView: boolean;
+	leaderStart: number;
+	leaderEnd: number;
+	fontSize: number;
+	depth2FontSize: number;
+	textColor: number;
+	subtextColor: number;
+}
+
+/** Draw the leader line from the arc outer edge to the label position. */
+function drawLeaderLine(midAngle: number, ctx: SunburstLabelContext): void {
+	if (!ctx.gfx) return;
+	const x1 = ctx.cx + ctx.leaderStart * Math.cos(midAngle);
+	const y1 = ctx.cy + ctx.leaderStart * Math.sin(midAngle);
+	const x2 = ctx.cx + ctx.leaderEnd * Math.cos(midAngle);
+	const y2 = ctx.cy + ctx.leaderEnd * Math.sin(midAngle);
+	ctx.gfx.lineStyle(Math.max(0.5, 1 / ctx.worldScale), ctx.textColor, 0.5);
+	ctx.gfx.moveTo(x1, y1);
+	ctx.gfx.lineTo(x2, y2);
+}
+
+/** Build and place a depth-1 outer label (with optional leader line). */
+function drawDepth1Label(arc: LayoutSunburstArc, ctx: SunburstLabelContext): CanvasText {
+	const midAngle = (arc.x0 + arc.x1) / 2 - Math.PI / 2;
+	const displayName = cleanArcName(arc.name);
+
+	if (ctx.isSunburstView) drawLeaderLine(midAngle, ctx);
+
+	const labelR = ctx.isSunburstView ? ctx.leaderEnd + 4 / ctx.worldScale : (arc.y0 + arc.y1) / 2;
+	const lx = ctx.cx + labelR * Math.cos(midAngle);
+	const ly = ctx.cy + labelR * Math.sin(midAngle);
+
+	const text = new CanvasText(displayName, {
+		fontSize: ctx.fontSize,
+		fill: ctx.textColor,
+		fontWeight: "bold",
+		align: "center",
+	});
+
+	const isRight = midAngle > -Math.PI / 2 && midAngle < Math.PI / 2;
+	text.anchor.set(isRight ? 0 : 1, 0.5);
+	text.x = lx;
+	text.y = ly;
+	text.rotation = 0;
+	ctx.container.addChild(text);
+	return text;
+}
+
+/** Build and place a depth-2 inner label (rotated to follow the arc). */
+function drawDepth2Label(arc: LayoutSunburstArc, ctx: SunburstLabelContext): CanvasText {
+	const midAngle = (arc.x0 + arc.x1) / 2 - Math.PI / 2;
+	const midR = (arc.y0 + arc.y1) / 2;
+	const lx = ctx.cx + midR * Math.cos(midAngle);
+	const ly = ctx.cy + midR * Math.sin(midAngle);
+	const displayName = cleanArcName(arc.name);
+
+	const text = new CanvasText(displayName, {
+		fontSize: ctx.depth2FontSize,
+		fill: ctx.subtextColor,
+		fontWeight: "normal",
+		align: "center",
+	});
+
+	// Rotate to follow the arc; flip on bottom half to stay readable.
+	let rotation = midAngle + Math.PI / 2;
+	if (midAngle > 0 && midAngle < Math.PI) rotation += Math.PI;
+	text.anchor.set(0.5, 0.5);
+	text.x = lx;
+	text.y = ly;
+	text.rotation = rotation;
+	ctx.container.addChild(text);
+	return text;
+}
+
 /**
  * Draw sunburst labels (depth-1 outer with leader lines, depth-2 inside arcs).
  * Returns the new label map.
@@ -204,92 +285,35 @@ export function drawSunburstLabels(params: SunburstLabelDrawParams): Map<string,
 	const { arcs, cx, cy, container, gfx, worldScale, isSunburstView, isDark, cullOverlappingRotatedLabels } = params;
 
 	const labels = new Map<string, CanvasText>();
-	const textColor = isDark ? 0xdddddd : 0x333333;
-	const subtextColor = isDark ? 0xaaaaaa : 0x666666;
 
-	// Find max outer radius for leader line start
 	let maxOuterR = 0;
 	for (const arc of arcs) {
 		if (arc.y1 > maxOuterR) maxOuterR = arc.y1;
 	}
-	const leaderStart = maxOuterR + 4 / worldScale;
-	const leaderEnd = maxOuterR + 30 / worldScale;
-	const fontSize = Math.max(8, 11 / worldScale);
-	const depth2FontSize = Math.max(5, 8 / worldScale);
+
+	const ctx: SunburstLabelContext = {
+		cx,
+		cy,
+		container,
+		gfx,
+		worldScale,
+		isSunburstView,
+		leaderStart: maxOuterR + 4 / worldScale,
+		leaderEnd: maxOuterR + 30 / worldScale,
+		fontSize: Math.max(8, 11 / worldScale),
+		depth2FontSize: Math.max(5, 8 / worldScale),
+		textColor: isDark ? 0xdddddd : 0x333333,
+		subtextColor: isDark ? 0xaaaaaa : 0x666666,
+	};
+
 	const minSweep = 0.06; // ~3.4deg -- skip tiny arcs
 	const depth2MinSweep = 0.2; // ~11.5deg -- wider threshold for inner labels
 
-	// --- Depth 1 labels (outer, with leader lines) ---
 	for (const arc of arcs) {
-		if (arc.depth !== 1) continue;
-		if (arc.x1 - arc.x0 < minSweep) continue;
-
-		const midAngle = (arc.x0 + arc.x1) / 2 - Math.PI / 2;
-		const displayName = cleanArcName(arc.name);
-
-		if (isSunburstView && gfx) {
-			const x1 = cx + leaderStart * Math.cos(midAngle);
-			const y1 = cy + leaderStart * Math.sin(midAngle);
-			const x2 = cx + leaderEnd * Math.cos(midAngle);
-			const y2 = cy + leaderEnd * Math.sin(midAngle);
-			gfx.lineStyle(Math.max(0.5, 1 / worldScale), textColor, 0.5);
-			gfx.moveTo(x1, y1);
-			gfx.lineTo(x2, y2);
-		}
-
-		const labelR = isSunburstView ? leaderEnd + 4 / worldScale : (arc.y0 + arc.y1) / 2;
-		const lx = cx + labelR * Math.cos(midAngle);
-		const ly = cy + labelR * Math.sin(midAngle);
-
-		const text = new CanvasText(displayName, {
-			fontSize,
-			fill: textColor,
-			fontWeight: "bold",
-			align: "center",
-		});
-
-		const isRight = midAngle > -Math.PI / 2 && midAngle < Math.PI / 2;
-		text.anchor.set(isRight ? 0 : 1, 0.5);
-		text.x = lx;
-		text.y = ly;
-		text.rotation = 0;
-
-		container.addChild(text);
-		labels.set(`d1:${arc.name}`, text);
-	}
-
-	// --- Depth 2 labels (inside arcs, curved text placement) ---
-	if (isSunburstView) {
-		for (const arc of arcs) {
-			if (arc.depth !== 2) continue;
-			if (arc.x1 - arc.x0 < depth2MinSweep) continue;
-
-			const midAngle = (arc.x0 + arc.x1) / 2 - Math.PI / 2;
-			const midR = (arc.y0 + arc.y1) / 2;
-			const lx = cx + midR * Math.cos(midAngle);
-			const ly = cy + midR * Math.sin(midAngle);
-			const displayName = cleanArcName(arc.name);
-
-			const text = new CanvasText(displayName, {
-				fontSize: depth2FontSize,
-				fill: subtextColor,
-				fontWeight: "normal",
-				align: "center",
-			});
-
-			// Rotate label along arc direction
-			let rotation = midAngle + Math.PI / 2;
-			// Flip text on bottom half to keep it readable
-			if (midAngle > 0 && midAngle < Math.PI) {
-				rotation += Math.PI;
-			}
-			text.anchor.set(0.5, 0.5);
-			text.x = lx;
-			text.y = ly;
-			text.rotation = rotation;
-
-			container.addChild(text);
-			labels.set(`d2:${arc.name}:${arc.x0.toFixed(3)}`, text);
+		if (arc.depth === 1 && arc.x1 - arc.x0 >= minSweep) {
+			labels.set(`d1:${arc.name}`, drawDepth1Label(arc, ctx));
+		} else if (isSunburstView && arc.depth === 2 && arc.x1 - arc.x0 >= depth2MinSweep) {
+			labels.set(`d2:${arc.name}:${arc.x0.toFixed(3)}`, drawDepth2Label(arc, ctx));
 		}
 	}
 
