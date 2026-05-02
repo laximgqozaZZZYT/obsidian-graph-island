@@ -117,3 +117,80 @@ csv_validate()         { _csv_run validate "$1"; }
 # csv_self_test
 #   Runs csv_lib.py's sandbox self-test (no effect on real data).
 csv_self_test()        { _csv_run self_test; }
+
+# ── Atomic CSV mutation + git commit (Phase R4, 2026-05-02) ────────────
+#
+# Race fix: previously every site that mutated a CSV had to follow up
+# with `git add … && git commit …` in a separate shell step. Between the
+# two steps the working tree was modified-but-uncommitted, and a parallel
+# autonomous cycle (cron */20 historically, MAX_SESSIONS=2) would see
+# the dirty state and SKIP. 107 of 174 dirty SKIPs in 24h came from
+# this window on `issues.csv`.
+#
+# These helpers do the mutation AND the git commit under a single flock
+# so no other cycle can observe the half-state.
+#
+#   csv_atomic_set_status <kind> <id> <new_status> <commit_msg>
+#   csv_atomic_set_field  <kind> <id> <field> <value> <commit_msg>
+#   csv_atomic_insert     <kind> <id> <commit_msg> <field=value>...
+#
+# All paths:
+#   - take /tmp/graph-island-csv-commit.lock so only one git op runs at
+#     a time across all autonomous cycles
+#   - run inside the project root (PROJECT_DIR or git rev-parse top)
+#   - silent-tolerate "nothing to commit" (returns 0)
+#   - return non-zero only if the CSV mutation itself failed
+# ───────────────────────────────────────────────────────────────────────
+
+_csv_atomic_lock_file="/tmp/graph-island-csv-commit.lock"
+
+_csv_project_dir() {
+  echo "${PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null)}"
+}
+
+_csv_atomic_commit() {
+  local msg="$1"
+  local proj
+  proj="$(_csv_project_dir)" || return 0
+  [[ -z "$proj" ]] && return 0
+  ( cd "$proj" \
+    && git add scripts/pipeline/issues.csv \
+              scripts/pipeline/tasks.csv \
+              scripts/pipeline/attempts.csv \
+              scripts/pipeline/descriptions/ 2>/dev/null
+    # nothing to commit → exit 0 silently
+    if git -C "$proj" diff --cached --quiet; then
+      return 0
+    fi
+    git -C "$proj" commit --no-verify -m "$msg" >/dev/null 2>&1 || true
+  )
+}
+
+csv_atomic_set_status() {
+  local kind="$1" id="$2" status="$3" msg="$4"
+  (
+    flock 9
+    _csv_run set_status "$kind" "$id" "$status" || exit $?
+    _csv_atomic_commit "$msg"
+  ) 9>>"$_csv_atomic_lock_file"
+}
+
+csv_atomic_set_field() {
+  local kind="$1" id="$2" field="$3" value="$4" msg="$5"
+  (
+    flock 9
+    _csv_run set_field "$kind" "$id" "$field" "$value" || exit $?
+    _csv_atomic_commit "$msg"
+  ) 9>>"$_csv_atomic_lock_file"
+}
+
+# csv_atomic_insert <kind> <id> <commit_msg> <field=value>...
+csv_atomic_insert() {
+  local kind="$1" id="$2" msg="$3"
+  shift 3
+  (
+    flock 9
+    _csv_run insert "$kind" "$id" "$@" || exit $?
+    _csv_atomic_commit "$msg"
+  ) 9>>"$_csv_atomic_lock_file"
+}
