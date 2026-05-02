@@ -157,6 +157,7 @@ export function giDiag<T extends { nodes: { length: number }; edges: { length: n
 	const w = typeof window !== "undefined" ? (window as { __GI_DIAG__?: boolean }) : null;
 	const env = typeof process !== "undefined" && process.env?.NODE_ENV !== "production";
 	if (env || w?.__GI_DIAG__ === true) {
+		// eslint-disable-next-line no-console -- dev-only diagnostic, gated by NODE_ENV/__GI_DIAG__ and dropped by esbuild in prod
 		console.log(`[graph-island][diag] ${stage} nodes=${data.nodes.length} edges=${data.edges.length}`);
 	}
 	return data;
