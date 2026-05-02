@@ -5,6 +5,7 @@
 import type { ClusterGroupRule, GroupPreset } from "../types";
 import { parseQueryExpr, serializeExpr } from "./query-expr";
 import { hexToRgb } from "./color";
+import { edgeSourceId, edgeTargetId } from "./graph-helpers";
 
 // ---- Rendering constants ----
 const BLEND_LABEL_FACTOR = 0.15;
@@ -160,4 +161,105 @@ export function giDiag<T extends { nodes: { length: number }; edges: { length: n
 		console.log(`[graph-island][diag] ${stage} nodes=${data.nodes.length} edges=${data.edges.length}`);
 	}
 	return data;
+}
+
+/**
+ * Count edges by type. Edges without an explicit type are bucketed as "link".
+ * Used for progressive disclosure of edge-type toggles in the panel UI.
+ */
+export function countEdgeTypes(edges: ReadonlyArray<{ type?: string }>): Record<string, number> {
+	const counts: Record<string, number> = {};
+	for (const e of edges) {
+		const t = e.type || "link";
+		counts[t] = (counts[t] || 0) + 1;
+	}
+	return counts;
+}
+
+/**
+ * Count edges that bridge two cluster sets and collect the bridge node IDs.
+ * An edge bridges if one endpoint is in setA and the other in setB
+ * (in either direction). Both endpoint IDs of a bridging edge are added
+ * to bridgeNodes — the caller can derive bridge counts from the set size.
+ */
+export function countInterClusterEdges(
+	edges: ReadonlyArray<{ source: string | { id: string }; target: string | { id: string } }>,
+	setA: ReadonlySet<string>,
+	setB: ReadonlySet<string>,
+): { interEdges: number; bridgeNodes: Set<string> } {
+	let interEdges = 0;
+	const bridgeNodes = new Set<string>();
+	for (const e of edges) {
+		const src = edgeSourceId(e);
+		const tgt = edgeTargetId(e);
+		if ((setA.has(src) && setB.has(tgt)) || (setB.has(src) && setA.has(tgt))) {
+			interEdges++;
+			bridgeNodes.add(src);
+			bridgeNodes.add(tgt);
+		}
+	}
+	return { interEdges, bridgeNodes };
+}
+
+/**
+ * Aggregate tags across a list of node IDs via a tag-lookup callback.
+ * Decoupled from any particular node store so it works with pixiNodes,
+ * raw graph data, or test fixtures alike.
+ */
+export function collectMemberTags(
+	memberIds: ReadonlyArray<string>,
+	getTags: (id: string) => readonly string[] | undefined,
+): Set<string> {
+	const tags = new Set<string>();
+	for (const id of memberIds) {
+		const t = getTags(id);
+		if (t) for (const tag of t) tags.add(tag);
+	}
+	return tags;
+}
+
+/** Inputs for {@link buildRichStatus}. All fields besides counts are optional. */
+export interface RichStatusOptions {
+	nodeCount: number;
+	edgeCount: number;
+	/** Override total — wins over rawNodeCount when defined. */
+	totalNodes?: number;
+	/** Fallback total derived from rawData.nodes.length. */
+	rawNodeCount?: number;
+	/** Truthy when local-graph mode is engaged. */
+	localGraphCenter?: unknown;
+	/** Truthy when focus layout is engaged (only used when localGraphCenter is falsy). */
+	focusLayout?: unknown;
+	collapsedGroupsSize?: number;
+	searchQuery?: string;
+	/** "highlight" → "HL", anything else → "F". */
+	searchMode?: string;
+	viewMode?: string;
+	groupBy?: string;
+}
+
+/**
+ * Format the rich status string shown in the bottom toolbar
+ * (e.g. "Local · 12 / 200 nodes · 48 edges · [F: hello] · matrix · by tag").
+ */
+export function buildRichStatus(opts: RichStatusOptions): string {
+	const parts: string[] = [];
+	if (opts.localGraphCenter) parts.push("Local");
+	else if (opts.focusLayout) parts.push("Focus");
+
+	const total = opts.totalNodes ?? opts.rawNodeCount ?? opts.nodeCount;
+	parts.push(total !== opts.nodeCount ? `${opts.nodeCount} / ${total} nodes` : `${opts.nodeCount} nodes`);
+	if (opts.edgeCount > 0) parts.push(`${opts.edgeCount} edges`);
+
+	const groupCount = opts.collapsedGroupsSize ?? 0;
+	if (groupCount > 0) parts.push(`${groupCount} groups`);
+
+	if (opts.searchQuery) {
+		const mode = opts.searchMode === "highlight" ? "HL" : "F";
+		parts.push(`[${mode}: ${opts.searchQuery.slice(0, 20)}]`);
+	}
+	if (opts.viewMode && opts.viewMode !== "graph") parts.push(opts.viewMode);
+	if (opts.groupBy && opts.groupBy !== "none") parts.push(`by ${opts.groupBy}`);
+
+	return parts.join(" · ");
 }

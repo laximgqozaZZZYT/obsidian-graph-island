@@ -33,6 +33,10 @@ import {
 	areSavedPositionsValid,
 	lightenHex,
 	giDiag,
+	countEdgeTypes,
+	countInterClusterEdges,
+	collectMemberTags,
+	buildRichStatus as buildRichStatusUtil,
 } from "../utils/gvc-helpers";
 import {
 	buildGraphFromVault,
@@ -3601,32 +3605,13 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	}
 
 	/** Count edges between two cluster sets and collect bridge node IDs. */
-	private _countInterClusterEdges(
-		setA: Set<string>,
-		setB: Set<string>,
-	): { interEdges: number; bridgeNodes: Set<string> } {
-		let interEdges = 0;
-		const bridgeNodes = new Set<string>();
-		for (const e of this.graphEdges) {
-			const src = edgeSourceId(e);
-			const tgt = edgeTargetId(e);
-			if ((setA.has(src) && setB.has(tgt)) || (setB.has(src) && setA.has(tgt))) {
-				interEdges++;
-				bridgeNodes.add(src);
-				bridgeNodes.add(tgt);
-			}
-		}
-		return { interEdges, bridgeNodes };
+	private _countInterClusterEdges(setA: Set<string>, setB: Set<string>) {
+		return countInterClusterEdges(this.graphEdges, setA, setB);
 	}
 
 	/** Collect all tags from a list of node IDs. */
 	private _collectMemberTags(memberIds: string[]): Set<string> {
-		const tags = new Set<string>();
-		for (const id of memberIds) {
-			const pn = this.pixiNodes.get(id);
-			if (pn?.data.tags) pn.data.tags.forEach((t) => tags.add(t));
-		}
-		return tags;
+		return collectMemberTags(memberIds, (id) => this.pixiNodes.get(id)?.data.tags);
 	}
 
 	// =========================================================================
@@ -6022,12 +6007,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
 	/** Count edges by type for progressive disclosure of edge toggles. */
 	private _countEdgeTypes(): Record<string, number> {
-		const counts: Record<string, number> = {};
-		for (const e of this.graphEdges) {
-			const t = e.type || "link";
-			counts[t] = (counts[t] || 0) + 1;
-		}
-		return counts;
+		return countEdgeTypes(this.graphEdges);
 	}
 
 	/** Check if any nodes have image/thumbnail/cover frontmatter metadata. */
@@ -6308,33 +6288,19 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
 	/** U2: Build rich status text with mode, counts, groups, layout, and filter info */
 	private buildRichStatus(nodeCount: number, edgeCount: number, totalNodes?: number): string {
-		const parts: string[] = [];
-		if (this.panel.localGraphCenter) parts.push("Local");
-		else if (this.panel.focusLayout) parts.push("Focus");
-		// Show filtered ratio when applicable
-		const total = totalNodes ?? this.rawData?.nodes.length ?? nodeCount;
-		if (total !== nodeCount) {
-			parts.push(`${nodeCount} / ${total} nodes`);
-		} else {
-			parts.push(`${nodeCount} nodes`);
-		}
-		if (edgeCount > 0) parts.push(`${edgeCount} edges`);
-		// Show group count if groupBy is active
-		const groupCount = this.panel.collapsedGroups?.size ?? 0;
-		if (groupCount > 0) parts.push(`${groupCount} groups`);
-		if (this.panel.searchQuery) {
-			const mode = this.panel.searchMode === "highlight" ? "HL" : "F";
-			parts.push(`[${mode}: ${this.panel.searchQuery.slice(0, 20)}]`);
-		}
-		// Show view mode if not default graph
-		if (this.panel.viewMode && this.panel.viewMode !== "graph") {
-			parts.push(this.panel.viewMode);
-		}
-		// Show groupBy field when active
-		if (this.panel.groupBy && this.panel.groupBy !== "none") {
-			parts.push(`by ${this.panel.groupBy}`);
-		}
-		return parts.join(" \u00B7 ");
+		return buildRichStatusUtil({
+			nodeCount,
+			edgeCount,
+			totalNodes,
+			rawNodeCount: this.rawData?.nodes.length,
+			localGraphCenter: this.panel.localGraphCenter,
+			focusLayout: this.panel.focusLayout,
+			collapsedGroupsSize: this.panel.collapsedGroups?.size,
+			searchQuery: this.panel.searchQuery,
+			searchMode: this.panel.searchMode,
+			viewMode: this.panel.viewMode,
+			groupBy: this.panel.groupBy,
+		});
 	}
 
 	/** D6: Compute per-node entropy scores (knowledge diversity).
