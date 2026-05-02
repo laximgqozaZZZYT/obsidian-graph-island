@@ -1,5 +1,6 @@
 import { setIcon } from "obsidian";
 import { t } from "../i18n";
+import type { ManagedTimers } from "../utils/managed-timers";
 import type { PanelCallbacks, PanelContext, PanelState, GroupByRule } from "./PanelBuilder";
 import type {
 	SortKey,
@@ -1099,7 +1100,7 @@ function attachFixedHint(
 // ---------------------------------------------------------------------------
 // Search-jump dropdown: shows matching node IDs and jumps to selected node
 // ---------------------------------------------------------------------------
-export function attachSearchJump(input: HTMLInputElement, cb: PanelCallbacks) {
+export function attachSearchJump(input: HTMLInputElement, cb: PanelCallbacks, timers: ManagedTimers) {
 	let dropdownEl: HTMLElement | null = null;
 	let selectedIdx = 0;
 	let filteredIds: string[] = [];
@@ -1164,6 +1165,7 @@ export function attachSearchJump(input: HTMLInputElement, cb: PanelCallbacks) {
 		},
 		updateSelection,
 		jumpToSelected,
+		timers,
 	});
 }
 
@@ -1219,11 +1221,12 @@ function _setupSearchJumpListeners(
 		setSelectedIdx: (i: number) => void;
 		updateSelection: () => void;
 		jumpToSelected: () => void;
+		timers: ManagedTimers;
 	},
 ) {
 	input.addEventListener("input", () => {
 		// Defer slightly so attachQueryHint processes first
-		setTimeout(ctx.rebuild, 50);
+		ctx.timers.setTimeout(ctx.rebuild, 50);
 	});
 
 	input.addEventListener("keydown", (e: KeyboardEvent) => {
@@ -1257,7 +1260,7 @@ function _setupSearchJumpListeners(
 	});
 
 	input.addEventListener("blur", () => {
-		setTimeout(ctx.dismiss, 200);
+		ctx.timers.setTimeout(ctx.dismiss, 200);
 	});
 }
 
