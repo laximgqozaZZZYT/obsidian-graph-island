@@ -131,6 +131,24 @@ with open('scripts/pipeline/issues.csv') as f:
   echo "# Recently completed feature-style work (last 30d, learn from these)"
   git -C "$PROJECT_DIR" log --since='30 days ago' --no-merges \
       --pretty=format:'%s' | grep -E '^(feat|test|fix)\(' | head -20
+
+  echo ""
+  echo ""
+  echo "# Recently REJECTED proposals (do NOT re-propose these — read why they were dropped)"
+  # Phase R5 (2026-05-02): the proposer kept generating slight variants of
+  # already-rejected ideas because rejection reasons were never fed back.
+  # Show the last 12 rejection records so the LLM can avoid the same
+  # ground.
+  REJ_DIR="$PROJECT_DIR/scripts/pipeline/descriptions/rejected"
+  if [[ -d "$REJ_DIR" ]]; then
+    ls -t "$REJ_DIR"/*.md 2>/dev/null | head -12 | while read -r f; do
+      echo ""
+      echo "## $(basename "$f")"
+      head -25 "$f"
+    done
+  else
+    echo "(no rejected/ directory yet)"
+  fi
 } > "$CONTEXT_FILE"
 
 # ── Build the prompt ──

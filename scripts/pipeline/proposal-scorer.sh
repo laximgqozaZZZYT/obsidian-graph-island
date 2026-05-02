@@ -197,6 +197,16 @@ for sb in blocks:
                 if '## Critic verdict' not in txt:
                     with open(full, 'a') as f:
                         f.write(f"\n## Critic verdict\n{today}: ACCEPT [{s_summary}] — {reason}\n")
+            # Phase R5 (2026-05-02): auto-promote ACCEPT proposals from medium → high
+            # so the autonomous gate selects them ahead of remaining auto-discovered
+            # tech-debt. Without this, proposals languish behind the perpetual
+            # dead-exports / setTimeout backlog and never reach implementation.
+            if (row.get('priority') or '') == 'medium':
+                subprocess.check_call([
+                    'python3','scripts/pipeline/csv_lib.py','set_field',
+                    'issues', iid, 'priority', 'high'
+                ])
+                print(f"  PROMOTED: #{iid}  medium → high")
         print(f"  ACCEPT: #{iid}  [{s_summary}]  {reason[:70]}")
     else:
         rejected += 1
