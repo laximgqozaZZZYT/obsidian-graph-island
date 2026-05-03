@@ -26,10 +26,13 @@ MAX_TURNS=30
 
 # ── Token-saving knobs (kaizen 2026-04-24) ──
 # These were added to prevent rate-limit burning from */5 cron + 4-way parallel.
-DEBUG_RETRY_COUNT=0          # 2026-04-30 token-reduction (Phase R3): was 1
-                              # No retry on gate fail — the second attempt almost
-                              # never succeeds when the first failed, so it's
-                              # mostly token waste. Failed tasks block immediately.
+DEBUG_RETRY_COUNT=1          # 2026-05-03 (Phase R6): was 0 (Phase R3).
+                              # R3 with 0 produced 75% ABORT in 12h (decompose
+                              # quality + no recovery path). With R6 decompose
+                              # gate (≥80-char desc, src/ path required), 1
+                              # retry given a gate-specific recovery hint
+                              # is cheap and recovers the typical typecheck/
+                              # format/godobj failures without manual intervention.
 SIMPLIFY_ENABLED=false       # was implicit true — simplify step after review findings
 KAIZEN_PENDING_THRESHOLD=0   # was 5 — only run kaizen when pending==0
 
@@ -244,6 +247,33 @@ for ID in $(csv_select_by_status issues decomposed 2>/dev/null); do
     csv_atomic_set_status issues "$ID" pending \
       "chore: revive stuck issue $ID (all children blocked, attempts=$ATTEMPTS)" 2>/dev/null || true
   fi
+done
+
+# ── Phase R6 (2026-05-03): auto-unblock stale BLOCKED tasks/issues ──
+# A task that ABORTed once is BLOCKED forever under R3 settings (no retry).
+# Same for issues that exhausted MAX_ISSUE_ATTEMPTS. With the codebase
+# evolving, the same item that failed yesterday may succeed today, so
+# revive anything that has been BLOCKED for >24h. The decompose_attempts /
+# attempt_count counters reset to 0 so the revived item gets a fresh budget.
+NOW_TS=$(date +%s)
+UNBLOCK_AGE=86400  # 24h
+for kind in tasks issues; do
+  for ID in $(csv_select_by_status "$kind" blocked 2>/dev/null); do
+    UPDATED=$(csv_get_field "$kind" "$ID" updated_at 2>/dev/null)
+    [[ -z "$UPDATED" ]] && continue
+    UPDATED_TS=$(date -d "$UPDATED" +%s 2>/dev/null || echo 0)
+    AGE=$((NOW_TS - UPDATED_TS))
+    if [[ $AGE -gt $UNBLOCK_AGE ]]; then
+      log "AUTO-UNBLOCK: $kind $ID — blocked for ${AGE}s (>24h), reviving with reset attempts"
+      if [[ "$kind" == "tasks" ]]; then
+        csv_set_field tasks "$ID" attempt_count 0 2>/dev/null || true
+      else
+        csv_set_field issues "$ID" decompose_attempts 0 2>/dev/null || true
+      fi
+      csv_atomic_set_status "$kind" "$ID" pending \
+        "chore: auto-unblock $kind $ID (24h+ stale)" 2>/dev/null || true
+    fi
+  done
 done
 
 # ── Ensure main is clean for worktree creation ──
@@ -788,24 +818,59 @@ focus=$FOCUS の改善を1つ実装せよ:
     if [[ $fix_attempt -lt $TOTAL_GATE_TRIES ]]; then
       log "Gate failed, fix attempt $fix_attempt/$TOTAL_GATE_TRIES — /systematic-debugging..."
       ERRORS=$(bash scripts/pipeline/enforce-gates.sh 2>&1 | grep "^FAIL" || echo "unknown")
+
+      # Phase R6 (2026-05-03): gate-specific recovery hints. Each fail
+      # mode in production has a stereotyped fix; embedding the hint in
+      # the retry prompt avoids the implementer reinventing diagnosis.
+      HINTS=""
+      [[ "$ERRORS" == *"[typecheck]"* ]] && HINTS+="
+- typecheck: 削除したexportが他ファイルから import されていないか
+  \`grep -rn 'import.*<symbol>' src/\` で確認、残った参照を全部消す。
+- 'is declared but never read' は使われていない import / 変数の証跡 → 削除する。"
+      [[ "$ERRORS" == *"[format]"* ]] && HINTS+="
+- format: \`pnpm format\` を実行してから git diff を確認。"
+      [[ "$ERRORS" == *"[godobj]"* ]] && HINTS+="
+- godobj: god object 4ファイル (GVC/PanelBuilder/EdgeRenderer/RenderPipeline)
+  が limit 超過。format reflow で増えた場合は別ファイルに extract、
+  または不要な空行・コメントを削減して元の行数に戻す。CLAUDE.md の Max
+  Allowed 表が真値。"
+      [[ "$ERRORS" == *"[test]"* ]] && HINTS+="
+- test: 失敗 test の該当ファイルを読む → mock 不足 / API 変更 / setTimeout
+  → ManagedTimer などの move を test 側にも反映する。新しい mock が必要なら
+  tests/__mocks__/ に追加。"
+      [[ "$ERRORS" == *"[coverage]"* ]] && HINTS+="
+- coverage: 新規追加コードに対応する単体 test を tests/ に追加 (ratchet を
+  下げるのは禁止)。境界値テストを優先、純粋関数を優先。"
+      [[ "$ERRORS" == *"[lint]"* ]] && HINTS+="
+- lint: \`npx eslint src/ --quiet\` でエラーのみ確認、warning は無視。"
+      [[ "$ERRORS" == *"[build]"* ]] && HINTS+="
+- build: \`node esbuild.config.mjs production 2>&1\` で error stack を読む。
+  循環依存 / 存在しない import が典型。"
+      [[ "$ERRORS" == *"[bundle]"* ]] && HINTS+="
+- bundle: 800KB 超過。新規追加コードを縮める or 別の非ホット path に export
+  しない。esbuild の externals 設定を確認。"
+
       _claude_guard -p "あなたは systematic-debugging のスペシャリストです。
 
 ゲートが失敗しました: $ERRORS
+${HINTS}
 
-## 手順 (systematic-debugging)
-1. エラーメッセージを正確に読む
+## 手順
+1. エラーを正確に読む
 2. 仮説を立てる前に事実を集める (ファイルを読む、テストを実行する)
-3. 根本原因を特定してから修正する (表面的なband-aid fix禁止)
-4. 修正後に同じテストが通ることを確認
+3. 根本原因を特定してから修正する (band-aid fix 禁止)
+4. 修正後にゲートが通ることを確認
 
-修正してください。CLAUDE.md厳守。" \
+R3 scope 規律: タスクに直接関係しないファイルを読まない・編集しない。
+\`Glob\` での全域検索を避ける。明示パスを直接 Read。
+CLAUDE.md 厳守。" \
         --allowedTools "Bash,Read,Write,Edit,Glob,Grep" \
         --max-turns 15
     fi
   done
 
   if [[ "$VERIFY_OK" != true ]]; then
-    log "ABORT: Gates failed after 3 fix attempts"
+    log "ABORT: Gates failed after $TOTAL_GATE_TRIES fix attempts"
     break
   fi
 

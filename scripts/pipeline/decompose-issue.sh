@@ -216,11 +216,22 @@ for i, block in enumerate(blocks[:3]):
     if any(p in desc_lower or p in summary_lower for p in META_PATTERNS):
         print(f'  SKIPPED: block {i+1} (meta-task detected: {summary[:50]})')
         continue
-    if len(desc_raw) < 30:
-        print(f'  SKIPPED: block {i+1} (description too short: {len(desc_raw)} chars)')
+    if len(desc_raw) < 80:
+        # R6 (2026-05-03): bumped from 30 → 80. Tasks with descriptions
+        # under 80 chars are too vague for the implementer to act on with
+        # the R3 scope-discipline prompt and routinely cause empty-impl
+        # → all gates fail → ABORT.
+        print(f'  SKIPPED: block {i+1} (description too short: {len(desc_raw)} chars, need >=80)')
         continue
     if any(p in desc_lower for p in ERROR_PATTERNS):
         print(f'  SKIPPED: block {i+1} (error pattern in description)')
+        continue
+    # R6 (2026-05-03): require at least one explicit src/ or tests/ path.
+    # Without a concrete file the implementer prompt has nothing to anchor
+    # on and triggers Glob/grep -r despite R3 scope discipline.
+    import re as _re
+    if not _re.search(r'(?:src|tests)/[A-Za-z0-9_./-]+\.ts', desc_raw):
+        print(f'  SKIPPED: block {i+1} (no src/ or tests/ path mentioned)')
         continue
     # A-category: empty / placeholder summary (substring match, not just exact)
     if len(summary.strip()) < 20:
