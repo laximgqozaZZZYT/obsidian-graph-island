@@ -250,29 +250,58 @@ for ID in $(csv_select_by_status issues decomposed 2>/dev/null); do
 done
 
 # ── Phase R6 (2026-05-03): auto-unblock stale BLOCKED tasks/issues ──
-# A task that ABORTed once is BLOCKED forever under R3 settings (no retry).
-# Same for issues that exhausted MAX_ISSUE_ATTEMPTS. With the codebase
-# evolving, the same item that failed yesterday may succeed today, so
-# revive anything that has been BLOCKED for >24h. The decompose_attempts /
-# attempt_count counters reset to 0 so the revived item gets a fresh budget.
+# Phase R7 (2026-05-03): track unblock attempts via the description file
+# so a task that fails again after being auto-unblocked twice is permanently
+# cancelled. Without this cap, a structurally-broken task would cycle
+# blocked → pending → blocked → pending forever, burning tokens each time.
 NOW_TS=$(date +%s)
 UNBLOCK_AGE=86400  # 24h
+UNBLOCK_CAP=2      # after this many auto-unblocks, mark as cancelled
 for kind in tasks issues; do
   for ID in $(csv_select_by_status "$kind" blocked 2>/dev/null); do
     UPDATED=$(csv_get_field "$kind" "$ID" updated_at 2>/dev/null)
     [[ -z "$UPDATED" ]] && continue
     UPDATED_TS=$(date -d "$UPDATED" +%s 2>/dev/null || echo 0)
     AGE=$((NOW_TS - UPDATED_TS))
-    if [[ $AGE -gt $UNBLOCK_AGE ]]; then
-      log "AUTO-UNBLOCK: $kind $ID — blocked for ${AGE}s (>24h), reviving with reset attempts"
-      if [[ "$kind" == "tasks" ]]; then
-        csv_set_field tasks "$ID" attempt_count 0 2>/dev/null || true
-      else
-        csv_set_field issues "$ID" decompose_attempts 0 2>/dev/null || true
-      fi
-      csv_atomic_set_status "$kind" "$ID" pending \
-        "chore: auto-unblock $kind $ID (24h+ stale)" 2>/dev/null || true
+    if [[ $AGE -le $UNBLOCK_AGE ]]; then continue; fi
+
+    # Count prior auto-unblock markers in the description file
+    DESC_REL=$(csv_get_field "$kind" "$ID" description_path 2>/dev/null)
+    DESC_PATH=""
+    if [[ -n "$DESC_REL" ]]; then
+      DESC_PATH="$PROJECT_DIR/scripts/pipeline/$DESC_REL"
     fi
+    PRIOR_UNBLOCKS=0
+    if [[ -n "$DESC_PATH" && -f "$DESC_PATH" ]]; then
+      PRIOR_UNBLOCKS=$(grep -c '^- AUTO-UNBLOCK ' "$DESC_PATH" 2>/dev/null || echo 0)
+      PRIOR_UNBLOCKS=${PRIOR_UNBLOCKS//[^0-9]/}
+      PRIOR_UNBLOCKS=${PRIOR_UNBLOCKS:-0}
+    fi
+
+    if [[ $PRIOR_UNBLOCKS -ge $UNBLOCK_CAP ]]; then
+      log "CANCEL: $kind $ID — auto-unblocked $PRIOR_UNBLOCKS times already, structurally stuck"
+      if [[ -n "$DESC_PATH" && -f "$DESC_PATH" ]]; then
+        echo "" >> "$DESC_PATH"
+        echo "## Auto-cancelled" >> "$DESC_PATH"
+        echo "$(date -I): cancelled after $PRIOR_UNBLOCKS auto-unblock attempts (each followed by another ABORT/BLOCK)." >> "$DESC_PATH"
+      fi
+      csv_atomic_set_status "$kind" "$ID" cancelled \
+        "chore: cancel $kind $ID — $PRIOR_UNBLOCKS auto-unblock attempts exhausted" 2>/dev/null || true
+      continue
+    fi
+
+    log "AUTO-UNBLOCK: $kind $ID — blocked for ${AGE}s (>24h), unblock #$((PRIOR_UNBLOCKS + 1))/$UNBLOCK_CAP"
+    if [[ -n "$DESC_PATH" && -f "$DESC_PATH" ]]; then
+      echo "" >> "$DESC_PATH"
+      echo "- AUTO-UNBLOCK $(date -I): blocked for ${AGE}s, attempt $((PRIOR_UNBLOCKS + 1))/$UNBLOCK_CAP" >> "$DESC_PATH"
+    fi
+    if [[ "$kind" == "tasks" ]]; then
+      csv_set_field tasks "$ID" attempt_count 0 2>/dev/null || true
+    else
+      csv_set_field issues "$ID" decompose_attempts 0 2>/dev/null || true
+    fi
+    csv_atomic_set_status "$kind" "$ID" pending \
+      "chore: auto-unblock $kind $ID (24h+ stale, attempt $((PRIOR_UNBLOCKS + 1))/$UNBLOCK_CAP)" 2>/dev/null || true
   done
 done
 

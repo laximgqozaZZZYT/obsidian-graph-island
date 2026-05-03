@@ -279,6 +279,92 @@ cat <<EOF
 |-------|---------|---------|-------------|
 $CI_BLOCK
 EOF
+
+# Phase R7 (2026-05-03): show recent rejection reasons so the user
+# sees why scorer/proposer dropped certain proposals (was logs-only).
+REJ_DIR="$PROJECT_DIR/scripts/pipeline/descriptions/rejected"
+if [[ -d "$REJ_DIR" ]]; then
+  cat <<EOF
+
+## Recently REJECTED proposals (last 5)
+
+| date | slug | score | reason |
+|------|------|-------|--------|
+EOF
+  ls -t "$REJ_DIR"/*.md 2>/dev/null | head -5 | while read -r f; do
+    DATE=$(grep -m1 '^rejected_on:' "$f" 2>/dev/null | awk '{print $2}')
+    SLUG=$(grep -m1 '^slug:' "$f" 2>/dev/null | sed 's/^slug:[ ]*//')
+    [[ -z "$SLUG" ]] && SLUG=$(basename "$f" .md)
+    SCORE=$(grep -m1 '^score:' "$f" 2>/dev/null | sed 's/^score:[ ]*//')
+    REASON=$(grep -m1 '^reason:' "$f" 2>/dev/null | sed 's/^reason:[ ]*//' | cut -c1-80)
+    echo "| ${DATE:-?} | ${SLUG:-?} | ${SCORE:-?} | ${REASON:-?} |"
+  done
+fi
 } > "$OUT"
 
 echo "Wrote ${OUT} ($(wc -l < "$OUT") lines)"
+
+# ── Phase R7 (2026-05-03): CI low-success-rate auto-alert ──
+# When CI has been red for sustained periods, auto-file a critical issue
+# (deduped) so the next status report puts it on the user's radar instead
+# of waiting for them to read progress.md. Same dedupe pattern as the
+# dirty-skip watchdog: only file if no pending alert with the same slug.
+if command -v gh >/dev/null 2>&1; then
+  CI_LOW=$(printf '%s' "$CI_JSON" | python3 -c "
+import json, sys
+try:
+    runs = json.load(sys.stdin)
+except Exception:
+    sys.exit()
+if not runs: sys.exit()
+total = len(runs)
+succ = sum(1 for r in runs if r.get('conclusion') == 'success')
+last5 = runs[:5]
+last5_succ = sum(1 for r in last5 if r.get('conclusion') == 'success')
+rate30 = succ * 100.0 / total if total else 100.0
+rate5  = last5_succ * 100.0 / max(len(last5),1)
+# alert thresholds: <50% over 30 OR <30% over 5
+if rate30 < 50 or rate5 < 30:
+    print(f'{rate30:.0f}|{rate5:.0f}|{succ}/{total}|{last5_succ}/{len(last5)}')
+")
+  if [[ -n "$CI_LOW" ]]; then
+    EXISTING=$(python3 "$PROJECT_DIR/scripts/pipeline/csv_lib.py" select_pending issues 2>/dev/null \
+      | grep -E -- "-ci-red-streak$" | head -1)
+    if [[ -z "$EXISTING" ]]; then
+      IFS='|' read -r RATE30 RATE5 SUCC30 SUCC5 <<< "$CI_LOW"
+      NEXT_ID=$(python3 "$PROJECT_DIR/scripts/pipeline/csv_lib.py" next_id_num 2>/dev/null || echo 9999)
+      ISSUE_ID="${NEXT_ID}-ci-red-streak"
+      DESC="$PROJECT_DIR/scripts/pipeline/descriptions/${ISSUE_ID}.md"
+      mkdir -p "$(dirname "$DESC")"
+      cat > "$DESC" <<EOF2
+---
+priority: critical
+reported: $(date -I)
+status: pending
+source: auto-discovered
+summary: CI red streak — last 30 success ${RATE30}% (${SUCC30}), last 5 success ${RATE5}% (${SUCC5})
+---
+
+## Detected
+GitHub Actions CI has been failing at a rate that exceeds the alert threshold:
+- Last 30 runs: ${SUCC30} success (${RATE30}%) — threshold 50%
+- Last 5 runs : ${SUCC5} success (${RATE5}%) — threshold 30%
+
+## Recovery
+1. \`gh run list --limit 5 --json databaseId,conclusion,headBranch\` to see which runs failed
+2. \`gh run view <id> --log-failed\` for the actual error
+3. Likely candidates: typecheck residue, format drift on main, broken import
+4. Counter resets automatically when this issue is closed.
+EOF2
+      python3 "$PROJECT_DIR/scripts/pipeline/csv_lib.py" insert issues "$ISSUE_ID" \
+        priority=critical \
+        source=auto-discovered \
+        "summary=CI red streak — last30=${RATE30}% last5=${RATE5}%" \
+        "description_path=descriptions/${ISSUE_ID}.md" 2>/dev/null \
+      && (cd "$PROJECT_DIR" && git add scripts/pipeline/issues.csv "$DESC" \
+          && git commit -m "chore(alert): CI red streak — last30=${RATE30}% last5=${RATE5}%" --no-verify 2>/dev/null) \
+      && echo "  ALERT FILED: critical issue #${ISSUE_ID} (CI red streak)" \
+      || echo "  ALERT: failed to file CI red streak issue"
+    fi
+  fi
+fi

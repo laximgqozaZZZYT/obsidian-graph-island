@@ -47,7 +47,13 @@ echo "Mode: $([[ $APPLY -eq 1 ]] && echo apply || echo dry-run)"
 # SKIP_DIRTY_CHECK=1 overrides — useful when running manually right after
 # a verified clean state.
 if [[ -z "${SKIP_DIRTY_CHECK:-}" && -n "$(git status --porcelain)" ]]; then
-  echo "SKIP: working tree dirty — autonomous probably mid-cycle"
+  # Phase R7 (2026-05-03): contribute to the shared dirty-skip counter so
+  # the watchdog can fire even if autonomous-improve hasn't run yet.
+  DIRTY_STATE="/tmp/graph-island-dirty-skip-count"
+  prev=$(cat "$DIRTY_STATE" 2>/dev/null || echo 0)
+  prev=${prev//[^0-9]/}; prev=${prev:-0}
+  echo "$((prev + 1))" > "$DIRTY_STATE"
+  echo "SKIP: working tree dirty — autonomous probably mid-cycle (shared count: $((prev + 1)))"
   exit 0
 fi
 

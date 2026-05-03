@@ -233,6 +233,34 @@ for i, block in enumerate(blocks[:3]):
     if not _re.search(r'(?:src|tests)/[A-Za-z0-9_./-]+\.ts', desc_raw):
         print(f'  SKIPPED: block {i+1} (no src/ or tests/ path mentioned)')
         continue
+    # R7 (2026-05-03): three mechanical semantic-quality gates.
+    #   1. require action verb (extract/migrate/replace/add/...)
+    #   2. require >=2 paths OR >=1 path plus a code symbol
+    #   3. require a concrete change marker (line/count/arrow/range)
+    ACTION_VERBS = (
+        r'\b(extract|migrate|replace|add|remove|rename|refactor|inline|'
+        r'split|merge|delete|move|introduce|consolidate|wrap|unwrap|'
+        r'抽出|分離|削除|追加|置換|統合|集約|リネーム|移行|分割)\b'
+    )
+    if not _re.search(ACTION_VERBS, desc_raw, _re.IGNORECASE):
+        print(f'  SKIPPED: block {i+1} (no action verb — task is descriptive, not actionable)')
+        continue
+    paths_in_desc = _re.findall(r'(?:src|tests)/[A-Za-z0-9_./-]+\.ts', desc_raw)
+    code_symbol_present = bool(_re.search(
+        r'(?:[A-Z][a-zA-Z0-9]+(?:\.|::)?[a-zA-Z_]+|'
+        r'[a-z][a-zA-Z0-9_]+\(\)|[A-Z_]{3,})', desc_raw
+    ))
+    if len(paths_in_desc) < 2 and not code_symbol_present:
+        print(f'  SKIPPED: block {i+1} (insufficient anchors: only 1 path, no code symbol)')
+        continue
+    has_concrete_marker = bool(_re.search(
+        r'(?:L\d+|line\s*\d+|\d+\s*(?:lines?|個|箇所|件)|'
+        r'\bfrom\s+\S+\s+to\s+\S+\b|→|->|≥|≤|>=|<=)',
+        desc_raw, _re.IGNORECASE
+    ))
+    if not has_concrete_marker:
+        print(f'  SKIPPED: block {i+1} (no concrete change marker)')
+        continue
     # A-category: empty / placeholder summary (substring match, not just exact)
     if len(summary.strip()) < 20:
         print(f'  SKIPPED: block {i+1} (summary too short: \"{summary[:30]}\")')
