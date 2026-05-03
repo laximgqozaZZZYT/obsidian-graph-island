@@ -48,7 +48,7 @@ import {
 	computeMinWorldRadius,
 	renderExtremeZoomDots,
 	renderMidZoomCircles,
-} from "./render-pipeline/lod-classifier";
+} from "./render-pipeline/lod";
 export {
 	screenToWorld,
 	computeZoomFadeAlpha,
