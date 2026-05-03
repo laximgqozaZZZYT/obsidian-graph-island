@@ -5,7 +5,6 @@
 import { Menu, TFile } from "obsidian";
 import { t, tHelp } from "../i18n";
 import { mergeRenderThresholds } from "../types";
-import type { NodeShape } from "../utils/node-shapes";
 import { ALL_SHAPES } from "../utils/node-shapes";
 import type { PanelCallbacks, PanelContext, PanelState, NodeTreeEntry } from "./PanelBuilder";
 import { ensureRT, buildSection, addAdvancedGroup, _getNodeDirStates, _saveNodeDirStates } from "./PanelBuilder";
@@ -205,8 +204,8 @@ function _buildNodeShapeControls(adv: HTMLElement, panel: PanelState, cb: PanelC
 			tagRule?.shape ?? "triangle",
 			(v) => {
 				const rule = panel.nodeShapeRules.find((r) => r.match === "isTag");
-				if (rule) rule.shape = v as NodeShape;
-				else panel.nodeShapeRules.unshift({ match: "isTag", shape: v as NodeShape });
+				if (rule) rule.shape = v;
+				else panel.nodeShapeRules.unshift({ match: "isTag", shape: v });
 				cb.rebuildNodesInPlace();
 			},
 			t("desc.tagNodeShape"),
@@ -219,8 +218,8 @@ function _buildNodeShapeControls(adv: HTMLElement, panel: PanelState, cb: PanelC
 		defaultRule?.shape ?? "circle",
 		(v) => {
 			const rule = panel.nodeShapeRules.find((r) => r.match === "default");
-			if (rule) rule.shape = v as NodeShape;
-			else panel.nodeShapeRules.push({ match: "default", shape: v as NodeShape });
+			if (rule) rule.shape = v;
+			else panel.nodeShapeRules.push({ match: "default", shape: v });
 			cb.rebuildNodesInPlace();
 		},
 		t("desc.defaultNodeShape"),

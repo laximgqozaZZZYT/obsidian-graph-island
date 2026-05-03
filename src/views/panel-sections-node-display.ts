@@ -12,7 +12,6 @@
  */
 import { mergeRenderThresholds } from "../types";
 import { t } from "../i18n";
-import type { NodeShape } from "../utils/node-shapes";
 import { ALL_SHAPES } from "../utils/node-shapes";
 import { addSlider, addToggle, addSelect, addTextInput } from "./panel-widgets";
 import type { PanelState, PanelCallbacks } from "./PanelBuilder";
@@ -168,8 +167,8 @@ export function buildNodeShapeControls(parent: HTMLElement, panel: PanelState, c
 			tagRule?.shape ?? "triangle",
 			(v) => {
 				const rule = panel.nodeShapeRules.find((r) => r.match === "isTag");
-				if (rule) rule.shape = v as NodeShape;
-				else panel.nodeShapeRules.unshift({ match: "isTag", shape: v as NodeShape });
+				if (rule) rule.shape = v;
+				else panel.nodeShapeRules.unshift({ match: "isTag", shape: v });
 				cb.rebuildNodesInPlace();
 			},
 			t("desc.tagNodeShape"),
@@ -182,8 +181,8 @@ export function buildNodeShapeControls(parent: HTMLElement, panel: PanelState, c
 		defaultRule?.shape ?? "circle",
 		(v) => {
 			const rule = panel.nodeShapeRules.find((r) => r.match === "default");
-			if (rule) rule.shape = v as NodeShape;
-			else panel.nodeShapeRules.push({ match: "default", shape: v as NodeShape });
+			if (rule) rule.shape = v;
+			else panel.nodeShapeRules.push({ match: "default", shape: v });
 			cb.rebuildNodesInPlace();
 		},
 		t("desc.defaultNodeShape"),
