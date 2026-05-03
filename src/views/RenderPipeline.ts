@@ -1468,7 +1468,10 @@ export class RenderPipeline {
 			// in the host (alpha(0).stop(), force application) completes before
 			// the callback restarts the simulation. Without this, the sync path
 			// would restart the sim before the host has finished configuring it.
-			this.host.timers.setTimeout(() => this.host.onAllPixiNodesCreated?.(), 0);
+			this._onAllNodesCreatedTimer = setTimeout(() => {
+				this._onAllNodesCreatedTimer = null;
+				this.host.onAllPixiNodesCreated?.();
+			}, 0);
 		}
 	}
 
@@ -1766,7 +1769,10 @@ export class RenderPipeline {
 			// graph force simulation to reach alphaMin; if the user hovers
 			// a labelless node before then, LabelManager's hoverForcedLabel
 			// path still works via null-label-tolerant checks.
-			this.host.timers.setTimeout(() => this.enrichLabelsDeferred(), 2500);
+			this._enrichmentKickoffTimer = setTimeout(() => {
+				this._enrichmentKickoffTimer = null;
+				this.enrichLabelsDeferred();
+			}, 2500);
 		}
 	};
 
@@ -1778,6 +1784,8 @@ export class RenderPipeline {
 	 * the background. No-op if all nodes already have labels.
 	 */
 	private _enrichmentCancelId: ReturnType<typeof setTimeout> | null = null;
+	private _enrichmentKickoffTimer: ReturnType<typeof setTimeout> | null = null;
+	private _onAllNodesCreatedTimer: ReturnType<typeof setTimeout> | null = null;
 	private enrichLabelsDeferred(): void {
 		if (this._enrichmentCancelId !== null) {
 			clearTimeout(this._enrichmentCancelId);
@@ -1833,6 +1841,12 @@ export class RenderPipeline {
 			clearTimeout(this.deferredBatchId as unknown as ReturnType<typeof setTimeout>);
 			this.deferredBatchId = null;
 		}
+		if (this._onAllNodesCreatedTimer !== null) clearTimeout(this._onAllNodesCreatedTimer);
+		this._onAllNodesCreatedTimer = null;
+		if (this._enrichmentKickoffTimer !== null) clearTimeout(this._enrichmentKickoffTimer);
+		this._enrichmentKickoffTimer = null;
+		if (this._enrichmentCancelId !== null) clearTimeout(this._enrichmentCancelId);
+		this._enrichmentCancelId = null;
 		this.pendingNodes = [];
 		this.pendingNodeR = null;
 		this.pendingNodeColor = null;
