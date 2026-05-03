@@ -96,6 +96,12 @@ import {
 	type GroupNodeInfo,
 	type GroupCentroid,
 } from "./group-label-manager";
+import {
+	findHoveredGroupLabelKey,
+	syncGroupLabelHover,
+	computeZoomToGroupMembers,
+	hitTestGroupByLabelInWorld,
+} from "./container-helpers/group-label-hit";
 import { expandSuperNodeIds } from "../utils/node-grouping";
 import { computeNodeDisplayColor, type NodeColorContext } from "./node-coloring";
 import {
@@ -2018,36 +2024,14 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			const my = e.clientY - rect.top;
 			const ws = this.worldContainer.scale.x;
 			if (!isFinite(ws) || ws <= 0) return;
-			const worldX = this.worldContainer.x;
-			const worldY = this.worldContainer.y;
-
-			let hitKey: string | null = null;
-			for (const [key, txt] of this.groupByLabels) {
-				if (!txt.visible) continue;
-				// Screen position of label center
-				const sx = txt.x * ws + worldX;
-				const sy = txt.y * ws + worldY;
-				// Screen-space hit area (target 14px font, ~7px char width)
-				const textLen = txt.text?.length ?? 10;
-				const hw = textLen * 7 * 0.5 + 10; // half-width + padding
-				const hh = 14 + 5; // half-height + padding
-				if (mx >= sx - hw && mx <= sx + hw && my >= sy - hh && my <= sy + hh) {
-					hitKey = key;
-					break;
-				}
-			}
-
-			if (hitKey !== this._hoveredGroupLabel) {
-				this._hoveredGroupLabel = hitKey;
-				if (hitKey) {
-					const memberIds = this.groupByMembers.get(hitKey);
-					if (memberIds && memberIds.size > 0) {
-						this.applyEphemeralHighlight(memberIds);
-					}
-				} else {
-					this.applyEphemeralHighlight(null);
-				}
-			}
+			const hitKey = findHoveredGroupLabelKey(mx, my, this.groupByLabels, {
+				ws,
+				worldX: this.worldContainer.x,
+				worldY: this.worldContainer.y,
+			});
+			this._hoveredGroupLabel = syncGroupLabelHover(hitKey, this._hoveredGroupLabel, this.groupByMembers, (ids) =>
+				this.applyEphemeralHighlight(ids),
+			);
 		});
 
 		// Group label click: zoom to group members
@@ -2056,31 +2040,23 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			const memberIds = this.groupByMembers.get(this._hoveredGroupLabel);
 			if (!memberIds || memberIds.size === 0) return;
 			e.stopPropagation();
-			// Compute bounding box of group members
-			let minX = Infinity,
-				maxX = -Infinity,
-				minY = Infinity,
-				maxY = -Infinity;
-			for (const id of memberIds) {
-				const pn = this.pixiNodes.get(id);
-				if (!pn) continue;
-				minX = Math.min(minX, pn.gfx.x);
-				maxX = Math.max(maxX, pn.gfx.x);
-				minY = Math.min(minY, pn.gfx.y);
-				maxY = Math.max(maxY, pn.gfx.y);
-			}
-			if (!isFinite(minX)) return;
-			const pad = 100;
 			const canvasW = this.canvasWrap?.clientWidth ?? 800;
 			const canvasH = this.canvasWrap?.clientHeight ?? 600;
-			const scaleX = canvasW / (maxX - minX + pad * 2);
-			const scaleY = canvasH / (maxY - minY + pad * 2);
-			const scale = Math.min(scaleX, scaleY, 2.0);
-			const cx = (minX + maxX) / 2;
-			const cy = (minY + maxY) / 2;
-			this.worldContainer.scale.set(scale);
-			this.worldContainer.x = canvasW / 2 - cx * scale;
-			this.worldContainer.y = canvasH / 2 - cy * scale;
+			const zoom = computeZoomToGroupMembers(
+				memberIds,
+				(id) => {
+					const pn = this.pixiNodes.get(id);
+					return pn ? { x: pn.gfx.x, y: pn.gfx.y } : undefined;
+				},
+				canvasW,
+				canvasH,
+				100,
+				2.0,
+			);
+			if (!zoom) return;
+			this.worldContainer.scale.set(zoom.scale);
+			this.worldContainer.x = zoom.x;
+			this.worldContainer.y = zoom.y;
 			this.applyEphemeralHighlight(null);
 			this._hoveredGroupLabel = null;
 			this.markDirty(true);
@@ -5024,33 +5000,23 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			return true;
 		}
 		// Check groupBy labels
-		for (const [, txt] of this.groupByLabels) {
-			if (!txt.visible) continue;
-			const cs = txt.scale?.x ?? 1;
-			const tw = (txt.width ?? 100) * cs;
-			const th = 20 * cs;
-			const lx = txt.x - tw / 2;
-			const ly = txt.y - th / 2;
-			if (wx >= lx && wx <= lx + tw && wy >= ly && wy <= ly + th) {
-				const memberKey = (txt as CanvasText & { _groupKey?: string })._groupKey;
-				if (memberKey) {
-					const bounds = computeGroupMemberBounds(this.pixiNodes.values(), memberKey, 50);
-					if (bounds) {
-						this._zoomToWorldRect(bounds.x, bounds.y, bounds.w, bounds.h);
-						return true;
-					}
-				}
-				// Fallback: zoom to label position
-				this._zoomToWorldRect(
-					txt.x - ZOOM_TO_LABEL_RECT / 2,
-					txt.y - ZOOM_TO_LABEL_RECT / 2,
-					ZOOM_TO_LABEL_RECT,
-					ZOOM_TO_LABEL_RECT,
-				);
+		const hit = hitTestGroupByLabelInWorld(wx, wy, this.groupByLabels);
+		if (!hit) return false;
+		if (hit.memberKey) {
+			const bounds = computeGroupMemberBounds(this.pixiNodes.values(), hit.memberKey, 50);
+			if (bounds) {
+				this._zoomToWorldRect(bounds.x, bounds.y, bounds.w, bounds.h);
 				return true;
 			}
 		}
-		return false;
+		// Fallback: zoom to label position
+		this._zoomToWorldRect(
+			hit.cx - ZOOM_TO_LABEL_RECT / 2,
+			hit.cy - ZOOM_TO_LABEL_RECT / 2,
+			ZOOM_TO_LABEL_RECT,
+			ZOOM_TO_LABEL_RECT,
+		);
+		return true;
 	}
 
 	/** Animate zoom to a world-coordinate rectangle. */
