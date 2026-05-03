@@ -27,5 +27,3 @@ export function extractFrontmatter(head30) {
 	}
 	return null;
 }
-
-export default extractFrontmatter;

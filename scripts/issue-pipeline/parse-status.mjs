@@ -43,5 +43,3 @@ export function parseStatus(body) {
 	}
 	return null;
 }
-
-export default parseStatus;
