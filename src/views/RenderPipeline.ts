@@ -460,6 +460,8 @@ export class RenderPipeline {
 	private _cachedMaxDeg = 1;
 	private _cachedMaxBodyLength = 0;
 	private deferredBatchId: ReturnType<typeof setTimeout> | null = null;
+	/** Tracks all timeouts scheduled via _trackTimeout so detach() can clear them. */
+	private _pendingTimeouts = new Set<ReturnType<typeof setTimeout>>();
 	/** FPS tracking */
 	private _fpsFrames = 0;
 	private _fpsLastTime = 0;
@@ -601,6 +603,8 @@ export class RenderPipeline {
 	/** Detach the ticker callback. Call during cleanup. */
 	detach() {
 		this.cancelDeferredBatch();
+		for (const id of this._pendingTimeouts) clearTimeout(id);
+		this._pendingTimeouts.clear();
 		const app = this.host.getPixiApp();
 		if (this._tickerBound && app) {
 			app.ticker.remove(this.renderTick, this);
@@ -1781,6 +1785,7 @@ export class RenderPipeline {
 	private enrichLabelsDeferred(): void {
 		if (this._enrichmentCancelId !== null) {
 			clearTimeout(this._enrichmentCancelId);
+			this._pendingTimeouts.delete(this._enrichmentCancelId);
 			this._enrichmentCancelId = null;
 		}
 		const pixiNodes = this.host.getPixiNodes();
@@ -1808,13 +1813,23 @@ export class RenderPipeline {
 				}
 			}
 			if (todo.length > 0) {
-				this._enrichmentCancelId = setTimeout(processNext, 0);
+				this._enrichmentCancelId = this._trackTimeout(processNext, 0);
 			} else {
 				this.cullOverlappingLabels();
 				this.markDirty(true);
 			}
 		};
-		this._enrichmentCancelId = setTimeout(processNext, 0);
+		this._enrichmentCancelId = this._trackTimeout(processNext, 0);
+	}
+
+	/** Schedule a timeout tracked in `_pendingTimeouts` so detach() can clear it. */
+	private _trackTimeout(cb: () => void, ms: number): ReturnType<typeof setTimeout> {
+		const id: ReturnType<typeof setTimeout> = setTimeout(() => {
+			this._pendingTimeouts.delete(id);
+			cb();
+		}, ms);
+		this._pendingTimeouts.add(id);
+		return id;
 	}
 
 	private scheduleDeferredBatch() {
@@ -1825,12 +1840,13 @@ export class RenderPipeline {
 		// expected ~2s to >2 minutes. setTimeout(0) runs as a macrotask between
 		// rAF ticks, breaking the contention and also yielding to input events
 		// between batches.
-		this.deferredBatchId = setTimeout(this.processDeferredBatch, 0) as unknown as ReturnType<typeof setTimeout>;
+		this.deferredBatchId = this._trackTimeout(this.processDeferredBatch, 0);
 	}
 
 	cancelDeferredBatch() {
 		if (this.deferredBatchId !== null) {
 			clearTimeout(this.deferredBatchId as unknown as ReturnType<typeof setTimeout>);
+			this._pendingTimeouts.delete(this.deferredBatchId);
 			this.deferredBatchId = null;
 		}
 		this.pendingNodes = [];
