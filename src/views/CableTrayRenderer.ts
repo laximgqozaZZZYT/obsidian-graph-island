@@ -9,7 +9,9 @@
 import type { GraphEdge } from "../types";
 import { edgeSourceId, edgeTargetId, incCounter } from "../utils/graph-helpers";
 import { addToMapSet } from "../utils/map-helpers";
-import type { EdgeDrawConfig, GroupBBox, BBoxFace, JunctionGrid } from "./EdgeRenderer";
+import { BUNDLE_SKIP } from "../constants";
+import type { CanvasGraphics } from "./canvas2d";
+import type { EdgeDrawConfig, GroupBBox, BBoxFace, JunctionGrid, BundleGroup, EdgeRenderCache } from "./EdgeRenderer";
 import {
 	resolveEdgeColor,
 	computeGraphCenter,
@@ -26,6 +28,9 @@ import {
 	shortestAngleDelta,
 	mergeNearbyValues,
 	deduplicatePath,
+	buildDirectionBundles,
+	drawTrunks,
+	drawIntraGroupCables,
 	FADE_BY_DEGREE_MIN_ALPHA,
 	WEIGHT_THICKNESS_FACTOR,
 } from "./EdgeRenderer";
@@ -1432,4 +1437,186 @@ export function getPortLaneEndpoint(
 		x: info.portX + info.perpX * off,
 		y: info.portY + info.perpY * off,
 	};
+}
+
+// ---------------------------------------------------------------------------
+// Cache-aware preparation / drawing entry points
+// ---------------------------------------------------------------------------
+// Moved from EdgeRenderer.ts to keep god-object size in check.  Cache is now
+// a required argument (no module-level fallback) — EdgeRenderer always passes
+// its own _cache instance explicitly, preserving the "no module-level caches"
+// contract for this file.
+
+/** Compute direction x color bundles for highway-style edge merging (cached). */
+export function prepareBundles(
+	edges: GraphEdge[],
+	resolvePos: (ref: string | object) => Pos | undefined,
+	cfg: EdgeDrawConfig,
+	cache: EdgeRenderCache,
+): Map<string, BundleGroup> | null {
+	const bundleStrength = cfg.bundleStrength;
+	if (bundleStrength <= 0) return null;
+
+	cache.bundleFrameCount++;
+	if (cache.bundleDirty || !cache.bundle || cache.bundleFrameCount >= BUNDLE_SKIP) {
+		cache.bundle = buildDirectionBundles(edges, resolvePos, cfg);
+		cache.bundleDirty = false;
+		cache.bundleFrameCount = 0;
+	}
+	return cache.bundle;
+}
+
+/** Invalidate cable caches when centroid count changes or on bundle skip cycle. */
+function invalidateCableCacheIfNeeded(cfg: EdgeDrawConfig, cache: EdgeRenderCache): void {
+	const curCentroidCount = cfg.clusterCentroids?.size ?? 0;
+	if (curCentroidCount !== cache.cableCentroidCount) {
+		cache.cableDirty = true;
+		cache.intraCableDirty = true;
+		cache.portColorLanes = null;
+		cache.cableCentroidCount = curCentroidCount;
+	}
+	if (cache.bundleFrameCount === 0) {
+		cache.cableDirty = true;
+		cache.intraCableDirty = true;
+		cache.portColorLanes = null;
+	}
+}
+
+/** Rebuild trunk cables and group ports when the cable cache is dirty. */
+function rebuildTrunkCables(
+	edges: GraphEdge[],
+	resolvePos: (ref: string | object) => Pos | undefined,
+	cfg: EdgeDrawConfig,
+	polarCenter: Pos | undefined,
+	cache: EdgeRenderCache,
+): void {
+	const centroids = cfg.clusterCentroids!;
+	const radii = cfg.clusterRadii!;
+	const groupKeys = new Set(cfg.nodeClusterMap!.values());
+	const connections = new Map<string, Set<string>>();
+	for (const e of edges) {
+		const sg = cfg.nodeClusterMap!.get(edgeSourceId(e));
+		const tg = cfg.nodeClusterMap!.get(edgeTargetId(e));
+		if (!sg || !tg || sg === tg) continue;
+		addToMapSet(connections, sg, tg);
+		addToMapSet(connections, tg, sg);
+	}
+	cache.groupBBox.clear();
+	const allGroupPorts = computeGroupPorts(
+		groupKeys,
+		centroids,
+		radii,
+		connections,
+		cfg.coordinateSystem,
+		polarCenter,
+		resolvePos,
+		cfg.nodeClusterMap ?? undefined,
+		cache,
+	);
+	cache.cachedGroupPorts = allGroupPorts;
+	cache.cable = buildTrunks(edges, resolvePos, cfg, allGroupPorts);
+	cache.cableDirty = false;
+}
+
+/**
+ * Prepare cable trunks and intra-group cables (cached).
+ * Updates cache.cable, cache.intraCable, cache.portColorLanes as needed.
+ */
+export function prepareCables(
+	edges: GraphEdge[],
+	resolvePos: (ref: string | object) => Pos | undefined,
+	cfg: EdgeDrawConfig,
+	cache: EdgeRenderCache,
+): CablePrepResult {
+	const clustersAvailable = !!(cfg.nodeClusterMap && cfg.clusterCentroids && cfg.clusterRadii);
+	const cableMode = cfg.cableBundleMode ?? "auto";
+	const hasClusters = cableMode === "never" ? false : cableMode === "always" ? true : clustersAvailable;
+
+	if (!hasClusters) {
+		return { hasClusters: false, cabledEdgeIds: new Set<string>(), intraHandledIds: new Set<string>() };
+	}
+
+	invalidateCableCacheIfNeeded(cfg, cache);
+
+	const polarCenter = computePolarCenter(cfg);
+
+	if (cache.cableDirty || !cache.cable) {
+		rebuildTrunkCables(edges, resolvePos, cfg, polarCenter, cache);
+	}
+
+	const cabledEdgeIds = cache.cable!.cabledEdgeIds;
+
+	// Intra-group cable wiring
+	let intraHandledIds = new Set<string>();
+	if (cache.cable) {
+		if (cache.intraCableDirty || !cache.intraCable) {
+			if (!cache.cachedGroupPorts) {
+				const centroids = cfg.clusterCentroids!;
+				const radii = cfg.clusterRadii!;
+				const connections = new Map<string, Set<string>>();
+				for (const trunk of cache.cable.trunks) {
+					addToMapSet(connections, trunk.srcGroup, trunk.tgtGroup);
+					addToMapSet(connections, trunk.tgtGroup, trunk.srcGroup);
+				}
+				const groupKeys = new Set(cfg.nodeClusterMap!.values());
+				const pc = computePolarCenter(cfg);
+				cache.cachedGroupPorts = computeGroupPorts(
+					groupKeys,
+					centroids,
+					radii,
+					connections,
+					cfg.coordinateSystem,
+					pc,
+					resolvePos,
+					cfg.nodeClusterMap ?? undefined,
+					cache,
+				);
+			}
+			cache.intraCable = buildIntraGroupCables(edges, resolvePos, cfg, cache.cachedGroupPorts, cache);
+			cache.intraCableDirty = false;
+			cache.portColorLanes = null;
+		}
+
+		if (!cache.portColorLanes && cache.cachedGroupPorts) {
+			cache.portColorLanes = buildPortColorLanes(
+				cache.cable.trunks,
+				cache.intraCable.cables,
+				cfg,
+				cache.cachedGroupPorts,
+			);
+		}
+
+		intraHandledIds = cache.intraCable.handledEdgeIds;
+	}
+
+	return { hasClusters, cabledEdgeIds, intraHandledIds };
+}
+
+/**
+ * Draw cable trunks and intra-group cables into the graphics context.
+ * Separated from prepareCables so that cache computation and drawing are distinct phases.
+ */
+export function drawCables(
+	g: CanvasGraphics,
+	cfg: EdgeDrawConfig,
+	densityScale: number,
+	cablePrep: CablePrepResult,
+	cache: EdgeRenderCache,
+): void {
+	if (cablePrep.hasClusters && cache.cable) {
+		// Draw all cable wires. When highlighting, drawTrunks and drawIntraGroupCables
+		// internally do 2-pass (dim first, bright on top) for z-order.
+		if (cache.cable.trunks.length > 0) {
+			drawTrunks(g, cache.cable.trunks, cfg, densityScale, cache.portColorLanes ?? undefined);
+		}
+		if (cache.intraCable && cache.intraCable.cables.length > 0) {
+			drawIntraGroupCables(g, cache.intraCable.cables, cfg, densityScale, cache.portColorLanes ?? undefined);
+		}
+		// Final bright pass: redraw bright trunk wires on top of everything
+		if (cfg.highlightedNodeId && cache.cable.trunks.length > 0) {
+			drawTrunks(g, cache.cable.trunks, cfg, densityScale, cache.portColorLanes ?? undefined, "bright");
+		}
+	} else if (cache.cable && cache.cable.trunks.length > 0) {
+		drawTrunks(g, cache.cable.trunks, cfg, densityScale);
+	}
 }
