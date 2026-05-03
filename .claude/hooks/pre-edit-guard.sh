@@ -18,6 +18,29 @@ if [[ -z "$FILE_PATH" && -n "$TOOL_INPUT_JSON" ]]; then
     | head -1 | sed 's/.*"file_path"\s*:\s*"//;s/"$//' || true)
 fi
 
+# Phase R7 (2026-05-03): block edits to CLAUDE.md from autonomous cycles.
+# Phase E1/E2 history showed CLAUDE.md being silently raised when format
+# reflow pushed god-object files past their limit. Now CLAUDE.md is the
+# single source of truth (R5 dynamic parse) — letting autonomous edit it
+# would re-open the same drift loop. Human PRs (this session) bypass the
+# hook because they go through Edit/Write tools the operator approves.
+#
+# Hooks fail-closed: emit a clear "blocked" message and exit non-zero so
+# the model sees the rejection and corrects course.
+if [[ "$FILE_PATH" == */CLAUDE.md ]]; then
+  cat >&2 <<'BLOCKED'
+============================================
+  PRE-EDIT GUARD — CLAUDE.md is protected
+============================================
+  Reason: CLAUDE.md is the single source of truth for god-object
+  ratchets and pipeline rules. Autonomous cycles must NOT raise the
+  Max Allowed limits or relax the Forbidden Patterns. If a god-object
+  is over-cap, extract code into a new file instead.
+============================================
+BLOCKED
+  exit 1
+fi
+
 # Skip non-source files
 if [[ ! "$FILE_PATH" =~ ^.*/src/.*\.ts$ ]]; then
   exit 0
