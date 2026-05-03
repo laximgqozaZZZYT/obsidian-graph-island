@@ -317,11 +317,11 @@ export class InteractionManager {
 	private _lastHoverX = 0;
 	private _lastHoverY = 0;
 	// Debounced zoom layout recalculation
-	private _zoomLayoutTimer = 0;
+	private _zoomLayoutTimer: ReturnType<typeof setTimeout> | null = null;
 	// Last zoom scale at which layout was recalculated (for delta threshold)
 	private _lastLayoutZoom = 1;
 	// Debounced label cull (expensive overlap detection) during rapid zoom
-	private _zoomCullTimer = 0;
+	private _zoomCullTimer: ReturnType<typeof setTimeout> | null = null;
 
 	// Smooth zoom interpolation state
 	private _targetScale = 1;
@@ -371,8 +371,14 @@ export class InteractionManager {
 	detach() {
 		cancelAnimationFrame(this._smoothZoomId);
 		this._smoothZoomId = 0;
-		clearTimeout(this._zoomLayoutTimer);
-		clearTimeout(this._zoomCullTimer);
+		if (this._zoomLayoutTimer !== null) {
+			this.host.timers.clear(this._zoomLayoutTimer);
+			this._zoomLayoutTimer = null;
+		}
+		if (this._zoomCullTimer !== null) {
+			this.host.timers.clear(this._zoomCullTimer);
+			this._zoomCullTimer = null;
+		}
 		this.canvas.removeEventListener("wheel", this._onWheel);
 		this.canvas.removeEventListener("pointerdown", this._onPointerDown);
 		this.canvas.removeEventListener("pointermove", this._onPointerMove);
@@ -446,18 +452,20 @@ export class InteractionManager {
 		// untouched. Label re-culling at the new zoom is debounced below and
 		// runs at end-of-gesture, not per-frame.
 		this.host.markTransformDirty();
-		clearTimeout(this._zoomCullTimer);
-		this._zoomCullTimer = window.setTimeout(() => {
+		if (this._zoomCullTimer !== null) this.host.timers.clear(this._zoomCullTimer);
+		this._zoomCullTimer = this.host.timers.setTimeout(() => {
+			this._zoomCullTimer = null;
 			this.host.updateLabelsForZoom?.();
-		}, 50) as unknown as number;
+		}, 50);
 		this.host.updateZoomIndicator?.(s);
 		const zoomDelta = Math.abs(s - this._lastLayoutZoom) / (this._lastLayoutZoom || 1);
 		if (zoomDelta >= ZOOM_LAYOUT_DELTA_THRESHOLD) {
-			clearTimeout(this._zoomLayoutTimer);
-			this._zoomLayoutTimer = window.setTimeout(() => {
+			if (this._zoomLayoutTimer !== null) this.host.timers.clear(this._zoomLayoutTimer);
+			this._zoomLayoutTimer = this.host.timers.setTimeout(() => {
+				this._zoomLayoutTimer = null;
 				this._lastLayoutZoom = s;
 				this.host.onZoomLayoutUpdate?.(s);
-			}, ZOOM_LAYOUT_DEBOUNCE_MS) as unknown as number;
+			}, ZOOM_LAYOUT_DEBOUNCE_MS);
 		}
 	}
 

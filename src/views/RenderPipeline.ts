@@ -601,10 +601,18 @@ export class RenderPipeline {
 	/** Detach the ticker callback. Call during cleanup. */
 	detach() {
 		this.cancelDeferredBatch();
+		this.cancelEnrichmentChain();
 		const app = this.host.getPixiApp();
 		if (this._tickerBound && app) {
 			app.ticker.remove(this.renderTick, this);
 			this._tickerBound = false;
+		}
+	}
+
+	private cancelEnrichmentChain(): void {
+		if (this._enrichmentCancelId !== null) {
+			this.host.timers.clear(this._enrichmentCancelId);
+			this._enrichmentCancelId = null;
 		}
 	}
 
@@ -1780,7 +1788,7 @@ export class RenderPipeline {
 	private _enrichmentCancelId: ReturnType<typeof setTimeout> | null = null;
 	private enrichLabelsDeferred(): void {
 		if (this._enrichmentCancelId !== null) {
-			clearTimeout(this._enrichmentCancelId);
+			this.host.timers.clear(this._enrichmentCancelId);
 			this._enrichmentCancelId = null;
 		}
 		const pixiNodes = this.host.getPixiNodes();
@@ -1808,13 +1816,13 @@ export class RenderPipeline {
 				}
 			}
 			if (todo.length > 0) {
-				this._enrichmentCancelId = setTimeout(processNext, 0);
+				this._enrichmentCancelId = this.host.timers.setTimeout(processNext, 0);
 			} else {
 				this.cullOverlappingLabels();
 				this.markDirty(true);
 			}
 		};
-		this._enrichmentCancelId = setTimeout(processNext, 0);
+		this._enrichmentCancelId = this.host.timers.setTimeout(processNext, 0);
 	}
 
 	private scheduleDeferredBatch() {
@@ -1825,12 +1833,12 @@ export class RenderPipeline {
 		// expected ~2s to >2 minutes. setTimeout(0) runs as a macrotask between
 		// rAF ticks, breaking the contention and also yielding to input events
 		// between batches.
-		this.deferredBatchId = setTimeout(this.processDeferredBatch, 0) as unknown as ReturnType<typeof setTimeout>;
+		this.deferredBatchId = this.host.timers.setTimeout(this.processDeferredBatch, 0);
 	}
 
 	cancelDeferredBatch() {
 		if (this.deferredBatchId !== null) {
-			clearTimeout(this.deferredBatchId as unknown as ReturnType<typeof setTimeout>);
+			this.host.timers.clear(this.deferredBatchId);
 			this.deferredBatchId = null;
 		}
 		this.pendingNodes = [];

@@ -809,8 +809,8 @@ export function buildPanel(panelEl: HTMLElement, panel: PanelState, ctx: PanelCo
 		searchBar.addEventListener("input", () => {
 			panel.searchQuery = searchBar.value;
 			searchClearBtn.style.display = searchBar.value ? "flex" : "none";
-			if (searchDebounce) clearTimeout(searchDebounce);
-			searchDebounce = setTimeout(() => {
+			if (searchDebounce) ctx.timers.clear(searchDebounce);
+			searchDebounce = ctx.timers.setTimeout(() => {
 				// 非空クエリが変化した場合に履歴に追加
 				const q = searchBar.value.trim();
 				if (q && q !== lastCommittedQuery) {
