@@ -4,6 +4,7 @@ import {
 	drawSunburstLayoutArcs,
 	drawSunburstLabels,
 	clearSunburstLabels,
+	hitTestSunburstArcAt,
 	type SunburstTooltipLines,
 	type SunburstArcDrawParams,
 	type SunburstLabelDrawParams,
@@ -503,5 +504,104 @@ describe("clearSunburstLabels", () => {
 		clearSunburstLabels(labels, null, null);
 		expect(labels.size).toBe(0);
 		expect(label.destroy).toHaveBeenCalled();
+	});
+});
+
+// ---------------------------------------------------------------------------
+// hitTestSunburstArcAt
+// ---------------------------------------------------------------------------
+
+describe("hitTestSunburstArcAt", () => {
+	// Helper: build a 4-quadrant sunburst around (0,0) with one depth-1 arc per
+	// quadrant. The on-screen +y axis is "up" because the renderer offsets
+	// angles by +PI/2 to put 0 at the top.
+	//
+	//   quadrant arcs (after the +PI/2 offset that hitTestSunburstArcAt undoes):
+	//     "Top"    angles [0,         PI/2]
+	//     "Right"  angles [PI/2,      PI]
+	//     "Bottom" angles [PI,        3*PI/2]
+	//     "Left"   angles [3*PI/2,    2*PI]
+	function quadrantArcs(): SunburstArc[] {
+		return [
+			{ name: "Top", depth: 1, x0: 0, x1: Math.PI / 2, y0: 10, y1: 50, value: 1 } as SunburstArc,
+			{ name: "Right", depth: 1, x0: Math.PI / 2, x1: Math.PI, y0: 10, y1: 50, value: 1 } as SunburstArc,
+			{ name: "Bottom", depth: 1, x0: Math.PI, x1: (3 * Math.PI) / 2, y0: 10, y1: 50, value: 1 } as SunburstArc,
+			{ name: "Left", depth: 1, x0: (3 * Math.PI) / 2, x1: 2 * Math.PI, y0: 10, y1: 50, value: 1 } as SunburstArc,
+		];
+	}
+
+	it("returns null for empty arc list", () => {
+		expect(hitTestSunburstArcAt([], 0, 0, 30, 30)).toBeNull();
+	});
+
+	it("returns null when point is inside the inner radius", () => {
+		const arcs = quadrantArcs();
+		// Inside hole (r < 10)
+		expect(hitTestSunburstArcAt(arcs, 0, 0, 5, 0)).toBeNull();
+	});
+
+	it("returns null when point is outside the outer radius", () => {
+		const arcs = quadrantArcs();
+		// r = 100 > y1=50
+		expect(hitTestSunburstArcAt(arcs, 0, 0, 100, 0)).toBeNull();
+	});
+
+	it("identifies the depth-1 arc directly when hit", () => {
+		const arcs = quadrantArcs();
+		// Right side (x>0, y=0) → angle=PI/2 after offset → "Right"
+		const hit = hitTestSunburstArcAt(arcs, 0, 0, 30, 0);
+		expect(hit).toBe("Right");
+	});
+
+	it("returns the depth-1 ancestor when a deeper arc is hit", () => {
+		const arcs: SunburstArc[] = [
+			{ name: "Parent", depth: 1, x0: 0, x1: Math.PI, y0: 10, y1: 30, value: 2 } as SunburstArc,
+			{ name: "Child", depth: 2, x0: 0, x1: Math.PI / 2, y0: 30, y1: 60, value: 1 } as SunburstArc,
+		];
+		// Hit the child arc: r=45 (in [30,60]), angle = PI/2 (atan2(30,0)+PI/2 = PI)
+		// Wait — atan2(0, 30)+PI/2 = 0 + PI/2 = PI/2 → in [0, PI/2] → child hit
+		const hit = hitTestSunburstArcAt(arcs, 0, 0, 45, 0);
+		expect(hit).toBe("Parent");
+	});
+
+	it("prefers the deepest arc when multiple contain the point", () => {
+		const arcs: SunburstArc[] = [
+			{ name: "Outer", depth: 1, x0: 0, x1: Math.PI, y0: 10, y1: 60, value: 2 } as SunburstArc,
+			{ name: "Inner", depth: 2, x0: 0, x1: Math.PI / 2, y0: 20, y1: 40, value: 1 } as SunburstArc,
+		];
+		// r=30, angle=PI/2 → both arcs contain the point; the deeper one (Inner)
+		// wins, but the function returns its depth-1 ancestor.
+		const hit = hitTestSunburstArcAt(arcs, 0, 0, 30, 0);
+		expect(hit).toBe("Outer");
+	});
+
+	it("falls back to the deepest arc's name when no depth-1 ancestor exists", () => {
+		const arcs: SunburstArc[] = [
+			{ name: "Orphan", depth: 2, x0: 0, x1: Math.PI / 2, y0: 10, y1: 50, value: 1 } as SunburstArc,
+		];
+		const hit = hitTestSunburstArcAt(arcs, 0, 0, 30, 0);
+		expect(hit).toBe("Orphan");
+	});
+
+	it("skips depth-0 (root) arcs in hit-testing", () => {
+		const arcs: SunburstArc[] = [
+			{ name: "Root", depth: 0, x0: 0, x1: 2 * Math.PI, y0: 0, y1: 100, value: 10 } as SunburstArc,
+		];
+		// Even though the point is inside the root, depth-0 is filtered out.
+		expect(hitTestSunburstArcAt(arcs, 0, 0, 30, 0)).toBeNull();
+	});
+
+	it("normalises negative angles back into [0, 2*PI)", () => {
+		const arcs = quadrantArcs();
+		// Left side (x<0, y=0): atan2(0,-30)=PI → angle=PI+PI/2=3PI/2 → in [3PI/2, 2PI] → "Left"
+		const hit = hitTestSunburstArcAt(arcs, 0, 0, -30, 0);
+		expect(hit).toBe("Left");
+	});
+
+	it("works around a non-zero centre (cx, cy)", () => {
+		const arcs = quadrantArcs();
+		// Centre at (100, 200); world point (130, 200) → relative (30, 0) → "Right"
+		const hit = hitTestSunburstArcAt(arcs, 100, 200, 130, 200);
+		expect(hit).toBe("Right");
 	});
 });

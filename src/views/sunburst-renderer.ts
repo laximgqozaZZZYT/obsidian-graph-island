@@ -54,6 +54,49 @@ export function buildSunburstTooltipContent(arcs: LayoutSunburstArc[], groupName
 }
 
 // ---------------------------------------------------------------------------
+// Sunburst arc hit-testing (pure)
+// ---------------------------------------------------------------------------
+
+/**
+ * Hit-test sunburst arcs at world coordinates. Returns the depth-1 group name
+ * that contains the point, or null if no arc is hit.
+ *
+ * Pure function — extracted from GraphViewContainer.hitTestSunburstArc.
+ * Caller is responsible for the LAYOUT_SUNBURST guard and supplying the
+ * sunburst center.
+ */
+export function hitTestSunburstArcAt(
+	arcs: LayoutSunburstArc[],
+	cx: number,
+	cy: number,
+	wx: number,
+	wy: number,
+): string | null {
+	if (arcs.length === 0) return null;
+	const dx = wx - cx;
+	const dy = wy - cy;
+	const r = Math.sqrt(dx * dx + dy * dy);
+	let angle = Math.atan2(dy, dx) + Math.PI / 2; // offset to match draw offset
+	if (angle < 0) angle += 2 * Math.PI;
+	if (angle > 2 * Math.PI) angle -= 2 * Math.PI;
+
+	let bestArc: LayoutSunburstArc | null = null;
+	for (const arc of arcs) {
+		if (arc.depth === 0) continue;
+		if (r >= arc.y0 && r <= arc.y1 && angle >= arc.x0 && angle <= arc.x1) {
+			if (!bestArc || arc.depth > bestArc.depth) bestArc = arc;
+		}
+	}
+	if (!bestArc) return null;
+
+	if (bestArc.depth === 1) return bestArc.name;
+	for (const arc of arcs) {
+		if (arc.depth === 1 && arc.x0 <= bestArc.x0 && arc.x1 >= bestArc.x1) return arc.name;
+	}
+	return bestArc.name;
+}
+
+// ---------------------------------------------------------------------------
 // Sunburst layout arc drawing
 // ---------------------------------------------------------------------------
 

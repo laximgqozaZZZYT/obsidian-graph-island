@@ -233,6 +233,7 @@ import {
 	drawSunburstLayoutArcs as drawSunburstLayoutArcsImpl,
 	drawSunburstLabels as drawSunburstLabelsImpl,
 	clearSunburstLabels as clearSunburstLabelsImpl,
+	hitTestSunburstArcAt,
 } from "./sunburst-renderer";
 import { renderMatrixViewMode as renderMatrixViewModeImpl, type MatrixSortMode } from "./matrix-renderer";
 import { computeStaticLayout, type StaticLayoutResult } from "./layout-compute";
@@ -8450,31 +8451,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
 	/** Hit-test sunburst arcs at world coordinates. Returns depth-1 group name or null. */
 	hitTestSunburstArc(wx: number, wy: number): string | null {
-		if (this.currentLayout !== LAYOUT_SUNBURST || this.sunburstLayoutArcs.length === 0) return null;
+		if (this.currentLayout !== LAYOUT_SUNBURST) return null;
 		const { x: cx, y: cy } = this.sunburstCenter;
-		const dx = wx - cx;
-		const dy = wy - cy;
-		const r = Math.sqrt(dx * dx + dy * dy);
-		let angle = Math.atan2(dy, dx) + Math.PI / 2; // offset to match draw offset
-		if (angle < 0) angle += 2 * Math.PI;
-		if (angle > 2 * Math.PI) angle -= 2 * Math.PI;
-
-		// Find deepest arc that contains the point
-		let bestArc: (typeof this.sunburstLayoutArcs)[0] | null = null;
-		for (const arc of this.sunburstLayoutArcs) {
-			if (arc.depth === 0) continue;
-			if (r >= arc.y0 && r <= arc.y1 && angle >= arc.x0 && angle <= arc.x1) {
-				if (!bestArc || arc.depth > bestArc.depth) bestArc = arc;
-			}
-		}
-		if (!bestArc) return null;
-
-		// Find depth-1 ancestor
-		if (bestArc.depth === 1) return bestArc.name;
-		for (const arc of this.sunburstLayoutArcs) {
-			if (arc.depth === 1 && arc.x0 <= bestArc.x0 && arc.x1 >= bestArc.x1) return arc.name;
-		}
-		return bestArc.name;
+		return hitTestSunburstArcAt(this.sunburstLayoutArcs, cx, cy, wx, wy);
 	}
 
 	/** Sunburst tooltip element */
