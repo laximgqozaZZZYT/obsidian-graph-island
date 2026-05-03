@@ -15,6 +15,18 @@ import { getNodeShape, drawShapeAt } from "../utils/node-shapes";
 import { hslToHex } from "../utils/graph-helpers";
 import { screenToWorld, hashStringToHue, type RenderHost } from "./RenderPipeline";
 
+// TODO(NODE_DECO): STAR_FILL_ALPHA = 0.9  // ブックマーク星形の塗り alpha
+// TODO(NODE_DECO): STAR_RADIUS_RATIO = 0.35  // ブックマーク星形の対ノード半径比
+// TODO(NODE_DECO): STAR_INNER_RATIO = 0.4  // ブックマーク星形の内側スパイク比
+// TODO(NODE_DECO): MISSING_RING_LINE_WIDTH = 2  // 欠落隣接リングの線幅
+// TODO(NODE_DECO): MISSING_RING_RADIUS_PAD = 4  // 欠落隣接リングの半径パディング
+// TODO(NODE_DECO): TAG_BADGE_PAD_RATIO = 0.7  // タグバッジ配置のパディング比
+// TODO(NODE_DECO): RECENCY_DOT_RADIUS_PX = 3  // 最近更新ドットの半径
+// TODO(NODE_DECO): HIERARCHY_EDGE_WIDTH = 2.5  // 階層オーバレイ線の太さ
+// TODO(NODE_DECO): HIERARCHY_EDGE_ALPHA = 0.6  // 階層オーバレイ線の alpha
+// TODO(NODE_DECO): MULTI_SELECT_RING_WIDTH = 2.5  // 複数選択リングの線幅
+// TODO(NODE_DECO): MULTI_SELECT_RING_PAD = 5  // 複数選択リングの半径パディング
+
 // ---------------------------------------------------------------------------
 // Constants (moved from RenderPipeline.ts)
 // ---------------------------------------------------------------------------
