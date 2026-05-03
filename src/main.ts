@@ -369,6 +369,7 @@ export default class GraphViewsPlugin extends Plugin {
 		});
 		this.app.workspace.revealLeaf(leaf);
 		// Configure the new view after creation
+		// timer:A
 		this.timers.setTimeout(() => {
 			const view = asGraphView(leaf);
 			if (view?.panel) {

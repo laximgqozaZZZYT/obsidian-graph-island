@@ -447,6 +447,7 @@ export class InteractionManager {
 		// runs at end-of-gesture, not per-frame.
 		this.host.markTransformDirty();
 		clearTimeout(this._zoomCullTimer);
+		// timer:A
 		this._zoomCullTimer = window.setTimeout(() => {
 			this.host.updateLabelsForZoom?.();
 		}, 50) as unknown as number;
@@ -454,6 +455,7 @@ export class InteractionManager {
 		const zoomDelta = Math.abs(s - this._lastLayoutZoom) / (this._lastLayoutZoom || 1);
 		if (zoomDelta >= ZOOM_LAYOUT_DELTA_THRESHOLD) {
 			clearTimeout(this._zoomLayoutTimer);
+			// timer:A
 			this._zoomLayoutTimer = window.setTimeout(() => {
 				this._lastLayoutZoom = s;
 				this.host.onZoomLayoutUpdate?.(s);
@@ -1055,6 +1057,7 @@ export class InteractionManager {
 				.onClick(() => {
 					const obsApp = this.host.getApp();
 					asInternalApp(obsApp).commands?.executeCommandById("global-search:open");
+					// timer:A
 					this.host.timers.setTimeout(() => {
 						const searchLeaf = obsApp.workspace.getLeavesOfType("search")[0];
 						if (searchLeaf) {

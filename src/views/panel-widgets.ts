@@ -206,6 +206,7 @@ function attachAutocomplete(input: HTMLInputElement, suggestions: string[]) {
 	input.addEventListener("focus", show);
 	input.addEventListener("input", show);
 	input.addEventListener("blur", () => {
+		// timer:C
 		setTimeout(() => (popup.style.display = "none"), 150);
 	});
 	input.addEventListener("keydown", (e) => {
@@ -859,6 +860,7 @@ export function attachQueryHint(input: HTMLInputElement, getSuggestions: (field:
 		show: () => rebuildHint(),
 		hide: () => {
 			if (!hintEl) return;
+			// timer:C
 			setTimeout(() => {
 				if (input === document.activeElement) return;
 				dismissHint();
@@ -1066,6 +1068,7 @@ function attachFixedHint(
 
 	input.addEventListener("focus", rebuild);
 	input.addEventListener("blur", () => {
+		// timer:C
 		setTimeout(() => {
 			if (input === document.activeElement) return;
 			dismissHint();
@@ -1223,6 +1226,7 @@ function _setupSearchJumpListeners(
 ) {
 	input.addEventListener("input", () => {
 		// Defer slightly so attachQueryHint processes first
+		// timer:C
 		setTimeout(ctx.rebuild, 50);
 	});
 
@@ -1257,6 +1261,7 @@ function _setupSearchJumpListeners(
 	});
 
 	input.addEventListener("blur", () => {
+		// timer:C
 		setTimeout(ctx.dismiss, 200);
 	});
 }

@@ -616,6 +616,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
 	/** Schedule a one-shot timer that is auto-tracked and cleared on close. */
 	private _scheduleTimer(cb: () => void, ms: number): ReturnType<typeof setTimeout> {
+		// timer:A
 		return this.timers.setTimeout(cb, ms);
 	}
 
@@ -628,6 +629,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		// ビュー同期ブロードキャスト
 		this._broadcastPanelSync();
 		if (this._saveTimer) this.timers.clear(this._saveTimer);
+		// timer:A
 		this._saveTimer = this.timers.setTimeout(() => {
 			this.app.workspace.requestSaveLayout();
 			this._saveTimer = null;
@@ -1433,6 +1435,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 					},
 				},
 				{
+					// timer:A
 					setTimeout: (cb, ms) => this.timers.setTimeout(cb, ms) as unknown as number,
 					clearTimeout: (id) => this.timers.clear(id as unknown as ReturnType<typeof setTimeout>),
 				},

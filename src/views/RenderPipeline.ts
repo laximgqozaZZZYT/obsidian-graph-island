@@ -1468,6 +1468,7 @@ export class RenderPipeline {
 			// in the host (alpha(0).stop(), force application) completes before
 			// the callback restarts the simulation. Without this, the sync path
 			// would restart the sim before the host has finished configuring it.
+			// timer:A
 			this.host.timers.setTimeout(() => this.host.onAllPixiNodesCreated?.(), 0);
 		}
 	}
@@ -1766,6 +1767,7 @@ export class RenderPipeline {
 			// graph force simulation to reach alphaMin; if the user hovers
 			// a labelless node before then, LabelManager's hoverForcedLabel
 			// path still works via null-label-tolerant checks.
+			// timer:A
 			this.host.timers.setTimeout(() => this.enrichLabelsDeferred(), 2500);
 		}
 	};
@@ -1808,12 +1810,14 @@ export class RenderPipeline {
 				}
 			}
 			if (todo.length > 0) {
+				// timer:B
 				this._enrichmentCancelId = setTimeout(processNext, 0);
 			} else {
 				this.cullOverlappingLabels();
 				this.markDirty(true);
 			}
 		};
+		// timer:B
 		this._enrichmentCancelId = setTimeout(processNext, 0);
 	}
 
@@ -1825,6 +1829,7 @@ export class RenderPipeline {
 		// expected ~2s to >2 minutes. setTimeout(0) runs as a macrotask between
 		// rAF ticks, breaking the contention and also yielding to input events
 		// between batches.
+		// timer:A
 		this.deferredBatchId = setTimeout(this.processDeferredBatch, 0) as unknown as ReturnType<typeof setTimeout>;
 	}
 
