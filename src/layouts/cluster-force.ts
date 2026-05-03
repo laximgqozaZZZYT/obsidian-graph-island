@@ -44,6 +44,9 @@ import {
 	GROUP_ARRANGEMENT_VERTICAL,
 	GROUP_ARRANGEMENT_GRID,
 	LABEL_CHAR_WIDTH_FACTOR,
+	NODE_SIZE_BASELINE,
+	NODE_SIZE_FACTOR_MIN,
+	NODE_SIZE_FACTOR_MAX,
 } from "../constants";
 import { timelineOffsetsV2 } from "./timeline-layout";
 import { pushToMapArray } from "../utils/map-helpers";
@@ -993,7 +996,16 @@ export function estimateLabelExtent(
 }
 
 /** Visual radius of a node — canonical formula used across the codebase.
- *  Enforces minNodeRadius floor so nodes remain hoverable/clickable. */
+ *  Enforces minNodeRadius floor so nodes remain hoverable/clickable.
+ *
+ *  When `sizeByDegree=true`, the degree-scaled radius is computed from
+ *  `NODE_SIZE_BASELINE` and then multiplied by the clamped slider factor
+ *  `nodeSize / NODE_SIZE_BASELINE`. This decouples the slider from the
+ *  `minNodeRadius` floor (which previously absorbed slider values below
+ *  the floor) and gives the slider a continuous, multiplicative effect
+ *  across its full 5..300 range. At `nodeSize === NODE_SIZE_BASELINE` the
+ *  factor is 1 and the historic `baseR * (0.7 + t * 1.3)` shape is
+ *  preserved. */
 export function nodeRadius(
 	nodeSize: number,
 	degree: number,
@@ -1005,8 +1017,10 @@ export function nodeRadius(
 	const baseR = Math.max(safeSize, minNodeRadius);
 	if (sizeByDegree && maxDegree > 0 && degree > 0) {
 		const t = Math.sqrt(degree / maxDegree);
-		// Scale from baseR (degree 0) to baseR * 2.0 (max degree)
-		return baseR * (0.7 + t * 1.3);
+		const factor = Math.max(NODE_SIZE_FACTOR_MIN, Math.min(NODE_SIZE_FACTOR_MAX, safeSize / NODE_SIZE_BASELINE));
+		// Scale from NODE_SIZE_BASELINE * 0.7 (low degree) to NODE_SIZE_BASELINE * 2.0 (max degree),
+		// then multiply by the slider factor so panel.nodeSize is honored.
+		return Math.max(NODE_SIZE_BASELINE * (0.7 + t * 1.3) * factor, minNodeRadius);
 	}
 	return baseR;
 }

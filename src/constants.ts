@@ -108,6 +108,26 @@ export const SHAPE_FILL_DIAMOND = "diamond" as const;
 export const SHAPE_FILL_CIRCLE = "circle" as const;
 
 // ---------------------------------------------------------------------------
+// Node sizing — slider-driven scaling (Issue #1352 A-1)
+//
+// `panel.nodeSize` is a user-facing slider (range 5..300, default 20).
+// When `nodeSizeByDegree=true`, the historic formula `baseR * (0.7 + t * 1.3)`
+// uses `baseR = max(nodeSize, minNodeRadius)`, so slider values below
+// `minNodeRadius` are silently floored away. To make the slider have a
+// continuous, visible effect across its full range, the degree-scaled radius
+// is multiplied by `nodeSize / NODE_SIZE_BASELINE` (clamped). At
+// `nodeSize === NODE_SIZE_BASELINE` the factor is 1 and the historic shape
+// is preserved.
+// ---------------------------------------------------------------------------
+
+/** Baseline value of `panel.nodeSize`; matches the default in panel-defaults.ts. */
+export const NODE_SIZE_BASELINE = 20;
+/** Lower clamp on the slider scale factor (prevents extreme shrink). */
+export const NODE_SIZE_FACTOR_MIN = 0.25;
+/** Upper clamp on the slider scale factor (prevents extreme growth). */
+export const NODE_SIZE_FACTOR_MAX = 5.0;
+
+// ---------------------------------------------------------------------------
 // Layout constants
 // Numeric parameters shared across src/layouts/*.ts. Prefix: LAYOUT_
 // (Prefixes TIMELINE_/TREE_/SUNBURST_ used where layout-specific.)
