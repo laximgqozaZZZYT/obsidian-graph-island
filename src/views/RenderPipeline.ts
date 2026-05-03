@@ -460,6 +460,7 @@ export class RenderPipeline {
 	private _cachedMaxDeg = 1;
 	private _cachedMaxBodyLength = 0;
 	private deferredBatchId: ReturnType<typeof setTimeout> | null = null;
+	private pendingTimers: Set<ReturnType<typeof setTimeout>> = new Set();
 	/** FPS tracking */
 	private _fpsFrames = 0;
 	private _fpsLastTime = 0;
@@ -601,6 +602,8 @@ export class RenderPipeline {
 	/** Detach the ticker callback. Call during cleanup. */
 	detach() {
 		this.cancelDeferredBatch();
+		for (const id of this.pendingTimers) clearTimeout(id);
+		this.pendingTimers.clear();
 		const app = this.host.getPixiApp();
 		if (this._tickerBound && app) {
 			app.ticker.remove(this.renderTick, this);
@@ -1781,6 +1784,7 @@ export class RenderPipeline {
 	private enrichLabelsDeferred(): void {
 		if (this._enrichmentCancelId !== null) {
 			clearTimeout(this._enrichmentCancelId);
+			this.pendingTimers.delete(this._enrichmentCancelId);
 			this._enrichmentCancelId = null;
 		}
 		const pixiNodes = this.host.getPixiNodes();
@@ -1808,13 +1812,22 @@ export class RenderPipeline {
 				}
 			}
 			if (todo.length > 0) {
-				this._enrichmentCancelId = setTimeout(processNext, 0);
+				this._enrichmentCancelId = this._trackTimer(processNext, 0);
 			} else {
 				this.cullOverlappingLabels();
 				this.markDirty(true);
 			}
 		};
-		this._enrichmentCancelId = setTimeout(processNext, 0);
+		this._enrichmentCancelId = this._trackTimer(processNext, 0);
+	}
+
+	private _trackTimer(fn: () => void, ms: number): ReturnType<typeof setTimeout> {
+		const id = setTimeout(() => {
+			this.pendingTimers.delete(id);
+			fn();
+		}, ms);
+		this.pendingTimers.add(id);
+		return id;
 	}
 
 	private scheduleDeferredBatch() {
@@ -1825,12 +1838,13 @@ export class RenderPipeline {
 		// expected ~2s to >2 minutes. setTimeout(0) runs as a macrotask between
 		// rAF ticks, breaking the contention and also yielding to input events
 		// between batches.
-		this.deferredBatchId = setTimeout(this.processDeferredBatch, 0) as unknown as ReturnType<typeof setTimeout>;
+		this.deferredBatchId = this._trackTimer(this.processDeferredBatch, 0);
 	}
 
 	cancelDeferredBatch() {
 		if (this.deferredBatchId !== null) {
-			clearTimeout(this.deferredBatchId as unknown as ReturnType<typeof setTimeout>);
+			clearTimeout(this.deferredBatchId);
+			this.pendingTimers.delete(this.deferredBatchId);
 			this.deferredBatchId = null;
 		}
 		this.pendingNodes = [];
