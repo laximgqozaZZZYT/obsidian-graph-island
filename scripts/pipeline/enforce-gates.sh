@@ -35,6 +35,14 @@ run_gate "lint" npx eslint src/ --quiet --max-warnings 999
 # every PR because nothing locally enforced Prettier. autonomous-improve.sh
 # runs `pnpm format` after Claude edits, but this gate is the safety net
 # in case a future implementer skips the write step.
+# Phase R6 (2026-05-03): if Prettier fails, auto-apply once and re-check.
+# Pre-R6 the implementer had to remember `pnpm format` themselves; missing
+# this step was the #1 cause of CI red-on-merge in Phase Q. Auto-applying
+# at gate-time is safe (whitespace-only) and turns format from a failure
+# mode into a NOOP.
+if ! npx prettier --check src/ tests/ >/dev/null 2>&1; then
+  npx prettier --write src/ tests/ >/dev/null 2>&1 || true
+fi
 run_gate "format" npx prettier --check src/ tests/
 run_gate "test" npx vitest run
 run_gate "build" node esbuild.config.mjs production
