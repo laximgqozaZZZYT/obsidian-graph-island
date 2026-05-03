@@ -14,6 +14,22 @@ import type {
 import { DEFAULT_COLORS } from "../types";
 import { EDGE_TYPE_INHERITANCE } from "../constants";
 import { parseQueryExpr, serializeExpr } from "../utils/query-expr";
+import type { ManagedTimers } from "../utils/managed-timers";
+
+/**
+ * Schedule a one-shot timer via the panel-scoped ManagedTimers when
+ * available so it auto-cancels on view close. Falls back to
+ * `globalThis.setTimeout` when no registry is supplied (test paths) so the
+ * return type matches `ManagedTimers.setTimeout` (Node `Timeout`, not the
+ * DOM `number`).
+ */
+function _scheduleManagedTimeout(
+	timers: ManagedTimers | undefined,
+	fn: () => void,
+	ms: number,
+): ReturnType<typeof setTimeout> {
+	return timers ? timers.setTimeout(fn, ms) : globalThis.setTimeout(fn, ms);
+}
 
 export function updateSliderProgress(el: HTMLInputElement) {
 	const min = parseFloat(el.min) || 0;
@@ -167,7 +183,7 @@ export function addTextInput(
 }
 
 /** Custom filtered autocomplete popup (replaces native datalist) */
-function attachAutocomplete(input: HTMLInputElement, suggestions: string[]) {
+function attachAutocomplete(input: HTMLInputElement, suggestions: string[], timers?: ManagedTimers) {
 	const popup = document.createElement("div");
 	popup.className = "gi-ac-popup";
 	popup.style.display = "none";
