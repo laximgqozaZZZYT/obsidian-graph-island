@@ -79,9 +79,6 @@ const TRANSFORM_FUNCTIONS: Record<string, TransformFactory> = {
 	POW: (args) => ({ kind: TRANSFORM_EXPRESSION, expr: `pow(t, ${parseNumArg(args[0], 2)})`, scale: 1 }),
 };
 
-/** All known function names (for autocomplete) */
-const TRANSFORM_FUNCTION_NAMES = Object.keys(TRANSFORM_FUNCTIONS);
-
 // ---------------------------------------------------------------------------
 // Parser
 // ---------------------------------------------------------------------------
@@ -350,20 +347,4 @@ function matchCurveFormula(input: string): AxisTransform | null {
 	}
 
 	return null;
-}
-
-/** Get all suggestion strings for autocomplete in the transform expression input */
-export function getTransformExprSuggestions(axisSources: string[]): string[] {
-	const suggestions: string[] = [];
-
-	// Plain sources (implicit linear)
-	suggestions.push(...axisSources);
-
-	// Function-wrapped examples with first source
-	const exampleSource = axisSources[0] || "index";
-	for (const func of TRANSFORM_FUNCTION_NAMES) {
-		suggestions.push(`${func}(${exampleSource})`);
-	}
-
-	return suggestions;
 }

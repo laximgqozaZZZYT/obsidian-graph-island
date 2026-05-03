@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseTransformExpr, transformExprToString, getTransformExprSuggestions } from "../src/utils/transform-expr";
+import { parseTransformExpr, transformExprToString } from "../src/utils/transform-expr";
 import {
 	TRANSFORM_LINEAR,
 	TRANSFORM_BIN,
@@ -91,25 +91,6 @@ describe("transformExprToString", () => {
 				expect(serialized.length).toBeGreaterThan(0);
 			}
 		}
-	});
-});
-
-describe("getTransformExprSuggestions", () => {
-	it("returns suggestions for given axis sources", () => {
-		const suggestions = getTransformExprSuggestions(["tag:?", "degree"]);
-		expect(Array.isArray(suggestions)).toBe(true);
-		expect(suggestions.length).toBeGreaterThan(0);
-	});
-
-	it("returns empty array for empty input", () => {
-		const suggestions = getTransformExprSuggestions([]);
-		expect(Array.isArray(suggestions)).toBe(true);
-	});
-
-	it("includes BIN suggestions when sources are provided", () => {
-		const suggestions = getTransformExprSuggestions(["tag:?"]);
-		const hasBin = suggestions.some((s) => s.toUpperCase().includes("BIN"));
-		expect(hasBin).toBe(true);
 	});
 });
 
@@ -657,24 +638,6 @@ describe("transform-expr coverage fill", () => {
 			const result = transformExprToString(source, transform);
 			expect(typeof result).toBe("string");
 			expect(result).toContain("0.5");
-		});
-	});
-
-	// --- getTransformExprSuggestions branch paths ---
-	describe("getTransformExprSuggestions branches", () => {
-		it("empty sources array → exampleSource defaults to 'index'", () => {
-			const suggestions = getTransformExprSuggestions([]);
-			expect(suggestions.length).toBeGreaterThan(0);
-			// No plain sources; only function-wrapped with "index"
-			const hasIndexWrapped = suggestions.some((s) => s.includes("(index)"));
-			expect(hasIndexWrapped).toBe(true);
-		});
-
-		it("first source is used as exampleSource for wrapped suggestions", () => {
-			const suggestions = getTransformExprSuggestions(["degree", "tag:?"]);
-			// First wrapped example should use "degree"
-			const hasDegreeWrapped = suggestions.some((s) => s.includes("(degree)"));
-			expect(hasDegreeWrapped).toBe(true);
 		});
 	});
 
