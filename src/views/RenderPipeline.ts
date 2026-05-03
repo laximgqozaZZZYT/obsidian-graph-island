@@ -460,6 +460,8 @@ export class RenderPipeline {
 	private _cachedMaxDeg = 1;
 	private _cachedMaxBodyLength = 0;
 	private deferredBatchId: ReturnType<typeof setTimeout> | null = null;
+	/** Track host.timers.setTimeout handles whose return value would otherwise be discarded, so detach() can clearTimeout them defensively even if host.timers fails to. */
+	private _pendingTimeouts = new Set<ReturnType<typeof setTimeout>>();
 	/** FPS tracking */
 	private _fpsFrames = 0;
 	private _fpsLastTime = 0;
@@ -601,6 +603,12 @@ export class RenderPipeline {
 	/** Detach the ticker callback. Call during cleanup. */
 	detach() {
 		this.cancelDeferredBatch();
+		if (this._enrichmentCancelId !== null) {
+			clearTimeout(this._enrichmentCancelId);
+			this._enrichmentCancelId = null;
+		}
+		for (const t of this._pendingTimeouts) clearTimeout(t);
+		this._pendingTimeouts.clear();
 		const app = this.host.getPixiApp();
 		if (this._tickerBound && app) {
 			app.ticker.remove(this.renderTick, this);
@@ -1468,7 +1476,11 @@ export class RenderPipeline {
 			// in the host (alpha(0).stop(), force application) completes before
 			// the callback restarts the simulation. Without this, the sync path
 			// would restart the sim before the host has finished configuring it.
-			this.host.timers.setTimeout(() => this.host.onAllPixiNodesCreated?.(), 0);
+			const _tCreated = this.host.timers.setTimeout(
+				() => this.host.onAllPixiNodesCreated?.(),
+				0,
+			) as unknown as ReturnType<typeof setTimeout>;
+			this._pendingTimeouts.add(_tCreated);
 		}
 	}
 
@@ -1766,7 +1778,11 @@ export class RenderPipeline {
 			// graph force simulation to reach alphaMin; if the user hovers
 			// a labelless node before then, LabelManager's hoverForcedLabel
 			// path still works via null-label-tolerant checks.
-			this.host.timers.setTimeout(() => this.enrichLabelsDeferred(), 2500);
+			const _tEnrich = this.host.timers.setTimeout(
+				() => this.enrichLabelsDeferred(),
+				2500,
+			) as unknown as ReturnType<typeof setTimeout>;
+			this._pendingTimeouts.add(_tEnrich);
 		}
 	};
 
