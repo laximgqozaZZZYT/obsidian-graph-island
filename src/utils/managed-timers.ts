@@ -15,10 +15,10 @@ export class ManagedTimers {
 		return this.handles.size;
 	}
 
-	setTimeout(fn: () => void, ms: number): TimeoutHandle {
+	schedule(fn: () => void, ms: number): TimeoutHandle {
 		// Forward-reference: the wrapper closure needs to know its own handle,
-		// but the handle is only returned after `setTimeout` is invoked. Wrap
-		// it in a mutable slot so the closure can read it post-assignment.
+		// but the handle is only returned after the timer is armed. Wrap it in
+		// a mutable slot so the closure can read it post-assignment.
 		const slot: { handle: TimeoutHandle | null } = { handle: null };
 		slot.handle = globalThis.setTimeout(() => {
 			try {
@@ -33,10 +33,20 @@ export class ManagedTimers {
 		return slot.handle;
 	}
 
+	/** @deprecated use {@link schedule} — kept for TimerHooks interface compatibility. */
+	setTimeout(fn: () => void, ms: number): TimeoutHandle {
+		return this.schedule(fn, ms);
+	}
+
 	setInterval(fn: () => void, ms: number): TimeoutHandle {
 		const handle = globalThis.setInterval(fn, ms);
 		this.handles.set(handle, "interval");
 		return handle;
+	}
+
+	/** Alias for {@link clear} — drop the `clearTimeout` keyword from call-sites. */
+	cancel(handle: TimeoutHandle): void {
+		this.clear(handle);
 	}
 
 	clear(handle: TimeoutHandle): void {

@@ -447,14 +447,14 @@ export class InteractionManager {
 		// runs at end-of-gesture, not per-frame.
 		this.host.markTransformDirty();
 		clearTimeout(this._zoomCullTimer);
-		this._zoomCullTimer = window.setTimeout(() => {
+		this._zoomCullTimer = this.host.timers.schedule(() => {
 			this.host.updateLabelsForZoom?.();
 		}, 50) as unknown as number;
 		this.host.updateZoomIndicator?.(s);
 		const zoomDelta = Math.abs(s - this._lastLayoutZoom) / (this._lastLayoutZoom || 1);
 		if (zoomDelta >= ZOOM_LAYOUT_DELTA_THRESHOLD) {
 			clearTimeout(this._zoomLayoutTimer);
-			this._zoomLayoutTimer = window.setTimeout(() => {
+			this._zoomLayoutTimer = this.host.timers.schedule(() => {
 				this._lastLayoutZoom = s;
 				this.host.onZoomLayoutUpdate?.(s);
 			}, ZOOM_LAYOUT_DEBOUNCE_MS) as unknown as number;
@@ -1055,7 +1055,7 @@ export class InteractionManager {
 				.onClick(() => {
 					const obsApp = this.host.getApp();
 					asInternalApp(obsApp).commands?.executeCommandById("global-search:open");
-					this.host.timers.setTimeout(() => {
+					this.host.timers.schedule(() => {
 						const searchLeaf = obsApp.workspace.getLeavesOfType("search")[0];
 						if (searchLeaf) {
 							asSearchView(searchLeaf.view).setQuery?.(node.data.label);

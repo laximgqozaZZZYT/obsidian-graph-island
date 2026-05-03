@@ -195,6 +195,19 @@ describe("InteractionManager", () => {
 
 		// Mock InteractionHost with all required methods
 		mockHost = {
+			// `ManagedTimers` shim — no-op `schedule`/`cancel` so `afterZoomStep`
+			// can run without arming real timers. Returns a fake numeric handle
+			// that is safely ignored by the real `clearTimeout` calls in
+			// `InteractionManager`.
+			timers: {
+				schedule: vi.fn(() => 1),
+				setTimeout: vi.fn(() => 1),
+				setInterval: vi.fn(() => 1),
+				cancel: vi.fn(),
+				clear: vi.fn(),
+				clearAll: vi.fn(),
+				size: 0,
+			},
 			hitTestNode: vi.fn(() => null),
 			markDirty: vi.fn(),
 			markTransformDirty: vi.fn(),
@@ -763,6 +776,19 @@ describe("InteractionManager event handlers", () => {
 		};
 
 		mockHost = {
+			// `ManagedTimers` shim — no-op `schedule`/`cancel` so `afterZoomStep`
+			// can run without arming real timers. Returns a fake numeric handle
+			// that is safely ignored by the real `clearTimeout` calls in
+			// `InteractionManager`.
+			timers: {
+				schedule: vi.fn(() => 1),
+				setTimeout: vi.fn(() => 1),
+				setInterval: vi.fn(() => 1),
+				cancel: vi.fn(),
+				clear: vi.fn(),
+				clearAll: vi.fn(),
+				size: 0,
+			},
 			hitTestNode: vi.fn(() => null),
 			markDirty: vi.fn(),
 			markTransformDirty: vi.fn(),
@@ -951,6 +977,19 @@ describe("InteractionManager node interaction helpers", () => {
 		};
 
 		mockHost = {
+			// `ManagedTimers` shim — no-op `schedule`/`cancel` so `afterZoomStep`
+			// can run without arming real timers. Returns a fake numeric handle
+			// that is safely ignored by the real `clearTimeout` calls in
+			// `InteractionManager`.
+			timers: {
+				schedule: vi.fn(() => 1),
+				setTimeout: vi.fn(() => 1),
+				setInterval: vi.fn(() => 1),
+				cancel: vi.fn(),
+				clear: vi.fn(),
+				clearAll: vi.fn(),
+				size: 0,
+			},
 			hitTestNode: vi.fn(() => null),
 			markDirty: vi.fn(),
 			markTransformDirty: vi.fn(),

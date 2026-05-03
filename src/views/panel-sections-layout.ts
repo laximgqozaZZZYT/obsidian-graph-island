@@ -238,8 +238,8 @@ export function buildOntologySection(
 				rulesToOntologyFields(rules, s.ontology);
 				s.ontology.rules = rules;
 				ctx.saveSettings();
-				clearTimeout(debounceTimer);
-				debounceTimer = setTimeout(() => cb.invalidateDataKeepPanel(), 2000);
+				if (debounceTimer) ctx.timers.cancel(debounceTimer);
+				debounceTimer = ctx.timers.schedule(() => cb.invalidateDataKeepPanel(), 2000);
 			};
 
 			const listEl = body.createDiv({ cls: "gi-ont-rules" });
@@ -387,7 +387,7 @@ export function buildSamplePresetSelector(
 			Object.assign(panel, merged);
 			cb.invalidateData();
 			if (panel.presetZoomLevel > 0) {
-				ctx.timers.setTimeout(() => cb.setZoom?.(panel.presetZoomLevel), 500);
+				ctx.timers.schedule(() => cb.setZoom?.(panel.presetZoomLevel), 500);
 			}
 			cb.rebuildPanel();
 			showToast(t("preset.sampleLoaded").replace("{name}", name));
