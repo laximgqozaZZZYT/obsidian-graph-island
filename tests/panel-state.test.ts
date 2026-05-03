@@ -189,11 +189,14 @@ describe("validatePanelState — boundary values", () => {
 		expect(panel.collapsedGroups instanceof Set).toBe(true);
 	});
 
-	it("renderThresholds migration: nodeSizeByDegree defaults to true", () => {
+	it("renderThresholds: user-set nodeSizeByDegree=false is preserved (no auto-override)", () => {
+		// Task 1358: the old auto-migration that forced nodeSizeByDegree to true
+		// was removed so user opt-outs survive a reload. New-panel default ON is
+		// still guaranteed via DEFAULT_RENDER_THRESHOLDS.
 		const panel = createDefaultPanel();
 		panel.renderThresholds = { nodeSizeByDegree: false };
 		validatePanelState(panel);
-		expect(panel.renderThresholds.nodeSizeByDegree).toBe(true);
+		expect(panel.renderThresholds.nodeSizeByDegree).toBe(false);
 	});
 
 	it("renderThresholds migration: autoLOD defaults to true", () => {
