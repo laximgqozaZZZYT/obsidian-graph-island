@@ -152,6 +152,9 @@ function _buildRenderCallbacks(host: PanelCallbackHost): Partial<PanelCallbacks>
 			host.requestSave();
 		},
 		wakeRenderLoop: () => host.wakeRenderLoop(),
+		scheduleTimeout: (fn: () => void, ms: number) => {
+			host.timers.setTimeout(fn, ms);
+		},
 		rebuildPanel: () => {
 			host.buildPanel();
 			host.requestSave();

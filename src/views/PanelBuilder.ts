@@ -507,6 +507,8 @@ export interface PanelCallbacks {
 	startOrbitAnimation(): void;
 	stopOrbitAnimation(): void;
 	wakeRenderLoop(): void;
+	/** Schedule a fire-and-forget timeout via host's ManagedTimers (auto-cleared on view close) */
+	scheduleTimeout(fn: () => void, ms: number): void;
 	rebuildPanel(): void;
 	/** A11y: announce status message via aria-live region */
 	announceA11y?(msg: string): void;
@@ -1382,7 +1384,7 @@ function _buildSettingsActionButtons(
 				cb.invalidateData();
 				// Restore preset zoom level if specified
 				if (panel.presetZoomLevel > 0) {
-					ctx.timers.setTimeout(() => cb.setZoom?.(panel.presetZoomLevel), 500);
+					cb.scheduleTimeout(() => cb.setZoom?.(panel.presetZoomLevel), 500);
 				}
 				cb.rebuildPanel();
 			} catch (_e) {
