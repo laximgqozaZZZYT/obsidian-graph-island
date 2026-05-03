@@ -32,48 +32,6 @@ import {
 } from "./panel-sections-filter-logic";
 
 // ---------------------------------------------------------------------------
-// Bookmark section builder (Feature L)
-// ---------------------------------------------------------------------------
-export function buildBookmarkSection(
-	tabEl: HTMLElement,
-	panel: PanelState,
-	ctx: PanelContext,
-	cb: PanelCallbacks,
-): void {
-	buildSection(
-		tabEl,
-		t("section.bookmarks"),
-		(body) => {
-			if (panel.bookmarkedNodes.length === 0) {
-				body.createEl("p", { cls: "gi-hint", text: t("bookmark.empty") });
-				return;
-			}
-			const list = body.createDiv({ cls: "gi-bookmark-list" });
-			for (const nodeId of panel.bookmarkedNodes) {
-				const row = list.createDiv({ cls: "gi-bookmark-item" });
-				// ノード名ラベル — クリックでジャンプ
-				const label = row.createEl("span", { cls: "gi-bookmark-label", text: nodeId });
-				label.addEventListener("click", () => {
-					cb.jumpToNode(nodeId);
-				});
-				// 削除ボタン
-				const removeBtn = row.createEl("span", { cls: "gi-bookmark-remove" });
-				setIcon(removeBtn, "x");
-				removeBtn.setAttribute("aria-label", t("bookmark.remove"));
-				removeBtn.addEventListener("click", () => {
-					panel.bookmarkedNodes = removeBookmark(panel.bookmarkedNodes, nodeId);
-					cb.markDirty();
-					cb.rebuildPanel();
-				});
-			}
-		},
-		tHelp("help.bookmarks"),
-		false,
-		"star",
-	);
-}
-
-// ---------------------------------------------------------------------------
 // Hover behavior section
 // ---------------------------------------------------------------------------
 export function buildHoverBehaviorSection(

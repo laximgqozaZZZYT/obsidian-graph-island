@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import type { PanelState, PanelCallbacks, PanelContext } from "../src/views/PanelBuilder";
 import {
-	buildBookmarkSection,
 	buildHoverBehaviorSection,
 	buildNodeDisplayModeSection,
 	buildNodeDecorationSection,
@@ -349,50 +348,6 @@ function createMockContext(options?: { hasImageMetaNodes?: boolean; hasInheritan
 		]),
 	} as any;
 }
-
-// ---------------------------------------------------------------------------
-// Test: buildBookmarkSection
-// ---------------------------------------------------------------------------
-
-describe("buildBookmarkSection", () => {
-	it("creates empty bookmark section when no bookmarks", () => {
-		const tabEl = new MockElement() as any;
-		const panel = createMockPanel();
-		panel.bookmarkedNodes = [];
-		const ctx = createMockContext();
-		const cb = createMockCallbacks();
-
-		buildBookmarkSection(tabEl, panel, ctx, cb);
-
-		expect(tabEl.children.length).toBeGreaterThan(0);
-	});
-
-	it("creates bookmark items for each bookmarked node", () => {
-		const tabEl = new MockElement() as any;
-		const panel = createMockPanel();
-		panel.bookmarkedNodes = ["file1", "file2"];
-		const ctx = createMockContext();
-		const cb = createMockCallbacks();
-
-		buildBookmarkSection(tabEl, panel, ctx, cb);
-
-		// Section should have children
-		expect(tabEl.children.length).toBeGreaterThan(0);
-	});
-
-	it("calls jumpToNode callback when bookmark label clicked", () => {
-		const tabEl = new MockElement() as any;
-		const panel = createMockPanel();
-		panel.bookmarkedNodes = ["file1"];
-		const ctx = createMockContext();
-		const cb = createMockCallbacks();
-
-		buildBookmarkSection(tabEl, panel, ctx, cb);
-
-		// Verify callback is registered (in real DOM would fire on click)
-		expect(cb.jumpToNode).toBeDefined();
-	});
-});
 
 // ---------------------------------------------------------------------------
 // Test: buildHoverBehaviorSection
