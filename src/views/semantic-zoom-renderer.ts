@@ -27,6 +27,14 @@ import {
 	FULL_CARD_FONT_BASE,
 	FULL_CARD_FONT_MIN,
 } from "./card-renderer";
+import {
+	getSemanticZoomTier,
+	clampCardFontSize,
+	computeNodeAlpha,
+	SEMANTIC_TIER_DOT,
+	SEMANTIC_TIER_CIRCLE,
+	SEMANTIC_TIER_COMPACT,
+} from "./semantic-zoom-utils";
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -63,29 +71,26 @@ export function renderSemanticZoomMode(
 	for (const pn of visible) {
 		const effR = Math.max(pn.radius, minWorldRadius);
 		const screenPx = effR * 2 * worldScale;
-		const nodeAlpha =
-			tlFilteredOut && tlFilteredOut.has(pn.data.id) ? alpha * (crc.filteredNodeAlpha as number) : alpha;
+		const isFiltered = !!(tlFilteredOut && tlFilteredOut.has(pn.data.id));
+		const nodeAlpha = computeNodeAlpha(alpha, isFiltered, crc.filteredNodeAlpha as number);
+		const tier = getSemanticZoomTier(screenPx, dotPx, compactPx, fullPx);
 
-		if (screenPx < dotPx) {
-			// Tier 1: colored dot
+		if (tier === SEMANTIC_TIER_DOT) {
 			const dotSize = 1 / worldScale;
 			g.lineStyle(0);
 			g.beginFill(pn.color, nodeAlpha);
 			g.drawRect(pn.data.x - dotSize / 2, pn.data.y - dotSize / 2, dotSize, dotSize);
 			g.endFill();
-		} else if (screenPx < compactPx) {
-			// Tier 2: circle + label
+		} else if (tier === SEMANTIC_TIER_CIRCLE) {
 			const shape = getNodeShape(pn.data, shapeRules);
 			const strokeColor = darkenColor(pn.color, crc.strokeDarken as number);
 			g.lineStyle(hcSem, strokeColor, nodeAlpha * (crc.strokeAlpha as number));
 			g.beginFill(pn.color, nodeAlpha);
 			drawShapeAt(g, shape, pn.data.x, pn.data.y, effR);
 			g.endFill();
-		} else if (screenPx < fullPx) {
-			// Tier 3: compact card (name + definition field)
+		} else if (tier === SEMANTIC_TIER_COMPACT) {
 			_renderCompactCard(g, pn, effR, worldScale, nodeAlpha, crc, rt, defField, hcSem, labelColor);
 		} else {
-			// Tier 4: full card (name + definition + bodyPreview)
 			_renderFullCard(g, pn, effR, worldScale, nodeAlpha, crc, rt, defField, hcSem, labelColor);
 		}
 	}
@@ -119,10 +124,7 @@ function _renderCompactCard(
 
 	const gfx = pn.gfx;
 	cleanupCardText(gfx);
-	const fontSize = Math.min(
-		Math.max(COMPACT_CARD_FONT_MIN, COMPACT_CARD_FONT_BASE / worldScale),
-		COMPACT_CARD_FONT_BASE * CARD_SCALE_CAP,
-	);
+	const fontSize = clampCardFontSize(COMPACT_CARD_FONT_MIN, COMPACT_CARD_FONT_BASE, CARD_SCALE_CAP, worldScale);
 	const nameText = createCardText(
 		truncateLabel(pn.data.label, rt.labelMaxChars as number),
 		fontSize,
@@ -176,10 +178,7 @@ function _renderFullCard(
 
 	const gfx = pn.gfx;
 	cleanupCardText(gfx);
-	const fontSize = Math.min(
-		Math.max(FULL_CARD_FONT_MIN, FULL_CARD_FONT_BASE / worldScale),
-		FULL_CARD_FONT_BASE * CARD_SCALE_CAP,
-	);
+	const fontSize = clampCardFontSize(FULL_CARD_FONT_MIN, FULL_CARD_FONT_BASE, CARD_SCALE_CAP, worldScale);
 	const smallFont = fontSize * CARD_SUB_FONT_RATIO;
 	let curY = -halfH + 3 / worldScale;
 	const nameText = createCardText(
