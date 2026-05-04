@@ -14,6 +14,15 @@ import type {
 import { DEFAULT_COLORS } from "../types";
 import { EDGE_TYPE_INHERITANCE } from "../constants";
 import { parseQueryExpr, serializeExpr } from "../utils/query-expr";
+import type { ManagedTimers } from "../utils/managed-timers";
+
+/** Schedule a one-shot delay; routes through ManagedTimers when supplied so
+ *  pending callbacks are cancelled on view teardown. Falls back to bare
+ *  setTimeout when no registry is wired (e.g. legacy / God-Object call sites). */
+function scheduleDelay(fn: () => void, ms: number, timers: ManagedTimers | undefined): void {
+	if (timers) timers.setTimeout(fn, ms);
+	else setTimeout(fn, ms);
+}
 
 export function updateSliderProgress(el: HTMLInputElement) {
 	const min = parseFloat(el.min) || 0;
@@ -167,7 +176,7 @@ export function addTextInput(
 }
 
 /** Custom filtered autocomplete popup (replaces native datalist) */
-function attachAutocomplete(input: HTMLInputElement, suggestions: string[]) {
+function attachAutocomplete(input: HTMLInputElement, suggestions: string[], timers?: ManagedTimers) {
 	const popup = document.createElement("div");
 	popup.className = "gi-ac-popup";
 	popup.style.display = "none";
@@ -206,7 +215,8 @@ function attachAutocomplete(input: HTMLInputElement, suggestions: string[]) {
 	input.addEventListener("focus", show);
 	input.addEventListener("input", show);
 	input.addEventListener("blur", () => {
-		setTimeout(() => (popup.style.display = "none"), 150);
+		// Defer so click on a popup item registers before we hide; cancelled on view teardown.
+		scheduleDelay(() => (popup.style.display = "none"), 150, timers);
 	});
 	input.addEventListener("keydown", (e) => {
 		const items = popup.querySelectorAll(".gi-ac-item");
@@ -230,8 +240,8 @@ function attachAutocomplete(input: HTMLInputElement, suggestions: string[]) {
 }
 
 /** Legacy alias — other inputs still call this */
-export function attachDatalist(input: HTMLInputElement, suggestions: string[]) {
-	attachAutocomplete(input, suggestions);
+export function attachDatalist(input: HTMLInputElement, suggestions: string[], timers?: ManagedTimers) {
+	attachAutocomplete(input, suggestions, timers);
 }
 
 /** Unified field suggestion list: built-in fields + all frontmatter keys (including nested) */
@@ -269,6 +279,7 @@ export function renderOntologyRule(
 	cb: PanelCallbacks,
 	save: () => void,
 	rerender: () => void,
+	timers?: ManagedTimers,
 ) {
 	const rule = rules[idx];
 	const row = container.createDiv({ cls: "gi-ont-rule" });
@@ -285,7 +296,7 @@ export function renderOntologyRule(
 		rule.forward = fwdInput.value;
 		save();
 	});
-	attachQueryHint(fwdInput, (field) => cb.collectValueSuggestions(field));
+	attachQueryHint(fwdInput, (field) => cb.collectValueSuggestions(field), timers);
 
 	// Relation dropdown
 	const relBtn = row.createEl("button", { cls: "gi-ont-rel-btn" });
@@ -328,7 +339,7 @@ export function renderOntologyRule(
 		rule.reverse = revInput.value;
 		save();
 	});
-	attachQueryHint(revInput, (field) => cb.collectValueSuggestions(field));
+	attachQueryHint(revInput, (field) => cb.collectValueSuggestions(field), timers);
 
 	// Delete button
 	const delBtn = row.createEl("button", { cls: "gi-ont-del-btn", attr: { "aria-label": "Delete" } });
@@ -351,6 +362,7 @@ export function addMultiValueInput(
 	placeholder: string,
 	suggestions: string[],
 	onChange: (values: string[]) => void,
+	timers?: ManagedTimers,
 ) {
 	const row = container.createDiv({ cls: "setting-item gi-full-width-row" });
 	const info = row.createDiv({ cls: "setting-item-info" });
@@ -366,7 +378,7 @@ export function addMultiValueInput(
 			const itemRow = listEl.createDiv({ cls: "gi-multivalue-row" });
 			const input = itemRow.createEl("input", { type: "text", placeholder, cls: "gi-multivalue-field" });
 			input.value = val;
-			attachDatalist(input, suggestions);
+			attachDatalist(input, suggestions, timers);
 			input.addEventListener("change", () => {
 				values[i] = input.value.trim();
 				onChange(values.filter(Boolean));
@@ -600,7 +612,7 @@ export function renderCustomMappings(
 			placeholder: t("settings.mappingFieldPlaceholder"),
 		});
 		fieldInput.value = field;
-		attachDatalist(fieldInput, ctx.frontmatterKeys);
+		attachDatalist(fieldInput, ctx.frontmatterKeys, ctx.timers);
 
 		const typeSelect = row.createEl("select", { cls: "gi-mapping-type dropdown" });
 		for (const opt of ["inheritance", "aggregation", "similar", "sibling", "sequence"] as const) {
@@ -658,7 +670,7 @@ export function renderTagRelations(
 			placeholder: t("settings.tagRelSourcePlaceholder"),
 		});
 		srcInput.value = rel.source;
-		attachDatalist(srcInput, ctx.availableTags);
+		attachDatalist(srcInput, ctx.availableTags, ctx.timers);
 
 		const typeSelect = row.createEl("select", { cls: "gi-tag-rel-type dropdown" });
 		for (const opt of ["inheritance", "aggregation"] as const) {
@@ -672,7 +684,7 @@ export function renderTagRelations(
 			placeholder: t("settings.tagRelTargetPlaceholder"),
 		});
 		tgtInput.value = rel.target;
-		attachDatalist(tgtInput, ctx.availableTags);
+		attachDatalist(tgtInput, ctx.availableTags, ctx.timers);
 
 		const removeBtn = row.createEl("button", { cls: "gi-tag-rel-remove clickable-icon", text: "\u00d7" });
 
@@ -775,7 +787,11 @@ export function parseActiveToken(
 	return { prefix, partial, tokenStart: lastSpace + 1 + colonIdx + 1 };
 }
 
-export function attachQueryHint(input: HTMLInputElement, getSuggestions: (field: string) => string[]) {
+export function attachQueryHint(
+	input: HTMLInputElement,
+	getSuggestions: (field: string) => string[],
+	timers?: ManagedTimers,
+) {
 	let hintEl: HTMLElement | null = null;
 	let selectedIdx = -1;
 	let currentItems: { text: string; onSelect: () => void }[] = [];
@@ -859,10 +875,15 @@ export function attachQueryHint(input: HTMLInputElement, getSuggestions: (field:
 		show: () => rebuildHint(),
 		hide: () => {
 			if (!hintEl) return;
-			setTimeout(() => {
-				if (input === document.activeElement) return;
-				dismissHint();
-			}, 150);
+			// Defer so click on hint item registers before dismiss; cancelled on view teardown.
+			scheduleDelay(
+				() => {
+					if (input === document.activeElement) return;
+					dismissHint();
+				},
+				150,
+				timers,
+			);
 		},
 		rebuildHint,
 		getHintEl: () => hintEl,
@@ -1003,6 +1024,7 @@ function attachFixedHint(
 	input: HTMLInputElement,
 	options: { value: string; label: string }[],
 	onSelect: (value: string) => void,
+	timers?: ManagedTimers,
 ) {
 	let hintEl: HTMLElement | null = null;
 	let selectedIdx = -1;
@@ -1066,10 +1088,15 @@ function attachFixedHint(
 
 	input.addEventListener("focus", rebuild);
 	input.addEventListener("blur", () => {
-		setTimeout(() => {
-			if (input === document.activeElement) return;
-			dismissHint();
-		}, 150);
+		// Defer so click on hint registers before dismiss; cancelled on view teardown.
+		scheduleDelay(
+			() => {
+				if (input === document.activeElement) return;
+				dismissHint();
+			},
+			150,
+			timers,
+		);
 	});
 	input.addEventListener("input", () => {
 		if (input === document.activeElement) rebuild();
@@ -1099,7 +1126,7 @@ function attachFixedHint(
 // ---------------------------------------------------------------------------
 // Search-jump dropdown: shows matching node IDs and jumps to selected node
 // ---------------------------------------------------------------------------
-export function attachSearchJump(input: HTMLInputElement, cb: PanelCallbacks) {
+export function attachSearchJump(input: HTMLInputElement, cb: PanelCallbacks, timers?: ManagedTimers) {
 	let dropdownEl: HTMLElement | null = null;
 	let selectedIdx = 0;
 	let filteredIds: string[] = [];
@@ -1152,19 +1179,23 @@ export function attachSearchJump(input: HTMLInputElement, cb: PanelCallbacks) {
 		updateSelection();
 	};
 
-	_setupSearchJumpListeners(input, {
-		rebuild,
-		dismiss,
-		getAnchor,
-		getDropdownEl: () => dropdownEl,
-		getFilteredIds: () => filteredIds,
-		getSelectedIdx: () => selectedIdx,
-		setSelectedIdx: (i: number) => {
-			selectedIdx = i;
+	_setupSearchJumpListeners(
+		input,
+		{
+			rebuild,
+			dismiss,
+			getAnchor,
+			getDropdownEl: () => dropdownEl,
+			getFilteredIds: () => filteredIds,
+			getSelectedIdx: () => selectedIdx,
+			setSelectedIdx: (i: number) => {
+				selectedIdx = i;
+			},
+			updateSelection,
+			jumpToSelected,
 		},
-		updateSelection,
-		jumpToSelected,
-	});
+		timers,
+	);
 }
 
 /** Build or rebuild the search jump dropdown DOM. Returns the dropdown element. */
@@ -1220,10 +1251,11 @@ function _setupSearchJumpListeners(
 		updateSelection: () => void;
 		jumpToSelected: () => void;
 	},
+	timers?: ManagedTimers,
 ) {
 	input.addEventListener("input", () => {
-		// Defer slightly so attachQueryHint processes first
-		setTimeout(ctx.rebuild, 50);
+		// Defer slightly so attachQueryHint processes first; cancelled on view teardown.
+		scheduleDelay(ctx.rebuild, 50, timers);
 	});
 
 	input.addEventListener("keydown", (e: KeyboardEvent) => {
@@ -1257,7 +1289,8 @@ function _setupSearchJumpListeners(
 	});
 
 	input.addEventListener("blur", () => {
-		setTimeout(ctx.dismiss, 200);
+		// Defer so click on result jumps before dismiss; cancelled on view teardown.
+		scheduleDelay(ctx.dismiss, 200, timers);
 	});
 }
 
