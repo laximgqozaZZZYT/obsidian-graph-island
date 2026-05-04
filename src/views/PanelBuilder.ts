@@ -849,7 +849,7 @@ export function buildPanel(panelEl: HTMLElement, panel: PanelState, ctx: PanelCo
 		lastCommittedQuery = "";
 	});
 	attachQueryHint(searchBar, (field) => cb.collectValueSuggestions(field));
-	attachSearchJump(searchBar, cb);
+	attachSearchJump(searchBar, cb, ctx.timers);
 
 	// --- N2: Search mode toggle (filter / highlight) ---
 	const searchModeSelect = searchRow.createEl("select", {
