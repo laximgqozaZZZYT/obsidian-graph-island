@@ -5,7 +5,35 @@
  *
  * NOTE: The *type* definitions (string-literal unions) remain in types.ts.
  *       These constants are for VALUE-position usage only.
+ *
+ * SECTION MAP (5 supercategories — task 116-scattered-constants):
+ *
+ *   VIEW    — UI / domain string identifiers (union member values)
+ *             → Edge / Relation types, Cluster arrangements, Layout types,
+ *               View modes, Tag display modes, Group arrangement modes,
+ *               Guide types, Shape fill kinds, Polar arrangement set
+ *
+ *   PARSER  — frontmatter / axis / transform parsing identifiers
+ *             → Coordinate axis source kinds, Axis transform kinds
+ *
+ *   LAYOUT  — numeric parameters consumed by src/layouts/*.ts
+ *             → Layout constants (BFS depth, golden angle, grid samples, etc.)
+ *
+ *   RENDER  — colors / alphas / sizes / thresholds for canvas drawing
+ *             → Group label rendering, Aggregate cluster styling,
+ *               Toast durations, Label metrics, Edge color palette,
+ *               Edge bundling / alpha / thickness, Arc & arrow geometry,
+ *               Edge density adaptation, Render pipeline (LOD/culling),
+ *               Renderer decorations, Edge labels, Cable tray, Enclosure,
+ *               GraphViewContainer constants, Pathfinder overlay
+ *
+ *   MISC    — workspace events and other non-categorical identifiers
+ *             → Custom workspace event names
  */
+
+// ===========================================================================
+// VIEW
+// ===========================================================================
 
 // ---------------------------------------------------------------------------
 // Edge / Relation types  (EdgeType union values)
@@ -53,6 +81,10 @@ export const VIEW_MODE_TIMELINE = "timeline" as const;
 export const VIEW_MODE_TREE = "tree" as const;
 export const VIEW_MODE_MATRIX = "matrix" as const;
 
+// ===========================================================================
+// PARSER
+// ===========================================================================
+
 // ---------------------------------------------------------------------------
 // Coordinate axis source kinds  (AxisSource.kind values)
 // ---------------------------------------------------------------------------
@@ -76,6 +108,10 @@ export const TRANSFORM_STACK_AVOID = "stack-avoid" as const;
 export const TRANSFORM_GOLDEN = "golden-angle" as const;
 export const TRANSFORM_CURVE = "curve" as const;
 export const TRANSFORM_SHAPE_FILL = "shape-fill" as const;
+
+// ===========================================================================
+// VIEW (continued — string identifiers consumed by UI / display logic)
+// ===========================================================================
 
 // ---------------------------------------------------------------------------
 // Tag display modes
@@ -107,6 +143,10 @@ export const SHAPE_FILL_SQUARE = "square" as const;
 export const SHAPE_FILL_DIAMOND = "diamond" as const;
 export const SHAPE_FILL_CIRCLE = "circle" as const;
 
+// ===========================================================================
+// LAYOUT
+// ===========================================================================
+
 // ---------------------------------------------------------------------------
 // Layout constants
 // Numeric parameters shared across src/layouts/*.ts. Prefix: LAYOUT_
@@ -126,6 +166,10 @@ export const LAYOUT_FORMAT_INTEGER_THRESHOLD = 0.01;
 /** Golden angle in radians (used for phyllotaxis / sunflower patterns) */
 export const LAYOUT_GOLDEN_ANGLE = 2.3999632297286535;
 
+// ===========================================================================
+// MISC
+// ===========================================================================
+
 // ---------------------------------------------------------------------------
 // Custom workspace event names
 // ---------------------------------------------------------------------------
@@ -136,8 +180,13 @@ export const EVENT_SYNC_PANEL = "graph-island:sync-panel" as const;
 
 // ---------------------------------------------------------------------------
 // Polar arrangement set (shared by RoadNetworkBuilder, GVC, etc.)
+// (categorized under VIEW above — reference set for UI logic)
 // ---------------------------------------------------------------------------
 export const POLAR_ARRANGEMENTS: ReadonlySet<string> = new Set(["concentric", "radial", "phyllotaxis"]);
+
+// ===========================================================================
+// RENDER
+// ===========================================================================
 
 // ---------------------------------------------------------------------------
 // Group label rendering
