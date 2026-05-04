@@ -5,11 +5,11 @@
 import { Menu, TFile } from "obsidian";
 import { t, tHelp } from "../i18n";
 import { mergeRenderThresholds } from "../types";
-import type { NodeShape } from "../utils/node-shapes";
 import { ALL_SHAPES } from "../utils/node-shapes";
 import type { PanelCallbacks, PanelContext, PanelState, NodeTreeEntry } from "./PanelBuilder";
 import { ensureRT, buildSection, addAdvancedGroup, _getNodeDirStates, _saveNodeDirStates } from "./PanelBuilder";
 import { addSlider, addToggle, addSelect, addTextInput } from "./panel-widgets";
+import { setPanelBool, isNodeShape, isNodeColorMode, type PanelBooleanKey } from "./panel-types";
 
 // ---------------------------------------------------------------------------
 // Node Advanced Controls — extracted to reduce complexity of the outer arrow fn
@@ -123,7 +123,8 @@ function _buildHoverEdgeTypeControls(adv: HTMLElement, panel: PanelState, cb: Pa
 		inheritance: true,
 		aggregation: true,
 	};
-	const hoverTypeEntries: [string, string][] = [
+	type HetKey = keyof typeof het;
+	const hoverTypeEntries: [HetKey, string][] = [
 		["link", t("hover.link") ?? "Link"],
 		["semantic", t("hover.semantic") ?? "Semantic"],
 		["tag", t("hover.tag") ?? "Tag"],
@@ -135,10 +136,9 @@ function _buildHoverEdgeTypeControls(adv: HTMLElement, panel: PanelState, cb: Pa
 		["sequence", t("hover.sequence") ?? "Sequence"],
 	];
 	for (const [key, label] of hoverTypeEntries) {
-		const hetRec = het as Record<string, boolean>;
-		addToggle(adv, label, hetRec[key] ?? false, (v) => {
+		addToggle(adv, label, het[key] ?? false, (v) => {
 			if (!panel.hoverEdgeTypes) panel.hoverEdgeTypes = { ...het };
-			(panel.hoverEdgeTypes as Record<string, boolean>)[key] = v;
+			panel.hoverEdgeTypes[key] = v;
 			cb.rebuildHoverAdj();
 			cb.applyHover();
 			cb.markDirty();
@@ -214,9 +214,10 @@ function _buildNodeShapeControls(adv: HTMLElement, panel: PanelState, cb: PanelC
 			shapeOptions,
 			tagRule?.shape ?? "triangle",
 			(v) => {
+				if (!isNodeShape(v)) return;
 				const rule = panel.nodeShapeRules.find((r) => r.match === "isTag");
-				if (rule) rule.shape = v as NodeShape;
-				else panel.nodeShapeRules.unshift({ match: "isTag", shape: v as NodeShape });
+				if (rule) rule.shape = v;
+				else panel.nodeShapeRules.unshift({ match: "isTag", shape: v });
 				cb.rebuildNodesInPlace();
 			},
 			t("desc.tagNodeShape"),
@@ -228,9 +229,10 @@ function _buildNodeShapeControls(adv: HTMLElement, panel: PanelState, cb: PanelC
 		shapeOptions,
 		defaultRule?.shape ?? "circle",
 		(v) => {
+			if (!isNodeShape(v)) return;
 			const rule = panel.nodeShapeRules.find((r) => r.match === "default");
-			if (rule) rule.shape = v as NodeShape;
-			else panel.nodeShapeRules.push({ match: "default", shape: v as NodeShape });
+			if (rule) rule.shape = v;
+			else panel.nodeShapeRules.push({ match: "default", shape: v });
 			cb.rebuildNodesInPlace();
 		},
 		t("desc.defaultNodeShape"),
@@ -266,7 +268,8 @@ export function buildNodeDisplaySection(
 				colorModeOptions,
 				currentColorMode,
 				(v) => {
-					panel.nodeColorMode = v as PanelState["nodeColorMode"];
+					if (!isNodeColorMode(v)) return;
+					panel.nodeColorMode = v;
 					cb.recolorNodes();
 					cb.rebuildPanel();
 				},
@@ -589,14 +592,14 @@ export function buildEdgeDisplaySection(
 					t("desc.edgeDirectionFilter"),
 				);
 				// GN: Edge toggle with a11y announcements
-				const _edgeToggle = (label: string, key: keyof PanelState, cb2: () => void) => (v: boolean) => {
-					(panel as unknown as Record<string, unknown>)[key] = v;
+				const _edgeToggle = (label: string, key: PanelBooleanKey, cb2: () => void) => (v: boolean) => {
+					setPanelBool(panel, key, v);
 					cb2();
 					cb.announceA11y?.(`${label}: ${v ? "on" : "off"}`);
 				};
 				// Edge type toggles — hide types with 0 edges, show count for others
 				const etc = _ctx.edgeTypeCounts ?? {};
-				const edgeTypeToggles: [string, string, keyof PanelState, string, () => void][] = [
+				const edgeTypeToggles: [string, string, PanelBooleanKey, string, () => void][] = [
 					[t("display.links"), "link", "showLinks", t("desc.links"), () => cb.markDirty()],
 					[t("display.sharedTags"), "tag", "showTagEdges", t("desc.sharedTags"), () => cb.markDirty()],
 					[
@@ -640,7 +643,7 @@ export function buildEdgeDisplaySection(
 				}
 
 				// Solo button: cycle through edge types one at a time
-				const EDGE_TYPE_KEYS: (keyof PanelState)[] = [
+				const EDGE_TYPE_KEYS: PanelBooleanKey[] = [
 					"showLinks",
 					"showTagEdges",
 					"showCategoryEdges",
@@ -663,15 +666,15 @@ export function buildEdgeDisplaySection(
 						const nextIdx = (idx + 1) % EDGE_TYPE_KEYS.length;
 						if (nextIdx === 0) {
 							// Wrapped around: restore all ON
-							for (const k of EDGE_TYPE_KEYS) (panel as unknown as Record<string, unknown>)[k] = true;
+							for (const k of EDGE_TYPE_KEYS) setPanelBool(panel, k, true);
 						} else {
-							for (const k of EDGE_TYPE_KEYS) (panel as unknown as Record<string, unknown>)[k] = false;
-							(panel as unknown as Record<string, unknown>)[EDGE_TYPE_KEYS[nextIdx]] = true;
+							for (const k of EDGE_TYPE_KEYS) setPanelBool(panel, k, false);
+							setPanelBool(panel, EDGE_TYPE_KEYS[nextIdx], true);
 						}
 					} else {
 						// Start solo: turn on only the first type
-						for (const k of EDGE_TYPE_KEYS) (panel as unknown as Record<string, unknown>)[k] = false;
-						(panel as unknown as Record<string, unknown>)[EDGE_TYPE_KEYS[0]] = true;
+						for (const k of EDGE_TYPE_KEYS) setPanelBool(panel, k, false);
+						setPanelBool(panel, EDGE_TYPE_KEYS[0], true);
 					}
 					cb.markDirty();
 					cb.rebuildPanel();
