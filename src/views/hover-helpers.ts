@@ -3,7 +3,13 @@
  * Extracted from GraphViewContainer to reduce complexity.
  */
 import type { ClusterArrangement, GraphEdge, GraphNode } from "../types";
-import { edgeTypeSummary, collapsedGroupSummary } from "../utils/graph-helpers";
+import {
+	bfsNeighborSet,
+	collapsedGroupSummary,
+	edgeSourceId,
+	edgeTargetId,
+	edgeTypeSummary,
+} from "../utils/graph-helpers";
 import { computeSimilarNodes, type SimilarNode } from "../analysis/graph-analysis";
 import { findTopSimilarNodes } from "../utils/find-similar-nodes";
 import { t } from "../i18n";
@@ -213,7 +219,7 @@ export function computeTooltipEdgePosition(
 // Hover highlight set: shared-tags and same-folder helpers
 // ---------------------------------------------------------------------------
 
-interface HoverHighlightNode {
+export interface HoverHighlightNode {
 	id: string;
 	tags?: string[];
 	filePath?: string;
@@ -247,6 +253,122 @@ export function findSameFolderNodes(
 		if (n.filePath?.split("/")[0] === hoveredFolder) result.push(n.id);
 	}
 	return result;
+}
+
+// ---------------------------------------------------------------------------
+// Hover highlight set composition
+// ---------------------------------------------------------------------------
+
+export interface HoverHighlightTypes {
+	forwardLinks: boolean;
+	backlinks: boolean;
+	sharedTags: boolean;
+	sameFolder: boolean;
+}
+
+/** Default highlight categories used when panel.hoverHighlightTypes is unset. */
+export const DEFAULT_HOVER_HIGHLIGHT_TYPES: HoverHighlightTypes = {
+	forwardLinks: true,
+	backlinks: true,
+	sharedTags: false,
+	sameFolder: false,
+};
+
+/**
+ * Add link neighbors (forward / back) of `hId` into `result` via BFS on
+ * `hoverAdj` up to `hoverHops`. When both forwardLinks and backlinks are
+ * enabled, the BFS result is added unfiltered. Otherwise the result is split
+ * by edge direction using `edges`.
+ */
+export function addLinkNeighbors(
+	result: Set<string>,
+	hId: string,
+	hht: { forwardLinks: boolean; backlinks: boolean },
+	hoverAdj: Map<string, Set<string>>,
+	hoverHops: number,
+	edges: ReadonlyArray<GraphEdge>,
+): void {
+	const bfsResult = bfsNeighborSet(hoverAdj, hId, hoverHops);
+	if (hht.forwardLinks && hht.backlinks) {
+		for (const id of bfsResult) result.add(id);
+		return;
+	}
+	const forwardIds = new Set<string>();
+	const backlinkIds = new Set<string>();
+	for (const e of edges) {
+		const src = edgeSourceId(e);
+		const tgt = edgeTargetId(e);
+		if (src === hId && bfsResult.has(tgt)) forwardIds.add(tgt);
+		if (tgt === hId && bfsResult.has(src)) backlinkIds.add(src);
+	}
+	if (hht.forwardLinks) for (const id of forwardIds) result.add(id);
+	if (hht.backlinks) for (const id of backlinkIds) result.add(id);
+}
+
+/**
+ * Cap `result` to `maxNeighborLabels + 1` entries (hovered node + N neighbors),
+ * keeping the highest-degree neighbors per `degrees`. Returns a new Set when
+ * capping occurs; returns the original set otherwise.
+ */
+export function capHoverLabels(
+	result: Set<string>,
+	hId: string,
+	degrees: Map<string, number>,
+	maxNeighborLabels: number,
+): Set<string> {
+	if (result.size <= maxNeighborLabels + 1) return result;
+	const sorted = [...result]
+		.filter((id) => id !== hId)
+		.sort((a, b) => (degrees.get(b) ?? 0) - (degrees.get(a) ?? 0))
+		.slice(0, maxNeighborLabels);
+	return new Set([hId, ...sorted]);
+}
+
+export interface HoverHighlightSetOptions {
+	/** Hovered node's tag list and filePath. May be null when the hovered node is not present in the projection. */
+	hoveredNodeData: { tags?: string[]; filePath?: string } | null;
+	highlightTypes: HoverHighlightTypes;
+	hoverHops: number;
+	hoverAdj: Map<string, Set<string>>;
+	edges: ReadonlyArray<GraphEdge>;
+	/** Lazy projection of all nodes — only consumed when shared-tag or same-folder highlighting is active. Must be reusable (iterable twice). */
+	getAllNodes: () => HoverHighlightNode[];
+	degrees: Map<string, number>;
+	maxNeighborLabels: number;
+}
+
+/**
+ * Build the full hover highlight set for `hId`, composed of:
+ *   1. The hovered node itself
+ *   2. Link neighbors via BFS (filtered by forward/back direction if needed)
+ *   3. Shared-tag neighbors (if enabled and hovered node has tags)
+ *   4. Same-folder neighbors (if enabled and hovered node has a filePath)
+ * Then capped to `maxNeighborLabels + 1` by degree.
+ *
+ * Returns an empty Set when `hId` is null.
+ */
+export function buildHoverHighlightSet(hId: string | null, opts: HoverHighlightSetOptions): Set<string> {
+	if (!hId) return new Set<string>();
+	const result = new Set<string>([hId]);
+	const hht = opts.highlightTypes;
+
+	if (hht.forwardLinks || hht.backlinks) {
+		addLinkNeighbors(result, hId, hht, opts.hoverAdj, opts.hoverHops, opts.edges);
+	}
+
+	const wantSharedTags = hht.sharedTags && opts.hoveredNodeData?.tags?.length;
+	const wantSameFolder = hht.sameFolder && opts.hoveredNodeData?.filePath;
+	if (wantSharedTags || wantSameFolder) {
+		const nodes = opts.getAllNodes();
+		if (hht.sharedTags && opts.hoveredNodeData?.tags?.length) {
+			for (const id of findSharedTagNodes(opts.hoveredNodeData.tags, hId, nodes)) result.add(id);
+		}
+		if (hht.sameFolder && opts.hoveredNodeData?.filePath) {
+			for (const id of findSameFolderNodes(opts.hoveredNodeData.filePath, hId, nodes)) result.add(id);
+		}
+	}
+
+	return capHoverLabels(result, hId, opts.degrees, opts.maxNeighborLabels);
 }
 
 // ---------------------------------------------------------------------------
