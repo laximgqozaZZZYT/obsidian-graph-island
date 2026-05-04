@@ -71,6 +71,28 @@ export function groupNodesByTag(nodes: GraphNode[], opts?: GroupOptions): GroupS
 	return groupNodesByField(nodes, "tag", opts);
 }
 
+function fieldValuesFolder(n: GraphNode): string[] {
+	if (!n.filePath) return [];
+	// Use top-level folder only (not full nested path) to keep group count manageable
+	const firstSlash = n.filePath.indexOf("/");
+	return [firstSlash > 0 ? n.filePath.substring(0, firstSlash) : "/"];
+}
+
+function fieldValuesFile(n: GraphNode): string[] {
+	if (!n.filePath) return [];
+	return [n.filePath.replace(/^.*\//, "").replace(/\.md$/, "")];
+}
+
+const BUILTIN_FIELD_HANDLERS: Record<string, (n: GraphNode) => string[]> = {
+	tag: (n) => (n.isTag ? [] : (n.tags ?? [])),
+	category: (n) => (n.category ? [n.category] : []),
+	folder: fieldValuesFolder,
+	path: (n) => (n.filePath ? [n.filePath] : []),
+	file: fieldValuesFile,
+	id: (n) => [n.id],
+	isTag: (n) => (n.isTag ? ["true"] : ["false"]),
+};
+
 /**
  * Extract the grouping value(s) for a node given a field name.
  * Built-in fields: tag, category, folder, path, file, id, isTag.
@@ -78,30 +100,9 @@ export function groupNodesByTag(nodes: GraphNode[], opts?: GroupOptions): GroupS
  * Returns an array because some fields (e.g. tag) can have multiple values.
  */
 export function getNodeFieldValues(n: GraphNode, field: string): string[] {
-	switch (field) {
-		case "tag":
-			return n.isTag ? [] : (n.tags ?? []);
-		case "category":
-			return n.category ? [n.category] : [];
-		case "folder": {
-			if (!n.filePath) return [];
-			// Use top-level folder only (not full nested path) to keep group count manageable
-			const firstSlash = n.filePath.indexOf("/");
-			return [firstSlash > 0 ? n.filePath.substring(0, firstSlash) : "/"];
-		}
-		case "path":
-			return n.filePath ? [n.filePath] : [];
-		case "file": {
-			if (!n.filePath) return [];
-			return [n.filePath.replace(/^.*\//, "").replace(/\.md$/, "")];
-		}
-		case "id":
-			return [n.id];
-		case "isTag":
-			return n.isTag ? ["true"] : ["false"];
-		default:
-			return n.meta ? resolveFrontmatterField(n.meta, field) : [];
-	}
+	const handler = BUILTIN_FIELD_HANDLERS[field];
+	if (handler) return handler(n);
+	return n.meta ? resolveFrontmatterField(n.meta, field) : [];
 }
 
 /**
