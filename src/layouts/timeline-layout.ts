@@ -533,6 +533,49 @@ function timelineComputeBars(
 	return bars;
 }
 
+/**
+ * 与えられた xStart に対し、laneEnds から再利用可能なレーン番号を返す。
+ * 空きが無く maxLanes 未満なら新規レーンを開く（laneEnds に末尾追加）。
+ * maxLanes に達している場合は最も早く終わるレーンを退避先として返す。
+ * 副作用: 新規レーンを開いた場合 laneEnds に -Infinity が push される。
+ */
+function findLaneForBar(xStart: number, laneEnds: number[], maxLanes: number): number {
+	const tryLanes = Math.min(laneEnds.length, maxLanes);
+	for (let l = 0; l < tryLanes; l++) {
+		if (xStart >= laneEnds[l]) return l;
+	}
+	if (laneEnds.length < maxLanes) {
+		laneEnds.push(-Infinity);
+		return laneEnds.length - 1;
+	}
+	let minEnd = Infinity;
+	let minL = 0;
+	for (let l = 0; l < laneEnds.length; l++) {
+		if (laneEnds[l] < minEnd) {
+			minEnd = laneEnds[l];
+			minL = l;
+		}
+	}
+	return minL;
+}
+
+/** トータルレーン高が target を超えた場合に bars と offsets を縮小スケーリングする */
+function compactScaleBars(
+	bars: TimelineBarInfo[],
+	offsets: Map<string, { dx: number; dy: number }>,
+	totalLaneH: number,
+	targetH: number,
+): void {
+	if (totalLaneH <= targetH) return;
+	const scale = targetH / totalLaneH;
+	for (const bar of bars) {
+		bar.yCenter *= scale;
+		bar.barHeight *= scale;
+		const off = offsets.get(bar.nodeId);
+		if (off) offsets.set(bar.nodeId, { dx: off.dx, dy: bar.yCenter });
+	}
+}
+
 /** バーを非重複 Y レーンに割り当て、必要に応じてコンパクトスケーリングを適用 */
 export function timelineAssignBarLanes(
 	bars: TimelineBarInfo[],
@@ -553,28 +596,7 @@ export function timelineAssignBarLanes(
 	const laneEnds: number[] = [];
 
 	for (const bar of bars) {
-		let assigned = -1;
-		for (let l = 0; l < Math.min(laneEnds.length, maxLanes); l++) {
-			if (bar.xStart >= laneEnds[l]) {
-				assigned = l;
-				break;
-			}
-		}
-		if (assigned < 0 && laneEnds.length < maxLanes) {
-			assigned = laneEnds.length;
-			laneEnds.push(-Infinity);
-		}
-		if (assigned < 0) {
-			let minEnd = Infinity,
-				minL = 0;
-			for (let l = 0; l < laneEnds.length; l++) {
-				if (laneEnds[l] < minEnd) {
-					minEnd = laneEnds[l];
-					minL = l;
-				}
-			}
-			assigned = minL;
-		}
+		const assigned = findLaneForBar(bar.xStart, laneEnds, maxLanes);
 		laneEnds[assigned] = bar.xEnd;
 
 		const laneY = assigned * laneH;
@@ -583,20 +605,11 @@ export function timelineAssignBarLanes(
 		if (off) offsets.set(bar.nodeId, { dx: off.dx, dy: laneY });
 	}
 
-	// トータルレーン高がターゲットを超えた場合のコンパクトスケーリング
 	const totalLaneH = laneEnds.length * laneH;
 	const timelineMinH = cfg.userConstants?._timelineMinH ?? 600;
 	const timelineHPerNode = cfg.userConstants?._timelineHPerNode ?? 0.8;
 	const targetH = Math.max(timelineMinH, memberCount * timelineHPerNode);
-	if (totalLaneH > targetH) {
-		const scale = targetH / totalLaneH;
-		for (const bar of bars) {
-			bar.yCenter *= scale;
-			bar.barHeight *= scale;
-			const off = offsets.get(bar.nodeId);
-			if (off) offsets.set(bar.nodeId, { dx: off.dx, dy: bar.yCenter });
-		}
-	}
+	compactScaleBars(bars, offsets, totalLaneH, targetH);
 }
 
 /** 同一タイムカラムの非バーノードを最小ギャップを強制して離間 */
