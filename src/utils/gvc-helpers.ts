@@ -5,6 +5,9 @@
 import type { ClusterGroupRule, GroupPreset } from "../types";
 import { parseQueryExpr, serializeExpr } from "./query-expr";
 import { hexToRgb } from "./color";
+import { louvainCommunities, type LouvainEdge } from "./louvain";
+import { pushToMapArray } from "./map-helpers";
+import type { GroupSpec } from "./node-grouping";
 
 // ---- Rendering constants ----
 const BLEND_LABEL_FACTOR = 0.15;
