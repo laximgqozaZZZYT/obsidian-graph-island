@@ -18,16 +18,6 @@ export function hexBrightness(hex: number): number {
 	return getLuminance(r, g, b);
 }
 
-/** V3: Adjust brightness of a hex color by a multiplicative factor. */
-export function adjustBrightness(hex: number, factor: number): number {
-	const { r, g, b } = hexToRgb(hex);
-	return (
-		(Math.min(255, Math.round(r * factor)) << 16) |
-		(Math.min(255, Math.round(g * factor)) << 8) |
-		Math.min(255, Math.round(b * factor))
-	);
-}
-
 /** WCAG 2.1 relative luminance (0–1 range, sRGB linearized). */
 export function wcagRelativeLuminance(hex: number): number {
 	const { r, g, b } = hexToRgb(hex);

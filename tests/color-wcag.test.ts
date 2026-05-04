@@ -1,11 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-	hexToRgb,
-	hexBrightness,
-	adjustBrightness,
-	wcagRelativeLuminance,
-	wcagContrastRatio,
-} from "../src/utils/color";
+import { hexToRgb, hexBrightness, wcagRelativeLuminance, wcagContrastRatio } from "../src/utils/color";
 
 // hexToRgb, getLuminance, contrastColor tests consolidated in tests/color.test.ts
 
@@ -45,29 +39,6 @@ describe("wcagContrastRatio", () => {
 		// #222222 on #f0f0f4 (our light theme label colors)
 		const ratio = wcagContrastRatio(0x222222, 0xf0f0f4);
 		expect(ratio).toBeGreaterThan(4.5);
-	});
-});
-
-describe("adjustBrightness", () => {
-	it("factor 1 keeps color", () => {
-		expect(adjustBrightness(0x808080, 1)).toBe(0x808080);
-	});
-	it("factor 2 doubles (capped at 255)", () => {
-		expect(adjustBrightness(0x404040, 2)).toBe(0x808080);
-	});
-	it("factor 0 = black", () => {
-		expect(adjustBrightness(0xffffff, 0)).toBe(0x000000);
-	});
-	it("brightens a dark color", () => {
-		const result = adjustBrightness(0x333333, 2.0);
-		const { r } = hexToRgb(result);
-		expect(r).toBeGreaterThan(0x33);
-	});
-	it("darkens with factor < 1.0", () => {
-		const result = adjustBrightness(0xaabbcc, 0.5);
-		const orig = hexToRgb(0xaabbcc);
-		const dark = hexToRgb(result);
-		expect(dark.r).toBeLessThan(orig.r);
 	});
 });
 

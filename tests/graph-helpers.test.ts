@@ -8,7 +8,6 @@ import {
 	collectSubgraph,
 	edgeSourceId,
 	edgeTargetId,
-	shiftHue,
 	stringHash,
 	hslToHex,
 	incCounter,
@@ -265,47 +264,6 @@ describe("collectSubgraph", () => {
 		const sub = collectSubgraph(adj, "a", 100, nodes, edges);
 		expect(sub.nodes.length).toBe(3);
 		expect(sub.edges.length).toBe(2);
-	});
-});
-
-// ---------------------------------------------------------------------------
-// shiftHue — rotate hue of a hex color (cycle110)
-// ---------------------------------------------------------------------------
-describe("shiftHue", () => {
-	it("0 degree shift returns same color", () => {
-		expect(shiftHue(0xff0000, 0)).toBe(0xff0000);
-	});
-
-	it("360 degree shift returns same color", () => {
-		expect(shiftHue(0xff0000, 360)).toBe(0xff0000);
-	});
-
-	it("120 degree shift: red → green", () => {
-		const result = shiftHue(0xff0000, 120);
-		// Pure red shifted 120° should be approximately green
-		const r = (result >> 16) & 0xff;
-		const g = (result >> 8) & 0xff;
-		expect(g).toBeGreaterThan(r);
-	});
-
-	it("240 degree shift: red → blue", () => {
-		const result = shiftHue(0xff0000, 240);
-		const r = (result >> 16) & 0xff;
-		const b = result & 0xff;
-		expect(b).toBeGreaterThan(r);
-	});
-
-	it("preserves grayscale (no hue to shift)", () => {
-		// Gray has s=0, so hue shift should not change it
-		expect(shiftHue(0x808080, 90)).toBe(0x808080);
-	});
-
-	it("preserves black", () => {
-		expect(shiftHue(0x000000, 180)).toBe(0x000000);
-	});
-
-	it("preserves white", () => {
-		expect(shiftHue(0xffffff, 90)).toBe(0xffffff);
 	});
 });
 

@@ -1,6 +1,5 @@
 /**
  * graph-helpers — tests targeting uncovered branches in covered functions:
- * - shiftHue HSV sector branches
  * - exportGraphCSV/Mermaid/SVG with object-typed source/target
  * - computeGaps edge cases
  * - buildTagMembership edge cases
@@ -9,7 +8,6 @@
  */
 import { describe, it, expect } from "vitest";
 import {
-	shiftHue,
 	exportGraphCSV,
 	exportGraphMermaid,
 	exportGraphSVG,
@@ -28,92 +26,6 @@ function node(id: string, overrides?: Partial<GraphNode>): GraphNode {
 function edge(s: string, t: string, type = "link", extra?: Partial<GraphEdge>): GraphEdge {
 	return { source: s, target: t, type, ...extra } as GraphEdge;
 }
-
-// ---------------------------------------------------------------------------
-// shiftHue — trigger all 6 HSV sectors + negative degree + gray input
-// ---------------------------------------------------------------------------
-describe("shiftHue sector branches", () => {
-	it("sector 0: max=R, g>=b (pure red, shift 0)", () => {
-		const result = shiftHue(0xff0000, 0);
-		expect(result).toBe(0xff0000);
-	});
-
-	it("sector 0: max=R, g<b (red-blue mix)", () => {
-		// When max=R and g < b → h wraps via +6
-		const result = shiftHue(0xff0080, 0); // R=255, G=0, B=128
-		expect(typeof result).toBe("number");
-		expect(result).toBeGreaterThanOrEqual(0);
-	});
-
-	it("sector 1: max=G (pure green, shift 0)", () => {
-		const result = shiftHue(0x00ff00, 0);
-		expect(result).toBe(0x00ff00);
-	});
-
-	it("sector 2: max=B (pure blue, shift 0)", () => {
-		const result = shiftHue(0x0000ff, 0);
-		expect(result).toBe(0x0000ff);
-	});
-
-	it("handles shift by 120 degrees (R→G)", () => {
-		const result = shiftHue(0xff0000, 120);
-		// Should be close to green
-		const g = (result >> 8) & 0xff;
-		expect(g).toBeGreaterThan(200);
-	});
-
-	it("handles shift by 240 degrees (R→B)", () => {
-		const result = shiftHue(0xff0000, 240);
-		const b = result & 0xff;
-		expect(b).toBeGreaterThan(200);
-	});
-
-	it("handles negative degrees", () => {
-		const result = shiftHue(0xff0000, -120);
-		// -120 → 240, should be close to blue
-		const b = result & 0xff;
-		expect(b).toBeGreaterThan(200);
-	});
-
-	it("handles gray input (no saturation, d=0)", () => {
-		const result = shiftHue(0x808080, 90);
-		// Gray has no hue, shifting has no effect on saturation
-		const r = (result >> 16) & 0xff;
-		const g = (result >> 8) & 0xff;
-		const b = result & 0xff;
-		expect(Math.abs(r - g)).toBeLessThan(5);
-		expect(Math.abs(g - b)).toBeLessThan(5);
-	});
-
-	it("handles black input", () => {
-		expect(shiftHue(0x000000, 90)).toBe(0x000000);
-	});
-
-	it("handles white input", () => {
-		const result = shiftHue(0xffffff, 60);
-		const r = (result >> 16) & 0xff;
-		const g = (result >> 8) & 0xff;
-		const b = result & 0xff;
-		// White has max saturation=0, so shift produces no color change
-		expect(Math.abs(r - g)).toBeLessThan(3);
-		expect(Math.abs(g - b)).toBeLessThan(3);
-	});
-
-	it("sector 3: cyan-ish (max=G, B close)", () => {
-		const result = shiftHue(0x00ffcc, 0);
-		expect(typeof result).toBe("number");
-	});
-
-	it("sector 4: magenta-ish (max=B, R present)", () => {
-		const result = shiftHue(0x8000ff, 0);
-		expect(typeof result).toBe("number");
-	});
-
-	it("sector 5: yellow-ish (max=R, G close)", () => {
-		const result = shiftHue(0xffff00, 0);
-		expect(typeof result).toBe("number");
-	});
-});
 
 // ---------------------------------------------------------------------------
 // exportGraphCSV — object-typed source/target, undefined fields
