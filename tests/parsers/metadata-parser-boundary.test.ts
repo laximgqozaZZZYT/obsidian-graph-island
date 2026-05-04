@@ -27,6 +27,8 @@ interface FakeFileSpec {
 	links?: string[];
 	/** Simulated frontmatter wikilink fields (e.g. Author:: [[B]]) */
 	frontmatterLinks?: Array<{ key: string; link: string }>;
+	/** Raw markdown body returned by `vault.cachedRead` (sync). Drives inline-relation parsing. */
+	fileContent?: string;
 }
 
 function mkSettings(overrides?: Partial<GraphViewsSettings>): GraphViewsSettings {
@@ -73,7 +75,8 @@ function mkFakeApp(specs: FakeFileSpec[]): any {
 		vault: {
 			getMarkdownFiles: () => files,
 			getAbstractFileByPath: (path: string) => files.find((f) => f.path === path) ?? null,
-			cachedRead: () => "", // sync empty string — triggers the sync branch in attachBodyPreview
+			// Sync return — triggers the sync branch in attachBodyPreview and feeds collectInlineRelations.
+			cachedRead: (file: { path: string }) => specByPath.get(file.path)?.fileContent ?? "",
 		},
 		metadataCache: {
 			getFileCache: (file: { path: string }) => {
@@ -368,5 +371,236 @@ describe("simpleHash / applyMonochromeFallback — boundary", () => {
 		}
 		// Determinism: same id → same color
 		expect(fn({ id: "a" })).toBe(fn({ id: "a" }));
+	});
+});
+
+// ---------------------------------------------------------------------------
+// buildSharedMetadataEdges — shared metadata edges via settings.edgeFields
+// (untested integration path: branch coverage in metadata-parser is ~55%)
+// ---------------------------------------------------------------------------
+
+describe("buildGraphFromVault — shared metadata edges (edgeFields)", () => {
+	it("creates pairwise edges between nodes sharing a single string-valued field", () => {
+		const app = mkFakeApp([
+			{ path: "A.md", frontmatter: { author: "Tolkien" } },
+			{ path: "B.md", frontmatter: { author: "Tolkien" } },
+			{ path: "C.md", frontmatter: { author: "Tolkien" } },
+		]);
+		const g = buildGraphFromVault(app, mkSettings({ edgeFields: ["author"] }));
+		const shared = g.edges.filter((e) => e.label === "author");
+		// 3 nodes share one value → C(3,2) = 3 undirected pairs
+		expect(shared).toHaveLength(3);
+		expect(shared.every((e) => e.type === "category")).toBe(true);
+	});
+
+	it("array-valued fields fan out: each value contributes to its own group", () => {
+		const app = mkFakeApp([
+			{ path: "A.md", frontmatter: { themes: ["adventure", "magic"] } },
+			{ path: "B.md", frontmatter: { themes: ["adventure"] } },
+			{ path: "C.md", frontmatter: { themes: ["magic"] } },
+		]);
+		const g = buildGraphFromVault(app, mkSettings({ edgeFields: ["themes"] }));
+		const shared = g.edges.filter((e) => e.label === "themes");
+		// "adventure" → {A,B}, "magic" → {A,C}: 2 edges total
+		expect(shared).toHaveLength(2);
+		const pairs = shared.map((e) => `${e.source}|${e.target}`).sort();
+		expect(pairs).toEqual(["A.md|B.md", "A.md|C.md"]);
+	});
+
+	it("uses EDGE_TYPE_TAG when the shared field is literally 'tags'", () => {
+		const app = mkFakeApp([
+			{ path: "A.md", frontmatter: { tags: ["fiction"] } },
+			{ path: "B.md", frontmatter: { tags: ["fiction"] } },
+		]);
+		const g = buildGraphFromVault(app, mkSettings({ edgeFields: ["tags"] }));
+		const shared = g.edges.filter((e) => e.label === "tags");
+		expect(shared).toHaveLength(1);
+		expect(shared[0].type).toBe("tag");
+	});
+
+	it("skips singleton groups (a value present on only one node yields no edge)", () => {
+		const app = mkFakeApp([
+			{ path: "A.md", frontmatter: { author: "Solo" } },
+			{ path: "B.md", frontmatter: { author: "Other" } },
+		]);
+		const g = buildGraphFromVault(app, mkSettings({ edgeFields: ["author"] }));
+		expect(g.edges.filter((e) => e.label === "author")).toEqual([]);
+	});
+
+	it("skips files missing the field entirely (does not crash on undefined)", () => {
+		const app = mkFakeApp([
+			{ path: "A.md", frontmatter: { author: "X" } },
+			{ path: "B.md", frontmatter: { author: "X" } },
+			{ path: "C.md" /* no frontmatter */ },
+		]);
+		const g = buildGraphFromVault(app, mkSettings({ edgeFields: ["author"] }));
+		const shared = g.edges.filter((e) => e.label === "author");
+		expect(shared).toHaveLength(1);
+		const ids = new Set([shared[0].source, shared[0].target]);
+		expect(ids.has("C.md")).toBe(false);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Explicit tag-to-tag relationships (ontology.tagRelations)
+// ---------------------------------------------------------------------------
+
+describe("buildGraphFromVault — explicit tagRelations", () => {
+	it("emits an inheritance edge between two existing tag nodes", () => {
+		const ontology: OntologyConfig = {
+			...DEFAULT_ONTOLOGY,
+			useTagHierarchy: false,
+			tagRelations: [{ source: "warrior", target: "character", type: "inheritance" }],
+		};
+		const app = mkFakeApp([
+			{ path: "A.md", frontmatter: { tags: ["warrior"] } },
+			{ path: "B.md", frontmatter: { tags: ["character"] } },
+		]);
+		const g = buildGraphFromVault(app, mkSettings({ ontology }));
+		const tagEdge = g.edges.find(
+			(e) => e.source === "tag:warrior" && e.target === "tag:character" && e.type === "inheritance",
+		);
+		expect(tagEdge).toBeDefined();
+		expect(tagEdge!.relation).toBe("#warrior is-a #character");
+	});
+
+	it("emits an aggregation edge with 'has' wording in the relation label", () => {
+		const ontology: OntologyConfig = {
+			...DEFAULT_ONTOLOGY,
+			useTagHierarchy: false,
+			tagRelations: [{ source: "spell", target: "spellbook", type: "aggregation" }],
+		};
+		const app = mkFakeApp([
+			{ path: "A.md", frontmatter: { tags: ["spell"] } },
+			{ path: "B.md", frontmatter: { tags: ["spellbook"] } },
+		]);
+		const g = buildGraphFromVault(app, mkSettings({ ontology }));
+		const tagEdge = g.edges.find((e) => e.source === "tag:spell" && e.target === "tag:spellbook");
+		expect(tagEdge).toBeDefined();
+		expect(tagEdge!.type).toBe("aggregation");
+		// aggregation phrasing reverses the order: "#target has #source"
+		expect(tagEdge!.relation).toBe("#spellbook has #spell");
+	});
+
+	it("creates virtual tag nodes for tagRelations endpoints not used by any file", () => {
+		const ontology: OntologyConfig = {
+			...DEFAULT_ONTOLOGY,
+			useTagHierarchy: false,
+			tagRelations: [{ source: "ghost-tag", target: "another-ghost", type: "inheritance" }],
+		};
+		const app = mkFakeApp([{ path: "A.md", frontmatter: { tags: ["unrelated"] } }]);
+		const g = buildGraphFromVault(app, mkSettings({ ontology }));
+		const tagIds = new Set(g.nodes.filter((n) => n.isTag).map((n) => n.id));
+		expect(tagIds.has("tag:ghost-tag")).toBe(true);
+		expect(tagIds.has("tag:another-ghost")).toBe(true);
+		// The edge between the synthesized tag nodes must exist
+		expect(g.edges.some((e) => e.source === "tag:ghost-tag" && e.target === "tag:another-ghost")).toBe(true);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Reverse ontology classification — direction is inverted at edge creation
+// ---------------------------------------------------------------------------
+
+describe("buildGraphFromVault — reverse ontology direction", () => {
+	it("frontmatter link with reverseInheritance field swaps source/target", () => {
+		// A's frontmatter says "child: B" — Breadcrumbs idiom meaning B's parent is A.
+		// The graph stores inheritance as child → parent, so the edge should be A → B reversed to B → A?
+		// Per the impl: reverse=true makes src=target, tgt=file. So edge is B.md → A.md.
+		const ontology: OntologyConfig = {
+			...DEFAULT_ONTOLOGY,
+			reverseInheritanceFields: ["child"],
+		};
+		const app = mkFakeApp([{ path: "A.md", frontmatterLinks: [{ key: "child", link: "B" }] }, { path: "B.md" }]);
+		const g = buildGraphFromVault(app, mkSettings({ ontology }));
+		const inh = g.edges.filter((e) => e.type === "inheritance" && !e.source.startsWith("tag:"));
+		expect(inh).toHaveLength(1);
+		expect(inh[0].source).toBe("B.md");
+		expect(inh[0].target).toBe("A.md");
+		expect(inh[0].relation).toBe("child");
+	});
+
+	it("regular wiki-link annotated by frontmatter reverseAggregation field swaps direction", () => {
+		const ontology: OntologyConfig = {
+			...DEFAULT_ONTOLOGY,
+			reverseAggregationFields: ["part-of"],
+		};
+		// Regular link A → B exists, *and* frontmatter records "part-of: [[B]]" on A.
+		const app = mkFakeApp([
+			{ path: "A.md", links: ["B"], frontmatterLinks: [{ key: "part-of", link: "B" }] },
+			{ path: "B.md" },
+		]);
+		const g = buildGraphFromVault(app, mkSettings({ ontology }));
+		const agg = g.edges.filter((e) => e.type === "aggregation");
+		expect(agg).toHaveLength(1);
+		// reverse=true: source=B, target=A
+		expect(agg[0].source).toBe("B.md");
+		expect(agg[0].target).toBe("A.md");
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Inline relation resolution — file content drives parseInlineRelationLinks
+// (covers EDGE_TYPE_INLINE_RELATION fallback and ontology classification)
+// ---------------------------------------------------------------------------
+
+describe("buildGraphFromVault — inline relation links via file content", () => {
+	it("classifies [[X]@field] as inheritance when field is in inheritanceFields", () => {
+		const ontology: OntologyConfig = {
+			...DEFAULT_ONTOLOGY,
+			inheritanceFields: ["parent"],
+		};
+		const app = mkFakeApp([
+			{ path: "A.md", fileContent: "Some prose [[B]@parent] referencing B." },
+			{ path: "B.md" },
+		]);
+		const g = buildGraphFromVault(app, mkSettings({ ontology }));
+		const inh = g.edges.filter((e) => e.type === "inheritance" && !e.source.startsWith("tag:"));
+		expect(inh).toHaveLength(1);
+		// "parent" is forward-classified — no reversal: A → B
+		expect(inh[0].source).toBe("A.md");
+		expect(inh[0].target).toBe("B.md");
+		expect(inh[0].relation).toBe("parent");
+	});
+
+	it("falls back to inline-relation type when an inline relation matches no ontology field", () => {
+		const app = mkFakeApp([{ path: "A.md", fileContent: "Free-form note [[B]@invented-rel]." }, { path: "B.md" }]);
+		const g = buildGraphFromVault(app, mkSettings());
+		const ir = g.edges.filter((e) => e.type === "inline-relation");
+		expect(ir).toHaveLength(1);
+		expect(ir[0].source).toBe("A.md");
+		expect(ir[0].target).toBe("B.md");
+		expect(ir[0].relation).toBe("invented-rel");
+	});
+
+	it("inline Dataview field (Author::[[B]]) on its own line creates an inline-relation edge", () => {
+		// `Author::[[B]]` is an inline Dataview field. With no `Author` in any ontology field
+		// list, it ends up as an inline-relation type when there is no plain wiki-link.
+		// The field-line regex uses `^...::` per-line — so the field name is "Author" only
+		// when it's flush at the start of a line.
+		const app = mkFakeApp([{ path: "A.md", fileContent: "Author::[[B]]" }, { path: "B.md" }]);
+		const g = buildGraphFromVault(app, mkSettings());
+		const edge = g.edges.find((e) => e.source === "A.md" && e.target === "B.md");
+		expect(edge).toBeDefined();
+		// Without an ontology mapping for "Author", the inline-only path falls through to inline-relation.
+		expect(edge!.type).toBe("inline-relation");
+		expect(edge!.relation).toBe("Author");
+	});
+
+	it("inline classification yields the configured edge type even when a regular wiki-link covers it", () => {
+		// Regular link A → B is present AND inline `[[B]@similar]` annotates it as a similarity edge.
+		const ontology: OntologyConfig = {
+			...DEFAULT_ONTOLOGY,
+			similarFields: ["similar"],
+		};
+		const app = mkFakeApp([
+			{ path: "A.md", links: ["B"], fileContent: "see also [[B]@similar]" },
+			{ path: "B.md" },
+		]);
+		const g = buildGraphFromVault(app, mkSettings({ ontology }));
+		const aToB = g.edges.filter((e) => e.source === "A.md" && e.target === "B.md");
+		expect(aToB).toHaveLength(1);
+		// The inline annotation upgrades the regular link to a similar edge.
+		expect(aToB[0].type).toBe("similar");
 	});
 });
