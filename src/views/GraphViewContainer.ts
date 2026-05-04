@@ -31,6 +31,8 @@ import {
 	cleanArcName,
 	areSavedPositionsValid,
 	lightenHex,
+	countInterClusterEdges,
+	collectMemberTags,
 } from "../utils/gvc-helpers";
 import {
 	buildGraphFromVault,
@@ -3584,11 +3586,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		// Count inter-cluster edges and find bridge nodes
 		const setA = new Set(membersA);
 		const setB = new Set(membersB);
-		const { interEdges, bridgeNodes } = this._countInterClusterEdges(setA, setB);
+		const { interEdges, bridgeNodes } = countInterClusterEdges(this.graphEdges, setA, setB);
 
 		// Shared tags
-		const tagsA = this._collectMemberTags(membersA);
-		const tagsB = this._collectMemberTags(membersB);
+		const tagsA = collectMemberTags(membersA, this.pixiNodes);
+		const tagsB = collectMemberTags(membersB, this.pixiNodes);
 		const sharedTags = [...tagsA].filter((t) => tagsB.has(t));
 
 		this.applyEphemeralHighlight(bridgeNodes.size > 0 ? bridgeNodes : null);
@@ -3596,35 +3598,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		const msg = `Cluster compare: ${keyA} (${membersA.length}) vs ${keyB} (${membersB.length}) — ${interEdges} edges, ${bridgeNodes.size} bridges, ${sharedTags.length} shared tags`;
 		showToast(msg);
 		this._announceA11y(msg);
-	}
-
-	/** Count edges between two cluster sets and collect bridge node IDs. */
-	private _countInterClusterEdges(
-		setA: Set<string>,
-		setB: Set<string>,
-	): { interEdges: number; bridgeNodes: Set<string> } {
-		let interEdges = 0;
-		const bridgeNodes = new Set<string>();
-		for (const e of this.graphEdges) {
-			const src = edgeSourceId(e);
-			const tgt = edgeTargetId(e);
-			if ((setA.has(src) && setB.has(tgt)) || (setB.has(src) && setA.has(tgt))) {
-				interEdges++;
-				bridgeNodes.add(src);
-				bridgeNodes.add(tgt);
-			}
-		}
-		return { interEdges, bridgeNodes };
-	}
-
-	/** Collect all tags from a list of node IDs. */
-	private _collectMemberTags(memberIds: string[]): Set<string> {
-		const tags = new Set<string>();
-		for (const id of memberIds) {
-			const pn = this.pixiNodes.get(id);
-			if (pn?.data.tags) pn.data.tags.forEach((t) => tags.add(t));
-		}
-		return tags;
 	}
 
 	// =========================================================================

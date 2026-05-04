@@ -5,6 +5,7 @@
 import type { ClusterGroupRule, GroupPreset } from "../types";
 import { parseQueryExpr, serializeExpr } from "./query-expr";
 import { hexToRgb } from "./color";
+import { edgeSourceId, edgeTargetId } from "./graph-helpers";
 
 // ---- Rendering constants ----
 const BLEND_LABEL_FACTOR = 0.15;
@@ -151,6 +152,46 @@ export function resolveNodeColor(
 		if (css) return css;
 	}
 	return defaultColor;
+}
+
+/**
+ * Count edges that bridge two cluster sets and return the set of bridge node IDs.
+ * Pure: depends only on its arguments. Both endpoints of each bridge edge are
+ * added to `bridgeNodes`. Direction is ignored (A↔B and B↔A both count).
+ */
+export function countInterClusterEdges<E extends { source: string | { id: string }; target: string | { id: string } }>(
+	edges: readonly E[],
+	setA: ReadonlySet<string>,
+	setB: ReadonlySet<string>,
+): { interEdges: number; bridgeNodes: Set<string> } {
+	let interEdges = 0;
+	const bridgeNodes = new Set<string>();
+	for (const e of edges) {
+		const src = edgeSourceId(e);
+		const tgt = edgeTargetId(e);
+		if ((setA.has(src) && setB.has(tgt)) || (setB.has(src) && setA.has(tgt))) {
+			interEdges++;
+			bridgeNodes.add(src);
+			bridgeNodes.add(tgt);
+		}
+	}
+	return { interEdges, bridgeNodes };
+}
+
+/**
+ * Collect the union of all tags across the nodes referenced by `memberIds`.
+ * Missing IDs and nodes without tags are silently skipped. Pure.
+ */
+export function collectMemberTags(
+	memberIds: readonly string[],
+	nodes: ReadonlyMap<string, { data: { tags?: string[] } }>,
+): Set<string> {
+	const tags = new Set<string>();
+	for (const id of memberIds) {
+		const pn = nodes.get(id);
+		if (pn?.data.tags) for (const t of pn.data.tags) tags.add(t);
+	}
+	return tags;
 }
 
 export function giDiag<T extends { nodes: { length: number }; edges: { length: number } }>(stage: string, data: T): T {
