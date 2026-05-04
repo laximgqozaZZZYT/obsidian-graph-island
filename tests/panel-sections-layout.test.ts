@@ -2,20 +2,14 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import type { PanelState, PanelCallbacks, PanelContext } from "../src/views/PanelBuilder";
 import type { GraphViewsSettings } from "../src/types";
 import {
-	buildGraphSyncSection,
-	buildPluginSettingsSection,
 	buildOntologySection,
-	buildCustomMappingsSection,
 	buildTagRelationsSection,
 	buildSamplePresetSelector,
 	buildArrangementPatternSelect,
 	buildConcentricOptions,
 	buildCoordinateControls,
-	buildTimelineControls,
 	buildAutoFitAndGuides,
 	buildSpacingAndGroupArrangement,
-	buildForceParameters,
-	buildClusterGroupRules,
 	buildDirectionalGravityRules,
 	buildSortRules,
 	type ClusterSectionCtx,
@@ -372,103 +366,6 @@ function createMockContext_ctx(): ClusterSectionCtx {
 // Settings tab section builders
 // ---------------------------------------------------------------------------
 
-describe("buildGraphSyncSection", () => {
-	it("creates section with title and toggle controls", () => {
-		const tabEl = new MockElement();
-		const panel = createMockPanel();
-		const ctx = createMockContext();
-		const cb = createMockCallbacks();
-
-		buildGraphSyncSection(tabEl as any, panel, ctx, cb);
-
-		// Function executes without error - DOM structure is built internally
-		expect(tabEl).toBeTruthy();
-	});
-
-	it("creates toggles for syncWithEditor and syncView", () => {
-		const tabEl = document.createElement("div");
-		const panel = createMockPanel();
-		const ctx = createMockContext();
-		const cb = createMockCallbacks();
-
-		buildGraphSyncSection(tabEl, panel, ctx, cb);
-
-		const toggles = tabEl.querySelectorAll(".checkbox-container");
-		expect(toggles.length).toBeGreaterThanOrEqual(2);
-	});
-
-	it("creates slider for localGraphHops", () => {
-		const tabEl = document.createElement("div");
-		const panel = createMockPanel();
-		const ctx = createMockContext();
-		const cb = createMockCallbacks();
-
-		buildGraphSyncSection(tabEl, panel, ctx, cb);
-
-		const slider = tabEl.querySelector("input[type=range]");
-		expect(slider).toBeTruthy();
-		expect((slider as HTMLInputElement).min).toBe("1");
-		expect((slider as HTMLInputElement).max).toBe("5");
-	});
-
-	it("calls markDirty on syncWithEditor change", () => {
-		const tabEl = document.createElement("div");
-		const panel = createMockPanel();
-		const ctx = createMockContext();
-		const cb = createMockCallbacks();
-
-		buildGraphSyncSection(tabEl, panel, ctx, cb);
-
-		const firstToggle = tabEl.querySelector(".checkbox-container") as HTMLElement;
-		expect(firstToggle).toBeTruthy();
-		firstToggle.click();
-
-		expect(cb.markDirty).toHaveBeenCalled();
-	});
-});
-
-describe("buildPluginSettingsSection", () => {
-	it("creates section with title", () => {
-		const tabEl = document.createElement("div");
-		const panel = createMockPanel();
-		const ctx = createMockContext();
-		const cb = createMockCallbacks();
-
-		buildPluginSettingsSection(tabEl, panel, ctx, cb);
-
-		// Function executes without error - DOM structures are built internally
-		expect(tabEl).toBeTruthy();
-	});
-
-	it("creates enclosure sliders when showTagNodes and tagDisplay=enclosure", () => {
-		const tabEl = document.createElement("div");
-		const panel = createMockPanel();
-		panel.showTagNodes = true;
-		panel.tagDisplay = "enclosure";
-		const ctx = createMockContext();
-		const cb = createMockCallbacks();
-
-		buildPluginSettingsSection(tabEl, panel, ctx, cb);
-
-		const sliders = tabEl.querySelectorAll("input[type=range]");
-		expect(sliders.length).toBeGreaterThanOrEqual(1);
-	});
-
-	it("does not create enclosure controls when tagDisplay != enclosure", () => {
-		const tabEl = document.createElement("div");
-		const panel = createMockPanel();
-		panel.showTagNodes = true;
-		panel.tagDisplay = "inline";
-		const ctx = createMockContext();
-		const cb = createMockCallbacks();
-
-		buildPluginSettingsSection(tabEl, panel, ctx, cb);
-
-		const sliders = tabEl.querySelectorAll("input[type=range]");
-		expect(sliders.length).toBe(0);
-	});
-});
-
 describe("buildOntologySection", () => {
 	it("creates section with title", () => {
 		const tabEl = document.createElement("div");
@@ -529,32 +426,6 @@ describe("buildOntologySection", () => {
 
 		const toggles = tabEl.querySelectorAll(".checkbox-container");
 		expect(toggles.length).toBeGreaterThanOrEqual(1);
-	});
-});
-
-describe("buildCustomMappingsSection", () => {
-	it("creates section with title", () => {
-		const tabEl = document.createElement("div");
-		const panel = createMockPanel();
-		const ctx = createMockContext();
-		const cb = createMockCallbacks();
-
-		buildCustomMappingsSection(tabEl, panel, ctx, cb);
-
-		// Function executes without error - DOM structures are built internally
-		expect(tabEl).toBeTruthy();
-	});
-
-	it("creates list element for mappings", () => {
-		const tabEl = document.createElement("div");
-		const panel = createMockPanel();
-		const ctx = createMockContext();
-		const cb = createMockCallbacks();
-
-		buildCustomMappingsSection(tabEl, panel, ctx, cb);
-
-		const listEl = tabEl.querySelector(".gi-mappings-list");
-		expect(listEl).toBeTruthy();
 	});
 });
 
@@ -863,28 +734,6 @@ describe("buildCoordinateControls", () => {
 	});
 });
 
-describe("buildTimelineControls", () => {
-	it("does nothing when not in timeline arrangement and no property axis", () => {
-		const s = createMockContext_ctx();
-		s.panel.clusterArrangement = "grid";
-		s.panel.coordinateLayout = null;
-
-		buildTimelineControls(s);
-
-		expect(s.body.querySelectorAll("input[type=text]").length).toBe(0);
-	});
-
-	it("does nothing when not in timeline arrangement and has no property axis", () => {
-		const s = createMockContext_ctx();
-		s.panel.clusterArrangement = "grid";
-		s.panel.coordinateLayout = null;
-
-		buildTimelineControls(s);
-
-		expect(s.body.children.length).toBe(0);
-	});
-});
-
 describe("buildAutoFitAndGuides", () => {
 	it("creates autoFit toggle", () => {
 		const s = createMockContext_ctx();
@@ -1052,108 +901,6 @@ describe("buildSpacingAndGroupArrangement", () => {
 			expect(el.style.opacity).toBe("0.5");
 			expect(el.style.pointerEvents).toBe("none");
 		}
-	});
-});
-
-describe("buildForceParameters", () => {
-	it("creates centerForce slider", () => {
-		const s = createMockContext_ctx();
-
-		buildForceParameters(s);
-
-		const sliders = s.body.querySelectorAll("input[type=range]");
-		expect(sliders.length).toBeGreaterThanOrEqual(1);
-	});
-
-	it("creates repelForce slider with correct range", () => {
-		const s = createMockContext_ctx();
-
-		buildForceParameters(s);
-
-		const sliders = s.body.querySelectorAll("input[type=range]") as NodeListOf<HTMLInputElement>;
-		const repelSlider = Array.from(sliders).find((sl) => sl.max === "500");
-		expect(repelSlider).toBeTruthy();
-	});
-
-	it("creates linkForce and linkDistance sliders", () => {
-		const s = createMockContext_ctx();
-
-		buildForceParameters(s);
-
-		const sliders = s.body.querySelectorAll("input[type=range]");
-		expect(sliders.length).toBeGreaterThanOrEqual(4);
-	});
-
-	it("creates clusterChargeForce slider", () => {
-		const s = createMockContext_ctx();
-
-		buildForceParameters(s);
-
-		const sliders = s.body.querySelectorAll("input[type=range]");
-		expect(sliders.length).toBeGreaterThanOrEqual(5);
-	});
-
-	it("calls updateForces and restartSimulation on slider change", () => {
-		const s = createMockContext_ctx();
-
-		buildForceParameters(s);
-
-		const slider = s.body.querySelector("input[type=range]") as HTMLInputElement;
-		slider.value = "0.05";
-		slider.dispatchEvent(new Event("input"));
-
-		// Wait for debounce
-		return new Promise((resolve) => {
-			setTimeout(() => {
-				expect(s.cb.updateForces).toHaveBeenCalled();
-				resolve(undefined);
-			}, 200);
-		});
-	});
-});
-
-describe("buildClusterGroupRules", () => {
-	it("creates header element", () => {
-		const s = createMockContext_ctx();
-
-		buildClusterGroupRules(s);
-
-		const header = s.body.querySelector(".setting-item");
-		expect(header).toBeTruthy();
-	});
-
-	it("shows info message when clusterFollowsGroupBy is true", () => {
-		const s = createMockContext_ctx();
-		s.panel.clusterFollowsGroupBy = true;
-
-		buildClusterGroupRules(s);
-
-		const infoEl = s.body.querySelector(".gi-follow-info");
-		expect(infoEl).toBeTruthy();
-		// Text is translated, just check element exists with non-empty content
-		expect(infoEl?.textContent?.length).toBeGreaterThan(0);
-	});
-
-	it("creates list element when clusterFollowsGroupBy is false", () => {
-		const s = createMockContext_ctx();
-		s.panel.clusterFollowsGroupBy = false;
-
-		buildClusterGroupRules(s);
-
-		const listEl = s.body.querySelector(".gi-multirule-list");
-		expect(listEl).toBeTruthy();
-	});
-
-	it("creates add button when clusterFollowsGroupBy is false", () => {
-		const s = createMockContext_ctx();
-		s.panel.clusterFollowsGroupBy = false;
-
-		buildClusterGroupRules(s);
-
-		const addBtn = s.body.querySelector(".gi-add-group");
-		expect(addBtn).toBeTruthy();
-		// Text contains full plus character and translated label
-		expect(addBtn?.textContent?.length).toBeGreaterThan(0);
 	});
 });
 

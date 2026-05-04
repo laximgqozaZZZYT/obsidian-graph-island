@@ -1,17 +1,11 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import type { PanelState, PanelCallbacks, PanelContext } from "../src/views/PanelBuilder";
 import {
-	buildBookmarkSection,
 	buildHoverBehaviorSection,
 	buildNodeDisplayModeSection,
-	buildNodeDecorationSection,
-	buildStructureAnalysisSection,
-	buildDiscoverySection,
-	buildInteractionSection,
 	buildCableDisplaySection,
 	buildRoadNetworkSection,
 	buildMinimapSection,
-	buildRenderThresholdsSection,
 	buildRelationColorSection,
 } from "../src/views/panel-sections-filter";
 
@@ -351,50 +345,6 @@ function createMockContext(options?: { hasImageMetaNodes?: boolean; hasInheritan
 }
 
 // ---------------------------------------------------------------------------
-// Test: buildBookmarkSection
-// ---------------------------------------------------------------------------
-
-describe("buildBookmarkSection", () => {
-	it("creates empty bookmark section when no bookmarks", () => {
-		const tabEl = new MockElement() as any;
-		const panel = createMockPanel();
-		panel.bookmarkedNodes = [];
-		const ctx = createMockContext();
-		const cb = createMockCallbacks();
-
-		buildBookmarkSection(tabEl, panel, ctx, cb);
-
-		expect(tabEl.children.length).toBeGreaterThan(0);
-	});
-
-	it("creates bookmark items for each bookmarked node", () => {
-		const tabEl = new MockElement() as any;
-		const panel = createMockPanel();
-		panel.bookmarkedNodes = ["file1", "file2"];
-		const ctx = createMockContext();
-		const cb = createMockCallbacks();
-
-		buildBookmarkSection(tabEl, panel, ctx, cb);
-
-		// Section should have children
-		expect(tabEl.children.length).toBeGreaterThan(0);
-	});
-
-	it("calls jumpToNode callback when bookmark label clicked", () => {
-		const tabEl = new MockElement() as any;
-		const panel = createMockPanel();
-		panel.bookmarkedNodes = ["file1"];
-		const ctx = createMockContext();
-		const cb = createMockCallbacks();
-
-		buildBookmarkSection(tabEl, panel, ctx, cb);
-
-		// Verify callback is registered (in real DOM would fire on click)
-		expect(cb.jumpToNode).toBeDefined();
-	});
-});
-
-// ---------------------------------------------------------------------------
 // Test: buildHoverBehaviorSection
 // ---------------------------------------------------------------------------
 
@@ -505,194 +455,6 @@ describe("buildNodeDisplayModeSection", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Test: buildNodeDecorationSection
-// ---------------------------------------------------------------------------
-
-describe("buildNodeDecorationSection", () => {
-	it("creates section with semantic zoom toggle", () => {
-		const tabEl = new MockElement() as any;
-		const panel = createMockPanel();
-		const ctx = createMockContext();
-		const cb = createMockCallbacks();
-
-		buildNodeDecorationSection(tabEl, panel, ctx, cb);
-
-		expect(tabEl.children.length).toBeGreaterThan(0);
-	});
-
-	it("shows importance ring options when enabled", () => {
-		const tabEl = new MockElement() as any;
-		const panel = createMockPanel();
-		panel.showImportanceRing = true;
-		const ctx = createMockContext();
-		const cb = createMockCallbacks();
-
-		buildNodeDecorationSection(tabEl, panel, ctx, cb);
-
-		expect(tabEl).toBeTruthy();
-	});
-
-	it("shows recency marker options when enabled", () => {
-		const tabEl = new MockElement() as any;
-		const panel = createMockPanel();
-		panel.showRecencyMarker = true;
-		const ctx = createMockContext();
-		const cb = createMockCallbacks();
-
-		buildNodeDecorationSection(tabEl, panel, ctx, cb);
-
-		expect(tabEl).toBeTruthy();
-	});
-
-	it("shows node thumbnail toggle when hasImageMetaNodes is true", () => {
-		const tabEl = new MockElement() as any;
-		const panel = createMockPanel();
-		const ctx = createMockContext({ hasImageMetaNodes: true });
-		const cb = createMockCallbacks();
-
-		buildNodeDecorationSection(tabEl, panel, ctx, cb);
-
-		expect(tabEl.children.length).toBeGreaterThan(0);
-	});
-});
-
-// ---------------------------------------------------------------------------
-// Test: buildStructureAnalysisSection
-// ---------------------------------------------------------------------------
-
-describe("buildStructureAnalysisSection", () => {
-	it("creates section with structure toggles", () => {
-		const tabEl = new MockElement() as any;
-		const panel = createMockPanel();
-		const ctx = createMockContext();
-		const cb = createMockCallbacks();
-
-		buildStructureAnalysisSection(tabEl, panel, ctx, cb);
-
-		expect(tabEl.children.length).toBeGreaterThan(0);
-	});
-
-	it("shows cluster label detail select when tag enclosure is active", () => {
-		const tabEl = new MockElement() as any;
-		const panel = createMockPanel();
-		panel.showTagNodes = true;
-		panel.tagDisplay = "enclosure";
-		const ctx = createMockContext();
-		const cb = createMockCallbacks();
-
-		buildStructureAnalysisSection(tabEl, panel, ctx, cb);
-
-		expect(tabEl).toBeTruthy();
-	});
-
-	it("shows focus layout toggle when focusMode is enabled", () => {
-		const tabEl = new MockElement() as any;
-		const panel = createMockPanel();
-		panel.focusMode = true;
-		const ctx = createMockContext();
-		const cb = createMockCallbacks();
-
-		buildStructureAnalysisSection(tabEl, panel, ctx, cb);
-
-		expect(tabEl).toBeTruthy();
-	});
-
-	it("shows hierarchy breadcrumb toggle when localGraphCenter is set", () => {
-		const tabEl = new MockElement() as any;
-		const panel = createMockPanel();
-		panel.localGraphCenter = "file.md";
-		const ctx = createMockContext();
-		const cb = createMockCallbacks();
-
-		buildStructureAnalysisSection(tabEl, panel, ctx, cb);
-
-		expect(tabEl).toBeTruthy();
-	});
-
-	it("shows applyEgoLayout button when focusNodeId is set", () => {
-		const tabEl = new MockElement() as any;
-		const panel = createMockPanel();
-		panel.focusNodeId = "node1";
-		const ctx = createMockContext();
-		const cb = createMockCallbacks();
-
-		buildStructureAnalysisSection(tabEl, panel, ctx, cb);
-
-		expect(tabEl).toBeTruthy();
-	});
-});
-
-// ---------------------------------------------------------------------------
-// Test: buildDiscoverySection
-// ---------------------------------------------------------------------------
-
-describe("buildDiscoverySection", () => {
-	it("creates section with analysis overlay select", () => {
-		const tabEl = new MockElement() as any;
-		const panel = createMockPanel();
-		const ctx = createMockContext();
-		const cb = createMockCallbacks();
-
-		buildDiscoverySection(tabEl, panel, ctx, cb);
-
-		expect(tabEl.children.length).toBeGreaterThan(0);
-	});
-
-	it("shows hierarchy tree toggle when inheritance edges exist", () => {
-		const tabEl = new MockElement() as any;
-		const panel = createMockPanel();
-		const ctx = createMockContext({ hasInheritanceEdges: true });
-		const cb = createMockCallbacks();
-
-		buildDiscoverySection(tabEl, panel, ctx, cb);
-
-		expect(tabEl).toBeTruthy();
-	});
-
-	it("creates toggles for similar suggestions and structure questions", () => {
-		const tabEl = new MockElement() as any;
-		const panel = createMockPanel();
-		const ctx = createMockContext();
-		const cb = createMockCallbacks();
-
-		buildDiscoverySection(tabEl, panel, ctx, cb);
-
-		expect(tabEl.children.length).toBeGreaterThan(0);
-	});
-});
-
-// ---------------------------------------------------------------------------
-// Test: buildInteractionSection
-// ---------------------------------------------------------------------------
-
-describe("buildInteractionSection", () => {
-	it("does not show controls when no multi-select nodes", () => {
-		const tabEl = new MockElement() as any;
-		const panel = createMockPanel();
-		panel.multiSelectNodeIds = [];
-		const ctx = createMockContext();
-		const cb = createMockCallbacks();
-
-		buildInteractionSection(tabEl, panel, ctx, cb);
-
-		// Section created but no multi-select controls
-		expect(tabEl).toBeTruthy();
-	});
-
-	it("shows multi-select status when nodes selected", () => {
-		const tabEl = new MockElement() as any;
-		const panel = createMockPanel();
-		panel.multiSelectNodeIds = ["node1", "node2"];
-		const ctx = createMockContext();
-		const cb = createMockCallbacks();
-
-		buildInteractionSection(tabEl, panel, ctx, cb);
-
-		expect(tabEl.children.length).toBeGreaterThan(0);
-	});
-});
-
-// ---------------------------------------------------------------------------
 // Test: buildCableDisplaySection
 // ---------------------------------------------------------------------------
 
@@ -793,35 +555,6 @@ describe("buildMinimapSection", () => {
 		buildMinimapSection(tabEl, panel, ctx, cb);
 
 		expect(tabEl).toBeTruthy();
-	});
-});
-
-// ---------------------------------------------------------------------------
-// Test: buildRenderThresholdsSection
-// ---------------------------------------------------------------------------
-
-describe("buildRenderThresholdsSection", () => {
-	it("creates section with performance sliders", () => {
-		const tabEl = new MockElement() as any;
-		const panel = createMockPanel();
-		const ctx = createMockContext();
-		const cb = createMockCallbacks();
-
-		buildRenderThresholdsSection(tabEl, panel, ctx, cb);
-
-		expect(tabEl.children.length).toBeGreaterThan(0);
-	});
-
-	it("applies default threshold values when renderThresholds not set", () => {
-		const tabEl = new MockElement() as any;
-		const panel = createMockPanel();
-		panel.renderThresholds = undefined;
-		const ctx = createMockContext();
-		const cb = createMockCallbacks();
-
-		buildRenderThresholdsSection(tabEl, panel, ctx, cb);
-
-		expect(tabEl.children.length).toBeGreaterThan(0);
 	});
 });
 

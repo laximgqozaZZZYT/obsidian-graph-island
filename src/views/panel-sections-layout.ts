@@ -8,33 +8,23 @@ import type {
 	CoordinateLayout,
 	CoordinateSystem,
 } from "../types";
-import { mergeRenderThresholds, ontologyToRules, rulesToOntologyFields } from "../types";
+import { ontologyToRules, rulesToOntologyFields } from "../types";
 import { t, tHelp } from "../i18n";
-import {
-	TAG_DISPLAY_ENCLOSURE,
-	ARRANGEMENT_CONCENTRIC,
-	ARRANGEMENT_TIMELINE,
-	SOURCE_PROPERTY,
-	TRANSFORM_EVEN_DIVIDE,
-} from "../constants";
+import { ARRANGEMENT_CONCENTRIC, TRANSFORM_EVEN_DIVIDE } from "../constants";
 import { ARRANGEMENT_PRESETS, findMatchingPreset } from "../layouts/coordinate-presets";
 import { importPreset, applyPreset, type PresetMigrationInfo } from "../utils/presets";
 import { showToast } from "../utils/toast";
 import {
-	buildDualRangeSlider,
 	addSlider,
 	addToggle,
 	addSelect,
-	attachDatalist,
-	renderClusterRuleList,
 	renderDirectionalGravityList,
 	renderSortRuleList,
 	renderOntologyRule,
-	renderCustomMappings,
 	renderTagRelations,
 } from "./panel-widgets";
 import type { PanelState, PanelCallbacks, PanelContext } from "./PanelBuilder";
-import { ensureRT, buildSection } from "./PanelBuilder";
+import { buildSection } from "./PanelBuilder";
 import {
 	addAutoFitToggle,
 	addAxisTitlesToggle,
@@ -85,136 +75,6 @@ function getOrCreateCoordLayout(panel: PanelState): CoordinateLayout {
 // ---------------------------------------------------------------------------
 // Settings tab section builders
 // ---------------------------------------------------------------------------
-
-export function buildGraphSyncSection(
-	tabEl: HTMLElement,
-	panel: PanelState,
-	_ctx: PanelContext,
-	cb: PanelCallbacks,
-): void {
-	buildSection(
-		tabEl,
-		t("section.graphSync"),
-		(body) => {
-			addToggle(
-				body,
-				t("display.syncWithEditor"),
-				panel.syncWithEditor,
-				(v) => {
-					panel.syncWithEditor = v;
-					cb.markDirty(); // Persist setting
-				},
-				t("desc.syncWithEditor"),
-			);
-			// ビュー同期トグル: 他の Graph Island ビューとパネル状態を同期
-			addToggle(
-				body,
-				t("display.syncView"),
-				panel.syncViewId !== null,
-				(v) => {
-					panel.syncViewId = v ? crypto.randomUUID() : null;
-					cb.markDirty();
-				},
-				t("desc.syncView"),
-			);
-			addSlider(
-				body,
-				t("display.localGraphHops"),
-				1,
-				5,
-				1,
-				panel.localGraphHops,
-				(v) => {
-					panel.localGraphHops = v;
-					if (panel.localGraphCenter) cb.doRenderKeepPanel();
-					else cb.markDirty(); // Persist even when not in local graph mode
-				},
-				t("desc.localGraphHops"),
-			);
-		},
-		tHelp("help.graphSync"),
-		false,
-		"settings",
-	);
-}
-
-export function buildPluginSettingsSection(
-	tabEl: HTMLElement,
-	panel: PanelState,
-	ctx: PanelContext,
-	cb: PanelCallbacks,
-): void {
-	buildSection(
-		tabEl,
-		t("section.pluginSettings"),
-		(body) => {
-			const s = ctx.settings;
-
-			// metadataFields removed — not consumed by any parser; edge fields come from ontology rules
-			if (panel.showTagNodes && panel.tagDisplay === TAG_DISPLAY_ENCLOSURE) {
-				addSlider(
-					body,
-					t("settings.enclosureMinRatio"),
-					0,
-					0.3,
-					0.02,
-					s.enclosureMinRatio,
-					(v) => {
-						s.enclosureMinRatio = v;
-						ctx.saveSettings();
-						cb.markDirty();
-					},
-					t("desc.enclosureMinRatio"),
-				);
-				// FY: Enclosure fill opacity override
-				const rtEnc = mergeRenderThresholds(panel.renderThresholds);
-				addSlider(
-					body,
-					t("display.enclosureFillOpacity") ?? "Enclosure Fill",
-					0,
-					1,
-					0.05,
-					rtEnc.enclosureFillOpacity,
-					(v) => {
-						ensureRT(panel).enclosureFillOpacity = v;
-						cb.markDirty();
-					},
-				);
-				// GC: Enclosure stroke width override
-				addSlider(
-					body,
-					t("display.enclosureStrokeWidth") ?? "Enclosure Stroke",
-					0,
-					10,
-					0.5,
-					rtEnc.enclosureStrokeWidth,
-					(v) => {
-						ensureRT(panel).enclosureStrokeWidth = v;
-						cb.markDirty();
-					},
-				);
-				// FU: Enclosure label position
-				addSelect(
-					body,
-					t("display.enclosureLabelPos") ?? "Label Position",
-					[
-						{ value: "top", label: t("display.enclosureLabelPos.top") ?? "Top" },
-						{ value: "center", label: t("display.enclosureLabelPos.center") ?? "Center" },
-						{ value: "bottom", label: t("display.enclosureLabelPos.bottom") ?? "Bottom" },
-					],
-					rtEnc.enclosureLabelPosition,
-					(v) => {
-						ensureRT(panel).enclosureLabelPosition = v as "top" | "center" | "bottom";
-						cb.markDirty();
-					},
-				);
-			}
-		},
-		tHelp("help.pluginSettings"),
-		false,
-		"settings",
-	);
-}
 
 export function buildOntologySection(
 	tabEl: HTMLElement,
@@ -277,25 +137,6 @@ export function buildOntologySection(
 		tHelp("help.ontology"),
 		false,
 		"network",
-	);
-}
-
-export function buildCustomMappingsSection(
-	tabEl: HTMLElement,
-	_panel: PanelState,
-	ctx: PanelContext,
-	cb: PanelCallbacks,
-): void {
-	buildSection(
-		tabEl,
-		t("section.customMappings"),
-		(body) => {
-			const mappingsListEl = body.createDiv({ cls: "gi-mappings-list" });
-			renderCustomMappings(mappingsListEl, ctx.settings, ctx, cb);
-		},
-		tHelp("help.customMappings"),
-		true,
-		"map",
 	);
 }
 
@@ -553,96 +394,6 @@ export function buildCoordinateControls(
 	}
 }
 
-/** Timeline-specific controls: time key, end key, duration bars, routes, tick labels, order fields, range */
-export function buildTimelineControls(s: ClusterSectionCtx): void {
-	const { body, panel, cb, ctx } = s;
-	const effectiveLayout = panel.coordinateLayout ?? getPreset(panel.clusterArrangement);
-	if (!effectiveLayout) return;
-	const hasPropertyAxis =
-		effectiveLayout.axis1.source.kind === SOURCE_PROPERTY || effectiveLayout.axis2.source.kind === SOURCE_PROPERTY;
-	if (panel.clusterArrangement !== ARRANGEMENT_TIMELINE && !hasPropertyAxis) return;
-
-	const row = body.createDiv({ cls: "gi-setting-row" });
-	row.createEl("span", { cls: "gi-setting-label", text: t("timeline.timeKey") });
-	const input = row.createEl("input", { cls: "gi-setting-input", type: "text" });
-	input.value = panel.timelineKey;
-	input.placeholder = "date";
-	input.setAttribute("aria-label", t("timeline.timeKeyHint"));
-	attachDatalist(input, ctx.frontmatterKeys);
-	input.addEventListener("change", () => {
-		panel.timelineKey = input.value.trim() || "date";
-		cb.applyClusterForce();
-		cb.restartSimulation(0.5);
-	});
-	body.createEl("p", { cls: "gi-hint", text: t("timeline.timeKeyHint") });
-
-	// Timeline end key input (for duration bars)
-	const endRow = body.createDiv({ cls: "gi-setting-row" });
-	endRow.createEl("span", { cls: "gi-setting-label", text: t("timeline.endKey") });
-	const endInput = endRow.createEl("input", { cls: "gi-setting-input", type: "text" });
-	endInput.value = panel.timelineEndKey;
-	endInput.placeholder = "end-date";
-	endInput.setAttribute("aria-label", t("timeline.endKeyHint"));
-	attachDatalist(endInput, ctx.frontmatterKeys);
-	endInput.addEventListener("change", () => {
-		panel.timelineEndKey = endInput.value.trim() || "end-date";
-		cb.applyClusterForce();
-		cb.restartSimulation(0.5);
-	});
-
-	// Duration bars toggle
-	addToggle(body, t("timeline.showDurationBars"), panel.showDurationBars, (v) => {
-		panel.showDurationBars = v;
-		cb.markDirty();
-	});
-
-	// Timeline route lines toggle
-	addToggle(body, t("timeline.showRoutes"), panel.showTimelineRoutes, (v) => {
-		panel.showTimelineRoutes = v;
-		cb.markDirty();
-	});
-
-	// Timeline tick labels toggle
-	addToggle(
-		body,
-		t("timeline.showTickLabels"),
-		panel.showTimelineTickLabels,
-		(v) => {
-			panel.showTimelineTickLabels = v;
-			cb.markDirty();
-		},
-		t("timeline.showTickLabelsDesc"),
-	);
-
-	// Timeline order fields
-	const orderRow = body.createDiv({ cls: "gi-setting-row" });
-	orderRow.createEl("span", { cls: "gi-setting-label", text: t("timeline.orderFields") });
-	const orderInput = orderRow.createEl("input", { cls: "gi-setting-input", type: "text" });
-	orderInput.value = panel.timelineOrderFields;
-	orderInput.placeholder = "parent_id,story_order";
-	orderInput.setAttribute("aria-label", t("timeline.orderFieldsHint"));
-	orderInput.addEventListener("change", () => {
-		panel.timelineOrderFields = orderInput.value.trim();
-		cb.applyClusterForce();
-		cb.restartSimulation(0.5);
-	});
-	body.createEl("p", { cls: "gi-hint", text: t("timeline.orderFieldsHint") });
-
-	// Timeline range dual slider
-	buildDualRangeSlider(
-		body,
-		t("timeline.range") || "Time range",
-		panel.timelineRangeMin,
-		panel.timelineRangeMax,
-		(min, max) => {
-			panel.timelineRangeMin = min;
-			panel.timelineRangeMax = max;
-			cb.doRenderKeepPanel();
-		},
-		t("desc.timelineRange") || "Visible time range (% of total)",
-	);
-}
-
 /** Auto-fit toggle, guide lines, group grid, and custom grid settings */
 export function buildAutoFitAndGuides(s: ClusterSectionCtx): void {
 	const { body, panel, cb } = s;
@@ -770,111 +521,6 @@ export function buildSpacingAndGroupArrangement(s: ClusterSectionCtx): void {
 		},
 		t("desc.edgeBundleStrength"),
 	);
-}
-
-/** Force simulation parameter sliders (center, repel, link force, link distance) */
-export function buildForceParameters(s: ClusterSectionCtx): void {
-	const { body, panel, cb } = s;
-
-	let forceDebounce: ReturnType<typeof setTimeout> | undefined;
-	const debouncedForceUpdate = () => {
-		clearTimeout(forceDebounce);
-		forceDebounce = setTimeout(() => {
-			cb.updateForces();
-			cb.restartSimulation(0.3);
-		}, 150);
-	};
-
-	addSlider(
-		body,
-		t("force.centerForce"),
-		0,
-		0.15,
-		0.005,
-		panel.centerForce,
-		(v) => {
-			panel.centerForce = v;
-			debouncedForceUpdate();
-		},
-		t("desc.centerForce"),
-	);
-	addSlider(
-		body,
-		t("force.repelForce"),
-		0,
-		500,
-		10,
-		panel.repelForce,
-		(v) => {
-			panel.repelForce = v;
-			debouncedForceUpdate();
-		},
-		t("desc.repelForce"),
-	);
-	addSlider(
-		body,
-		t("force.linkForce"),
-		0,
-		0.1,
-		0.005,
-		panel.linkForce,
-		(v) => {
-			panel.linkForce = v;
-			debouncedForceUpdate();
-		},
-		t("desc.linkForce"),
-	);
-	addSlider(
-		body,
-		t("force.linkDistance"),
-		10,
-		300,
-		10,
-		panel.linkDistance,
-		(v) => {
-			panel.linkDistance = v;
-			debouncedForceUpdate();
-		},
-		t("desc.linkDistance"),
-	);
-	const rt = mergeRenderThresholds(panel.renderThresholds);
-	addSlider(
-		body,
-		t("render.clusterChargeForce"),
-		-50,
-		0,
-		1,
-		rt.clusterChargeForce,
-		(v) => {
-			ensureRT(panel).clusterChargeForce = v;
-			cb.doRenderKeepPanel();
-		},
-		t("render.clusterChargeForceDesc"),
-	);
-}
-
-/** Cluster group rules sub-section (follow-mode info or independent rule editor) */
-export function buildClusterGroupRules(s: ClusterSectionCtx): void {
-	const { body, panel, ctx, cb } = s;
-
-	const clusterHeader = body.createDiv({ cls: "setting-item" });
-	clusterHeader.createDiv({ cls: "setting-item-name", text: t("cluster.groupRulesHeading") });
-
-	if (panel.clusterFollowsGroupBy) {
-		const infoEl = body.createDiv({ cls: "setting-item-description gi-follow-info" });
-		infoEl.textContent = t("cluster.usingGroupBy");
-	} else {
-		const clusterListEl = body.createDiv({ cls: "gi-multirule-list" });
-		renderClusterRuleList(clusterListEl, panel, ctx, cb);
-
-		const addClusterBtn = body.createEl("button", { cls: "gi-add-group", text: t("cluster.addGroupRule") });
-		addClusterBtn.addEventListener("click", () => {
-			panel.clusterGroupRules.push({ groupBy: "tag:?", recursive: false });
-			renderClusterRuleList(clusterListEl, panel, ctx, cb);
-			cb.applyClusterForce();
-			cb.restartSimulation(0.5);
-		});
-	}
 }
 
 /** Directional gravity rules sub-section */
