@@ -18,6 +18,9 @@ import {
 	buildMissingNeighborSet,
 	computeAutoFitTransform,
 	buildAdj,
+	countTagOccurrences,
+	pickMostSpecificTag,
+	buildTagRelPairs,
 } from "../src/utils/graph-helpers";
 import type { GraphNode, GraphEdge } from "../src/types";
 
@@ -388,6 +391,102 @@ describe("buildTagMembership branch coverage", () => {
 		const edges = [edge("tag:t1", "tag:t2", "link")];
 		const { tagRelPairs } = buildTagMembership(nodes, edges);
 		expect(tagRelPairs.size).toBe(0);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// countTagOccurrences — extracted from buildTagMembership for testability
+// ---------------------------------------------------------------------------
+describe("countTagOccurrences", () => {
+	it("returns empty map for no nodes", () => {
+		expect(countTagOccurrences([]).size).toBe(0);
+	});
+
+	it("counts occurrences across non-tag nodes", () => {
+		const nodes = [
+			node("a.md", { tags: ["x", "y"] }),
+			node("b.md", { tags: ["x"] }),
+			node("c.md", { tags: ["y", "z"] }),
+		];
+		const counts = countTagOccurrences(nodes);
+		expect(counts.get("x")).toBe(2);
+		expect(counts.get("y")).toBe(2);
+		expect(counts.get("z")).toBe(1);
+	});
+
+	it("skips isTag nodes from counts", () => {
+		const nodes = [node("#x", { isTag: true, tags: ["x"] }), node("a.md", { tags: ["x"] })];
+		const counts = countTagOccurrences(nodes);
+		expect(counts.get("x")).toBe(1);
+	});
+
+	it("handles nodes without tags field", () => {
+		const nodes = [node("a.md"), node("b.md", { tags: ["x"] })];
+		const counts = countTagOccurrences(nodes);
+		expect(counts.size).toBe(1);
+		expect(counts.get("x")).toBe(1);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// pickMostSpecificTag — extracted from buildTagMembership
+// ---------------------------------------------------------------------------
+describe("pickMostSpecificTag", () => {
+	it("picks tag with smallest count", () => {
+		const counts = new Map<string, number>([
+			["common", 10],
+			["rare", 1],
+		]);
+		expect(pickMostSpecificTag(["common", "rare"], counts)).toBe("rare");
+	});
+
+	it("returns first tag when only one", () => {
+		const counts = new Map<string, number>([["x", 5]]);
+		expect(pickMostSpecificTag(["x"], counts)).toBe("x");
+	});
+
+	it("treats missing counts as Infinity (de-prioritised)", () => {
+		const counts = new Map<string, number>([["known", 5]]);
+		// "unknown" has Infinity count → "known" wins
+		expect(pickMostSpecificTag(["unknown", "known"], counts)).toBe("known");
+	});
+
+	it("keeps first tag on equal counts (stable, no swap)", () => {
+		const counts = new Map<string, number>([
+			["a", 3],
+			["b", 3],
+		]);
+		expect(pickMostSpecificTag(["a", "b"], counts)).toBe("a");
+	});
+});
+
+// ---------------------------------------------------------------------------
+// buildTagRelPairs — extracted from buildTagMembership
+// ---------------------------------------------------------------------------
+describe("buildTagRelPairs", () => {
+	it("returns empty set for no edges", () => {
+		expect(buildTagRelPairs([]).size).toBe(0);
+	});
+
+	it("adds bidirectional pair from inheritance edge between tag nodes", () => {
+		const pairs = buildTagRelPairs([edge("tag:parent", "tag:child", "inheritance")]);
+		expect(pairs.has("parent\0child")).toBe(true);
+		expect(pairs.has("child\0parent")).toBe(true);
+	});
+
+	it("adds pair from aggregation edge between tag nodes", () => {
+		const pairs = buildTagRelPairs([edge("tag:a", "tag:b", "aggregation")]);
+		expect(pairs.size).toBe(2);
+	});
+
+	it("ignores non-inheritance/aggregation edge types", () => {
+		const pairs = buildTagRelPairs([edge("tag:a", "tag:b", "link")]);
+		expect(pairs.size).toBe(0);
+	});
+
+	it("ignores edges where either endpoint is not a tag node", () => {
+		const pairs = buildTagRelPairs([edge("a.md", "tag:b", "inheritance"), edge("tag:a", "b.md", "inheritance")]);
+		expect(pairs.size).toBe(0);
 	});
 });
 
