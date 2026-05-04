@@ -11,6 +11,7 @@ import {
 	applyVisibilityFilters,
 	filterBySubgraph,
 	filterByLocalGraph,
+	filterByLocalGraphWithExpansion,
 	type VisibilityOptions,
 } from "../src/utils/graph-filter";
 import type { GraphNode, GraphEdge } from "../src/types";
@@ -637,5 +638,111 @@ describe("filterByLocalGraph", () => {
 		const r = filterByLocalGraph([], [], "a", 2);
 		expect(r.nodes).toHaveLength(0);
 		expect(r.edges).toHaveLength(0);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// filterByLocalGraphWithExpansion — BFS hop filter + manual node expansion
+// ---------------------------------------------------------------------------
+describe("filterByLocalGraphWithExpansion", () => {
+	const n = (id: string, fp?: string) => ({ id, label: id, filePath: fp });
+	const e = (s: string, t: string) => ({ source: s, target: t, type: "link" as const });
+
+	it("returns unmodified when centerId is empty string", () => {
+		const nodes = [n("a"), n("b")];
+		const edges = [e("a", "b")];
+		const r = filterByLocalGraphWithExpansion(nodes, edges, "", 2, []);
+		expect(r.nodes).toHaveLength(2);
+		expect(r.edges).toHaveLength(1);
+	});
+
+	it("returns unmodified when centerId is null", () => {
+		const nodes = [n("a"), n("b")];
+		const edges = [e("a", "b")];
+		const r = filterByLocalGraphWithExpansion(nodes, edges, null, 2, []);
+		expect(r.nodes).toHaveLength(2);
+		expect(r.edges).toHaveLength(1);
+	});
+
+	it("returns unmodified when centerId is undefined", () => {
+		const nodes = [n("a"), n("b")];
+		const edges = [e("a", "b")];
+		const r = filterByLocalGraphWithExpansion(nodes, edges, undefined, 2, []);
+		expect(r.nodes).toHaveLength(2);
+		expect(r.edges).toHaveLength(1);
+	});
+
+	it("equals filterByLocalGraph when expandedNodeIds is empty", () => {
+		const nodes = [n("a"), n("b"), n("c"), n("d")];
+		const edges = [e("a", "b"), e("b", "c"), e("c", "d")];
+		const baseline = filterByLocalGraph(nodes, edges, "a", 1);
+		const r = filterByLocalGraphWithExpansion(nodes, edges, "a", 1, []);
+		expect(r.nodes.map((x) => x.id).sort()).toEqual(baseline.nodes.map((x) => x.id).sort());
+		expect(r.edges).toHaveLength(baseline.edges.length);
+	});
+
+	it("equals filterByLocalGraph when expandedNodeIds is undefined", () => {
+		const nodes = [n("a"), n("b"), n("c")];
+		const edges = [e("a", "b"), e("b", "c")];
+		const baseline = filterByLocalGraph(nodes, edges, "a", 1);
+		const r = filterByLocalGraphWithExpansion(nodes, edges, "a", 1, undefined);
+		expect(r.nodes.map((x) => x.id).sort()).toEqual(baseline.nodes.map((x) => x.id).sort());
+	});
+
+	it("expands neighbors of an expanded node within the BFS result", () => {
+		// graph: a-b-c-d, b also connects to x (out-of-hop neighbor)
+		const nodes = [n("a"), n("b"), n("c"), n("d"), n("x")];
+		const edges = [e("a", "b"), e("b", "c"), e("c", "d"), e("b", "x")];
+		// center=a, hop=1 → reachable {a,b}; expanding b should pull in c and x
+		const r = filterByLocalGraphWithExpansion(nodes, edges, "a", 1, ["b"]);
+		expect(r.nodes.map((x) => x.id).sort()).toEqual(["a", "b", "c", "x"]);
+	});
+
+	it("ignores expanded nodes that are not in the BFS result", () => {
+		// graph: a-b, c-d (separate components)
+		const nodes = [n("a"), n("b"), n("c"), n("d")];
+		const edges = [e("a", "b"), e("c", "d")];
+		// center=a, hop=1 → reachable {a,b}; expanding c (not reachable) should be ignored
+		const r = filterByLocalGraphWithExpansion(nodes, edges, "a", 1, ["c"]);
+		expect(r.nodes.map((x) => x.id).sort()).toEqual(["a", "b"]);
+	});
+
+	it("supports multiple expanded nodes", () => {
+		// graph: hub-a, hub-b, a-x, b-y
+		const nodes = [n("hub"), n("a"), n("b"), n("x"), n("y")];
+		const edges = [e("hub", "a"), e("hub", "b"), e("a", "x"), e("b", "y")];
+		// hop=1 → {hub, a, b}; expanding both a and b should add x and y
+		const r = filterByLocalGraphWithExpansion(nodes, edges, "hub", 1, ["a", "b"]);
+		expect(r.nodes.map((x) => x.id).sort()).toEqual(["a", "b", "hub", "x", "y"]);
+	});
+
+	it("preserves edges between newly-included nodes after expansion", () => {
+		const nodes = [n("a"), n("b"), n("c"), n("x"), n("y")];
+		const edges = [e("a", "b"), e("b", "c"), e("c", "x"), e("x", "y")];
+		// center=a, hop=1 → {a,b}; expanding b should pull c, but x/y stay out
+		const r = filterByLocalGraphWithExpansion(nodes, edges, "a", 1, ["b"]);
+		const ids = new Set(r.nodes.map((m) => m.id));
+		expect(ids.has("c")).toBe(true);
+		expect(ids.has("x")).toBe(false);
+		// edge a-b and b-c kept; c-x and x-y dropped
+		expect(r.edges).toHaveLength(2);
+	});
+
+	it("returns unmodified when centerId resolves to nothing", () => {
+		const nodes = [n("a"), n("b")];
+		const edges = [e("a", "b")];
+		// "missing" id is not in nodes; filterByLocalGraph returns full graph
+		const r = filterByLocalGraphWithExpansion(nodes, edges, "missing", 2, ["a"]);
+		expect(r.nodes).toHaveLength(2);
+		expect(r.edges).toHaveLength(1);
+	});
+
+	it("expansion follows undirected adjacency (incoming edges)", () => {
+		// graph: a→b, x→b (x reaches b via incoming)
+		const nodes = [n("a"), n("b"), n("x")];
+		const edges = [e("a", "b"), e("x", "b")];
+		// hop=1 from a → {a,b}; expanding b should include x via incoming edge
+		const r = filterByLocalGraphWithExpansion(nodes, edges, "a", 1, ["b"]);
+		expect(r.nodes.map((m) => m.id).sort()).toEqual(["a", "b", "x"]);
 	});
 });
