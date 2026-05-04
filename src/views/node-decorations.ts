@@ -15,6 +15,18 @@ import { getNodeShape, drawShapeAt } from "../utils/node-shapes";
 import { hslToHex } from "../utils/graph-helpers";
 import { screenToWorld, hashStringToHue, type RenderHost } from "./RenderPipeline";
 
+// TODO(NODE_DECO): BADGE_MAX_COUNT = 4  // renderTagBadges のタグバッジ最大表示個数
+// TODO(NODE_DECO): DOT_R = 3  // renderRecencyMarkers の最近更新ドット半径
+// TODO(NODE_DECO): MULTI_SELECT_RING_WIDTH = 2.5  // renderMultiSelectRings の選択リング線幅
+// TODO(NODE_DECO): MULTI_SELECT_RING_PAD = 5  // renderMultiSelectRings の選択リング外側パディング
+// TODO(NODE_DECO): HIERARCHY_EDGE_WIDTH = 2.5  // renderHierarchyOverlay の階層ツリー線幅
+// TODO(NODE_DECO): GAP_DASH_LEN = 6  // renderGapEdges の破線セグメント長 (px)
+// TODO(NODE_DECO): GAP_GAP_LEN = 4  // renderGapEdges の破線セグメント間隔 (px)
+// TODO(NODE_DECO): BOOKMARK_STAR_ALPHA = 0.9  // renderBookmarkStars の星アイコン塗りアルファ
+// TODO(NODE_DECO): MISSING_NEIGHBOR_RING_ALPHA = 0.85  // renderMissingNeighborRings のリングアルファ
+// TODO(NODE_DECO): BOOKMARK_STAR_SPIKES = 5  // renderBookmarkStars の星のとげの数
+// TODO(NODE_DECO): RECENCY_OLD_DAYS = 90  // renderRecencyMarkers の古ファイル判定しきい値 (日)
+
 // ---------------------------------------------------------------------------
 // Constants (moved from RenderPipeline.ts)
 // ---------------------------------------------------------------------------
