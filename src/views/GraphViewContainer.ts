@@ -73,7 +73,7 @@ import {
 	buildSimEndA11yMessage,
 	resolveViewportSize,
 } from "../utils/graph-helpers";
-import { pushToMapArray, addToMapSet } from "../utils/map-helpers";
+import { pushToMapArray } from "../utils/map-helpers";
 import {
 	applyVisibilityFilters,
 	filterByDegree,
@@ -81,6 +81,7 @@ import {
 	filterEdgesByNodeSet,
 	filterBySubgraph,
 	filterByLocalGraph,
+	expandLocalGraphWithNeighbors,
 } from "../utils/graph-filter";
 import { pointInPolygon, hitTestAggregateRegions, computeGroupMemberBounds } from "../utils/geometry";
 import type { AggregateHitRegion } from "../utils/geometry";
@@ -6688,31 +6689,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	private _filterLocalGraph(nodes: GraphNode[], edges: GraphEdge[]): { nodes: GraphNode[]; edges: GraphEdge[] } {
 		if (!this.panel.localGraphCenter) return { nodes, edges };
 
-		// Core BFS hop filter (pure function)
-		let result = filterByLocalGraph(nodes, edges, this.panel.localGraphCenter, this.panel.localGraphHops);
-
+		const result = filterByLocalGraph(nodes, edges, this.panel.localGraphCenter, this.panel.localGraphHops);
 		// D1: Also include neighbors of manually expanded nodes
-		if (this.panel.expandedNodes?.length) {
-			const adj = new Map<string, Set<string>>();
-			for (const e of edges) {
-				addToMapSet(adj, e.source, e.target);
-				addToMapSet(adj, e.target, e.source);
-			}
-			const reachable = new Set(result.nodes.map((n) => n.id));
-			for (const expandedId of this.panel.expandedNodes) {
-				if (!reachable.has(expandedId)) continue;
-				const neighbors = adj.get(expandedId);
-				if (neighbors) {
-					for (const nbId of neighbors) reachable.add(nbId);
-				}
-			}
-			result = {
-				nodes: nodes.filter((n) => reachable.has(n.id)),
-				edges: edges.filter((e) => reachable.has(e.source) && reachable.has(e.target)),
-			};
-		}
-
-		return result;
+		return expandLocalGraphWithNeighbors(nodes, edges, result, this.panel.expandedNodes);
 	}
 
 	/** Filter nodes by orphan/existing/attachment/tag visibility settings. */

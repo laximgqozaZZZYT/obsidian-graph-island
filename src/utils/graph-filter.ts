@@ -150,6 +150,51 @@ export function filterBySubgraph<N extends { id: string }, E extends { source: s
 }
 
 /**
+ * Expand a local-graph result by adding 1-hop neighbors of any
+ * `expandedNodes` that are already reachable in `baseResult`.
+ *
+ * Used by D1: a user "expand neighbors" toggle on selected nodes within the
+ * local-graph view. Returns `baseResult` unchanged when expandedNodes is
+ * empty/undefined or when none of them survived the upstream BFS.
+ */
+export function expandLocalGraphWithNeighbors<N extends { id: string }, E extends { source: string; target: string }>(
+	allNodes: N[],
+	allEdges: E[],
+	baseResult: { nodes: N[]; edges: E[] },
+	expandedNodes: readonly string[] | undefined,
+): { nodes: N[]; edges: E[] } {
+	if (!expandedNodes?.length) return baseResult;
+
+	const reachable = new Set(baseResult.nodes.map((n) => n.id));
+	// Bail early if no expanded node survives the prior BFS — avoids building adj.
+	let anyReachable = false;
+	for (const id of expandedNodes) {
+		if (reachable.has(id)) {
+			anyReachable = true;
+			break;
+		}
+	}
+	if (!anyReachable) return baseResult;
+
+	const adj = new Map<string, Set<string>>();
+	for (const e of allEdges) {
+		addToMapSet(adj, e.source, e.target);
+		addToMapSet(adj, e.target, e.source);
+	}
+	for (const expandedId of expandedNodes) {
+		if (!reachable.has(expandedId)) continue;
+		const neighbors = adj.get(expandedId);
+		if (neighbors) {
+			for (const nbId of neighbors) reachable.add(nbId);
+		}
+	}
+	return {
+		nodes: allNodes.filter((n) => reachable.has(n.id)),
+		edges: allEdges.filter((e) => reachable.has(e.source) && reachable.has(e.target)),
+	};
+}
+
+/**
  * BFS N-hop filter: keep only nodes within `hops` edges of `centerId`.
  * Returns unmodified data when centerId is not found among nodes.
  */
