@@ -7,6 +7,17 @@
 import type { RenderThresholds } from "../types";
 import { computeBoundingBox } from "../utils/geometry";
 import { t } from "../i18n";
+import {
+	MINIMAP_WIDTH,
+	MINIMAP_HEIGHT,
+	MINIMAP_BOUNDS_PAD,
+	MINIMAP_LARGE_GRAPH_THRESHOLD,
+	MINIMAP_MEDIUM_GRAPH_THRESHOLD,
+	MINIMAP_DOT_SCALE_LARGE,
+	MINIMAP_DOT_SCALE_MEDIUM,
+	MINIMAP_VIEWPORT_LINE_WIDTH,
+	MINIMAP_VIEWPORT_MIN_SIZE,
+} from "../constants";
 
 export interface MinimapHost {
 	/** Get all node positions (world coordinates) */
@@ -22,26 +33,6 @@ export interface MinimapHost {
 	/** HU: Announce viewport change to screen readers */
 	announceViewportChange?(): void;
 }
-
-const MINIMAP_WIDTH = 180;
-const MINIMAP_HEIGHT = 120;
-
-/** World bounds padding for node extent calculation */
-const MINIMAP_BOUNDS_PAD = 50;
-
-/** Dot radius scale threshold — large graphs (>2000 nodes) */
-const MINIMAP_LARGE_GRAPH_THRESHOLD = 2000;
-/** Dot radius scale threshold — medium graphs (>500 nodes) */
-const MINIMAP_MEDIUM_GRAPH_THRESHOLD = 500;
-/** Dot radius multiplier for large graphs */
-const MINIMAP_DOT_SCALE_LARGE = 0.6;
-/** Dot radius multiplier for medium graphs */
-const MINIMAP_DOT_SCALE_MEDIUM = 0.8;
-
-/** Viewport rectangle stroke width */
-const MINIMAP_VIEWPORT_LINE_WIDTH = 1.5;
-/** Minimum viewport rect dimension to trigger drawing */
-const MINIMAP_VIEWPORT_MIN_SIZE = 2;
 
 // ---------------------------------------------------------------------------
 // Pure helpers extracted from draw() to reduce cyclomatic complexity
