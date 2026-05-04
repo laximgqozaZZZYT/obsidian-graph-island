@@ -146,6 +146,7 @@ import { asInternalWorkspace } from "../obsidian-internals";
 import { generatePhantomNodes } from "./phantom-node-generator";
 import { adjustTooltipPosition, type PanelRect } from "../utils/tooltip-position";
 import { handleShortcutKey, type KeyboardHost } from "./KeyboardHandler";
+import { handleEscapeKey } from "./escape-handler";
 import { groupNodesByField, collapseGroup, type GroupSpec, type GroupOptions } from "../utils/node-grouping";
 import { louvainCommunities } from "../utils/louvain";
 import { queryDataviewPages, filterNodesByDataview } from "../utils/dataview-source";
@@ -1105,76 +1106,37 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	}
 
 	private _handleEscapeKey(): void {
-		// HY: Each Escape step announces what was cleared via aria-live
-		if (this.diffOverlay.isActive()) {
-			this._clearDiffOverlay();
-			this._announceA11y("Diff overlay closed");
-			return;
-		}
-		if (this.nodeInfoEl && this.nodeInfoEl.style.display !== "none") {
-			this.nodeInfoEl.style.display = "none";
-			this.nodeInfoEl.classList.remove("is-visible");
-			this._announceA11y("Node info closed");
-			return;
-		}
-		// IP: Close stats panel via Escape
-		if (this.graphStatsEl && this.graphStatsEl.style.display !== "none" && this.panel.showGraphStats) {
-			this.panel.showGraphStats = false;
-			this.graphStatsEl.style.display = "none";
-			this._announceA11y("Stats panel closed");
-			return;
-		}
-		if (this.legendEl && this.legendEl.style.display !== "none") {
-			this.legendEl.style.display = "none";
-			this._announceA11y("Legend closed");
-			return;
-		}
-		if (this._helpOverlayEl) {
-			this._helpOverlayEl.remove();
-			this._helpOverlayEl = null;
-			this._announceA11y("Help closed");
-			return;
-		}
-		// Clear compare selection (Escape)
-		if (this.compareNodeIds.length > 0) {
-			this.clearCompareSelection();
-			this._announceA11y(t("a11y.compareCleared") ?? "Compare selection cleared");
-			return;
-		}
-		// Clear multi-select (Escape)
-		if (this.panel.multiSelectNodeIds?.length > 0) {
-			this.panel.multiSelectNodeIds = [];
-			this._announceA11y(t("a11y.deselected") ?? "Deselected all");
-			this.markDirty(true);
-			return;
-		}
-		// Exit subgraph mode (Escape)
-		if (this.panel.subgraphNodeIds?.length > 0) {
-			this.exitSubgraph();
-			return;
-		}
-		// フォーカスモードのクリア (Escape)
-		if (this.panel.focusNodeId) {
-			this.clearFocus();
-			this._announceA11y("Focus mode cleared");
-			return;
-		}
-		// HS: Clear search query (Escape)
-		if (this.panel.searchQuery) {
-			this.panel.searchQuery = "";
-			this._searchHighlightSet = null;
-			this.applySearch();
-			this._announceA11y(t("a11y.filterCleared") ?? "Search cleared");
-			this.buildPanel();
-			return;
-		}
-		if (this._isKeyboardFocused) {
-			this._isKeyboardFocused = false;
-			this.setHighlightedNodeId(null);
-			this.applyHover();
-			this.markDirty(true);
-			this._announceA11y("Keyboard focus cleared");
-		}
+		// HY: Each Escape step announces what was cleared via aria-live.
+		// Dismissal chain lives in escape-handler.ts; ordering matters there.
+		handleEscapeKey({
+			diffOverlay: this.diffOverlay,
+			clearDiffOverlay: () => this._clearDiffOverlay(),
+			announceA11y: (m) => this._announceA11y(m),
+			nodeInfoEl: this.nodeInfoEl,
+			graphStatsEl: this.graphStatsEl,
+			legendEl: this.legendEl,
+			helpOverlayEl: this._helpOverlayEl,
+			setHelpOverlayEl: (el) => {
+				this._helpOverlayEl = el;
+			},
+			panel: this.panel,
+			compareNodeIds: this.compareNodeIds,
+			clearCompareSelection: () => this.clearCompareSelection(),
+			exitSubgraph: () => this.exitSubgraph(),
+			clearFocus: () => this.clearFocus(),
+			clearSearchHighlightSet: () => {
+				this._searchHighlightSet = null;
+			},
+			applySearch: () => this.applySearch(),
+			buildPanel: () => this.buildPanel(),
+			isKeyboardFocused: this._isKeyboardFocused,
+			setKeyboardFocused: (v) => {
+				this._isKeyboardFocused = v;
+			},
+			setHighlightedNodeId: (id) => this.setHighlightedNodeId(id),
+			applyHover: () => this.applyHover(),
+			markDirty: (f) => this.markDirty(f),
+		});
 	}
 
 	/** Build KeyboardHost bridge for handleShortcutKey delegation */
