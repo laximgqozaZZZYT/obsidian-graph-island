@@ -3,7 +3,13 @@
  * Extracted from GraphViewContainer to reduce complexity.
  */
 import type { ClusterArrangement, GraphEdge, GraphNode } from "../types";
-import { edgeTypeSummary, collapsedGroupSummary } from "../utils/graph-helpers";
+import {
+	edgeTypeSummary,
+	collapsedGroupSummary,
+	bfsNeighborSet,
+	edgeSourceId,
+	edgeTargetId,
+} from "../utils/graph-helpers";
 import { computeSimilarNodes, type SimilarNode } from "../analysis/graph-analysis";
 import { findTopSimilarNodes } from "../utils/find-similar-nodes";
 import { t } from "../i18n";
@@ -247,6 +253,106 @@ export function findSameFolderNodes(
 		if (n.filePath?.split("/")[0] === hoveredFolder) result.push(n.id);
 	}
 	return result;
+}
+
+// ---------------------------------------------------------------------------
+// buildHoverHighlightSet — orchestrates link-neighbors + shared-tags + same-folder
+// ---------------------------------------------------------------------------
+
+export interface HoverHighlightTypes {
+	forwardLinks: boolean;
+	backlinks: boolean;
+	sharedTags: boolean;
+	sameFolder: boolean;
+}
+
+export interface BuildHoverHighlightSetInput {
+	hoveredId: string | null;
+	hoverHighlightTypes?: HoverHighlightTypes;
+	hoverHops: number;
+	hoveredTags?: string[];
+	hoveredFilePath?: string;
+	nodes: Iterable<HoverHighlightNode>;
+	hoverAdj: Map<string, Set<string>>;
+	graphEdges: GraphEdge[];
+	degrees: Map<string, number>;
+	maxHoverNeighborLabels: number;
+}
+
+const DEFAULT_HOVER_HIGHLIGHT_TYPES: HoverHighlightTypes = {
+	forwardLinks: true,
+	backlinks: true,
+	sharedTags: false,
+	sameFolder: false,
+};
+
+/** Add link neighbors (forward/back) to the result set via BFS. */
+export function addLinkNeighbors(
+	result: Set<string>,
+	hoveredId: string,
+	hht: { forwardLinks: boolean; backlinks: boolean },
+	hoverAdj: Map<string, Set<string>>,
+	hoverHops: number,
+	graphEdges: GraphEdge[],
+): void {
+	const bfsResult = bfsNeighborSet(hoverAdj, hoveredId, hoverHops);
+	if (hht.forwardLinks && hht.backlinks) {
+		for (const id of bfsResult) result.add(id);
+		return;
+	}
+	const forwardIds = new Set<string>();
+	const backlinkIds = new Set<string>();
+	for (const e of graphEdges) {
+		const src = edgeSourceId(e);
+		const tgt = edgeTargetId(e);
+		if (src === hoveredId && bfsResult.has(tgt)) forwardIds.add(tgt);
+		if (tgt === hoveredId && bfsResult.has(src)) backlinkIds.add(src);
+	}
+	if (hht.forwardLinks) for (const id of forwardIds) result.add(id);
+	if (hht.backlinks) for (const id of backlinkIds) result.add(id);
+}
+
+/** Cap the hover highlight set to maxHoverNeighborLabels, keeping highest-degree nodes. */
+export function capHoverLabels(
+	result: Set<string>,
+	hoveredId: string,
+	degrees: Map<string, number>,
+	maxHoverNeighborLabels: number,
+): Set<string> {
+	if (result.size <= maxHoverNeighborLabels + 1) return result;
+	const sorted = [...result]
+		.filter((id) => id !== hoveredId)
+		.sort((a, b) => (degrees.get(b) ?? 0) - (degrees.get(a) ?? 0))
+		.slice(0, maxHoverNeighborLabels);
+	return new Set([hoveredId, ...sorted]);
+}
+
+/**
+ * Build the hover highlight set: hovered node + neighbors selected by hoverHighlightTypes,
+ * capped to maxHoverNeighborLabels by degree. Returns empty set when no node is hovered.
+ */
+export function buildHoverHighlightSet(input: BuildHoverHighlightSetInput): Set<string> {
+	const { hoveredId } = input;
+	if (!hoveredId) return new Set<string>();
+	const result = new Set<string>([hoveredId]);
+	const hht = input.hoverHighlightTypes ?? DEFAULT_HOVER_HIGHLIGHT_TYPES;
+
+	if (hht.forwardLinks || hht.backlinks) {
+		addLinkNeighbors(result, hoveredId, hht, input.hoverAdj, input.hoverHops, input.graphEdges);
+	}
+
+	const wantSharedTags = hht.sharedTags && (input.hoveredTags?.length ?? 0) > 0;
+	const wantSameFolder = hht.sameFolder && !!input.hoveredFilePath;
+	if (wantSharedTags || wantSameFolder) {
+		if (wantSharedTags) {
+			for (const id of findSharedTagNodes(input.hoveredTags ?? [], hoveredId, input.nodes)) result.add(id);
+		}
+		if (wantSameFolder) {
+			for (const id of findSameFolderNodes(input.hoveredFilePath ?? "", hoveredId, input.nodes)) result.add(id);
+		}
+	}
+
+	return capHoverLabels(result, hoveredId, input.degrees, input.maxHoverNeighborLabels);
 }
 
 // ---------------------------------------------------------------------------

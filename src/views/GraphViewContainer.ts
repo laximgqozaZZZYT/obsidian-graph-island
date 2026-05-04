@@ -57,7 +57,6 @@ import {
 	cssColorToHex,
 	edgeSourceId,
 	edgeTargetId,
-	bfsNeighborSet,
 	bfsDistanceMap,
 	incCounter,
 	computeGaps,
@@ -254,8 +253,7 @@ import {
 	buildHoverTooltipText,
 	groupOffScreenNeighbors,
 	computeTooltipEdgePosition,
-	findSharedTagNodes,
-	findSameFolderNodes,
+	buildHoverHighlightSet,
 	resolveInheritArrangement,
 	clearNonGraphLayers,
 	computeCardBBox,
@@ -4212,73 +4210,24 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	 *  Uses hoverAdj (edge-type-filtered) so only user-selected edge types are traversed. */
 	private _buildHoverHighlightSet(hId: string | null): Set<string> {
 		if (!hId) return new Set<string>();
-		const result = new Set<string>([hId]);
-		const hht = this.panel.hoverHighlightTypes ?? {
-			forwardLinks: true,
-			backlinks: true,
-			sharedTags: false,
-			sameFolder: false,
-		};
 		const hoveredNode = this.pixiNodes.get(hId);
-
-		// Forward links + backlinks via BFS on hoverAdj
-		if (hht.forwardLinks || hht.backlinks) {
-			this._addLinkNeighbors(result, hId, hht);
-		}
-
-		// Shared tags / same folder: both consume the same node projection - build once
-		const wantSharedTags = hht.sharedTags && hoveredNode?.data.tags?.length;
-		const wantSameFolder = hht.sameFolder && hoveredNode?.data.filePath;
-		if (wantSharedTags || wantSameFolder) {
-			const nodes = [...this.pixiNodes.values()].map((pn) => ({
-				id: pn.data.id,
-				tags: pn.data.tags,
-				filePath: pn.data.filePath,
-			}));
-			if (hht.sharedTags && hoveredNode?.data.tags?.length) {
-				for (const id of findSharedTagNodes(hoveredNode.data.tags, hId, nodes)) result.add(id);
-			}
-			if (hht.sameFolder && hoveredNode?.data.filePath) {
-				for (const id of findSameFolderNodes(hoveredNode.data.filePath, hId, nodes)) result.add(id);
-			}
-		}
-
-		return this._capHoverLabels(result, hId);
-	}
-
-	/** Add link neighbors (forward/back) to the result set via BFS. */
-	private _addLinkNeighbors(
-		result: Set<string>,
-		hId: string,
-		hht: { forwardLinks: boolean; backlinks: boolean },
-	): void {
-		const bfsResult = bfsNeighborSet(this.hoverAdj, hId, this.panel.hoverHops);
-		if (hht.forwardLinks && hht.backlinks) {
-			for (const id of bfsResult) result.add(id);
-			return;
-		}
-		// Directional filter
-		const forwardIds = new Set<string>();
-		const backlinkIds = new Set<string>();
-		for (const e of this.graphEdges) {
-			const src = edgeSourceId(e);
-			const tgt = edgeTargetId(e);
-			if (src === hId && bfsResult.has(tgt)) forwardIds.add(tgt);
-			if (tgt === hId && bfsResult.has(src)) backlinkIds.add(src);
-		}
-		if (hht.forwardLinks) for (const id of forwardIds) result.add(id);
-		if (hht.backlinks) for (const id of backlinkIds) result.add(id);
-	}
-
-	/** Cap the hover highlight set to maxHoverNeighborLabels, keeping highest-degree nodes. */
-	private _capHoverLabels(result: Set<string>, hId: string): Set<string> {
-		const maxNeighborLabels = this.panel.renderThresholds?.maxHoverNeighborLabels ?? 30;
-		if (result.size <= maxNeighborLabels + 1) return result;
-		const sorted = [...result]
-			.filter((id) => id !== hId)
-			.sort((a, b) => (this.degrees.get(b) ?? 0) - (this.degrees.get(a) ?? 0))
-			.slice(0, maxNeighborLabels);
-		return new Set([hId, ...sorted]);
+		const nodes = [...this.pixiNodes.values()].map((pn) => ({
+			id: pn.data.id,
+			tags: pn.data.tags,
+			filePath: pn.data.filePath,
+		}));
+		return buildHoverHighlightSet({
+			hoveredId: hId,
+			hoverHighlightTypes: this.panel.hoverHighlightTypes,
+			hoverHops: this.panel.hoverHops,
+			hoveredTags: hoveredNode?.data.tags,
+			hoveredFilePath: hoveredNode?.data.filePath,
+			nodes,
+			hoverAdj: this.hoverAdj,
+			graphEdges: this.graphEdges,
+			degrees: this.degrees,
+			maxHoverNeighborLabels: this.panel.renderThresholds?.maxHoverNeighborLabels ?? 30,
+		});
 	}
 
 	/** フォーカスモードのハイライトを適用 (クリック時に呼ばれる) */
