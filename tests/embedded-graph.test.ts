@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { parseConfig, filterLocalGraph } from "../src/views/EmbeddedGraphRenderer";
+import { parseConfig, filterLocalGraph, layoutConcentric, getColor } from "../src/views/EmbeddedGraphRenderer";
 import { makeGraphData } from "./helpers/factories";
+import { DEFAULT_COLORS, type GraphNode } from "../src/types";
 
 // ---------------------------------------------------------------------------
 // parseConfig — JSON parse with fallback
@@ -204,5 +205,165 @@ describe("parseConfig boundary values", () => {
 		const cfg = parseConfig("null");
 		// JSON.parse("null") returns null, not {}
 		expect(cfg === null || (typeof cfg === "object" && Object.keys(cfg).length === 0)).toBe(true);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// getColor — DEFAULT_COLORS index cycler
+// ---------------------------------------------------------------------------
+describe("getColor", () => {
+	it("returns the first color for index 0", () => {
+		expect(getColor(0)).toBe(DEFAULT_COLORS[0]);
+	});
+
+	it("returns each color in DEFAULT_COLORS for sequential indices", () => {
+		for (let i = 0; i < DEFAULT_COLORS.length; i++) {
+			expect(getColor(i)).toBe(DEFAULT_COLORS[i]);
+		}
+	});
+
+	it("wraps around at the end of DEFAULT_COLORS", () => {
+		const len = DEFAULT_COLORS.length;
+		expect(getColor(len)).toBe(DEFAULT_COLORS[0]);
+		expect(getColor(len + 1)).toBe(DEFAULT_COLORS[1]);
+	});
+
+	it("wraps around for very large indices", () => {
+		const len = DEFAULT_COLORS.length;
+		expect(getColor(len * 100)).toBe(DEFAULT_COLORS[0]);
+		expect(getColor(len * 5 + 3)).toBe(DEFAULT_COLORS[3]);
+	});
+
+	it("returns a hex-formatted CSS color string", () => {
+		const c = getColor(0);
+		expect(c).toMatch(/^#[0-9a-fA-F]{6}$/);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// layoutConcentric — center node + concentric rings layout
+// ---------------------------------------------------------------------------
+describe("layoutConcentric", () => {
+	function makePlainNode(id: string, filePath?: string): GraphNode {
+		return { id, label: id, filePath, meta: {} } as GraphNode;
+	}
+
+	it("returns silently for empty array", () => {
+		const nodes: GraphNode[] = [];
+		expect(() => layoutConcentric(nodes)).not.toThrow();
+		expect(nodes).toEqual([]);
+	});
+
+	it("places single node at origin", () => {
+		const nodes = [makePlainNode("a")];
+		layoutConcentric(nodes);
+		expect(nodes[0].x).toBe(0);
+		expect(nodes[0].y).toBe(0);
+	});
+
+	it("places center at origin when centerPath matches id", () => {
+		const nodes = [makePlainNode("a"), makePlainNode("b"), makePlainNode("c")];
+		layoutConcentric(nodes, "b");
+		expect(nodes[1].x).toBe(0);
+		expect(nodes[1].y).toBe(0);
+	});
+
+	it("places center at origin when centerPath matches filePath", () => {
+		const nodes = [makePlainNode("a", "folder/a.md"), makePlainNode("b", "folder/b.md")];
+		layoutConcentric(nodes, "folder/b.md");
+		expect(nodes[1].x).toBe(0);
+		expect(nodes[1].y).toBe(0);
+	});
+
+	it("defaults center to index 0 when centerPath is omitted", () => {
+		const nodes = [makePlainNode("a"), makePlainNode("b")];
+		layoutConcentric(nodes);
+		expect(nodes[0].x).toBe(0);
+		expect(nodes[0].y).toBe(0);
+	});
+
+	it("falls back to index 0 when centerPath has no match", () => {
+		const nodes = [makePlainNode("a"), makePlainNode("b")];
+		layoutConcentric(nodes, "nonexistent");
+		expect(nodes[0].x).toBe(0);
+		expect(nodes[0].y).toBe(0);
+		// Non-center node is placed (not left at NaN/undefined)
+		expect(typeof nodes[1].x).toBe("number");
+		expect(typeof nodes[1].y).toBe("number");
+	});
+
+	it("places non-center nodes on a ring of radius 80 (ring 0)", () => {
+		// 1 center + 4 leaves all fit in ring 0 (capacity 8)
+		const nodes = [
+			makePlainNode("c"),
+			makePlainNode("a"),
+			makePlainNode("b"),
+			makePlainNode("d"),
+			makePlainNode("e"),
+		];
+		layoutConcentric(nodes);
+		// Skip index 0 (center). Others are placed at radius 80.
+		for (let i = 1; i < nodes.length; i++) {
+			const r = Math.hypot(nodes[i].x, nodes[i].y);
+			expect(r).toBeCloseTo(80);
+		}
+	});
+
+	it("ring 0 has up to 8 nodes; 9th node spills into ring 1 (radius 160)", () => {
+		// 1 center + 9 leaves: first 8 → ring 0, 9th → ring 1
+		const nodes: GraphNode[] = [];
+		for (let i = 0; i < 10; i++) nodes.push(makePlainNode(`n${i}`));
+		layoutConcentric(nodes);
+		// nodes[0] is center
+		// nodes[1..8] are ring 0 leaves at radius 80
+		for (let i = 1; i <= 8; i++) {
+			expect(Math.hypot(nodes[i].x, nodes[i].y)).toBeCloseTo(80);
+		}
+		// nodes[9] is the 9th leaf → ring 1 → radius 160
+		expect(Math.hypot(nodes[9].x, nodes[9].y)).toBeCloseTo(160);
+	});
+
+	it("non-center nodes are angularly spaced around origin", () => {
+		// 1 center + 4 leaves: angles 0, π/2, π, 3π/2 (cap=8 in ring 0; angle = 2π * idx / 8)
+		const nodes: GraphNode[] = [];
+		for (let i = 0; i < 5; i++) nodes.push(makePlainNode(`n${i}`));
+		layoutConcentric(nodes);
+		// idx 0..3 within ring 0 (cap=8): angles = 2π * idx / 8 = idx * π/4
+		expect(nodes[1].x).toBeCloseTo(80 * Math.cos(0));
+		expect(nodes[1].y).toBeCloseTo(80 * Math.sin(0));
+		expect(nodes[2].x).toBeCloseTo(80 * Math.cos(Math.PI / 4));
+		expect(nodes[2].y).toBeCloseTo(80 * Math.sin(Math.PI / 4));
+		expect(nodes[3].x).toBeCloseTo(80 * Math.cos(Math.PI / 2));
+		expect(nodes[3].y).toBeCloseTo(80 * Math.sin(Math.PI / 2));
+	});
+
+	it("center can be at any index (not just 0)", () => {
+		const nodes = [makePlainNode("a"), makePlainNode("b"), makePlainNode("c")];
+		layoutConcentric(nodes, "c");
+		expect(nodes[2].x).toBe(0);
+		expect(nodes[2].y).toBe(0);
+		// nodes[0] and nodes[1] are placed on ring 0
+		expect(Math.hypot(nodes[0].x, nodes[0].y)).toBeCloseTo(80);
+		expect(Math.hypot(nodes[1].x, nodes[1].y)).toBeCloseTo(80);
+	});
+
+	it("does not move the center node when invoked twice", () => {
+		const nodes = [makePlainNode("a"), makePlainNode("b")];
+		layoutConcentric(nodes, "a");
+		layoutConcentric(nodes, "a");
+		expect(nodes[0].x).toBe(0);
+		expect(nodes[0].y).toBe(0);
+	});
+
+	it("ring 1 fills 16 slots before spilling to ring 2 (radius 240)", () => {
+		// 1 center + 8 (ring 0) + 16 (ring 1) + 1 (ring 2) = 26 nodes
+		const nodes: GraphNode[] = [];
+		for (let i = 0; i < 26; i++) nodes.push(makePlainNode(`n${i}`));
+		layoutConcentric(nodes);
+		// nodes[1..8] in ring 0 (radius 80)
+		// nodes[9..24] in ring 1 (radius 160)
+		// nodes[25] in ring 2 (radius 240)
+		expect(Math.hypot(nodes[24].x, nodes[24].y)).toBeCloseTo(160);
+		expect(Math.hypot(nodes[25].x, nodes[25].y)).toBeCloseTo(240);
 	});
 });
