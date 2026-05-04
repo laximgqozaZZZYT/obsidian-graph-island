@@ -187,3 +187,46 @@ export function filterByLocalGraph<
 		edges: edges.filter((e) => reachable.has(e.source) && reachable.has(e.target)),
 	};
 }
+
+/**
+ * BFS N-hop filter with manual expansion: applies {@link filterByLocalGraph}
+ * and additionally pulls in the direct neighbors of any nodes listed in
+ * `expandedNodeIds` that are reachable in the BFS result.
+ *
+ * Pure: depends only on its arguments.
+ *
+ * Returns unmodified `{ nodes, edges }` when `centerId` is empty.
+ */
+export function filterByLocalGraphWithExpansion<
+	N extends { id: string; filePath?: string },
+	E extends { source: string; target: string },
+>(
+	nodes: N[],
+	edges: E[],
+	centerId: string | null | undefined,
+	hops: number,
+	expandedNodeIds: readonly string[] | undefined,
+): { nodes: N[]; edges: E[] } {
+	if (!centerId) return { nodes, edges };
+
+	const result = filterByLocalGraph(nodes, edges, centerId, hops);
+	if (!expandedNodeIds || expandedNodeIds.length === 0) return result;
+
+	const adj = new Map<string, Set<string>>();
+	for (const e of edges) {
+		addToMapSet(adj, e.source, e.target);
+		addToMapSet(adj, e.target, e.source);
+	}
+	const reachable = new Set(result.nodes.map((n) => n.id));
+	for (const expandedId of expandedNodeIds) {
+		if (!reachable.has(expandedId)) continue;
+		const neighbors = adj.get(expandedId);
+		if (neighbors) {
+			for (const nbId of neighbors) reachable.add(nbId);
+		}
+	}
+	return {
+		nodes: nodes.filter((n) => reachable.has(n.id)),
+		edges: edges.filter((e) => reachable.has(e.source) && reachable.has(e.target)),
+	};
+}
