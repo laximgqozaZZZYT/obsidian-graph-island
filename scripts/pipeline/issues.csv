@@ -134,7 +134,7 @@ id,priority,reported,completed,status,source,parent,depends,superseded_by,summar
 113-visual-regression,high,2026-04-12,,done,auto-discovered,,,,視覚品質低下: labelReadability: 3/100,,scripts/pipeline/descriptions/113-visual-regression.md,2026-04-12T20:44:11+09:00,2026-04-15T21:31:06+09:00
 114-giant-functions,medium,2026-04-12,,done,auto-discovered,,,,8個の巨大関数 (120行以上) が存在,,scripts/pipeline/descriptions/114-giant-functions.md,2026-04-12T19:42:36+09:00,2026-04-15T21:31:06+09:00
 115-dead-exports,medium,2026-04-12,,done,auto-discovered,,,,122個のdead exports (使われていないpublic API),,scripts/pipeline/descriptions/115-dead-exports.md,2026-04-12T19:45:29+09:00,2026-04-15T21:31:06+09:00
-116-scattered-constants,low,2026-04-12,,done,auto-discovered,,,,438個の定数がconstants.ts外に散在,,scripts/pipeline/descriptions/116-scattered-constants.md,2026-04-13T16:20:20+09:00,2026-04-24T04:23:32+09:00
+116-scattered-constants,low,2026-04-12,,done,auto-discovered,,,,438個の定数がconstants.ts外に散在,,scripts/pipeline/descriptions/116-scattered-constants.md,2026-04-13T16:20:20+09:00,2026-05-04T11:38:35+09:00
 117-i18n-hardcoded-strings,medium,2026-04-12,,done,auto-discovered,,,,39箇所のハードコード文字列 (t() 未使用),,scripts/pipeline/descriptions/117-i18n-hardcoded-strings.md,2026-04-12T19:49:01+09:00,2026-04-15T21:31:06+09:00
 118-giant-functions,medium,2026-04-12,,done,auto-discovered,,,,8個の巨大関数 (120行以上) が存在,,scripts/pipeline/descriptions/118-giant-functions.md,2026-04-13T16:20:20+09:00,2026-04-15T21:31:06+09:00
 119-i18n-hardcoded-strings,medium,2026-04-12,,done,auto-discovered,,,,39箇所のハードコード文字列 (t() 未使用),,scripts/pipeline/descriptions/119-i18n-hardcoded-strings.md,2026-04-13T16:20:20+09:00,2026-04-15T21:31:06+09:00
