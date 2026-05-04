@@ -19,7 +19,7 @@ export default defineConfig({
         // additions should restore the previous floors over time.
         statements: 54.7,
         branches: 48.5,
-        functions: 52.6,
+        functions: 52.7,
         lines: 55.0,
       },
     },
