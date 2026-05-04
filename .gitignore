@@ -111,6 +111,7 @@ scripts/pipeline/visual-report.json
 
 # Disposable analysis reports (e.g. dead-exports-report.md)
 tmp/
+.dead-exports.txt
 
 # Python bytecode cache
 __pycache__/
