@@ -12,7 +12,14 @@
  *      the suite).
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { extractFrontmatterImage, isNodeOnScreen, createThumbnailClone } from "../../src/views/thumbnail-helpers";
+import {
+	extractFrontmatterImage,
+	isNodeOnScreen,
+	createThumbnailClone,
+	resolveThumbnailUrl,
+} from "../../src/views/thumbnail-helpers";
+import { TFile } from "obsidian";
+import type { Vault } from "obsidian";
 
 describe("extractFrontmatterImage", () => {
 	it("prefers `image` over `thumbnail` and `cover`", () => {
@@ -140,5 +147,74 @@ describe("createThumbnailClone", () => {
 		const clone = createThumbnailClone(src, 10, 20, 30);
 		expect(clone).not.toBe(src);
 		expect(src).toEqual({ src: "orig.png" });
+	});
+});
+
+describe("resolveThumbnailUrl", () => {
+	// Build a minimal Vault stub. The lookup table maps `path → entry` where
+	// the entry can be a TFile (resolves) or a non-TFile sentinel (e.g. a
+	// folder, which the SUT must reject so the leading-slash fallback runs).
+	function makeVault(table: Record<string, TFile | { __folder: true } | null>): Vault {
+		return {
+			getAbstractFileByPath: (p: string) => table[p] ?? null,
+			getResourcePath: (tf: TFile) => `app://local/${tf.path}?v=1`,
+		} as unknown as Vault;
+	}
+
+	it("passes http:// URLs through untouched (no vault lookup)", () => {
+		const vault = makeVault({});
+		expect(resolveThumbnailUrl("http://example.com/img.png", vault)).toBe("http://example.com/img.png");
+	});
+
+	it("passes https:// URLs through untouched", () => {
+		const vault = makeVault({});
+		expect(resolveThumbnailUrl("https://example.com/img.png", vault)).toBe("https://example.com/img.png");
+	});
+
+	it("resolves a vault-relative path via getResourcePath", () => {
+		const tf = new TFile();
+		tf.path = "assets/img.png";
+		const vault = makeVault({ "assets/img.png": tf });
+		expect(resolveThumbnailUrl("assets/img.png", vault)).toBe("app://local/assets/img.png?v=1");
+	});
+
+	it("strips a single leading slash and retries the lookup", () => {
+		const tf = new TFile();
+		tf.path = "assets/img.png";
+		// First lookup ("/assets/img.png") returns null, fallback ("assets/img.png") hits.
+		const vault = makeVault({ "/assets/img.png": null, "assets/img.png": tf });
+		expect(resolveThumbnailUrl("/assets/img.png", vault)).toBe("app://local/assets/img.png?v=1");
+	});
+
+	it("strips multiple leading slashes (the regex is greedy)", () => {
+		const tf = new TFile();
+		tf.path = "img.png";
+		const vault = makeVault({ "///img.png": null, "img.png": tf });
+		expect(resolveThumbnailUrl("///img.png", vault)).toBe("app://local/img.png?v=1");
+	});
+
+	it("returns null when the path resolves to a non-TFile (e.g. a folder)", () => {
+		// Both the direct and stripped lookups return non-TFile sentinels; the
+		// `instanceof TFile` guards must reject both, yielding null.
+		const folder = { __folder: true } as const;
+		const vault = makeVault({ "folder/path": folder, folder: folder });
+		expect(resolveThumbnailUrl("folder/path", vault)).toBeNull();
+	});
+
+	it("returns null when the path is missing from the vault entirely", () => {
+		const vault = makeVault({});
+		expect(resolveThumbnailUrl("missing.png", vault)).toBeNull();
+	});
+
+	it("does not call the leading-slash fallback when the direct lookup succeeds", () => {
+		// If the direct lookup hits, the regex-strip branch must not run — verify
+		// by giving the stripped key a *different* TFile and asserting we got the
+		// direct one. (Locks in the early-return behavior.)
+		const direct = new TFile();
+		direct.path = "direct.png";
+		const stripped = new TFile();
+		stripped.path = "stripped.png";
+		const vault = makeVault({ "direct.png": direct, "direct.png/stripped": stripped });
+		expect(resolveThumbnailUrl("direct.png", vault)).toBe("app://local/direct.png?v=1");
 	});
 });
