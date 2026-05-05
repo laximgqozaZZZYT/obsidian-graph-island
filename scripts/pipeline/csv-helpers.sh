@@ -194,3 +194,73 @@ csv_atomic_insert() {
     _csv_atomic_commit "$msg"
   ) 9>>"$_csv_atomic_lock_file"
 }
+
+# ── Dirty-skip counter (R7.1) ────────────────────────────────────
+# Three cron scripts (autonomous-improve, proposal-scorer, feature-proposer)
+# all need to bump the same counter when they SKIP for a dirty working
+# tree, and the autonomous-improve non-SKIP branch needs to reset it.
+# Pre-R7.1 the bump was inlined in 3 places and only autonomous reset —
+# so if autonomous's cron was down, the other two scripts could pile up
+# false positives indefinitely.
+_dirty_skip_state="/tmp/graph-island-dirty-skip-count"
+
+# dirty_skip_bump → echoes the new count
+dirty_skip_bump() {
+  local prev cur
+  prev=$(cat "$_dirty_skip_state" 2>/dev/null || echo 0)
+  prev=${prev//[^0-9]/}; prev=${prev:-0}
+  cur=$((prev + 1))
+  echo "$cur" > "$_dirty_skip_state"
+  echo "$cur"
+}
+
+dirty_skip_clear() {
+  rm -f "$_dirty_skip_state" 2>/dev/null
+}
+
+# ── Alert-issue filer (R7.1) ────────────────────────────────────
+# Files a single critical/high alert issue, deduped by slug-suffix.
+# Pre-R7.1 the same 6-step pattern (dedupe → next_id → write desc → insert
+# → git add+commit) was open-coded in autonomous-improve.sh (dirty-skip
+# watchdog) and progress-report.sh (CI red streak). The latter committed
+# outside _csv_atomic_lock_file, opening a latent race vs autonomous.
+#
+# Usage:
+#   csv_file_alert <slug-suffix> <priority> <summary> <description-body-as-string>
+# Returns 0 on filed, 1 on suppressed (already-pending) or failure.
+csv_file_alert() {
+  local slug="$1" priority="$2" summary="$3" body="$4"
+  local existing next_id issue_id desc_path proj
+  proj="$(_csv_project_dir)" || return 1
+  [[ -z "$proj" ]] && return 1
+
+  existing=$(_csv_run select_pending issues 2>/dev/null \
+    | grep -E -- "-${slug}\$" | head -1)
+  if [[ -n "$existing" ]]; then
+    return 1  # suppressed — caller can log
+  fi
+
+  next_id=$(_csv_run next_id_num 2>/dev/null || echo 9999)
+  issue_id="${next_id}-${slug}"
+  desc_path="$proj/scripts/pipeline/descriptions/${issue_id}.md"
+  mkdir -p "$(dirname "$desc_path")"
+  {
+    echo "---"
+    echo "priority: $priority"
+    echo "reported: $(date -I)"
+    echo "status: pending"
+    echo "source: auto-discovered"
+    echo "summary: $summary"
+    echo "---"
+    echo ""
+    echo "$body"
+  } > "$desc_path"
+
+  csv_atomic_insert issues "$issue_id" \
+    "chore(alert): $summary" \
+    "priority=$priority" \
+    "source=auto-discovered" \
+    "summary=$summary" \
+    "description_path=descriptions/${issue_id}.md"
+  echo "$issue_id"
+}

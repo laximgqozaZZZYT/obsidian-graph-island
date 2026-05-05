@@ -43,15 +43,10 @@ echo "=== proposal-scorer ($(date -Iseconds)) ==="
 echo "Mode: $([[ $APPLY -eq 1 ]] && echo apply || echo dry-run)"
 
 # Skip if dirty (don't tangle with autonomous-improve mid-cycle).
-# Phase R7 (2026-05-03): use the shared dirty-skip counter so all cron
-# scripts contribute to the watchdog. Previously only autonomous-improve
-# would notice prolonged dirty state.
+# All three cron scripts share the dirty-skip counter via csv-helpers.sh.
+. "$(dirname "$0")/csv-helpers.sh"
 if [[ -z "${SKIP_DIRTY_CHECK:-}" && -n "$(git status --porcelain)" ]]; then
-  DIRTY_STATE="/tmp/graph-island-dirty-skip-count"
-  prev=$(cat "$DIRTY_STATE" 2>/dev/null || echo 0)
-  prev=${prev//[^0-9]/}; prev=${prev:-0}
-  echo "$((prev + 1))" > "$DIRTY_STATE"
-  echo "SKIP: working tree dirty (shared dirty-skip count: $((prev + 1)))"
+  echo "SKIP: working tree dirty (shared dirty-skip count: $(dirty_skip_bump))"
   exit 0
 fi
 
