@@ -143,6 +143,7 @@ import { renderGraphStats, renderBreadcrumb, renderRelationMatrix } from "./Stat
 import { buildPanelCallbacks, type PanelCallbackHost } from "./panel-callbacks";
 import { renderLegend, type LegendHost, type LegendPanel } from "./LegendRenderer";
 import { renderTimelineBars } from "./timeline-bar-renderer";
+import { resolveTimelineNavTarget, type TimelineArrowKey } from "./timeline-keyboard-nav";
 import { asInternalWorkspace } from "../obsidian-internals";
 import { generatePhantomNodes } from "./phantom-node-generator";
 import { adjustTooltipPosition, type PanelRect } from "../utils/tooltip-position";
@@ -239,6 +240,7 @@ import {
 	clearSunburstLabels as clearSunburstLabelsImpl,
 } from "./sunburst-renderer";
 import { renderMatrixViewMode as renderMatrixViewModeImpl, type MatrixSortMode } from "./matrix-renderer";
+import { accumulateDensityGrid, drawDensityHeatmap, type DensityPoint } from "./density-heatmap";
 import { computeStaticLayout, type StaticLayoutResult } from "./layout-compute";
 import { computeEgoSectorPositions } from "../layouts/ego-sector";
 import {
@@ -1050,64 +1052,24 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
 	/** Timeline arrow key navigation: move selection between bars. */
 	private _handleTimelineArrowKey(key: string): void {
-		const bars = this.clusterMeta?.timelineBars;
-		if (!bars || bars.length === 0) return;
-
-		// Find current selection index
-		const currentId = this.highlightedNodeId;
-		const currentIdx = currentId ? bars.findIndex((b) => b.nodeId === currentId) : -1;
-
-		// Sort bars by Y then X for navigation order
-		const sorted = bars
-			.map((b, i) => ({ ...b, origIdx: i }))
-			.sort((a, b) => a.yCenter - b.yCenter || a.xStart - b.xStart);
-
-		let sortedIdx = currentIdx >= 0 ? sorted.findIndex((b) => b.origIdx === currentIdx) : -1;
-
-		switch (key) {
-			case "ArrowRight":
-				// Next bar in time order (same Y, next X; or next row)
-				sortedIdx = Math.min(sortedIdx + 1, sorted.length - 1);
-				if (sortedIdx < 0) sortedIdx = 0;
-				break;
-			case "ArrowLeft":
-				sortedIdx = Math.max(sortedIdx - 1, 0);
-				break;
-			case "ArrowDown": {
-				// Jump to next work group (find bar with significantly different Y)
-				const curY = sortedIdx >= 0 ? sorted[sortedIdx].yCenter : 0;
-				const next = sorted.find((b, i) => i > sortedIdx && b.yCenter > curY + 10);
-				if (next) sortedIdx = sorted.indexOf(next);
-				break;
-			}
-			case "ArrowUp": {
-				const curY = sortedIdx >= 0 ? sorted[sortedIdx].yCenter : Infinity;
-				// Find last bar with Y significantly above current
-				for (let i = sortedIdx - 1; i >= 0; i--) {
-					if (sorted[i].yCenter < curY - 10) {
-						sortedIdx = i;
-						break;
-					}
-				}
-				break;
-			}
+		const target = resolveTimelineNavTarget(
+			this.clusterMeta?.timelineBars,
+			this.highlightedNodeId,
+			key as TimelineArrowKey,
+		);
+		if (!target) return;
+		this.setHighlightedNodeId(target.nodeId);
+		// Pan to center the selected bar
+		const world = this.worldContainer;
+		const wrap = this.canvasWrap;
+		if (world && wrap) {
+			const ws = world.scale.x;
+			world.x = wrap.clientWidth / 2 - target.xStart * ws;
+			world.y = wrap.clientHeight / 2 - target.yCenter * ws;
 		}
-
-		if (sortedIdx >= 0 && sortedIdx < sorted.length) {
-			const target = sorted[sortedIdx];
-			this.setHighlightedNodeId(target.nodeId);
-			// Pan to center the selected bar
-			const world = this.worldContainer;
-			const wrap = this.canvasWrap;
-			if (world && wrap) {
-				const ws = world.scale.x;
-				world.x = wrap.clientWidth / 2 - target.xStart * ws;
-				world.y = wrap.clientHeight / 2 - target.yCenter * ws;
-			}
-			this.applyHover();
-			this.drawTimelineBars();
-			this.wakeRenderLoop();
-		}
+		this.applyHover();
+		this.drawTimelineBars();
+		this.wakeRenderLoop();
 	}
 
 	private _handleEscapeKey(): void {
@@ -6525,57 +6487,16 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		const ws = world.scale?.x ?? 1;
 		const cw = this.canvasWrap?.clientWidth ?? DEFAULT_CANVAS_WIDTH;
 		const ch = this.canvasWrap?.clientHeight ?? DEFAULT_CANVAS_HEIGHT;
-
 		const cols = Math.ceil(cw / HEATMAP_CELL_SIZE);
 		const rows = Math.ceil(ch / HEATMAP_CELL_SIZE);
-		const grid = this._accumulateDensityGrid(cols, rows, HEATMAP_CELL_SIZE, wx, wy, ws);
-
-		let maxD = 0;
-		for (let i = 0; i < grid.length; i++) {
-			if (grid[i] > maxD) maxD = grid[i];
-		}
-		if (maxD === 0) return;
-
-		// Draw heatmap cells with alpha-blended colors
-		for (let r = 0; r < rows; r++) {
-			for (let c = 0; c < cols; c++) {
-				const v = grid[r * cols + c] / maxD;
-				if (v < HEATMAP_MIN_VALUE) continue;
-				const h = (1 - v) * 240;
-				const a = v * 0.25;
-				ctx.fillStyle = `hsla(${h}, 80%, 50%, ${a})`;
-				ctx.fillRect(c * HEATMAP_CELL_SIZE, r * HEATMAP_CELL_SIZE, HEATMAP_CELL_SIZE, HEATMAP_CELL_SIZE);
-			}
-		}
-	}
-
-	/** Accumulate Gaussian density contributions from visible nodes into a grid. */
-	private _accumulateDensityGrid(
-		cols: number,
-		rows: number,
-		cell: number,
-		wx: number,
-		wy: number,
-		ws: number,
-	): Float32Array {
-		const grid = new Float32Array(cols * rows);
+		const points: DensityPoint[] = [];
 		for (const [, pn] of this.pixiNodes) {
 			const gfx = (pn as unknown as { graphics?: CanvasContainer }).graphics ?? pn.gfx;
 			if (!gfx || !gfx.visible) continue;
-			const sx = gfx.x * ws + wx;
-			const sy = gfx.y * ws + wy;
-			const ci = Math.floor(sx / cell);
-			const ri = Math.floor(sy / cell);
-			for (let dr = -HEATMAP_GAUSSIAN_RADIUS; dr <= HEATMAP_GAUSSIAN_RADIUS; dr++) {
-				for (let dc = -HEATMAP_GAUSSIAN_RADIUS; dc <= HEATMAP_GAUSSIAN_RADIUS; dc++) {
-					const r = ri + dr;
-					const c = ci + dc;
-					if (r < 0 || r >= rows || c < 0 || c >= cols) continue;
-					grid[r * cols + c] += Math.exp(-(dr * dr + dc * dc) / (HEATMAP_GAUSSIAN_RADIUS * 0.8));
-				}
-			}
+			points.push({ sx: gfx.x * ws + wx, sy: gfx.y * ws + wy });
 		}
-		return grid;
+		const grid = accumulateDensityGrid(points, cols, rows, HEATMAP_CELL_SIZE, HEATMAP_GAUSSIAN_RADIUS);
+		drawDensityHeatmap(ctx, grid, cols, rows, HEATMAP_CELL_SIZE, HEATMAP_MIN_VALUE);
 	}
 
 	// =========================================================================
