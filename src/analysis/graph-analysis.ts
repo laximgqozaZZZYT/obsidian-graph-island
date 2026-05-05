@@ -483,38 +483,51 @@ export function computeSimilarNodes(
 	return results.slice(0, topN);
 }
 
-export function computePropagatedImportance(nodes: GraphNode[], edges: GraphEdge[], decay = 0.5): Map<string, number> {
+function buildInDegreeMap(nodes: GraphNode[], edges: GraphEdge[]): Map<string, number> {
 	const inDeg = new Map<string, number>();
 	for (const n of nodes) inDeg.set(n.id, 0);
-	for (const e of edges) {
-		incCounter(inDeg, e.target);
-	}
+	for (const e of edges) incCounter(inDeg, e.target);
+	return inDeg;
+}
 
+function buildOutgoingMap(nodes: GraphNode[], edges: GraphEdge[]): Map<string, string[]> {
 	const outgoing = new Map<string, string[]>();
 	for (const n of nodes) outgoing.set(n.id, []);
-	for (const e of edges) {
-		outgoing.get(e.source)?.push(e.target);
+	for (const e of edges) outgoing.get(e.source)?.push(e.target);
+	return outgoing;
+}
+
+function propagateImportanceOnce(
+	nodes: GraphNode[],
+	inDeg: Map<string, number>,
+	outgoing: Map<string, string[]>,
+	importance: Map<string, number>,
+	decay: number,
+): boolean {
+	let changed = false;
+	for (const n of nodes) {
+		const targets = outgoing.get(n.id) ?? [];
+		if (targets.length === 0) continue;
+		const childSum = targets.reduce((sum, tid) => sum + (importance.get(tid) ?? 0), 0);
+		const newVal = (inDeg.get(n.id) ?? 0) + decay * childSum;
+		const oldVal = importance.get(n.id) ?? 0;
+		if (Math.abs(newVal - oldVal) > 0.001) {
+			importance.set(n.id, newVal);
+			changed = true;
+		}
 	}
+	return changed;
+}
+
+export function computePropagatedImportance(nodes: GraphNode[], edges: GraphEdge[], decay = 0.5): Map<string, number> {
+	const inDeg = buildInDegreeMap(nodes, edges);
+	const outgoing = buildOutgoingMap(nodes, edges);
 
 	const importance = new Map<string, number>();
-	for (const n of nodes) {
-		importance.set(n.id, inDeg.get(n.id) ?? 0);
-	}
+	for (const n of nodes) importance.set(n.id, inDeg.get(n.id) ?? 0);
 
 	for (let iter = 0; iter < 3; iter++) {
-		let changed = false;
-		for (const n of nodes) {
-			const targets = outgoing.get(n.id) ?? [];
-			if (targets.length === 0) continue;
-			const childSum = targets.reduce((sum, tid) => sum + (importance.get(tid) ?? 0), 0);
-			const newVal = (inDeg.get(n.id) ?? 0) + decay * childSum;
-			const oldVal = importance.get(n.id) ?? 0;
-			if (Math.abs(newVal - oldVal) > 0.001) {
-				importance.set(n.id, newVal);
-				changed = true;
-			}
-		}
-		if (!changed) break;
+		if (!propagateImportanceOnce(nodes, inDeg, outgoing, importance, decay)) break;
 	}
 
 	return importance;
