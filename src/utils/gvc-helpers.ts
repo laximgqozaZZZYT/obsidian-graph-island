@@ -2,7 +2,7 @@
  * Pure utility functions extracted from GraphViewContainer.ts.
  * These functions are stateless and have no dependency on the GVC class.
  */
-import type { ClusterGroupRule, GroupPreset } from "../types";
+import type { ClusterGroupRule, GroupPreset, GraphNode } from "../types";
 import { parseQueryExpr, serializeExpr } from "./query-expr";
 import { hexToRgb } from "./color";
 
@@ -151,6 +151,89 @@ export function resolveNodeColor(
 		if (css) return css;
 	}
 	return defaultColor;
+}
+
+/** Fade-in tween subset required for initial position seeding. */
+export interface SeedFadeIn {
+	stagger: Map<string, number>;
+	originX: number;
+	originY: number;
+}
+
+/** Inputs for seedInitialNodePositions — captured outside the GVC class. */
+export interface SeedPositionsOptions {
+	fade: SeedFadeIn | null | undefined;
+	savedPositions: Map<string, { x: number; y: number }>;
+	savedPositionsValid: boolean;
+	pinnedPositions: Record<string, { x: number; y: number }>;
+	cx: number;
+	cy: number;
+	W: number;
+	H: number;
+}
+
+// Golden-angle Fermat spiral constants for fade-in member placement.
+const SEED_GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5)); // ~137.508°
+const SEED_FADE_RING_BASE = 22; // world-unit radius for the innermost member
+const SEED_FADE_RING_STEP = 2.4; // radial growth per member
+const SEED_FADE_VELOCITY = 0.8; // tiny outward nudge
+
+function applyFadeInSeedPosition(n: GraphNode, fade: SeedFadeIn, idx: number): void {
+	const r = SEED_FADE_RING_BASE + Math.sqrt(idx) * SEED_FADE_RING_STEP * 3;
+	const theta = idx * SEED_GOLDEN_ANGLE;
+	const cosT = Math.cos(theta);
+	const sinT = Math.sin(theta);
+	n.x = fade.originX + cosT * r;
+	n.y = fade.originY + sinT * r;
+	n.vx = cosT * SEED_FADE_VELOCITY;
+	n.vy = sinT * SEED_FADE_VELOCITY;
+}
+
+/** True when a node's current x/y is non-finite, both-zero, or out of bounds. */
+export function needsRandomReseeding(n: GraphNode, maxReasonableCoord: number): boolean {
+	if (!isFinite(n.x) || !isFinite(n.y)) return true;
+	if (n.x === 0 && n.y === 0) return true;
+	return Math.abs(n.x) > maxReasonableCoord || Math.abs(n.y) > maxReasonableCoord;
+}
+
+/**
+ * Seed initial x/y/vx/vy/fx/fy on graph nodes prior to a force-layout pass.
+ *
+ * Resolution order per node:
+ *   1. Fade-in member → Fermat-spiral seed around fade origin
+ *   2. Saved position (only if savedPositionsValid)
+ *   3. Otherwise reseed randomly only if current coords are non-finite,
+ *      both-zero, or absurd (|x|>maxReasonableCoord)
+ *   4. Pinned override (also sets fx/fy to lock the node)
+ *
+ * Mutates the nodes array in place.
+ */
+export function seedInitialNodePositions(nodes: GraphNode[], options: SeedPositionsOptions): void {
+	const { fade, savedPositions, savedPositionsValid, pinnedPositions, cx, cy, W, H } = options;
+	const maxReasonableCoord = Math.max(W, H) * 5;
+	let fadeIdx = 0;
+	for (const n of nodes) {
+		if (fade && fade.stagger.has(n.id)) {
+			applyFadeInSeedPosition(n, fade, fadeIdx);
+			fadeIdx++;
+			continue;
+		}
+		const saved = savedPositionsValid ? savedPositions.get(n.id) : undefined;
+		if (saved) {
+			n.x = saved.x;
+			n.y = saved.y;
+		} else if (needsRandomReseeding(n, maxReasonableCoord)) {
+			n.x = cx + (Math.random() - 0.5) * W * 0.8;
+			n.y = cy + (Math.random() - 0.5) * H * 0.8;
+		}
+		const pinned = pinnedPositions[n.id];
+		if (pinned) {
+			n.x = pinned.x;
+			n.y = pinned.y;
+			n.fx = pinned.x;
+			n.fy = pinned.y;
+		}
+	}
 }
 
 export function giDiag<T extends { nodes: { length: number }; edges: { length: number } }>(stage: string, data: T): T {
