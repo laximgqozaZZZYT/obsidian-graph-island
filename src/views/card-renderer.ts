@@ -440,6 +440,139 @@ function renderPlainCardBodyLines(
 	}
 }
 
+/** Per-node alpha given timeline filter state. */
+function resolveNodeAlpha(
+	tlFilteredOut: Set<string> | null,
+	nodeId: string,
+	alpha: number,
+	filteredAlpha: number,
+): number {
+	return tlFilteredOut && tlFilteredOut.has(nodeId) ? alpha * filteredAlpha : alpha;
+}
+
+/** Loop-invariant font / pad metrics shared by every plain card. */
+function computePlainCardFontMetrics(
+	worldScale: number,
+	bodyFontBase: number,
+): { titleFont: number; bodyFont: number; pad: number; lineH: number } {
+	const titleFont = Math.min(
+		Math.max(PLAIN_CARD.TITLE_FONT_MIN, FULL_CARD_FONT_BASE / worldScale),
+		FULL_CARD_FONT_BASE * CARD_SCALE_CAP,
+	);
+	const bodyFont = Math.min(
+		Math.max(PLAIN_CARD.BODY_FONT_MIN, bodyFontBase / worldScale),
+		bodyFontBase * CARD_SCALE_CAP,
+	);
+	const pad = Math.min(PLAIN_CARD.PAD / worldScale, PLAIN_CARD.PAD * CARD_SCALE_CAP);
+	return { titleFont, bodyFont, pad, lineH: bodyFont * CARD_LINE_HEIGHT };
+}
+
+/** Loop-invariant context for a single plain-card render pass. */
+interface PlainCardLayout {
+	baseH: number;
+	halfW: number;
+	cardTextW: number;
+	textW: number;
+	bodyHeightPerLine: number;
+	charW: number;
+	cornerR: number;
+	hcCard: number;
+	cardShowBody: boolean;
+	truncateText: boolean;
+	titleFont: number;
+	bodyFont: number;
+	pad: number;
+	lineH: number;
+}
+
+/** Build the loop-invariant layout used by every plain-card node. */
+function buildPlainCardLayout(
+	host: RenderHost,
+	ctx: CardRenderCtx,
+	crc: ReturnType<typeof Object.assign>,
+	rt: ReturnType<typeof Object.assign>,
+	cardConfig: CardDisplayConfig,
+	cardMaxW: number,
+): PlainCardLayout {
+	const { nodeCount, worldScale } = ctx;
+	const cardH = crc.plainCardHeight / worldScale;
+	const fieldLineH = crc.fieldLineHeight / worldScale;
+	// IE: Card content respects hover checklist
+	const panelMeta2 = host.getPanel?.()?.hoverShowMeta ?? true;
+	const showMeta = panelMeta2 && nodeCount < rt.cardTextNodeCount && cardConfig.fields.length > 0;
+	// HM: Golden ratio for plain cards — compute width from height × AR
+	const cardAR = crc.cardAspectRatio > 0 ? crc.cardAspectRatio : 1.618;
+	const baseH = showMeta ? cardH + cardConfig.fields.length * fieldLineH : cardH;
+	const MIN_PLAIN_HALF_W = 20 / worldScale;
+	const arHalfW = (baseH * cardAR) / 2;
+	const halfW = Math.max(MIN_PLAIN_HALF_W, Math.min(cardMaxW / 2, arHalfW));
+	const fonts = computePlainCardFontMetrics(worldScale, rt.cardBodyFontSize);
+	return {
+		baseH,
+		halfW,
+		cardTextW: halfW * 2 - 8 / worldScale,
+		textW: halfW * 2 - fonts.pad * 2,
+		bodyHeightPerLine: (8 / worldScale) * 1.3,
+		charW: (8 / worldScale) * 0.55,
+		cornerR: crc.cardCornerRadius / worldScale,
+		hcCard: host.isHighContrastMode?.() ? 2 : 1,
+		cardShowBody: host.getPanel?.()?.hoverShowBody ?? true,
+		truncateText: rt.cardTextTruncation !== false,
+		...fonts,
+	};
+}
+
+/** Render one plain card (background + title + optional wrapped body). */
+function renderSinglePlainCard(
+	pn: PixiNode,
+	g: CanvasGraphics,
+	layout: PlainCardLayout,
+	crc: ReturnType<typeof Object.assign>,
+	rt: ReturnType<typeof Object.assign>,
+	nodeAlpha: number,
+): void {
+	// FI: Dynamic card height based on body content (uses final width for line wrapping)
+	// IP: Use cardBodyMaxLines (not hardcoded 3) for consistent card height
+	const bodyLines = estimateBodyLineCount(pn.data.bodyPreview, rt.cardBodyMaxLines, layout.cardTextW, layout.charW);
+	const totalH = layout.baseH + bodyLines * layout.bodyHeightPerLine;
+	const halfH = totalH / 2;
+
+	// Card background (IK: high contrast mode doubles stroke width)
+	const strokeColor = darkenColor(pn.color, crc.strokeDarken);
+	g.lineStyle(layout.hcCard, strokeColor, nodeAlpha * crc.plainCardStrokeAlpha);
+	g.beginFill(pn.color, nodeAlpha * crc.plainCardFillAlpha);
+	g.drawRoundedRect(pn.data.x - layout.halfW, pn.data.y - halfH, layout.halfW * 2, totalH, layout.cornerR);
+	g.endFill();
+
+	// A11y: auto-select title/body text color for WCAG contrast against card background
+	const titleFill = contrastColor(pn.color);
+	const bodyFill = titleFill === 0xffffff ? 0xcccccc : 0x444444;
+	// Title (apply GD labelMaxChars truncation)
+	const title = createCardText(truncateLabel(pn.data.label, rt.labelMaxChars), layout.titleFont, titleFill, "bold");
+	title.x = -layout.halfW + layout.pad;
+	title.y = -halfH + layout.pad;
+	if (layout.truncateText) title.maxWidth = layout.textW;
+	pn.gfx.addChild(title);
+	// FH: Wrapped body preview — split into multiple lines
+	// IE: Card content respects hoverShowBody checklist
+	if (pn.data.bodyPreview && layout.cardShowBody) {
+		renderPlainCardBodyLines(
+			pn,
+			layout.halfW,
+			halfH,
+			layout.pad,
+			layout.titleFont,
+			layout.bodyFont,
+			bodyFill,
+			layout.lineH,
+			layout.textW,
+			rt.cardBodyMaxLines,
+			crc.cardSubTextAlpha,
+			layout.truncateText,
+		);
+	}
+}
+
 /** Plain card style rendering. */
 function renderPlainCard(
 	host: RenderHost,
@@ -450,81 +583,10 @@ function renderPlainCard(
 	cardConfig: CardDisplayConfig,
 	cardMaxW: number,
 ): void {
-	const { visible, tlFilteredOut, alpha, nodeCount, worldScale } = ctx;
-	const cardH = crc.plainCardHeight / worldScale;
-	// IE: Card content respects hover checklist
-	const panelMeta2 = host.getPanel?.()?.hoverShowMeta ?? true;
-	const showMeta = panelMeta2 && nodeCount < rt.cardTextNodeCount && cardConfig.fields.length > 0;
-	const fieldLineH = crc.fieldLineHeight / worldScale;
-
-	// HM: Golden ratio for plain cards — compute width from height × AR
-	const cardAR = crc.cardAspectRatio > 0 ? crc.cardAspectRatio : 1.618;
-	const charW = (8 / worldScale) * 0.55;
-
+	const { visible, tlFilteredOut, alpha } = ctx;
+	const layout = buildPlainCardLayout(host, ctx, crc, rt, cardConfig, cardMaxW);
 	for (const pn of visible) {
-		const nodeAlpha = tlFilteredOut && tlFilteredOut.has(pn.data.id) ? alpha * crc.filteredNodeAlpha : alpha;
-		const MIN_PLAIN_HALF_W = 20 / worldScale;
-		// HM: Step 1 — estimate base height (title + optional meta)
-		const baseH = showMeta ? cardH + cardConfig.fields.length * fieldLineH : cardH;
-		// HM: Step 2 — golden ratio width from base height
-		const arHalfW = (baseH * cardAR) / 2;
-		const halfW = Math.max(MIN_PLAIN_HALF_W, Math.min(cardMaxW / 2, arHalfW));
-		// FI: Dynamic card height based on body content (uses final width for line wrapping)
-		// IP: Use cardBodyMaxLines (not hardcoded 3) for consistent card height
-		const cardTextW = halfW * 2 - 8 / worldScale;
-		const bodyLines = estimateBodyLineCount(pn.data.bodyPreview, rt.cardBodyMaxLines, cardTextW, charW);
-		const bodyExtraH = bodyLines * ((8 / worldScale) * 1.3);
-		const totalH = baseH + bodyExtraH;
-		const halfH = totalH / 2;
-
-		// Card background (IK: high contrast mode doubles stroke width)
-		const hcCard = host.isHighContrastMode?.() ? 2 : 1;
-		const strokeColor = darkenColor(pn.color, crc.strokeDarken);
-		g.lineStyle(hcCard, strokeColor, nodeAlpha * crc.plainCardStrokeAlpha);
-		g.beginFill(pn.color, nodeAlpha * crc.plainCardFillAlpha);
-		g.drawRoundedRect(pn.data.x - halfW, pn.data.y - halfH, halfW * 2, totalH, crc.cardCornerRadius / worldScale);
-		g.endFill();
-
-		// FH/FI: Plain card with title + wrapped body preview
-		const fontSize = Math.min(
-			Math.max(PLAIN_CARD.TITLE_FONT_MIN, FULL_CARD_FONT_BASE / worldScale),
-			FULL_CARD_FONT_BASE * CARD_SCALE_CAP,
-		);
-		const bodyFontBase = rt.cardBodyFontSize;
-		const smallFont = Math.min(
-			Math.max(PLAIN_CARD.BODY_FONT_MIN, bodyFontBase / worldScale),
-			bodyFontBase * CARD_SCALE_CAP,
-		);
-		const pad = Math.min(PLAIN_CARD.PAD / worldScale, PLAIN_CARD.PAD * CARD_SCALE_CAP);
-		const textW = halfW * 2 - pad * 2;
-		const lineH = smallFont * CARD_LINE_HEIGHT;
-		// A11y: auto-select title/body text color for WCAG contrast against card background
-		const titleFill = contrastColor(pn.color);
-		const bodyFill = titleFill === 0xffffff ? 0xcccccc : 0x444444;
-		// Title (apply GD labelMaxChars truncation)
-		const title = createCardText(truncateLabel(pn.data.label, rt.labelMaxChars), fontSize, titleFill, "bold");
-		title.x = -halfW + pad;
-		title.y = -halfH + pad;
-		if (rt.cardTextTruncation !== false) title.maxWidth = textW;
-		pn.gfx.addChild(title);
-		// FH: Wrapped body preview — split into multiple lines
-		// IE: Card content respects hoverShowBody checklist
-		const cardShowBody = host.getPanel?.()?.hoverShowBody ?? true;
-		if (pn.data.bodyPreview && cardShowBody) {
-			renderPlainCardBodyLines(
-				pn,
-				halfW,
-				halfH,
-				pad,
-				fontSize,
-				smallFont,
-				bodyFill,
-				lineH,
-				textW,
-				rt.cardBodyMaxLines,
-				crc.cardSubTextAlpha,
-				rt.cardTextTruncation !== false,
-			);
-		}
+		const nodeAlpha = resolveNodeAlpha(tlFilteredOut, pn.data.id, alpha, crc.filteredNodeAlpha);
+		renderSinglePlainCard(pn, g, layout, crc, rt, nodeAlpha);
 	}
 }
