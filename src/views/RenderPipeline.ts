@@ -460,7 +460,7 @@ export class RenderPipeline {
 	private _cachedMaxDeg = 1;
 	private _cachedMaxBodyLength = 0;
 	private deferredBatchId: ReturnType<typeof setTimeout> | null = null;
-	/** Track host.timers.setTimeout handles whose return value would otherwise be discarded, so detach() can clearTimeout them defensively even if host.timers fails to. */
+	/** Per-component registry: detach() cancels only RP's handles (host.timers is shared with GVC). */
 	private _pendingTimeouts = new Set<ReturnType<typeof setTimeout>>();
 	/** FPS tracking */
 	private _fpsFrames = 0;
@@ -607,7 +607,7 @@ export class RenderPipeline {
 			clearTimeout(this._enrichmentCancelId);
 			this._enrichmentCancelId = null;
 		}
-		for (const t of this._pendingTimeouts) clearTimeout(t);
+		for (const t of this._pendingTimeouts) this.host.timers.clear(t);
 		this._pendingTimeouts.clear();
 		const app = this.host.getPixiApp();
 		if (this._tickerBound && app) {
