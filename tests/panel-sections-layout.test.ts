@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import type { PanelState, PanelCallbacks, PanelContext } from "../src/views/PanelBuilder";
 import type { GraphViewsSettings } from "../src/types";
+import { ManagedTimers } from "../src/utils/managed-timers";
 import {
 	buildGraphSyncSection,
 	buildPluginSettingsSection,
@@ -355,6 +356,7 @@ function createMockContext(): PanelContext {
 		pluginDir: ".obsidian/plugins/graph-island",
 		frontmatterKeys: ["date", "status", "category"],
 		saveSettings: vi.fn(),
+		timers: new ManagedTimers(),
 	} as any;
 }
 

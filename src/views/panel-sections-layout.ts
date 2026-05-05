@@ -238,8 +238,8 @@ export function buildOntologySection(
 				rulesToOntologyFields(rules, s.ontology);
 				s.ontology.rules = rules;
 				ctx.saveSettings();
-				clearTimeout(debounceTimer);
-				debounceTimer = setTimeout(() => cb.invalidateDataKeepPanel(), 2000);
+				if (debounceTimer !== undefined) ctx.timers.clear(debounceTimer);
+				debounceTimer = ctx.timers.setTimeout(() => cb.invalidateDataKeepPanel(), 2000);
 			};
 
 			const listEl = body.createDiv({ cls: "gi-ont-rules" });
@@ -671,8 +671,8 @@ export function buildSpacingAndGroupArrangement(s: ClusterSectionCtx): void {
 
 	let spacingDebounce: ReturnType<typeof setTimeout> | undefined;
 	const debouncedClusterForce = () => {
-		clearTimeout(spacingDebounce);
-		spacingDebounce = setTimeout(() => {
+		if (spacingDebounce !== undefined) s.ctx.timers.clear(spacingDebounce);
+		spacingDebounce = s.ctx.timers.setTimeout(() => {
 			cb.applyClusterForce(false);
 			cb.restartSimulation(0.5);
 		}, 100);
@@ -778,8 +778,8 @@ export function buildForceParameters(s: ClusterSectionCtx): void {
 
 	let forceDebounce: ReturnType<typeof setTimeout> | undefined;
 	const debouncedForceUpdate = () => {
-		clearTimeout(forceDebounce);
-		forceDebounce = setTimeout(() => {
+		if (forceDebounce !== undefined) s.ctx.timers.clear(forceDebounce);
+		forceDebounce = s.ctx.timers.setTimeout(() => {
 			cb.updateForces();
 			cb.restartSimulation(0.3);
 		}, 150);
