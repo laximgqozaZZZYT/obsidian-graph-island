@@ -233,6 +233,7 @@ import {
 	clearSunburstLabels as clearSunburstLabelsImpl,
 } from "./sunburst-renderer";
 import { renderMatrixViewMode as renderMatrixViewModeImpl, type MatrixSortMode } from "./matrix-renderer";
+import { accumulateDensityGrid, drawDensityHeatmap, type DensityPoint } from "./density-heatmap";
 import { computeStaticLayout, type StaticLayoutResult } from "./layout-compute";
 import { computeEgoSectorPositions } from "../layouts/ego-sector";
 import {
@@ -6581,57 +6582,16 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		const ws = world.scale?.x ?? 1;
 		const cw = this.canvasWrap?.clientWidth ?? DEFAULT_CANVAS_WIDTH;
 		const ch = this.canvasWrap?.clientHeight ?? DEFAULT_CANVAS_HEIGHT;
-
 		const cols = Math.ceil(cw / HEATMAP_CELL_SIZE);
 		const rows = Math.ceil(ch / HEATMAP_CELL_SIZE);
-		const grid = this._accumulateDensityGrid(cols, rows, HEATMAP_CELL_SIZE, wx, wy, ws);
-
-		let maxD = 0;
-		for (let i = 0; i < grid.length; i++) {
-			if (grid[i] > maxD) maxD = grid[i];
-		}
-		if (maxD === 0) return;
-
-		// Draw heatmap cells with alpha-blended colors
-		for (let r = 0; r < rows; r++) {
-			for (let c = 0; c < cols; c++) {
-				const v = grid[r * cols + c] / maxD;
-				if (v < HEATMAP_MIN_VALUE) continue;
-				const h = (1 - v) * 240;
-				const a = v * 0.25;
-				ctx.fillStyle = `hsla(${h}, 80%, 50%, ${a})`;
-				ctx.fillRect(c * HEATMAP_CELL_SIZE, r * HEATMAP_CELL_SIZE, HEATMAP_CELL_SIZE, HEATMAP_CELL_SIZE);
-			}
-		}
-	}
-
-	/** Accumulate Gaussian density contributions from visible nodes into a grid. */
-	private _accumulateDensityGrid(
-		cols: number,
-		rows: number,
-		cell: number,
-		wx: number,
-		wy: number,
-		ws: number,
-	): Float32Array {
-		const grid = new Float32Array(cols * rows);
+		const points: DensityPoint[] = [];
 		for (const [, pn] of this.pixiNodes) {
 			const gfx = (pn as unknown as { graphics?: CanvasContainer }).graphics ?? pn.gfx;
 			if (!gfx || !gfx.visible) continue;
-			const sx = gfx.x * ws + wx;
-			const sy = gfx.y * ws + wy;
-			const ci = Math.floor(sx / cell);
-			const ri = Math.floor(sy / cell);
-			for (let dr = -HEATMAP_GAUSSIAN_RADIUS; dr <= HEATMAP_GAUSSIAN_RADIUS; dr++) {
-				for (let dc = -HEATMAP_GAUSSIAN_RADIUS; dc <= HEATMAP_GAUSSIAN_RADIUS; dc++) {
-					const r = ri + dr;
-					const c = ci + dc;
-					if (r < 0 || r >= rows || c < 0 || c >= cols) continue;
-					grid[r * cols + c] += Math.exp(-(dr * dr + dc * dc) / (HEATMAP_GAUSSIAN_RADIUS * 0.8));
-				}
-			}
+			points.push({ sx: gfx.x * ws + wx, sy: gfx.y * ws + wy });
 		}
-		return grid;
+		const grid = accumulateDensityGrid(points, cols, rows, HEATMAP_CELL_SIZE, HEATMAP_GAUSSIAN_RADIUS);
+		drawDensityHeatmap(ctx, grid, cols, rows, HEATMAP_CELL_SIZE, HEATMAP_MIN_VALUE);
 	}
 
 	// =========================================================================
