@@ -115,6 +115,12 @@ import {
 	type EdgeDrawConfig,
 } from "./EdgeRenderer";
 import { drawEdgeLabels as drawEdgeLabelsImpl } from "./EdgeLabelRenderer";
+import {
+	type AnnotationLayerDeps,
+	renderAllAnnotations,
+	renderAnnotation,
+	updateAnnotationPositions,
+} from "./AnnotationLayer";
 import { t } from "../i18n";
 import { showToast } from "../utils/toast";
 import { drawEnclosures as drawEnclosuresImpl, type OverlapCache, type EnclosureConfig } from "./EnclosureRenderer";
@@ -522,8 +528,15 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	// ビュー同期: 再帰イベントを防止するフラグ
 	private _syncReceiving = false;
 
-	// 注釈オーバーレイ管理
+	// 注釈オーバーレイ管理 — 詳細は ./AnnotationLayer.ts
 	private annotationLayer: HTMLElement | null = null;
+	private readonly _annotationDeps: AnnotationLayerDeps = {
+		getLayer: () => this.annotationLayer,
+		getWorld: () => this.worldContainer,
+		isPixiReady: () => !!this.pixiApp,
+		getAnnotations: () => this.panel.annotations,
+		onSave: () => this.requestSave(),
+	};
 
 	constructor(leaf: WorkspaceLeaf, plugin: GraphViewsPlugin) {
 		super(leaf);
@@ -1552,127 +1565,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		const id = crypto.randomUUID();
 		const annotation = { nodeId: id, text: "", x: wx, y: wy, color: "yellow" };
 		this.panel.annotations.push(annotation);
-		this._renderAnnotation(annotation);
+		renderAnnotation(this._annotationDeps, annotation);
 		this.requestSave();
-	}
-
-	/** 全注釈を再描画（レンダー後に呼ぶ） */
-	private _renderAllAnnotations(): void {
-		if (!this.annotationLayer) return;
-		this.annotationLayer.empty();
-		for (const ann of this.panel.annotations) {
-			this._renderAnnotation(ann);
-		}
-	}
-
-	/** 個別の注釈 DOM 要素を生成 (W4: sticky note with color support) */
-	private _renderAnnotation(ann: { nodeId: string; text: string; x: number; y: number; color?: string }): void {
-		if (!this.annotationLayer || !this.worldContainer || !this.pixiApp) return;
-
-		const colorClass = ann.color ? `gi-sticky-${ann.color}` : "gi-sticky-yellow";
-		const el = this.annotationLayer.createDiv({ cls: `gi-annotation ${colorClass}` });
-
-		// テキスト入力エリア
-		const textEl = el.createEl("textarea", {
-			cls: "gi-annotation-text",
-			attr: { placeholder: t("annotation.placeholder"), rows: "2" },
-		});
-		textEl.value = ann.text;
-		textEl.addEventListener("input", () => {
-			ann.text = textEl.value;
-			this.requestSave();
-		});
-		// テキストエリアのフォーカス時はドラッグ無効
-		textEl.addEventListener("pointerdown", (e) => e.stopPropagation());
-
-		// W4: Color picker bar
-		const colorBar = el.createDiv({ cls: "gi-annotation-color-bar" });
-		const stickyColors = [
-			{ name: "yellow", bg: "#eab308" },
-			{ name: "blue", bg: "#3b82f6" },
-			{ name: "green", bg: "#22c55e" },
-			{ name: "pink", bg: "#ec4899" },
-		];
-		for (const sc of stickyColors) {
-			const dot = colorBar.createDiv({ cls: "gi-annotation-color-dot" });
-			dot.style.background = sc.bg;
-			dot.addEventListener("click", (e) => {
-				e.stopPropagation();
-				ann.color = sc.name;
-				// Update class
-				el.className = `gi-annotation gi-sticky-${sc.name}`;
-				this.requestSave();
-			});
-		}
-		// Prevent color bar clicks from starting drag
-		colorBar.addEventListener("pointerdown", (e) => e.stopPropagation());
-
-		// 削除ボタン
-		const deleteBtn = el.createEl("button", {
-			cls: "gi-annotation-delete",
-			attr: { "aria-label": t("annotation.delete"), title: t("annotation.delete") },
-		});
-		deleteBtn.textContent = "\u00d7";
-		deleteBtn.addEventListener("click", () => {
-			const idx = this.panel.annotations.indexOf(ann);
-			if (idx >= 0) this.panel.annotations.splice(idx, 1);
-			el.remove();
-			this.requestSave();
-		});
-
-		// ドラッグ処理: スクリーン座標のデルタをワールド座標に変換
-		let dragging = false;
-		let lastScreenX = 0;
-		let lastScreenY = 0;
-
-		el.addEventListener("pointerdown", (e) => {
-			if (e.target === textEl) return; // テキスト編集中はドラッグしない
-			dragging = true;
-			lastScreenX = e.clientX;
-			lastScreenY = e.clientY;
-			el.setPointerCapture(e.pointerId);
-			e.preventDefault();
-		});
-		el.addEventListener("pointermove", (e) => {
-			if (!dragging || !this.worldContainer) return;
-			const scale = this.worldContainer.scale.x || 1;
-			const dx = (e.clientX - lastScreenX) / scale;
-			const dy = (e.clientY - lastScreenY) / scale;
-			ann.x += dx;
-			ann.y += dy;
-			lastScreenX = e.clientX;
-			lastScreenY = e.clientY;
-			this._positionAnnotationEl(el, ann);
-		});
-		el.addEventListener("pointerup", (e) => {
-			if (dragging) {
-				dragging = false;
-				el.releasePointerCapture(e.pointerId);
-				this.requestSave();
-			}
-		});
-
-		this._positionAnnotationEl(el, ann);
-	}
-
-	/** 注釈 DOM 要素をワールド座標→スクリーン座標に変換して配置 */
-	private _positionAnnotationEl(el: HTMLElement, ann: { x: number; y: number }): void {
-		if (!this.worldContainer || !this.pixiApp) return;
-		const screen = this.worldContainer.toGlobal({ x: ann.x, y: ann.y });
-		const parentRect = this.annotationLayer?.parentElement?.getBoundingClientRect();
-		if (!parentRect) return;
-		el.style.left = `${screen.x - parentRect.left}px`;
-		el.style.top = `${screen.y - parentRect.top}px`;
-	}
-
-	/** 全注釈位置を更新（ズーム/パン時に呼ぶ） */
-	private _updateAnnotationPositions(): void {
-		if (!this.annotationLayer) return;
-		const children = this.annotationLayer.children;
-		for (let i = 0; i < children.length && i < this.panel.annotations.length; i++) {
-			const el = children[i];
-			if (el instanceof HTMLElement) this._positionAnnotationEl(el, this.panel.annotations[i]);
-		}
 	}
 
 	async onClose() {
