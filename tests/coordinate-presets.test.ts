@@ -323,3 +323,229 @@ describe("CURVE_REGISTRY boundary values", () => {
 		}
 	});
 });
+
+// ---------------------------------------------------------------------------
+// CURVE_REGISTRY — `??` default-branch coverage (cycle iteration 3)
+//
+// Each fn body uses `(p.X ?? default)` to fall back when a param key is
+// missing. Existing tests always pass complete params, so the right-hand
+// (default) branch is never taken. Calling each fn with an empty params
+// object covers those branches and locks in the documented defaults.
+// ---------------------------------------------------------------------------
+describe("CURVE_REGISTRY — fn defaults when params missing", () => {
+	const empty = {} as Record<string, number>;
+
+	it("archimedean: (a ?? 0) + (b ?? 1) * t → returns t when params empty", () => {
+		const fn = CURVE_REGISTRY.archimedean.fn;
+		expect(fn(0, empty)).toBe(0);
+		expect(fn(1, empty)).toBe(1);
+		expect(fn(2.5, empty)).toBe(2.5);
+	});
+
+	it("logarithmic: (a ?? 1) * exp((b ?? 0.3) * t * 2π) at t=0 → 1", () => {
+		const fn = CURVE_REGISTRY.logarithmic.fn;
+		expect(fn(0, empty)).toBeCloseTo(1, 10);
+	});
+
+	it("fermat: (a ?? 1) * sqrt(t) → sqrt(t) when params empty", () => {
+		const fn = CURVE_REGISTRY.fermat.fn;
+		expect(fn(0, empty)).toBe(0);
+		expect(fn(4, empty)).toBe(2);
+	});
+
+	it("hyperbolic: (a ?? 1) / t with empty params → 1/t (t>0) and 10 (t=0)", () => {
+		const fn = CURVE_REGISTRY.hyperbolic.fn;
+		expect(fn(2, empty)).toBe(0.5);
+		// t=0 guard branch returns (a ?? 1) * 10 = 10
+		expect(fn(0, empty)).toBe(10);
+	});
+
+	it("cardioid: (a ?? 1) * (1 + cos(t·2π)) → 2 at t=0 with empty params", () => {
+		const fn = CURVE_REGISTRY.cardioid.fn;
+		expect(fn(0, empty)).toBeCloseTo(2, 10);
+		expect(fn(0.5, empty)).toBeCloseTo(0, 10);
+	});
+
+	it("rose: (a ?? 1) * cos((k ?? 3) * t·2π) → 1 at t=0 with empty params", () => {
+		const fn = CURVE_REGISTRY.rose.fn;
+		expect(fn(0, empty)).toBeCloseTo(1, 10);
+	});
+
+	it("lissajous: sin((a ?? 3) * t·2π + (delta ?? 0.5)) → sin(0.5) at t=0", () => {
+		const fn = CURVE_REGISTRY.lissajous.fn;
+		expect(fn(0, empty)).toBeCloseTo(Math.sin(0.5), 10);
+	});
+
+	it("golden: (a ?? 1) * φ^(t·4) → 1 at t=0 with empty params", () => {
+		const fn = CURVE_REGISTRY.golden.fn;
+		expect(fn(0, empty)).toBeCloseTo(1, 5);
+	});
+
+	it("all curves still produce finite values with empty params at t=0,0.5,1", () => {
+		for (const [name, curve] of Object.entries(CURVE_REGISTRY)) {
+			for (const t of [0, 0.5, 1]) {
+				const v = curve.fn(t, empty);
+				expect(Number.isFinite(v), `${name} at t=${t} with empty params`).toBe(true);
+			}
+		}
+	});
+});
+
+// ---------------------------------------------------------------------------
+// resolveArrangementFromLayout — non-preset condition branches
+//
+// The function first tries `findMatchingPreset`; only when that returns
+// "custom" do the explicit s1/s2/t1/t2 checks run. We need layouts that
+// look like timeline / random / concentric but differ from the canonical
+// preset (e.g. by tweaking constants or scale) so each conditional fires.
+// ---------------------------------------------------------------------------
+describe("resolveArrangementFromLayout — derived (non-preset) branches", () => {
+	it("PROPERTY + DATE_INDEX axis1 (non-preset) → timeline", () => {
+		const layout: CoordinateLayout = {
+			system: "polar", // differs from preset's "cartesian"
+			axis1: {
+				source: { kind: "property", key: "publishedAt" }, // different key
+				transform: { kind: "date-to-index" },
+			},
+			axis2: { source: { kind: "index" }, transform: { kind: "linear", scale: 5 } },
+			perGroup: true,
+		};
+		expect(resolveArrangementFromLayout(layout)).toBe(ARRANGEMENT_TIMELINE);
+	});
+
+	it("RANDOM source on axis2 alone (non-preset) → random", () => {
+		const layout: CoordinateLayout = {
+			system: "cartesian",
+			axis1: { source: { kind: "field", field: "x" }, transform: { kind: "linear", scale: 1 } },
+			axis2: { source: { kind: "random", seed: 7 }, transform: { kind: "linear", scale: 2 } },
+			perGroup: false,
+		};
+		expect(resolveArrangementFromLayout(layout)).toBe(ARRANGEMENT_RANDOM);
+	});
+
+	it("INDEX + EXPRESSION + EVEN_DIVIDE + perGroup=false (non-preset) → concentric", () => {
+		// Diverges from concentric preset by altering the expression text + ringSize.
+		const layout: CoordinateLayout = {
+			system: "polar",
+			axis1: {
+				source: { kind: "index" },
+				transform: { kind: "expression", expr: "floor(i / _ringSize) + 5", scale: 1 },
+			},
+			axis2: { source: { kind: "index" }, transform: { kind: "even-divide", totalRange: 720 } },
+			perGroup: false,
+			constants: { _ringSize: 50 },
+		};
+		expect(resolveArrangementFromLayout(layout)).toBe(ARRANGEMENT_CONCENTRIC);
+	});
+
+	it("INDEX + EXPRESSION + EVEN_DIVIDE BUT perGroup=true → does NOT match concentric branch", () => {
+		// perGroup=true should bypass the concentric check and fall through.
+		const layout: CoordinateLayout = {
+			system: "cartesian",
+			axis1: {
+				source: { kind: "index" },
+				transform: { kind: "expression", expr: "i % 7", scale: 1 },
+			},
+			axis2: { source: { kind: "index" }, transform: { kind: "even-divide", totalRange: 360 } },
+			perGroup: true,
+		};
+		// s1=INDEX & s2=INDEX matches the next clause, so it returns grid.
+		expect(resolveArrangementFromLayout(layout)).toBe(ARRANGEMENT_GRID);
+	});
+
+	it("INDEX + INDEX with non-matching transforms (non-preset) → grid", () => {
+		const layout: CoordinateLayout = {
+			system: "cartesian",
+			axis1: { source: { kind: "index" }, transform: { kind: "linear", scale: 7 } },
+			axis2: { source: { kind: "index" }, transform: { kind: "linear", scale: 9 } },
+			perGroup: false,
+		};
+		expect(resolveArrangementFromLayout(layout)).toBe(ARRANGEMENT_GRID);
+	});
+
+	it("non-INDEX, non-RANDOM, non-PROPERTY/DATE → grid (final fallback)", () => {
+		// Hits the final `return ARRANGEMENT_GRID` after all conditionals miss.
+		const layout: CoordinateLayout = {
+			system: "cartesian",
+			axis1: { source: { kind: "metric", metric: "degree" }, transform: { kind: "linear", scale: 1 } },
+			axis2: { source: { kind: "field", field: "depth" }, transform: { kind: "linear", scale: 1 } },
+			perGroup: false,
+		};
+		expect(resolveArrangementFromLayout(layout)).toBe(ARRANGEMENT_GRID);
+	});
+
+	it("PROPERTY axis1 WITHOUT date-to-index → falls through (not timeline)", () => {
+		const layout: CoordinateLayout = {
+			system: "cartesian",
+			axis1: {
+				source: { kind: "property", key: "score" },
+				transform: { kind: "linear", scale: 1 }, // not date-to-index
+			},
+			axis2: { source: { kind: "index" }, transform: { kind: "linear", scale: 1 } },
+			perGroup: true,
+		};
+		// Should NOT return timeline; falls through to grid fallback.
+		expect(resolveArrangementFromLayout(layout)).toBe(ARRANGEMENT_GRID);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// findMatchingPreset / isExactPreset — boundary cases
+// ---------------------------------------------------------------------------
+describe("findMatchingPreset / isExactPreset — boundary cases", () => {
+	it("findMatchingPreset skips the 'custom' entry when iterating", () => {
+		// The 'custom' preset is an arrangement key but the function explicitly
+		// `continue`s past it; ensure we only return non-custom names for a
+		// layout that happens to JSON-equal the 'custom' preset.
+		const customClone: CoordinateLayout = JSON.parse(JSON.stringify(ARRANGEMENT_PRESETS.custom));
+		// findMatchingPreset returns 'custom' (the literal fallback) since the
+		// loop skips name === 'custom' entries. This documents that behavior.
+		expect(findMatchingPreset(customClone)).toBe(ARRANGEMENT_CUSTOM);
+	});
+
+	it("isExactPreset returns true for a deep-cloned preset (JSON identity, not ref identity)", () => {
+		const cloned: CoordinateLayout = JSON.parse(JSON.stringify(ARRANGEMENT_PRESETS.timeline));
+		expect(cloned).not.toBe(ARRANGEMENT_PRESETS.timeline);
+		expect(isExactPreset(cloned)).toBe(true);
+	});
+
+	it("isExactPreset returns false when a key order differs (JSON-string equality)", () => {
+		// JSON.stringify is key-order sensitive (insertion order). Swapping
+		// axis1/axis2 swaps the resulting JSON string and breaks the match.
+		const reordered: CoordinateLayout = {
+			axis2: ARRANGEMENT_PRESETS.grid.axis2,
+			axis1: ARRANGEMENT_PRESETS.grid.axis1,
+			system: "cartesian",
+			perGroup: true,
+		};
+		expect(isExactPreset(reordered)).toBe(false);
+	});
+
+	it("findMatchingPreset returns first hit when 'inherit' has its distinctive linear axes", () => {
+		// 'inherit' uses index+linear on both axes — distinct from grid/triangle.
+		const inheritClone: CoordinateLayout = JSON.parse(JSON.stringify(ARRANGEMENT_PRESETS.inherit));
+		expect(findMatchingPreset(inheritClone)).toBe("inherit");
+	});
+});
+
+// ---------------------------------------------------------------------------
+// resolveCoordinateLayout — additional boundary cases
+// ---------------------------------------------------------------------------
+describe("resolveCoordinateLayout — boundary cases", () => {
+	it("override is returned by reference (no cloning) — caller can mutate", () => {
+		const override: CoordinateLayout = {
+			system: "polar",
+			axis1: { source: { kind: "index" }, transform: { kind: "linear", scale: 1 } },
+			axis2: { source: { kind: "index" }, transform: { kind: "linear", scale: 1 } },
+			perGroup: false,
+		};
+		const out = resolveCoordinateLayout("concentric", override);
+		expect(out).toBe(override); // reference equality
+	});
+
+	it("preset is returned by reference for all known arrangements", () => {
+		for (const name of Object.keys(ARRANGEMENT_PRESETS) as ClusterArrangement[]) {
+			expect(resolveCoordinateLayout(name, null)).toBe(ARRANGEMENT_PRESETS[name]);
+		}
+	});
+});
