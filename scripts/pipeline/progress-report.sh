@@ -14,6 +14,9 @@
 
 set -uo pipefail
 
+# Resolve project root once. R7 paths (REJ_DIR + csv-helpers source) need this.
+PROJECT_DIR="${PROJECT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
+
 HOURS="${1:-6}"
 OUT="/tmp/graph-island-progress.md"
 RESULTS_DIR="/tmp/graph-island-improve-results"
@@ -251,24 +254,34 @@ printf '%s' "$GO_COMMITS"
 # regression is visible in the periodic report instead of only when
 # auto-merge starts rejecting things.
 CI_BLOCK=""
+CI_ALERT=""
 if command -v gh >/dev/null 2>&1; then
   CI_JSON=$(gh run list --limit 30 --json conclusion,status 2>/dev/null || echo "[]")
-  CI_BLOCK=$(printf '%s' "$CI_JSON" | python3 -c "
+  # Single python pass: emits the trend table, then the alert tuple if
+  # success rate drops below thresholds (last30 <50% OR last5 <30%).
+  CI_PARSED=$(printf '%s' "$CI_JSON" | python3 -c "
 import json, sys
 try:
     runs = json.load(sys.stdin)
 except Exception:
     runs = []
 if not runs:
-    print('| - | - | - | - |')
+    print('TABLE\t| - | - | - | - |')
     sys.exit()
 total = len(runs)
 succ = sum(1 for r in runs if r.get('conclusion') == 'success')
 fail = sum(1 for r in runs if r.get('conclusion') == 'failure')
-pending = sum(1 for r in runs if r.get('status') in ('in_progress','queued'))
-rate = (succ * 100.0 / total) if total else 0.0
-print(f'| {total} | {succ} ({rate:.0f}%) | {fail} | {pending} |')
+pend = sum(1 for r in runs if r.get('status') in ('in_progress','queued'))
+last5 = runs[:5]
+l5_succ = sum(1 for r in last5 if r.get('conclusion') == 'success')
+rate30 = succ * 100.0 / total
+rate5  = l5_succ * 100.0 / max(len(last5), 1)
+print(f'TABLE\t| {total} | {succ} ({rate30:.0f}%) | {fail} | {pend} |')
+if rate30 < 50 or rate5 < 30:
+    print(f'ALERT\t{rate30:.0f}|{rate5:.0f}|{succ}/{total}|{l5_succ}/{len(last5)}')
 ")
+  CI_BLOCK=$(printf '%s\n' "$CI_PARSED" | awk -F'\t' '$1=="TABLE"{print $2}')
+  CI_ALERT=$(printf '%s\n' "$CI_PARSED" | awk -F'\t' '$1=="ALERT"{print $2}')
 fi
 
 cat <<EOF
@@ -304,47 +317,14 @@ fi
 
 echo "Wrote ${OUT} ($(wc -l < "$OUT") lines)"
 
-# ── Phase R7 (2026-05-03): CI low-success-rate auto-alert ──
-# When CI has been red for sustained periods, auto-file a critical issue
-# (deduped) so the next status report puts it on the user's radar instead
-# of waiting for them to read progress.md. Same dedupe pattern as the
-# dirty-skip watchdog: only file if no pending alert with the same slug.
-if command -v gh >/dev/null 2>&1; then
-  CI_LOW=$(printf '%s' "$CI_JSON" | python3 -c "
-import json, sys
-try:
-    runs = json.load(sys.stdin)
-except Exception:
-    sys.exit()
-if not runs: sys.exit()
-total = len(runs)
-succ = sum(1 for r in runs if r.get('conclusion') == 'success')
-last5 = runs[:5]
-last5_succ = sum(1 for r in last5 if r.get('conclusion') == 'success')
-rate30 = succ * 100.0 / total if total else 100.0
-rate5  = last5_succ * 100.0 / max(len(last5),1)
-# alert thresholds: <50% over 30 OR <30% over 5
-if rate30 < 50 or rate5 < 30:
-    print(f'{rate30:.0f}|{rate5:.0f}|{succ}/{total}|{last5_succ}/{len(last5)}')
-")
-  if [[ -n "$CI_LOW" ]]; then
-    EXISTING=$(python3 "$PROJECT_DIR/scripts/pipeline/csv_lib.py" select_pending issues 2>/dev/null \
-      | grep -E -- "-ci-red-streak$" | head -1)
-    if [[ -z "$EXISTING" ]]; then
-      IFS='|' read -r RATE30 RATE5 SUCC30 SUCC5 <<< "$CI_LOW"
-      NEXT_ID=$(python3 "$PROJECT_DIR/scripts/pipeline/csv_lib.py" next_id_num 2>/dev/null || echo 9999)
-      ISSUE_ID="${NEXT_ID}-ci-red-streak"
-      DESC="$PROJECT_DIR/scripts/pipeline/descriptions/${ISSUE_ID}.md"
-      mkdir -p "$(dirname "$DESC")"
-      cat > "$DESC" <<EOF2
----
-priority: critical
-reported: $(date -I)
-status: pending
-source: auto-discovered
-summary: CI red streak — last 30 success ${RATE30}% (${SUCC30}), last 5 success ${RATE5}% (${SUCC5})
----
-
+# CI low-success-rate auto-alert. CI_ALERT is populated above by the
+# single-pass python parse if thresholds were breached. Filing uses the
+# shared csv_file_alert helper (dedup + atomic commit under csv flock).
+if [[ -n "$CI_ALERT" ]]; then
+  . "$PROJECT_DIR/scripts/pipeline/csv-helpers.sh"
+  IFS='|' read -r RATE30 RATE5 SUCC30 SUCC5 <<< "$CI_ALERT"
+  SUMMARY="CI red streak — last30=${RATE30}% (${SUCC30}), last5=${RATE5}% (${SUCC5})"
+  BODY=$(cat <<EOF_CI
 ## Detected
 GitHub Actions CI has been failing at a rate that exceeds the alert threshold:
 - Last 30 runs: ${SUCC30} success (${RATE30}%) — threshold 50%
@@ -354,17 +334,11 @@ GitHub Actions CI has been failing at a rate that exceeds the alert threshold:
 1. \`gh run list --limit 5 --json databaseId,conclusion,headBranch\` to see which runs failed
 2. \`gh run view <id> --log-failed\` for the actual error
 3. Likely candidates: typecheck residue, format drift on main, broken import
-4. Counter resets automatically when this issue is closed.
-EOF2
-      python3 "$PROJECT_DIR/scripts/pipeline/csv_lib.py" insert issues "$ISSUE_ID" \
-        priority=critical \
-        source=auto-discovered \
-        "summary=CI red streak — last30=${RATE30}% last5=${RATE5}%" \
-        "description_path=descriptions/${ISSUE_ID}.md" 2>/dev/null \
-      && (cd "$PROJECT_DIR" && git add scripts/pipeline/issues.csv "$DESC" \
-          && git commit -m "chore(alert): CI red streak — last30=${RATE30}% last5=${RATE5}%" --no-verify 2>/dev/null) \
-      && echo "  ALERT FILED: critical issue #${ISSUE_ID} (CI red streak)" \
-      || echo "  ALERT: failed to file CI red streak issue"
-    fi
+EOF_CI
+  )
+  if RESULT=$(csv_file_alert "ci-red-streak" critical "$SUMMARY" "$BODY"); then
+    echo "  ALERT FILED: critical issue #${RESULT} (CI red streak)"
+  else
+    echo "  ALERT SUPPRESSED: pending CI red streak alert already exists"
   fi
 fi
