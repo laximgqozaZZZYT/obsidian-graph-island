@@ -104,6 +104,52 @@ export function getNodeFieldValues(n: GraphNode, field: string): string[] {
 	}
 }
 
+/** Pass 1 of grouping: count how many nodes claim each field value. */
+function countFieldValues(nodes: GraphNode[], field: string): Map<string, number> {
+	const valueCounts = new Map<string, number>();
+	for (const n of nodes) {
+		if (n.isTag) continue;
+		for (const v of getNodeFieldValues(n, field)) {
+			valueCounts.set(v, (valueCounts.get(v) || 0) + 1);
+		}
+	}
+	return valueCounts;
+}
+
+/** Pass 2 of grouping: assign each non-tag node to its largest matching group. */
+function assignNodesToGroups(
+	nodes: GraphNode[],
+	field: string,
+	valueCounts: Map<string, number>,
+): Map<string, string[]> {
+	const groupMap = new Map<string, string[]>();
+	const assigned = new Set<string>();
+	for (const n of nodes) {
+		if (n.isTag || assigned.has(n.id)) continue;
+		const vals = getNodeFieldValues(n, field);
+		if (vals.length === 0) continue;
+		assigned.add(n.id);
+		pushToMapArray(groupMap, pickLargestGroup(vals, valueCounts), n.id);
+	}
+	return groupMap;
+}
+
+/** Materialize GroupSpecs from the assignment map, applying minSize and filter. */
+function buildGroupSpecs(
+	groupMap: Map<string, string[]>,
+	field: string,
+	minSize: number,
+	filterTokens: string[],
+): GroupSpec[] {
+	const groups: GroupSpec[] = [];
+	for (const [val, memberIds] of groupMap) {
+		if (memberIds.length < minSize) continue;
+		if (!matchesFilter(val, filterTokens)) continue;
+		groups.push({ key: `${field}:${val}`, label: val, memberIds });
+	}
+	return groups;
+}
+
 /**
  * Generic grouping: group nodes by any field name.
  * For multi-value fields (e.g. tag), each node is assigned to its largest group
@@ -113,36 +159,9 @@ export function groupNodesByField(nodes: GraphNode[], field: string, opts?: Grou
 	if (!field || field === "none") return [];
 	const minSize = opts?.minSize ?? 2;
 	const filterTokens = parseFilter(opts?.filter);
-
-	// Pass 1: count members per value
-	const valueCounts = new Map<string, number>();
-	for (const n of nodes) {
-		if (n.isTag) continue;
-		for (const v of getNodeFieldValues(n, field)) {
-			valueCounts.set(v, (valueCounts.get(v) || 0) + 1);
-		}
-	}
-
-	// Pass 2: assign each node to its largest-valued group (dedup)
-	const groupMap = new Map<string, string[]>();
-	const assigned = new Set<string>();
-	for (const n of nodes) {
-		if (n.isTag) continue;
-		if (assigned.has(n.id)) continue;
-		const vals = getNodeFieldValues(n, field);
-		if (vals.length === 0) continue;
-		const bestVal = pickLargestGroup(vals, valueCounts);
-		assigned.add(n.id);
-		pushToMapArray(groupMap, bestVal, n.id);
-	}
-
-	const groups: GroupSpec[] = [];
-	for (const [val, memberIds] of groupMap) {
-		if (memberIds.length < minSize) continue;
-		if (!matchesFilter(val, filterTokens)) continue;
-		groups.push({ key: `${field}:${val}`, label: val, memberIds });
-	}
-	return groups;
+	const valueCounts = countFieldValues(nodes, field);
+	const groupMap = assignNodesToGroups(nodes, field, valueCounts);
+	return buildGroupSpecs(groupMap, field, minSize, filterTokens);
 }
 
 interface MemberSummary {
@@ -230,6 +249,62 @@ export function collapseGroup(data: GraphData, group: GroupSpec): GraphData {
 	return { nodes: newNodes, edges: newEdges };
 }
 
+/** Restore member nodes from original data, positioned in a circle around the super node. */
+function restoreMembersInCircle(
+	memberIds: Set<string>,
+	originalNodeMap: Map<string, GraphNode>,
+	superNode: GraphNode,
+): GraphNode[] {
+	const restored: GraphNode[] = [];
+	const memberCount = memberIds.size;
+	const spreadRadius = Math.sqrt(memberCount) * 20;
+	let idx = 0;
+	for (const mid of memberIds) {
+		const orig = originalNodeMap.get(mid);
+		if (orig) {
+			const angle = (2 * Math.PI * idx) / memberCount;
+			restored.push({
+				...orig,
+				x: superNode.x + Math.cos(angle) * spreadRadius,
+				y: superNode.y + Math.sin(angle) * spreadRadius,
+				collapsedInto: undefined,
+			});
+		}
+		idx++;
+	}
+	return restored;
+}
+
+/** Rebuild edges after expanding a super node: keep current non-super edges + restore member edges. */
+function rebuildExpandedEdges(
+	currentEdges: GraphEdge[],
+	originalEdges: GraphEdge[],
+	superNodeId: string,
+	activeNodeIds: Set<string>,
+): GraphEdge[] {
+	const newEdges: GraphEdge[] = [];
+	const seenEdges = new Set<string>();
+	const addUnique = (key: string, edge: GraphEdge): void => {
+		if (seenEdges.has(key)) return;
+		seenEdges.add(key);
+		newEdges.push(edge);
+	};
+
+	for (const e of currentEdges) {
+		if (e.source === superNodeId || e.target === superNodeId) continue;
+		addUnique(`${e.source}->${e.target}`, e);
+	}
+
+	for (const e of originalEdges) {
+		const src = edgeSourceId(e);
+		const tgt = edgeTargetId(e);
+		if (!activeNodeIds.has(src) || !activeNodeIds.has(tgt)) continue;
+		addUnique(`${src}->${tgt}`, { ...e, source: src, target: tgt });
+	}
+
+	return newEdges;
+}
+
 /**
  * Expand a super node: restore its member nodes and edges from originalData.
  * Returns a new GraphData (does not mutate the input).
@@ -244,58 +319,11 @@ export function expandGroup(data: GraphData, superNodeId: string, originalData: 
 		originalNodeMap.set(n.id, n);
 	}
 
-	// Remove super node, add back members
-	const newNodes: GraphNode[] = [];
-	for (const n of data.nodes) {
-		if (n.id === superNodeId) continue;
-		newNodes.push(n);
-	}
+	const newNodes = data.nodes.filter((n) => n.id !== superNodeId);
+	newNodes.push(...restoreMembersInCircle(memberIds, originalNodeMap, superNode));
 
-	// Restore member nodes from original data, positioned around super node location
-	const memberCount = memberIds.size;
-	let idx = 0;
-	for (const mid of memberIds) {
-		const orig = originalNodeMap.get(mid);
-		if (orig) {
-			// Position members in a circle around the super node's position
-			const angle = (2 * Math.PI * idx) / memberCount;
-			const spreadRadius = Math.sqrt(memberCount) * 20;
-			newNodes.push({
-				...orig,
-				x: superNode.x + Math.cos(angle) * spreadRadius,
-				y: superNode.y + Math.sin(angle) * spreadRadius,
-				collapsedInto: undefined,
-			});
-		}
-		idx++;
-	}
-
-	// Rebuild edges: remove rerouted edges, restore original edges for members
 	const activeNodeIds = new Set(newNodes.map((n) => n.id));
-	const newEdges: GraphEdge[] = [];
-	const seenEdges = new Set<string>();
-
-	// First, add non-rerouted edges from current data (skip super-node edges)
-	for (const e of data.edges) {
-		if (e.source === superNodeId || e.target === superNodeId) continue;
-		const key = `${e.source}->${e.target}`;
-		if (!seenEdges.has(key)) {
-			seenEdges.add(key);
-			newEdges.push(e);
-		}
-	}
-
-	// Restore original edges involving member nodes
-	for (const e of originalData.edges) {
-		const src = edgeSourceId(e);
-		const tgt = edgeTargetId(e);
-		if (!activeNodeIds.has(src) || !activeNodeIds.has(tgt)) continue;
-		const key = `${src}->${tgt}`;
-		if (!seenEdges.has(key)) {
-			seenEdges.add(key);
-			newEdges.push({ ...e, source: src, target: tgt });
-		}
-	}
+	const newEdges = rebuildExpandedEdges(data.edges, originalData.edges, superNodeId, activeNodeIds);
 
 	return { nodes: newNodes, edges: newEdges };
 }
