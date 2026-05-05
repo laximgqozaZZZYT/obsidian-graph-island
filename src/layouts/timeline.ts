@@ -80,18 +80,55 @@ export function buildTimelineDAG(edges: GraphEdge[], nodesWithTime: Set<string>)
 // Legacy assignLanes (kept for test compat)
 // ---------------------------------------------------------------------------
 
-export function assignLanes(dag: Map<string, string[]>, timeIndex: Map<string, number>): Map<string, number> {
-	const laneMap = new Map<string, number>();
+function _buildInDegree(dag: Map<string, string[]>): Map<string, number> {
 	const inDegree = new Map<string, number>();
 	for (const id of dag.keys()) inDegree.set(id, 0);
 	for (const [, targets] of dag) {
 		for (const t of targets) inDegree.set(t, (inDegree.get(t) ?? 0) + 1);
 	}
+	return inDegree;
+}
+
+function _findRootsByTime(inDegree: Map<string, number>, timeIndex: Map<string, number>): string[] {
 	const roots: string[] = [];
 	for (const [id, deg] of inDegree) {
 		if (deg === 0) roots.push(id);
 	}
 	roots.sort((a, b) => (timeIndex.get(a) ?? 0) - (timeIndex.get(b) ?? 0));
+	return roots;
+}
+
+function _sortedChildren(dag: Map<string, string[]>, parent: string, timeIndex: Map<string, number>): string[] {
+	return [...(dag.get(parent) ?? [])].sort((a, b) => (timeIndex.get(a) ?? 0) - (timeIndex.get(b) ?? 0));
+}
+
+function _assignBfsLanesFromRoot(
+	root: string,
+	dag: Map<string, string[]>,
+	timeIndex: Map<string, number>,
+	laneMap: Map<string, number>,
+	startLane: number,
+): number {
+	let nextLane = startLane;
+	laneMap.set(root, nextLane);
+	const queue: string[] = [root];
+	while (queue.length > 0) {
+		const current = queue.shift()!;
+		const sorted = _sortedChildren(dag, current, timeIndex);
+		for (let i = 0; i < sorted.length; i++) {
+			const child = sorted[i];
+			if (laneMap.has(child)) continue;
+			laneMap.set(child, i === 0 ? laneMap.get(current)! : ++nextLane);
+			queue.push(child);
+		}
+	}
+	return nextLane;
+}
+
+export function assignLanes(dag: Map<string, string[]>, timeIndex: Map<string, number>): Map<string, number> {
+	const laneMap = new Map<string, number>();
+	const inDegree = _buildInDegree(dag);
+	const roots = _findRootsByTime(inDegree, timeIndex);
 	if (roots.length === 0) {
 		for (const id of dag.keys()) laneMap.set(id, 0);
 		return laneMap;
@@ -99,20 +136,7 @@ export function assignLanes(dag: Map<string, string[]>, timeIndex: Map<string, n
 	let nextLane = 0;
 	for (const root of roots) {
 		if (laneMap.has(root)) continue;
-		laneMap.set(root, nextLane);
-		const queue: string[] = [root];
-		while (queue.length > 0) {
-			const current = queue.shift()!;
-			const sorted = [...(dag.get(current) ?? [])].sort(
-				(a, b) => (timeIndex.get(a) ?? 0) - (timeIndex.get(b) ?? 0),
-			);
-			for (let i = 0; i < sorted.length; i++) {
-				const child = sorted[i];
-				if (laneMap.has(child)) continue;
-				laneMap.set(child, i === 0 ? laneMap.get(current)! : ++nextLane);
-				queue.push(child);
-			}
-		}
+		nextLane = _assignBfsLanesFromRoot(root, dag, timeIndex, laneMap, nextLane);
 		nextLane++;
 	}
 	return laneMap;
