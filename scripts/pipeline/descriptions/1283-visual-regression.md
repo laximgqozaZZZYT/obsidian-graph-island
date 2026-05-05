@@ -18,7 +18,7 @@ overallScore = 78 だが、上記 2 つの critical/warning を 50 以上に引�
 ## Root cause hypothesis
 
 ### labelReadability
-`src/types.ts:1624` で `labelMinVisibleFloor` が定義されている (現値は同所参照)。
+`src/types.ts:1624` で `labelMinVisibleFloor` が定義されている。
 `src/views/LabelManager.ts:509` で `const minFloor = rt.labelMinVisibleFloor ?? 0;` を読み取り、
 そのフロア値ぶんは visible になるよう底上げするはず。にも関わらず 6 件しか出ていない →
 フロア適用が `labelMinNonSuper` / `labelMinNonSuperZoomedOut` (types.ts:1597-1599) より
