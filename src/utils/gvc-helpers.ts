@@ -2,7 +2,7 @@
  * Pure utility functions extracted from GraphViewContainer.ts.
  * These functions are stateless and have no dependency on the GVC class.
  */
-import type { ClusterGroupRule, GroupPreset } from "../types";
+import type { ClusterGroupRule, GraphNode, GroupPreset } from "../types";
 import { parseQueryExpr, serializeExpr } from "./query-expr";
 import { hexToRgb } from "./color";
 
@@ -83,6 +83,72 @@ export function areSavedPositionsValid(
 		}
 	}
 	return true;
+}
+
+/** Fade-in spiral constants (golden-angle Fermat). */
+const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
+const FADE_RING_BASE = 22;
+const FADE_RING_STEP = 2.4;
+
+export interface SeedForceLayoutOptions {
+	fade: { stagger: Map<string, number>; originX: number; originY: number } | null;
+	savedPositions: Map<string, { x: number; y: number }>;
+	savedPositionsValid: boolean;
+	pinnedPositions: Record<string, { x: number; y: number }>;
+	cx: number;
+	cy: number;
+	W: number;
+	H: number;
+	maxReasonableCoord: number;
+	/** Random source (defaults to Math.random); injectable for tests. */
+	rng?: () => number;
+}
+
+/**
+ * Seed initial node positions before force-layout begins. Mutates each node's
+ * x/y/vx/vy/fx/fy in place. Three placement modes (priority order):
+ *   1. fade-in member → golden-angle spiral around fade origin
+ *   2. saved position from prior layout → reuse if savedPositionsValid
+ *   3. fallback → random within canvas (only if current x/y is invalid/extreme)
+ * Pinned positions then override and lock (fx/fy).
+ */
+export function seedForceLayoutPositions(nodes: GraphNode[], opts: SeedForceLayoutOptions): void {
+	const { fade, savedPositions, savedPositionsValid, pinnedPositions, cx, cy, W, H, maxReasonableCoord } = opts;
+	const rng = opts.rng ?? Math.random;
+	let fadeIdx = 0;
+	for (const n of nodes) {
+		if (fade && fade.stagger.has(n.id)) {
+			const r = FADE_RING_BASE + Math.sqrt(fadeIdx) * FADE_RING_STEP * 3;
+			const theta = fadeIdx * GOLDEN_ANGLE;
+			n.x = fade.originX + Math.cos(theta) * r;
+			n.y = fade.originY + Math.sin(theta) * r;
+			n.vx = Math.cos(theta) * 0.8;
+			n.vy = Math.sin(theta) * 0.8;
+			fadeIdx++;
+			continue;
+		}
+		const saved = savedPositionsValid ? savedPositions.get(n.id) : undefined;
+		if (saved) {
+			n.x = saved.x;
+			n.y = saved.y;
+		} else if (
+			!isFinite(n.x) ||
+			!isFinite(n.y) ||
+			(n.x === 0 && n.y === 0) ||
+			Math.abs(n.x) > maxReasonableCoord ||
+			Math.abs(n.y) > maxReasonableCoord
+		) {
+			n.x = cx + (rng() - 0.5) * W * 0.8;
+			n.y = cy + (rng() - 0.5) * H * 0.8;
+		}
+		const pinned = pinnedPositions[n.id];
+		if (pinned) {
+			n.x = pinned.x;
+			n.y = pinned.y;
+			n.fx = pinned.x;
+			n.fy = pinned.y;
+		}
+	}
 }
 
 /** Lighten a hex color by a factor (0–1). factor=0.2 means 20% lighter. */
