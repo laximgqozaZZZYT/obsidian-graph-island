@@ -12,7 +12,14 @@
  *      the suite).
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { extractFrontmatterImage, isNodeOnScreen, createThumbnailClone } from "../../src/views/thumbnail-helpers";
+import { TFile } from "obsidian";
+import type { Vault } from "obsidian";
+import {
+	extractFrontmatterImage,
+	isNodeOnScreen,
+	createThumbnailClone,
+	resolveThumbnailUrl,
+} from "../../src/views/thumbnail-helpers";
 
 describe("extractFrontmatterImage", () => {
 	it("prefers `image` over `thumbnail` and `cover`", () => {
@@ -140,5 +147,97 @@ describe("createThumbnailClone", () => {
 		const clone = createThumbnailClone(src, 10, 20, 30);
 		expect(clone).not.toBe(src);
 		expect(src).toEqual({ src: "orig.png" });
+	});
+});
+
+// ---------------------------------------------------------------------------
+// resolveThumbnailUrl — boundary tests
+// 4 ブランチを境界値でカバー: HTTP通過 / 直接パスヒット / 先頭スラッシュ除去後ヒット / null
+// ---------------------------------------------------------------------------
+describe("resolveThumbnailUrl", () => {
+	// Build a Vault stub with controllable getAbstractFileByPath + getResourcePath.
+	function makeVault(opts: { registry?: Record<string, unknown>; resourcePath?: (tf: TFile) => string }): Vault {
+		const registry = opts.registry ?? {};
+		const resourcePath = opts.resourcePath ?? ((_tf: TFile) => "app://local/resolved");
+		return {
+			getAbstractFileByPath: (p: string) => registry[p] ?? null,
+			getResourcePath: (tf: TFile) => resourcePath(tf),
+		} as unknown as Vault;
+	}
+
+	it("returns http:// URL unchanged without touching the vault", () => {
+		const vault = makeVault({});
+		expect(resolveThumbnailUrl("http://example.com/img.png", vault)).toBe("http://example.com/img.png");
+	});
+
+	it("returns https:// URL unchanged without touching the vault", () => {
+		const vault = makeVault({});
+		expect(resolveThumbnailUrl("https://example.com/cdn/img.jpg", vault)).toBe("https://example.com/cdn/img.jpg");
+	});
+
+	it("resolves direct vault path through getResourcePath", () => {
+		const tf = new TFile();
+		tf.path = "Assets/photo.png";
+		const vault = makeVault({
+			registry: { "Assets/photo.png": tf },
+			resourcePath: (t) => `app://local/${(t as TFile).path}`,
+		});
+		expect(resolveThumbnailUrl("Assets/photo.png", vault)).toBe("app://local/Assets/photo.png");
+	});
+
+	it("strips leading slash and retries lookup (cleanPath fallback)", () => {
+		const tf = new TFile();
+		tf.path = "img.png";
+		const vault = makeVault({
+			// Only the cleaned (no-leading-slash) path resolves.
+			registry: { "img.png": tf },
+			resourcePath: () => "app://local/img.png",
+		});
+		expect(resolveThumbnailUrl("/img.png", vault)).toBe("app://local/img.png");
+	});
+
+	it("strips multiple leading slashes (regex /^\\/+/) before retry", () => {
+		const tf = new TFile();
+		const vault = makeVault({
+			registry: { "deep/file.png": tf },
+			resourcePath: () => "app://local/deep/file.png",
+		});
+		expect(resolveThumbnailUrl("///deep/file.png", vault)).toBe("app://local/deep/file.png");
+	});
+
+	it("returns null when path is not in vault (both direct and cleaned lookups miss)", () => {
+		const vault = makeVault({ registry: {} });
+		expect(resolveThumbnailUrl("missing.png", vault)).toBeNull();
+		expect(resolveThumbnailUrl("/missing.png", vault)).toBeNull();
+	});
+
+	it("returns null when getAbstractFileByPath returns a non-TFile (e.g. folder)", () => {
+		// A TFolder (or any non-TFile object) should fail the `instanceof TFile` guard.
+		class TFolder {}
+		const folder = new TFolder();
+		const vault = makeVault({ registry: { "folder/sub": folder } });
+		expect(resolveThumbnailUrl("folder/sub", vault)).toBeNull();
+	});
+
+	it("does not strip leading slashes for absolute http(s) URLs (URL guard takes precedence)", () => {
+		// Although https:// has slashes, the URL prefix check fires first → no vault lookup.
+		const vault = makeVault({ registry: {} });
+		expect(resolveThumbnailUrl("https://x.test/a.png", vault)).toBe("https://x.test/a.png");
+	});
+
+	it("treats path with no leading slash and direct match as primary lookup (no cleanup retry)", () => {
+		// Verifies the early-return on the primary lookup — second lookup is skipped.
+		const tf = new TFile();
+		let primaryCalls = 0;
+		const vault = {
+			getAbstractFileByPath: (p: string) => {
+				primaryCalls++;
+				return p === "exact.png" ? tf : null;
+			},
+			getResourcePath: () => "app://local/exact.png",
+		} as unknown as Vault;
+		expect(resolveThumbnailUrl("exact.png", vault)).toBe("app://local/exact.png");
+		// Only one call: cleanPath retry is short-circuited because primary hit.
+		expect(primaryCalls).toBe(1);
 	});
 });
