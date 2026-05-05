@@ -755,3 +755,143 @@ export const PATHFINDER_LABEL_FONT_SIZE = 11;
 export const PATHFINDER_LABEL_OFFSET_X = 6;
 /** Vertical offset (px, negative = upward) of the hop-count label */
 export const PATHFINDER_LABEL_OFFSET_Y = -14;
+
+// ===========================================================================
+// ---- Render pipeline utilities (render-pipeline-utils.ts) ----
+// Glow attenuation, zone placement anchor thresholds, label Y offset.
+// ===========================================================================
+
+/** Glow attenuation node count threshold (above this, glow starts fading) */
+export const GLOW_ATTENUATE_THRESHOLD = 300;
+/** Glow attenuation range (from threshold to threshold+range, glow fades to zero) */
+export const GLOW_ATTENUATE_RANGE = 500;
+/** Glow radius attenuation max factor */
+export const GLOW_RADIUS_ATTENUATE_FACTOR = 0.7;
+/** P90 percentile fraction for hub node glow detection */
+export const GLOW_P90_FRACTION = 0.9;
+/** Zone placement text-anchor cosine threshold (positive side) */
+export const ZONE_ANCHOR_COS_POSITIVE = 0.3;
+/** Zone placement text-anchor cosine threshold (negative side) */
+export const ZONE_ANCHOR_COS_NEGATIVE = -0.3;
+/** Default label Y-offset as a fraction of node radius */
+export const LABEL_Y_OFFSET_FACTOR = 0.4;
+
+// ===========================================================================
+// ---- Node-decoration extras (node-decorations.ts) ----
+// Pathfinder marker geometry and compare-mode ring styling.
+// (INDICATOR_RING_ALPHA already defined in the Render pipeline section above.)
+// ===========================================================================
+
+/** Pathfinder line width for start/end nodes */
+export const PF_ENDPOINT_LINE_WIDTH = 3;
+/** Pathfinder line width for intermediate path nodes */
+export const PF_INTERMEDIATE_LINE_WIDTH = 2;
+/** Pathfinder radius padding for start/end nodes */
+export const PF_ENDPOINT_RADIUS_PAD = 6;
+/** Pathfinder radius padding for intermediate path nodes */
+export const PF_INTERMEDIATE_RADIUS_PAD = 3;
+/** Compare-selection ring stroke width */
+export const COMPARE_RING_LINE_WIDTH = 2.5;
+/** Compare-selection ring radius padding */
+export const COMPARE_RING_RADIUS_PAD = 8;
+/** Compare-selection ring color (magenta) */
+export const COMPARE_RING_COLOR = 0xe879f9;
+/** Compare-selection ring alpha */
+export const COMPARE_RING_ALPHA = 0.85;
+/** Compare-selection ring dashed-segment count */
+export const COMPARE_RING_SEGMENTS = 8;
+/** Compare-selection ring gap fraction within each segment */
+export const COMPARE_RING_GAP = 0.3;
+
+// ===========================================================================
+// ---- Card mode rendering (card-renderer.ts) ----
+// Font families, sizes, and icon ratios for table-card / plain-card modes.
+// ===========================================================================
+
+/** Font family for card text */
+export const CARD_FONT_FAMILY = "-apple-system, BlinkMacSystemFont, sans-serif";
+/** Maximum counter-scale factor for card mode (prevents enormous cards at extreme zoom-out) */
+export const CARD_SCALE_CAP = 8;
+/** Card icon shape proportions (folded-corner notepad icon) */
+export const CARD_ICON = {
+	SIZE_RATIO: 0.55,
+	FOLD_RATIO: 0.28,
+	OUTLINE_ALPHA: 0.7,
+	FILL_ALPHA: 0.25,
+	FOLD_ALPHA: 0.15,
+} as const;
+/** Plain-card layout constants (no field rows — title + optional body) */
+export const PLAIN_CARD = {
+	TITLE_FONT_MIN: 3,
+	BODY_FONT_MIN: 2,
+	PAD: 4,
+	BODY_LINE_HEIGHT: 1.4,
+} as const;
+/** Semantic-zoom full card font sizes (tier 4 = name + definition + preview) */
+export const FULL_CARD_FONT_BASE = 10;
+export const FULL_CARD_FONT_MIN = 7;
+/** Line height multiplier for card text (vertical spacing between lines) */
+export const CARD_LINE_HEIGHT = 1.3;
+/** Ratio of sub-field font to header font in semantic-zoom cards */
+export const CARD_SUB_FONT_RATIO = 0.85;
+/** Semantic-zoom compact card font sizes (tier 3 = compact labels) */
+export const COMPACT_CARD_FONT_MIN = 6;
+export const COMPACT_CARD_FONT_BASE = 9;
+
+// ===========================================================================
+// ---- Minimap (Minimap.ts) ----
+// Overlay dimensions, density-based dot scaling, viewport rectangle styling.
+// ===========================================================================
+
+export const MINIMAP_WIDTH = 180;
+export const MINIMAP_HEIGHT = 120;
+/** World bounds padding for node extent calculation */
+export const MINIMAP_BOUNDS_PAD = 50;
+/** Dot radius scale threshold — large graphs (>2000 nodes) */
+export const MINIMAP_LARGE_GRAPH_THRESHOLD = 2000;
+/** Dot radius scale threshold — medium graphs (>500 nodes) */
+export const MINIMAP_MEDIUM_GRAPH_THRESHOLD = 500;
+/** Dot radius multiplier for large graphs */
+export const MINIMAP_DOT_SCALE_LARGE = 0.6;
+/** Dot radius multiplier for medium graphs */
+export const MINIMAP_DOT_SCALE_MEDIUM = 0.8;
+/** Viewport rectangle stroke width */
+export const MINIMAP_VIEWPORT_LINE_WIDTH = 1.5;
+/** Minimum viewport rect dimension to trigger drawing */
+export const MINIMAP_VIEWPORT_MIN_SIZE = 2;
+
+// ===========================================================================
+// ---- Diff overlay (DiffOverlay.ts) ----
+// Snapshot diff overlay colors, ring/ghost geometry, status bar styling.
+// ===========================================================================
+
+/** Added-node ring color (green) */
+export const DIFF_ADDED_COLOR = "#22c55e";
+/** Removed-node color (gray) */
+export const DIFF_REMOVED_COLOR = "#9ca3af";
+/** Removed-node fill alpha */
+export const DIFF_REMOVED_ALPHA = 0.3;
+/** Metadata-changed-node ring color (yellow) */
+export const DIFF_CHANGED_COLOR = "#eab308";
+/** Added-edge color (green) */
+export const DIFF_ADDED_EDGE_COLOR = "#22c55e";
+/** Removed-edge color (red) */
+export const DIFF_REMOVED_EDGE_COLOR = "#ef4444";
+/** Ring stroke width (px) */
+export const DIFF_RING_LINE_WIDTH = 2;
+/** Ghost-node radius (px) */
+export const DIFF_GHOST_RADIUS = 6;
+/** Ghost-node grid spacing (px) */
+export const DIFF_GHOST_SPACING = 24;
+/** Ghost-node label font size (px) */
+export const DIFF_GHOST_FONT_SIZE = 9;
+/** Ghost-area margin from viewport edge (px) */
+export const DIFF_GHOST_MARGIN = 40;
+/** Status-bar background color */
+export const DIFF_STATUS_BG = "rgba(0, 0, 0, 0.6)";
+/** Status-bar text color */
+export const DIFF_STATUS_TEXT_COLOR = "#ffffff";
+/** Status-bar font size (px) */
+export const DIFF_STATUS_FONT_SIZE = 12;
+/** Status-bar padding (px) */
+export const DIFF_STATUS_PADDING = 8;

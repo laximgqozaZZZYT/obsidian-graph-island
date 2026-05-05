@@ -8,45 +8,23 @@
 import type { SnapshotDiff, SnapshotNode } from "../types";
 import type { PixiNode } from "./InteractionManager";
 import { t } from "../i18n";
-
-// ---------------------------------------------------------------------------
-// 描画定数
-// ---------------------------------------------------------------------------
-
-/** 追加ノードのリング色（緑） */
-const ADDED_COLOR = "#22c55e";
-/** 削除ノードの色（グレー） */
-const REMOVED_COLOR = "#9ca3af";
-/** 削除ノードのフィルアルファ */
-const REMOVED_ALPHA = 0.3;
-
-/** メタデータ変更ノードのリング色（黄色） */
-const CHANGED_COLOR = "#eab308";
-/** 追加エッジの色（緑） */
-const ADDED_EDGE_COLOR = "#22c55e";
-/** 削除エッジの色（赤） */
-const REMOVED_EDGE_COLOR = "#ef4444";
-
-/** リングの線幅（px） */
-const RING_LINE_WIDTH = 2;
-
-/** ゴーストノードの半径（px） */
-const GHOST_RADIUS = 6;
-/** ゴーストノードのグリッド間隔（px） */
-const GHOST_SPACING = 24;
-/** ゴーストノードのラベルフォントサイズ（px） */
-const GHOST_FONT_SIZE = 9;
-/** ゴーストエリアのビューポート端からのマージン（px） */
-const GHOST_MARGIN = 40;
-
-/** ステータスバーの背景色 */
-const STATUS_BG = "rgba(0, 0, 0, 0.6)";
-/** ステータスバーのテキスト色 */
-const STATUS_TEXT_COLOR = "#ffffff";
-/** ステータスバーのフォントサイズ（px） */
-const STATUS_FONT_SIZE = 12;
-/** ステータスバーの余白（px） */
-const STATUS_PADDING = 8;
+import {
+	DIFF_ADDED_COLOR,
+	DIFF_REMOVED_COLOR,
+	DIFF_REMOVED_ALPHA,
+	DIFF_CHANGED_COLOR,
+	DIFF_ADDED_EDGE_COLOR,
+	DIFF_REMOVED_EDGE_COLOR,
+	DIFF_DIFF_RING_LINE_WIDTH,
+	DIFF_DIFF_GHOST_RADIUS,
+	DIFF_DIFF_GHOST_SPACING,
+	DIFF_DIFF_GHOST_FONT_SIZE,
+	DIFF_DIFF_GHOST_MARGIN,
+	DIFF_DIFF_STATUS_BG,
+	DIFF_DIFF_STATUS_TEXT_COLOR,
+	DIFF_STATUS_FONT_SIZE,
+	DIFF_STATUS_PADDING,
+} from "../constants";
 
 export class DiffOverlay {
 	private diff: SnapshotDiff | null = null;
@@ -126,12 +104,12 @@ export class DiffOverlay {
 
 		// --- ノードリング描画（追加=緑、変更=黄） ---
 		const ringLayers: Array<{ ids: Set<string>; color: string; alphaScale: number }> = [
-			{ ids: this.diff.addedNodeIds, color: ADDED_COLOR, alphaScale: 1 },
-			{ ids: this.diff.changedNodeIds, color: CHANGED_COLOR, alphaScale: 0.9 },
+			{ ids: this.diff.addedNodeIds, color: DIFF_ADDED_COLOR, alphaScale: 1 },
+			{ ids: this.diff.changedNodeIds, color: DIFF_CHANGED_COLOR, alphaScale: 0.9 },
 		];
 		for (const { ids, color, alphaScale } of ringLayers) {
 			ctx.strokeStyle = color;
-			ctx.lineWidth = RING_LINE_WIDTH * pulseScale;
+			ctx.lineWidth = DIFF_RING_LINE_WIDTH * pulseScale;
 			ctx.globalAlpha = pulseAlpha * alphaScale;
 			for (const nodeId of ids) {
 				const pn = pixiNodes.get(nodeId);
@@ -145,7 +123,7 @@ export class DiffOverlay {
 		}
 
 		// --- 追加エッジ（緑の実線） ---
-		ctx.strokeStyle = ADDED_EDGE_COLOR;
+		ctx.strokeStyle = DIFF_ADDED_EDGE_COLOR;
 		ctx.lineWidth = 2;
 		ctx.globalAlpha = 0.5;
 		ctx.setLineDash([]);
@@ -189,35 +167,35 @@ export class DiffOverlay {
 		ghostPositions: Array<{ x: number; y: number }>,
 		removedNodes: SnapshotNode[],
 	): void {
-		ctx.fillStyle = REMOVED_COLOR;
-		ctx.globalAlpha = REMOVED_ALPHA;
+		ctx.fillStyle = DIFF_REMOVED_COLOR;
+		ctx.globalAlpha = DIFF_REMOVED_ALPHA;
 		for (const { x, y } of ghostPositions) {
 			ctx.beginPath();
-			ctx.arc(x, y, GHOST_RADIUS, 0, Math.PI * 2);
+			ctx.arc(x, y, DIFF_GHOST_RADIUS, 0, Math.PI * 2);
 			ctx.fill();
 		}
 
 		// ラベル
-		ctx.fillStyle = REMOVED_COLOR;
+		ctx.fillStyle = DIFF_REMOVED_COLOR;
 		ctx.globalAlpha = 0.5;
-		ctx.font = `${GHOST_FONT_SIZE}px sans-serif`;
+		ctx.font = `${DIFF_GHOST_FONT_SIZE}px sans-serif`;
 		ctx.textAlign = "center";
 		ctx.textBaseline = "top";
 		for (let i = 0; i < ghostPositions.length; i++) {
 			const { x, y } = ghostPositions[i];
-			ctx.fillText(ghostLabel(removedNodes[i].id), x, y + GHOST_RADIUS + 2);
+			ctx.fillText(ghostLabel(removedNodes[i].id), x, y + DIFF_GHOST_RADIUS + 2);
 		}
 
 		// オーバーフロー表示
 		const overflow = removedNodes.length - ghostPositions.length;
 		if (overflow > 0 && ghostPositions.length > 0) {
 			const last = ghostPositions[ghostPositions.length - 1];
-			ctx.fillStyle = REMOVED_COLOR;
+			ctx.fillStyle = DIFF_REMOVED_COLOR;
 			ctx.globalAlpha = 0.6;
-			ctx.font = `bold ${GHOST_FONT_SIZE + 1}px sans-serif`;
+			ctx.font = `bold ${DIFF_GHOST_FONT_SIZE + 1}px sans-serif`;
 			ctx.textAlign = "center";
 			ctx.textBaseline = "top";
-			ctx.fillText(`+${overflow} more`, last.x, last.y + GHOST_RADIUS + GHOST_FONT_SIZE + 4);
+			ctx.fillText(`+${overflow} more`, last.x, last.y + DIFF_GHOST_RADIUS + DIFF_GHOST_FONT_SIZE + 4);
 		}
 	}
 
@@ -299,14 +277,14 @@ export class DiffOverlay {
 
 		// 背景
 		ctx.globalAlpha = 0.7;
-		ctx.fillStyle = STATUS_BG;
+		ctx.fillStyle = DIFF_STATUS_BG;
 		ctx.beginPath();
 		ctx.roundRect(barX, barY, barW, barH, 4);
 		ctx.fill();
 
 		// テキスト
 		ctx.globalAlpha = 1;
-		ctx.fillStyle = STATUS_TEXT_COLOR;
+		ctx.fillStyle = DIFF_STATUS_TEXT_COLOR;
 		ctx.textAlign = "left";
 		ctx.textBaseline = "middle";
 		ctx.fillText(text, barX + STATUS_PADDING, barY + barH / 2);
@@ -390,16 +368,20 @@ export class DiffOverlay {
 		});
 
 		const sections: Array<{ title: string; ids: string[]; color: string; ghost?: boolean }> = [
-			{ title: `Added (${this.diff.addedNodeIds.size})`, ids: [...this.diff.addedNodeIds], color: ADDED_COLOR },
+			{
+				title: `Added (${this.diff.addedNodeIds.size})`,
+				ids: [...this.diff.addedNodeIds],
+				color: DIFF_ADDED_COLOR,
+			},
 			{
 				title: `Changed (${this.diff.changedNodeIds.size})`,
 				ids: [...this.diff.changedNodeIds],
-				color: CHANGED_COLOR,
+				color: DIFF_CHANGED_COLOR,
 			},
 			{
 				title: `Removed (${this.diff.removedNodes.length})`,
 				ids: this.diff.removedNodes.map((n) => n.id),
-				color: REMOVED_COLOR,
+				color: DIFF_REMOVED_COLOR,
 				ghost: true,
 			},
 		];
@@ -493,11 +475,11 @@ export function layoutGhostNodes(
 ): Array<{ x: number; y: number }> {
 	if (count <= 0) return [];
 
-	const cols = Math.max(1, Math.floor((viewport.width * 0.3) / GHOST_SPACING));
-	const startX = viewport.width - GHOST_MARGIN;
-	const startY = viewport.height - GHOST_MARGIN;
+	const cols = Math.max(1, Math.floor((viewport.width * 0.3) / DIFF_GHOST_SPACING));
+	const startX = viewport.width - DIFF_GHOST_MARGIN;
+	const startY = viewport.height - DIFF_GHOST_MARGIN;
 
-	const maxRows = Math.max(1, Math.floor((viewport.height * 0.7) / GHOST_SPACING));
+	const maxRows = Math.max(1, Math.floor((viewport.height * 0.7) / DIFF_GHOST_SPACING));
 	const maxVisible = maxRows * cols;
 	const visible = Math.min(count, maxVisible);
 
@@ -506,8 +488,8 @@ export function layoutGhostNodes(
 		const col = i % cols;
 		const row = Math.floor(i / cols);
 		positions.push({
-			x: startX - col * GHOST_SPACING,
-			y: startY - row * GHOST_SPACING,
+			x: startX - col * DIFF_GHOST_SPACING,
+			y: startY - row * DIFF_GHOST_SPACING,
 		});
 	}
 	return positions;
