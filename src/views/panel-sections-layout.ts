@@ -469,7 +469,12 @@ export function buildCoordinateControls(
 		suggestions: string[],
 	) => void,
 	buildCoordPreview: (body: HTMLElement, layout: CoordinateLayout) => void,
-	buildExprLibrary: (body: HTMLElement, panel: PanelState, cb: PanelCallbacks) => void,
+	buildExprLibrary: (
+		body: HTMLElement,
+		panel: PanelState,
+		cb: PanelCallbacks,
+		timers: import("../utils/managed-timers").ManagedTimers,
+	) => void,
 	buildConstantsUI: (body: HTMLElement, panel: PanelState, cb: PanelCallbacks) => void,
 	getAxisSourceSuggestions: (ctx: PanelContext) => string[],
 ): void {
@@ -507,7 +512,7 @@ export function buildCoordinateControls(
 	buildCoordPreview(body, coordLayout);
 
 	// Expression library (preset formulas)
-	buildExprLibrary(body, panel, cb);
+	buildExprLibrary(body, panel, cb, s.ctx.timers);
 
 	// Constants management
 	buildConstantsUI(body, panel, cb);
@@ -568,7 +573,7 @@ export function buildTimelineControls(s: ClusterSectionCtx): void {
 	input.value = panel.timelineKey;
 	input.placeholder = "date";
 	input.setAttribute("aria-label", t("timeline.timeKeyHint"));
-	attachDatalist(input, ctx.frontmatterKeys);
+	attachDatalist(input, ctx.frontmatterKeys, ctx.timers);
 	input.addEventListener("change", () => {
 		panel.timelineKey = input.value.trim() || "date";
 		cb.applyClusterForce();
@@ -583,7 +588,7 @@ export function buildTimelineControls(s: ClusterSectionCtx): void {
 	endInput.value = panel.timelineEndKey;
 	endInput.placeholder = "end-date";
 	endInput.setAttribute("aria-label", t("timeline.endKeyHint"));
-	attachDatalist(endInput, ctx.frontmatterKeys);
+	attachDatalist(endInput, ctx.frontmatterKeys, ctx.timers);
 	endInput.addEventListener("change", () => {
 		panel.timelineEndKey = endInput.value.trim() || "end-date";
 		cb.applyClusterForce();

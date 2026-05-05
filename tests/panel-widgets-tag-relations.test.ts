@@ -35,6 +35,7 @@ vi.mock("obsidian", () => ({ setIcon: vi.fn() }));
 import { renderTagRelations, renderCustomMappings, addMultiValueInput } from "../src/views/panel-widgets";
 import type { GraphViewsSettings, OntologySettings } from "../src/types";
 import { EDGE_TYPE_INHERITANCE } from "../src/constants";
+import { ManagedTimers } from "../src/utils/managed-timers";
 
 // ---------------------------------------------------------------------------
 // Augment mock elements
@@ -265,7 +266,7 @@ describe("renderCustomMappings", () => {
 describe("addMultiValueInput", () => {
 	it("creates the multi-value input container", () => {
 		const container = makeContainer();
-		addMultiValueInput(container as any, "Tags", ["a", "b"], "add...", ["x", "y"], vi.fn());
+		addMultiValueInput(container as any, "Tags", ["a", "b"], "add...", ["x", "y"], vi.fn(), new ManagedTimers());
 
 		const text = allText(container);
 		expect(text).toContain("Tags");
@@ -273,7 +274,7 @@ describe("addMultiValueInput", () => {
 
 	it("renders a row per existing value", () => {
 		const container = makeContainer();
-		addMultiValueInput(container as any, "Items", ["one", "two", "three"], "", [], vi.fn());
+		addMultiValueInput(container as any, "Items", ["one", "two", "three"], "", [], vi.fn(), new ManagedTimers());
 
 		const rows = findAllEl(container, ".gi-multivalue-row");
 		expect(rows.length).toBe(3);
@@ -281,7 +282,7 @@ describe("addMultiValueInput", () => {
 
 	it("renders add button", () => {
 		const container = makeContainer();
-		addMultiValueInput(container as any, "Vals", [], "...", [], vi.fn());
+		addMultiValueInput(container as any, "Vals", [], "...", [], vi.fn(), new ManagedTimers());
 
 		const addBtn = findEl(container, ".gi-multivalue-add");
 		expect(addBtn).not.toBeNull();
@@ -289,7 +290,7 @@ describe("addMultiValueInput", () => {
 
 	it("renders remove buttons for each value", () => {
 		const container = makeContainer();
-		addMultiValueInput(container as any, "V", ["a", "b"], "", [], vi.fn());
+		addMultiValueInput(container as any, "V", ["a", "b"], "", [], vi.fn(), new ManagedTimers());
 
 		const removeBtns = findAllEl(container, ".gi-remove-btn");
 		expect(removeBtns.length).toBe(2);

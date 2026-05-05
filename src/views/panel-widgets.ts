@@ -1,6 +1,7 @@
 import { setIcon } from "obsidian";
 import { t } from "../i18n";
 import type { PanelCallbacks, PanelContext, PanelState, GroupByRule } from "./PanelBuilder";
+import type { ManagedTimers } from "../utils/managed-timers";
 import type {
 	SortKey,
 	OntologyRule,
@@ -167,7 +168,7 @@ export function addTextInput(
 }
 
 /** Custom filtered autocomplete popup (replaces native datalist) */
-function attachAutocomplete(input: HTMLInputElement, suggestions: string[]) {
+function attachAutocomplete(input: HTMLInputElement, suggestions: string[], timers: ManagedTimers) {
 	const popup = document.createElement("div");
 	popup.className = "gi-ac-popup";
 	popup.style.display = "none";
@@ -206,7 +207,7 @@ function attachAutocomplete(input: HTMLInputElement, suggestions: string[]) {
 	input.addEventListener("focus", show);
 	input.addEventListener("input", show);
 	input.addEventListener("blur", () => {
-		setTimeout(() => (popup.style.display = "none"), 150);
+		timers.setTimeout(() => (popup.style.display = "none"), 150);
 	});
 	input.addEventListener("keydown", (e) => {
 		const items = popup.querySelectorAll(".gi-ac-item");
@@ -230,8 +231,8 @@ function attachAutocomplete(input: HTMLInputElement, suggestions: string[]) {
 }
 
 /** Legacy alias — other inputs still call this */
-export function attachDatalist(input: HTMLInputElement, suggestions: string[]) {
-	attachAutocomplete(input, suggestions);
+export function attachDatalist(input: HTMLInputElement, suggestions: string[], timers: ManagedTimers) {
+	attachAutocomplete(input, suggestions, timers);
 }
 
 /** Unified field suggestion list: built-in fields + all frontmatter keys (including nested) */
@@ -351,6 +352,7 @@ export function addMultiValueInput(
 	placeholder: string,
 	suggestions: string[],
 	onChange: (values: string[]) => void,
+	timers: ManagedTimers,
 ) {
 	const row = container.createDiv({ cls: "setting-item gi-full-width-row" });
 	const info = row.createDiv({ cls: "setting-item-info" });
@@ -366,7 +368,7 @@ export function addMultiValueInput(
 			const itemRow = listEl.createDiv({ cls: "gi-multivalue-row" });
 			const input = itemRow.createEl("input", { type: "text", placeholder, cls: "gi-multivalue-field" });
 			input.value = val;
-			attachDatalist(input, suggestions);
+			attachDatalist(input, suggestions, timers);
 			input.addEventListener("change", () => {
 				values[i] = input.value.trim();
 				onChange(values.filter(Boolean));
@@ -600,7 +602,7 @@ export function renderCustomMappings(
 			placeholder: t("settings.mappingFieldPlaceholder"),
 		});
 		fieldInput.value = field;
-		attachDatalist(fieldInput, ctx.frontmatterKeys);
+		attachDatalist(fieldInput, ctx.frontmatterKeys, ctx.timers);
 
 		const typeSelect = row.createEl("select", { cls: "gi-mapping-type dropdown" });
 		for (const opt of ["inheritance", "aggregation", "similar", "sibling", "sequence"] as const) {
@@ -658,7 +660,7 @@ export function renderTagRelations(
 			placeholder: t("settings.tagRelSourcePlaceholder"),
 		});
 		srcInput.value = rel.source;
-		attachDatalist(srcInput, ctx.availableTags);
+		attachDatalist(srcInput, ctx.availableTags, ctx.timers);
 
 		const typeSelect = row.createEl("select", { cls: "gi-tag-rel-type dropdown" });
 		for (const opt of ["inheritance", "aggregation"] as const) {
@@ -672,7 +674,7 @@ export function renderTagRelations(
 			placeholder: t("settings.tagRelTargetPlaceholder"),
 		});
 		tgtInput.value = rel.target;
-		attachDatalist(tgtInput, ctx.availableTags);
+		attachDatalist(tgtInput, ctx.availableTags, ctx.timers);
 
 		const removeBtn = row.createEl("button", { cls: "gi-tag-rel-remove clickable-icon", text: "\u00d7" });
 
