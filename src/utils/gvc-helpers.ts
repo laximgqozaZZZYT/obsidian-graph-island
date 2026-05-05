@@ -2,7 +2,7 @@
  * Pure utility functions extracted from GraphViewContainer.ts.
  * These functions are stateless and have no dependency on the GVC class.
  */
-import type { ClusterGroupRule, GroupPreset } from "../types";
+import type { ClusterGroupRule, GraphNode, GroupPreset } from "../types";
 import { parseQueryExpr, serializeExpr } from "./query-expr";
 import { hexToRgb } from "./color";
 
@@ -83,6 +83,88 @@ export function areSavedPositionsValid(
 		}
 	}
 	return true;
+}
+
+// ---- Force-layout seed constants ----
+// Golden-angle Fermat spiral: members open from the super-node origin without
+// piling on the same coordinate so the collision force does not have to scatter
+// them in random directions on frame 1.
+const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
+const FADE_RING_BASE = 22;
+const FADE_RING_STEP = 2.4;
+const FADE_VELOCITY_NUDGE = 0.8;
+
+/** Seed a single fade-in member's position on a Fermat spiral around the origin. */
+function seedFadeMember(n: GraphNode, originX: number, originY: number, idx: number): void {
+	const r = FADE_RING_BASE + Math.sqrt(idx) * FADE_RING_STEP * 3;
+	const theta = idx * GOLDEN_ANGLE;
+	n.x = originX + Math.cos(theta) * r;
+	n.y = originY + Math.sin(theta) * r;
+	n.vx = Math.cos(theta) * FADE_VELOCITY_NUDGE;
+	n.vy = Math.sin(theta) * FADE_VELOCITY_NUDGE;
+}
+
+function isCoordOutOfRange(n: GraphNode, maxReasonableCoord: number): boolean {
+	return (
+		!isFinite(n.x) ||
+		!isFinite(n.y) ||
+		(n.x === 0 && n.y === 0) ||
+		Math.abs(n.x) > maxReasonableCoord ||
+		Math.abs(n.y) > maxReasonableCoord
+	);
+}
+
+interface FadeTweenSeed {
+	stagger: Map<string, number>;
+	originX: number;
+	originY: number;
+}
+
+interface SeedNodePositionsOpts {
+	nodes: GraphNode[];
+	savedPositions: Map<string, { x: number; y: number }>;
+	savedPositionsValid: boolean;
+	pinnedPositions: Record<string, { x: number; y: number }>;
+	fade: FadeTweenSeed | null | undefined;
+	cx: number;
+	cy: number;
+	W: number;
+	H: number;
+}
+
+/**
+ * Seed node starting positions for a force-directed layout.
+ * Priority: fade-in spiral → saved positions → random fallback (if coords are
+ * invalid/extreme) → pinned override last (always wins).
+ *
+ * Pure side-effect on n.x/y/vx/vy/fx/fy. Returns nothing — callers iterate
+ * `nodes` afterwards.
+ */
+export function seedNodePositionsForForce(opts: SeedNodePositionsOpts): void {
+	const { nodes, savedPositions, savedPositionsValid, pinnedPositions, fade, cx, cy, W, H } = opts;
+	const maxReasonableCoord = Math.max(W, H) * 5;
+	let fadeIdx = 0;
+	for (const n of nodes) {
+		if (fade && fade.stagger.has(n.id)) {
+			seedFadeMember(n, fade.originX, fade.originY, fadeIdx++);
+			continue;
+		}
+		const saved = savedPositionsValid ? savedPositions.get(n.id) : undefined;
+		if (saved) {
+			n.x = saved.x;
+			n.y = saved.y;
+		} else if (isCoordOutOfRange(n, maxReasonableCoord)) {
+			n.x = cx + (Math.random() - 0.5) * W * 0.8;
+			n.y = cy + (Math.random() - 0.5) * H * 0.8;
+		}
+		const pinned = pinnedPositions[n.id];
+		if (pinned) {
+			n.x = pinned.x;
+			n.y = pinned.y;
+			n.fx = pinned.x;
+			n.fy = pinned.y;
+		}
+	}
 }
 
 /** Lighten a hex color by a factor (0–1). factor=0.2 means 20% lighter. */

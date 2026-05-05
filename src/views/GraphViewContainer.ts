@@ -30,6 +30,7 @@ import {
 	blendThemeLabel,
 	cleanArcName,
 	areSavedPositionsValid,
+	seedNodePositionsForForce,
 	lightenHex,
 } from "../utils/gvc-helpers";
 import {
@@ -7155,55 +7156,17 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		// starting alpha for re-renders (group expand/collapse, filter changes)
 		// so convergence is faster when most positions are already good.
 		this._restartAlpha = savedPositionsValid && this.savedPositions.size > 0 ? 0.5 : 1;
-		const maxReasonableCoord = Math.max(W, H) * 5;
-
-		const fade = this._fadeInTween;
-		// Golden-angle spiral placement for fade-in members. Instead of dumping
-		// all members on the super-node's exact coordinate (where the collision
-		// force then violently scatters them in random directions), we seed
-		// them on a tight Fermat spiral so the opening frame already has a
-		// pleasing radial composition and the physics only has to refine it.
-		const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5)); // ~137.508°
-		const FADE_RING_BASE = 22; // world-unit radius for the innermost member
-		const FADE_RING_STEP = 2.4; // radial growth per member
-		let fadeIdx = 0;
-		for (const n of gd.nodes) {
-			if (fade && fade.stagger.has(n.id)) {
-				const r = FADE_RING_BASE + Math.sqrt(fadeIdx) * FADE_RING_STEP * 3;
-				const theta = fadeIdx * GOLDEN_ANGLE;
-				n.x = fade.originX + Math.cos(theta) * r;
-				n.y = fade.originY + Math.sin(theta) * r;
-				n.vx = Math.cos(theta) * 0.8; // tiny outward nudge
-				n.vy = Math.sin(theta) * 0.8;
-				fadeIdx++;
-				continue;
-			}
-			// Use saved positions from previous layout as starting positions,
-			// but only if they are within a reasonable range (prevents sunburst/concentric
-			// polar coordinates from causing force layout divergence)
-			const saved = savedPositionsValid ? this.savedPositions.get(n.id) : undefined;
-			if (saved) {
-				n.x = saved.x;
-				n.y = saved.y;
-			} else if (
-				!isFinite(n.x) ||
-				!isFinite(n.y) ||
-				(n.x === 0 && n.y === 0) ||
-				Math.abs(n.x) > maxReasonableCoord ||
-				Math.abs(n.y) > maxReasonableCoord
-			) {
-				n.x = cx + (Math.random() - 0.5) * W * 0.8;
-				n.y = cy + (Math.random() - 0.5) * H * 0.8;
-			}
-			// Restore pinned positions from persistent state
-			const pinned = this.panel.pinnedPositions[n.id];
-			if (pinned) {
-				n.x = pinned.x;
-				n.y = pinned.y;
-				n.fx = pinned.x;
-				n.fy = pinned.y;
-			}
-		}
+		seedNodePositionsForForce({
+			nodes: gd.nodes,
+			savedPositions: this.savedPositions,
+			savedPositionsValid,
+			pinnedPositions: this.panel.pinnedPositions,
+			fade: this._fadeInTween,
+			cx,
+			cy,
+			W,
+			H,
+		});
 		this.savedPositions.clear();
 
 		this.graphEdges = gd.edges;
@@ -7228,6 +7191,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		// Fade-in: hide freshly-created member sprites so they emerge from the
 		// super-node origin rather than popping into existence at full size.
 		// _tickFadeIn (driven by renderTick) scales them back up over durationMs.
+		const fade = this._fadeInTween;
 		if (fade) {
 			for (const id of fade.stagger.keys()) {
 				const pn = this.pixiNodes.get(id);
