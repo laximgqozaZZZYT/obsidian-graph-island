@@ -253,15 +253,9 @@ for raw in proposals[:CAP]:
 
     if APPLY:
         os.makedirs(os.path.dirname(desc_path), exist_ok=True)
+        # Body-only: csv_to_prompt_text re-creates frontmatter from CSV columns
+        # (matches discover-issues.sh / e2e-patrol.sh / csv_file_alert).
         with open(desc_path, 'w') as f:
-            f.write(f"---\n")
-            f.write(f"priority: medium\n")
-            f.write(f"reported: {today}\n")
-            f.write(f"status: pending\n")
-            f.write(f"source: feature-proposal\n")
-            f.write(f"summary: {title}\n")
-            f.write(f"persona: {persona or '-'}\n")
-            f.write(f"---\n\n")
             f.write(f"## Persona\n{persona or 'unspecified'}\n\n")
             f.write(f"## Full proposal\n\n```\n{block}\n```\n")
         subprocess.check_call([
