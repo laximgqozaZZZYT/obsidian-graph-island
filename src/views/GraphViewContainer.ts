@@ -97,6 +97,7 @@ import {
 	type GroupCentroid,
 } from "./group-label-manager";
 import { expandSuperNodeIds } from "../utils/node-grouping";
+import { countInterClusterEdges, collectMemberTags } from "./cluster-compare-helpers";
 import { computeNodeDisplayColor, type NodeColorContext } from "./node-coloring";
 import {
 	buildPanel as buildPanelUI,
@@ -146,6 +147,11 @@ import { asInternalWorkspace } from "../obsidian-internals";
 import { generatePhantomNodes } from "./phantom-node-generator";
 import { adjustTooltipPosition, type PanelRect } from "../utils/tooltip-position";
 import { handleShortcutKey, type KeyboardHost } from "./KeyboardHandler";
+import {
+	buildRichStatus as buildRichStatusImpl,
+	filterBySearchExpr,
+	expandLocalGraphNeighbors,
+} from "./SearchOrchestrator";
 import { groupNodesByField, collapseGroup, type GroupSpec, type GroupOptions } from "../utils/node-grouping";
 import { louvainCommunities } from "../utils/louvain";
 import { queryDataviewPages, filterNodesByDataview } from "../utils/dataview-source";
@@ -3584,11 +3590,12 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		// Count inter-cluster edges and find bridge nodes
 		const setA = new Set(membersA);
 		const setB = new Set(membersB);
-		const { interEdges, bridgeNodes } = this._countInterClusterEdges(setA, setB);
+		const { interEdges, bridgeNodes } = countInterClusterEdges(this.graphEdges, setA, setB);
 
 		// Shared tags
-		const tagsA = this._collectMemberTags(membersA);
-		const tagsB = this._collectMemberTags(membersB);
+		const getTags = (id: string) => this.pixiNodes.get(id)?.data.tags;
+		const tagsA = collectMemberTags(membersA, getTags);
+		const tagsB = collectMemberTags(membersB, getTags);
 		const sharedTags = [...tagsA].filter((t) => tagsB.has(t));
 
 		this.applyEphemeralHighlight(bridgeNodes.size > 0 ? bridgeNodes : null);
@@ -3596,35 +3603,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		const msg = `Cluster compare: ${keyA} (${membersA.length}) vs ${keyB} (${membersB.length}) — ${interEdges} edges, ${bridgeNodes.size} bridges, ${sharedTags.length} shared tags`;
 		showToast(msg);
 		this._announceA11y(msg);
-	}
-
-	/** Count edges between two cluster sets and collect bridge node IDs. */
-	private _countInterClusterEdges(
-		setA: Set<string>,
-		setB: Set<string>,
-	): { interEdges: number; bridgeNodes: Set<string> } {
-		let interEdges = 0;
-		const bridgeNodes = new Set<string>();
-		for (const e of this.graphEdges) {
-			const src = edgeSourceId(e);
-			const tgt = edgeTargetId(e);
-			if ((setA.has(src) && setB.has(tgt)) || (setB.has(src) && setA.has(tgt))) {
-				interEdges++;
-				bridgeNodes.add(src);
-				bridgeNodes.add(tgt);
-			}
-		}
-		return { interEdges, bridgeNodes };
-	}
-
-	/** Collect all tags from a list of node IDs. */
-	private _collectMemberTags(memberIds: string[]): Set<string> {
-		const tags = new Set<string>();
-		for (const id of memberIds) {
-			const pn = this.pixiNodes.get(id);
-			if (pn?.data.tags) pn.data.tags.forEach((t) => tags.add(t));
-		}
-		return tags;
 	}
 
 	// =========================================================================
@@ -4524,16 +4502,12 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			const syncBg = rt.labelBgColorSync;
 			for (const pn of this.pixiNodes.values()) {
 				if (pn.label && pn.label.bgColor != null) {
-					pn.label.bgColor = syncBg && pn.color != null ? this._blendThemeLabel(themeBg, pn.color) : themeBg;
+					pn.label.bgColor = syncBg && pn.color != null ? blendThemeLabel(themeBg, pn.color) : themeBg;
 				}
 			}
 		}
 
 		this.markDirty();
-	}
-
-	private _blendThemeLabel(bg: number, nodeColor: number): number {
-		return blendThemeLabel(bg, nodeColor);
 	}
 
 	// =========================================================================
@@ -5125,7 +5099,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 				const ci = getColorIdx(arc);
 				const css = DEFAULT_COLORS[ci % DEFAULT_COLORS.length];
 				const baseColor = cssColorToHex(css);
-				const color = this.lightenHexColor(baseColor, depth * depthLighten);
+				const color = lightenHex(baseColor, depth * depthLighten);
 				const fillAlpha = Math.max(
 					RING_FILL_ALPHA_FLOOR,
 					RING_FILL_ALPHA_BASE - depth * RING_FILL_ALPHA_DEPTH_DECAY,
@@ -5145,7 +5119,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 				const ci = getColorIdx(arc);
 				const css = DEFAULT_COLORS[ci % DEFAULT_COLORS.length];
 				const baseColor = cssColorToHex(css);
-				const color = this.lightenHexColor(baseColor, depth * depthLighten);
+				const color = lightenHex(baseColor, depth * depthLighten);
 				const fillAlpha = Math.max(
 					SUNBURST_FILL_ALPHA_FLOOR,
 					SUNBURST_FILL_ALPHA_BASE - depth * SUNBURST_FILL_ALPHA_DEPTH_DECAY,
@@ -5174,11 +5148,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 				gfx.lineTo(cx + rOuter * Math.cos(endAngle), cy + rOuter * Math.sin(endAngle));
 			}
 		}
-	}
-
-	/** Lighten a hex color by a factor (0-1). factor=0.2 means 20% lighter. */
-	private lightenHexColor(hex: number, factor: number): number {
-		return lightenHex(hex, factor);
 	}
 
 	/** Draw labels on cluster sunburst arcs (depth ≤ 1 only, wide arcs) */
@@ -6306,33 +6275,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
 	/** U2: Build rich status text with mode, counts, groups, layout, and filter info */
 	private buildRichStatus(nodeCount: number, edgeCount: number, totalNodes?: number): string {
-		const parts: string[] = [];
-		if (this.panel.localGraphCenter) parts.push("Local");
-		else if (this.panel.focusLayout) parts.push("Focus");
-		// Show filtered ratio when applicable
 		const total = totalNodes ?? this.rawData?.nodes.length ?? nodeCount;
-		if (total !== nodeCount) {
-			parts.push(`${nodeCount} / ${total} nodes`);
-		} else {
-			parts.push(`${nodeCount} nodes`);
-		}
-		if (edgeCount > 0) parts.push(`${edgeCount} edges`);
-		// Show group count if groupBy is active
-		const groupCount = this.panel.collapsedGroups?.size ?? 0;
-		if (groupCount > 0) parts.push(`${groupCount} groups`);
-		if (this.panel.searchQuery) {
-			const mode = this.panel.searchMode === "highlight" ? "HL" : "F";
-			parts.push(`[${mode}: ${this.panel.searchQuery.slice(0, 20)}]`);
-		}
-		// Show view mode if not default graph
-		if (this.panel.viewMode && this.panel.viewMode !== "graph") {
-			parts.push(this.panel.viewMode);
-		}
-		// Show groupBy field when active
-		if (this.panel.groupBy && this.panel.groupBy !== "none") {
-			parts.push(`by ${this.panel.groupBy}`);
-		}
-		return parts.join(" \u00B7 ");
+		return buildRichStatusImpl(nodeCount, edgeCount, total, this.panel);
 	}
 
 	/** D6: Compute per-node entropy scores (knowledge diversity).
@@ -6688,31 +6632,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	private _filterLocalGraph(nodes: GraphNode[], edges: GraphEdge[]): { nodes: GraphNode[]; edges: GraphEdge[] } {
 		if (!this.panel.localGraphCenter) return { nodes, edges };
 
-		// Core BFS hop filter (pure function)
-		let result = filterByLocalGraph(nodes, edges, this.panel.localGraphCenter, this.panel.localGraphHops);
+		const bfs = filterByLocalGraph(nodes, edges, this.panel.localGraphCenter, this.panel.localGraphHops);
+		if (!this.panel.expandedNodes?.length) return bfs;
 
 		// D1: Also include neighbors of manually expanded nodes
-		if (this.panel.expandedNodes?.length) {
-			const adj = new Map<string, Set<string>>();
-			for (const e of edges) {
-				addToMapSet(adj, e.source, e.target);
-				addToMapSet(adj, e.target, e.source);
-			}
-			const reachable = new Set(result.nodes.map((n) => n.id));
-			for (const expandedId of this.panel.expandedNodes) {
-				if (!reachable.has(expandedId)) continue;
-				const neighbors = adj.get(expandedId);
-				if (neighbors) {
-					for (const nbId of neighbors) reachable.add(nbId);
-				}
-			}
-			result = {
-				nodes: nodes.filter((n) => reachable.has(n.id)),
-				edges: edges.filter((e) => reachable.has(e.source) && reachable.has(e.target)),
-			};
-		}
-
-		return result;
+		return expandLocalGraphNeighbors(nodes, edges, bfs.nodes, this.panel.expandedNodes);
 	}
 
 	/** Filter nodes by orphan/existing/attachment/tag visibility settings. */
@@ -6739,9 +6663,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
 	/** Apply dataview and search query filters. */
 	private _filterByQuery(nodes: GraphNode[], edges: GraphEdge[]): { nodes: GraphNode[]; edges: GraphEdge[] } {
-		// Reset highlight set at start of each data build
-		this._searchHighlightSet = null;
-
 		if (this.panel.dataviewQuery.trim()) {
 			const matchingPaths = queryDataviewPages(this.app, this.panel.dataviewQuery.trim());
 			if (matchingPaths.size > 0) {
@@ -6749,26 +6670,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			}
 		}
 
-		const raw = this.panel.searchQuery;
-		const remaining = raw
-			.replace(/hop:[^:,]+:\d+/gi, "")
-			.replace(/,/g, " ")
-			.trim();
-		if (remaining) {
-			const searchExpr = parseQueryExpr(remaining);
-			if (searchExpr) {
-				const matchedIds = new Set(nodes.filter((n) => evaluateExpr(searchExpr, n)).map((n) => n.id));
-				if (this.panel.searchMode === "highlight") {
-					// N2: Highlight mode — keep all nodes, store matched IDs for visual dimming
-					this._searchHighlightSet = matchedIds;
-				} else {
-					// Default filter mode — remove non-matching nodes
-					nodes = nodes.filter((n) => matchedIds.has(n.id));
-				}
-			}
-		}
-
-		return { nodes, edges };
+		const r = filterBySearchExpr(nodes, this.panel.searchQuery, this.panel.searchMode);
+		this._searchHighlightSet = r.highlightSet;
+		return { nodes: r.nodes, edges };
 	}
 
 	/** Apply group collapse (fold groups into super nodes). */
