@@ -679,6 +679,60 @@ export function computeNodeBBox(nodes: readonly { x: number; y: number; radius?:
 	return { minX, minY, maxX, maxY };
 }
 
+/** Count how many non-tag nodes carry each tag. */
+function countTagOccurrences(nodes: readonly GraphNode[]): Map<string, number> {
+	const counts = new Map<string, number>();
+	for (const n of nodes) {
+		if (n.isTag || !n.tags) continue;
+		for (const tag of n.tags) incCounter(counts, tag);
+	}
+	return counts;
+}
+
+/** Pick the smallest-count (most specific) tag from a node's tags. */
+function pickMostSpecificTag(tags: readonly string[], tagCounts: Map<string, number>): string {
+	let bestTag = tags[0];
+	let bestCount = tagCounts.get(bestTag) ?? Infinity;
+	for (let i = 1; i < tags.length; i++) {
+		const c = tagCounts.get(tags[i]) ?? Infinity;
+		if (c < bestCount) {
+			bestCount = c;
+			bestTag = tags[i];
+		}
+	}
+	return bestTag;
+}
+
+/** Build tag→nodeId set, assigning each non-tag node to its most specific tag. */
+function assignNodesToMostSpecificTag(
+	nodes: readonly GraphNode[],
+	tagCounts: Map<string, number>,
+): Map<string, Set<string>> {
+	const tagMembership = new Map<string, Set<string>>();
+	for (const n of nodes) {
+		if (n.isTag || !n.tags || n.tags.length === 0) continue;
+		const bestTag = pickMostSpecificTag(n.tags, tagCounts);
+		addToMapSet(tagMembership, bestTag, n.id);
+	}
+	return tagMembership;
+}
+
+/** Extract bidirectional tag-pair keys from inheritance/aggregation edges between tag nodes. */
+function extractTagRelationshipPairs(edges: readonly GraphEdge[]): Set<string> {
+	const pairs = new Set<string>();
+	for (const e of edges) {
+		if (e.type !== "inheritance" && e.type !== "aggregation") continue;
+		const src = edgeSourceId(e);
+		const tgt = edgeTargetId(e);
+		if (!src?.startsWith("tag:") || !tgt?.startsWith("tag:")) continue;
+		const t1 = src.slice(4),
+			t2 = tgt.slice(4);
+		pairs.add(`${t1}\0${t2}`);
+		pairs.add(`${t2}\0${t1}`);
+	}
+	return pairs;
+}
+
 /**
  * Build tag membership map: assigns each non-tag node to its most specific
  * (smallest-count) tag. Also builds tag relationship pairs cache from
@@ -688,44 +742,9 @@ export function buildTagMembership(
 	nodes: readonly GraphNode[],
 	edges: readonly GraphEdge[],
 ): { tagMembership: Map<string, Set<string>>; tagRelPairs: Set<string> } {
-	const tagMembership = new Map<string, Set<string>>();
-	const tagRelPairs = new Set<string>();
-
-	// Pass 1: count members per tag to determine specificity
-	const tagCounts = new Map<string, number>();
-	for (const n of nodes) {
-		if (n.isTag || !n.tags) continue;
-		for (const tag of n.tags) {
-			incCounter(tagCounts, tag);
-		}
-	}
-	// Pass 2: assign each node to ONLY its most specific (smallest) tag
-	for (const n of nodes) {
-		if (n.isTag || !n.tags || n.tags.length === 0) continue;
-		let bestTag = n.tags[0];
-		let bestCount = tagCounts.get(bestTag) ?? Infinity;
-		for (let i = 1; i < n.tags.length; i++) {
-			const c = tagCounts.get(n.tags[i]) ?? Infinity;
-			if (c < bestCount) {
-				bestCount = c;
-				bestTag = n.tags[i];
-			}
-		}
-		addToMapSet(tagMembership, bestTag, n.id);
-	}
-	// Build tag relationship pairs from inheritance/aggregation edges
-	for (const e of edges) {
-		if (e.type !== "inheritance" && e.type !== "aggregation") continue;
-		const src = edgeSourceId(e);
-		const tgt = edgeTargetId(e);
-		if (src?.startsWith("tag:") && tgt?.startsWith("tag:")) {
-			const t1 = src.slice(4),
-				t2 = tgt.slice(4);
-			tagRelPairs.add(`${t1}\0${t2}`);
-			tagRelPairs.add(`${t2}\0${t1}`);
-		}
-	}
-
+	const tagCounts = countTagOccurrences(nodes);
+	const tagMembership = assignNodesToMostSpecificTag(nodes, tagCounts);
+	const tagRelPairs = extractTagRelationshipPairs(edges);
 	return { tagMembership, tagRelPairs };
 }
 
