@@ -71,6 +71,19 @@ export function groupNodesByTag(nodes: GraphNode[], opts?: GroupOptions): GroupS
 	return groupNodesByField(nodes, "tag", opts);
 }
 
+/** Top-level folder of a file path (or "/" for root files); empty array when no path. */
+function getFolderValue(filePath: string | undefined): string[] {
+	if (!filePath) return [];
+	const firstSlash = filePath.indexOf("/");
+	return [firstSlash > 0 ? filePath.substring(0, firstSlash) : "/"];
+}
+
+/** Bare filename (no directory, no .md extension); empty array when no path. */
+function getFileValue(filePath: string | undefined): string[] {
+	if (!filePath) return [];
+	return [filePath.replace(/^.*\//, "").replace(/\.md$/, "")];
+}
+
 /**
  * Extract the grouping value(s) for a node given a field name.
  * Built-in fields: tag, category, folder, path, file, id, isTag.
@@ -83,18 +96,12 @@ export function getNodeFieldValues(n: GraphNode, field: string): string[] {
 			return n.isTag ? [] : (n.tags ?? []);
 		case "category":
 			return n.category ? [n.category] : [];
-		case "folder": {
-			if (!n.filePath) return [];
-			// Use top-level folder only (not full nested path) to keep group count manageable
-			const firstSlash = n.filePath.indexOf("/");
-			return [firstSlash > 0 ? n.filePath.substring(0, firstSlash) : "/"];
-		}
+		case "folder":
+			return getFolderValue(n.filePath);
 		case "path":
 			return n.filePath ? [n.filePath] : [];
-		case "file": {
-			if (!n.filePath) return [];
-			return [n.filePath.replace(/^.*\//, "").replace(/\.md$/, "")];
-		}
+		case "file":
+			return getFileValue(n.filePath);
 		case "id":
 			return [n.id];
 		case "isTag":
@@ -102,6 +109,37 @@ export function getNodeFieldValues(n: GraphNode, field: string): string[] {
 		default:
 			return n.meta ? resolveFrontmatterField(n.meta, field) : [];
 	}
+}
+
+/** Pass 1: count how many non-tag nodes contribute each value of the given field. */
+function countValuesByField(nodes: GraphNode[], field: string): Map<string, number> {
+	const counts = new Map<string, number>();
+	for (const n of nodes) {
+		if (n.isTag) continue;
+		for (const v of getNodeFieldValues(n, field)) {
+			counts.set(v, (counts.get(v) || 0) + 1);
+		}
+	}
+	return counts;
+}
+
+/** Pass 2: assign each non-tag node (once) to its largest-valued group. */
+function assignNodesToGroups(
+	nodes: GraphNode[],
+	field: string,
+	valueCounts: Map<string, number>,
+): Map<string, string[]> {
+	const groupMap = new Map<string, string[]>();
+	const assigned = new Set<string>();
+	for (const n of nodes) {
+		if (n.isTag || assigned.has(n.id)) continue;
+		const vals = getNodeFieldValues(n, field);
+		if (vals.length === 0) continue;
+		const bestVal = pickLargestGroup(vals, valueCounts);
+		assigned.add(n.id);
+		pushToMapArray(groupMap, bestVal, n.id);
+	}
+	return groupMap;
 }
 
 /**
@@ -114,27 +152,8 @@ export function groupNodesByField(nodes: GraphNode[], field: string, opts?: Grou
 	const minSize = opts?.minSize ?? 2;
 	const filterTokens = parseFilter(opts?.filter);
 
-	// Pass 1: count members per value
-	const valueCounts = new Map<string, number>();
-	for (const n of nodes) {
-		if (n.isTag) continue;
-		for (const v of getNodeFieldValues(n, field)) {
-			valueCounts.set(v, (valueCounts.get(v) || 0) + 1);
-		}
-	}
-
-	// Pass 2: assign each node to its largest-valued group (dedup)
-	const groupMap = new Map<string, string[]>();
-	const assigned = new Set<string>();
-	for (const n of nodes) {
-		if (n.isTag) continue;
-		if (assigned.has(n.id)) continue;
-		const vals = getNodeFieldValues(n, field);
-		if (vals.length === 0) continue;
-		const bestVal = pickLargestGroup(vals, valueCounts);
-		assigned.add(n.id);
-		pushToMapArray(groupMap, bestVal, n.id);
-	}
+	const valueCounts = countValuesByField(nodes, field);
+	const groupMap = assignNodesToGroups(nodes, field, valueCounts);
 
 	const groups: GroupSpec[] = [];
 	for (const [val, memberIds] of groupMap) {
