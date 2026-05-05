@@ -450,28 +450,25 @@ export interface OntologyConfig {
 
 /** Convert legacy field arrays → rules array */
 export function ontologyToRules(o: OntologyConfig): OntologyRule[] {
+	const join = (a: string[] | undefined) => (a ?? []).join(", ");
+	const mappings: Array<{
+		fwd: string[] | undefined;
+		rev?: string[] | undefined;
+		relation: OntologyRule["relation"];
+	}> = [
+		{ fwd: o.inheritanceFields, rev: o.reverseInheritanceFields, relation: "is-a" },
+		{ fwd: o.aggregationFields, rev: o.reverseAggregationFields, relation: "has-a" },
+		{ fwd: o.sequenceFields, rev: o.reverseSequenceFields, relation: "is-from" },
+		{ fwd: o.similarFields, relation: "is-alike" },
+		{ fwd: o.siblingFields, relation: "sibling" },
+	];
 	const rules: OntologyRule[] = [];
-	const join = (a: string[]) => a.join(", ");
-	if (o.inheritanceFields.length || o.reverseInheritanceFields?.length)
-		rules.push({
-			forward: join(o.inheritanceFields),
-			relation: "is-a",
-			reverse: join(o.reverseInheritanceFields ?? []),
-		});
-	if (o.aggregationFields.length || o.reverseAggregationFields?.length)
-		rules.push({
-			forward: join(o.aggregationFields),
-			relation: "has-a",
-			reverse: join(o.reverseAggregationFields ?? []),
-		});
-	if (o.sequenceFields?.length || o.reverseSequenceFields?.length)
-		rules.push({
-			forward: join(o.sequenceFields ?? []),
-			relation: "is-from",
-			reverse: join(o.reverseSequenceFields ?? []),
-		});
-	if (o.similarFields.length) rules.push({ forward: join(o.similarFields), relation: "is-alike", reverse: "" });
-	if (o.siblingFields?.length) rules.push({ forward: join(o.siblingFields ?? []), relation: "sibling", reverse: "" });
+	for (const { fwd, rev, relation } of mappings) {
+		const hasFwd = (fwd?.length ?? 0) > 0;
+		const hasRev = (rev?.length ?? 0) > 0;
+		if (!hasFwd && !hasRev) continue;
+		rules.push({ forward: join(fwd), relation, reverse: join(rev) });
+	}
 	return rules;
 }
 
