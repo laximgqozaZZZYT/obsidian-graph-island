@@ -2,7 +2,7 @@
  * Pure utility functions extracted from GraphViewContainer.ts.
  * These functions are stateless and have no dependency on the GVC class.
  */
-import type { ClusterGroupRule, GroupPreset } from "../types";
+import type { ClusterGroupRule, GraphNode, GroupPreset } from "../types";
 import { parseQueryExpr, serializeExpr } from "./query-expr";
 import { hexToRgb } from "./color";
 
@@ -161,4 +161,82 @@ export function giDiag<T extends { nodes: { length: number }; edges: { length: n
 		console.log(`[graph-island][diag] ${stage} nodes=${data.nodes.length} edges=${data.edges.length}`);
 	}
 	return data;
+}
+
+// ---- Force-layout position seeding (extracted from _setupForceLayout) ----
+
+/** Minimal fade-in tween shape needed by seedNodePositions. */
+export interface FadeInTweenSeed {
+	stagger: Map<string, number>;
+	originX: number;
+	originY: number;
+}
+
+export interface SeedNodePositionsOptions {
+	cx: number;
+	cy: number;
+	W: number;
+	H: number;
+	savedPositions: Map<string, { x: number; y: number }>;
+	savedPositionsValid: boolean;
+	pinnedPositions: Record<string, { x: number; y: number }>;
+	fade: FadeInTweenSeed | null;
+}
+
+const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5)); // ~137.508°
+const FADE_RING_BASE = 22;
+const FADE_RING_STEP = 2.4;
+
+function isCoordOutOfRange(n: GraphNode, maxCoord: number): boolean {
+	if (!isFinite(n.x) || !isFinite(n.y)) return true;
+	if (n.x === 0 && n.y === 0) return true;
+	return Math.abs(n.x) > maxCoord || Math.abs(n.y) > maxCoord;
+}
+
+function seedFadeInNode(n: GraphNode, fade: FadeInTweenSeed, fadeIdx: number): void {
+	const r = FADE_RING_BASE + Math.sqrt(fadeIdx) * FADE_RING_STEP * 3;
+	const theta = fadeIdx * GOLDEN_ANGLE;
+	n.x = fade.originX + Math.cos(theta) * r;
+	n.y = fade.originY + Math.sin(theta) * r;
+	n.vx = Math.cos(theta) * 0.8;
+	n.vy = Math.sin(theta) * 0.8;
+}
+
+function seedRegularNode(n: GraphNode, opts: SeedNodePositionsOptions, maxCoord: number): void {
+	const saved = opts.savedPositionsValid ? opts.savedPositions.get(n.id) : undefined;
+	if (saved) {
+		n.x = saved.x;
+		n.y = saved.y;
+	} else if (isCoordOutOfRange(n, maxCoord)) {
+		n.x = opts.cx + (Math.random() - 0.5) * opts.W * 0.8;
+		n.y = opts.cy + (Math.random() - 0.5) * opts.H * 0.8;
+	}
+	const pinned = opts.pinnedPositions[n.id];
+	if (pinned) {
+		n.x = pinned.x;
+		n.y = pinned.y;
+		n.fx = pinned.x;
+		n.fy = pinned.y;
+	}
+}
+
+/**
+ * Seed initial node positions for a force-layout run. Mutates `nodes` in place.
+ * Three sources, in priority order:
+ *  1. Fade-in tween → golden-angle Fermat spiral around the tween's origin.
+ *  2. Saved positions (from a previous layout, reused for fast convergence).
+ *  3. Random scatter around (cx, cy) when no usable saved/current position exists.
+ * Pinned positions, if present, are applied last and override 1–3.
+ */
+export function seedNodePositions(nodes: GraphNode[], opts: SeedNodePositionsOptions): void {
+	const maxCoord = Math.max(opts.W, opts.H) * 5;
+	let fadeIdx = 0;
+	for (const n of nodes) {
+		if (opts.fade && opts.fade.stagger.has(n.id)) {
+			seedFadeInNode(n, opts.fade, fadeIdx);
+			fadeIdx++;
+			continue;
+		}
+		seedRegularNode(n, opts, maxCoord);
+	}
 }
