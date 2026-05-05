@@ -13,7 +13,13 @@ import {
 	partitionNodes,
 	analyzeOverlap,
 	computeAutoOptimize,
+	gridOffsets,
+	triangleOffsets,
+	concentricOffsets,
+	randomOffsets,
 } from "../../src/layouts/cluster-force";
+import type { ArrangementParams, ClusterForceConfig } from "../../src/layouts/cluster-force";
+import { ARRANGEMENT_GRID, ARRANGEMENT_TRIANGLE, ARRANGEMENT_CONCENTRIC } from "../../src/constants";
 import type { GraphNode } from "../../src/types";
 
 function makeNode(id: string, overrides?: Partial<GraphNode>): GraphNode {
@@ -483,5 +489,219 @@ describe("computeAutoOptimize", () => {
 		// `<= threshold` short-circuits, so equality means no change.
 		const result = computeAutoOptimize(0.1, 20, {}, 100, 80, baseCfg);
 		expect(result.needsMore).toBe(false);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Arrangement offset functions — pure layouts that map members → offsets
+// ---------------------------------------------------------------------------
+
+function makeParams(overrides: Partial<ArrangementParams> & { members: GraphNode[] }): ArrangementParams {
+	const members = overrides.members;
+	return {
+		members,
+		degrees: overrides.degrees ?? new Map(members.map((n) => [n.id, 0])),
+		edges: overrides.edges ?? [],
+		nodeSpacing: overrides.nodeSpacing ?? 1,
+		groupScale: overrides.groupScale ?? 1,
+		nodeSize: overrides.nodeSize ?? 18,
+		maxGroupNodeR: overrides.maxGroupNodeR ?? 18,
+		cmp: overrides.cmp ?? ((a, b) => a.id.localeCompare(b.id)),
+		nodeSpacingMap: overrides.nodeSpacingMap,
+		// Only maxNodeRadius/minNodeRadius are read by the offset functions under test.
+		cfg: overrides.cfg ?? ({ maxNodeRadius: 60, minNodeRadius: 18 } as ClusterForceConfig),
+	};
+}
+
+describe("gridOffsets", () => {
+	it("returns empty offsets for an empty member list", () => {
+		const result = gridOffsets(makeParams({ members: [] }));
+		expect(result.offsets.size).toBe(0);
+	});
+
+	it("places 4 nodes in a 2×2 grid centered at origin", () => {
+		const members = ["a", "b", "c", "d"].map((id) => makeNode(id));
+		const result = gridOffsets(makeParams({ members }));
+		// cols = ceil(sqrt(4)) = 2, so 2 rows × 2 cols. Centered → symmetric around origin.
+		const dxs = members.map((n) => result.offsets.get(n.id)!.dx);
+		const dys = members.map((n) => result.offsets.get(n.id)!.dy);
+		expect(dxs.reduce((a, b) => a + b, 0)).toBeCloseTo(0, 5);
+		expect(dys.reduce((a, b) => a + b, 0)).toBeCloseTo(0, 5);
+	});
+
+	it("places 9 nodes in a 3×3 grid (cols = ceil(sqrt(9)) = 3)", () => {
+		const members = Array.from({ length: 9 }, (_, i) => makeNode(`n${i}`));
+		const result = gridOffsets(makeParams({ members }));
+		expect(result.offsets.size).toBe(9);
+		// All nodes placed; bounding box is symmetric around origin
+		const xs = [...result.offsets.values()].map((o) => o.dx);
+		const ys = [...result.offsets.values()].map((o) => o.dy);
+		expect(Math.min(...xs)).toBeCloseTo(-Math.max(...xs), 5);
+		expect(Math.min(...ys)).toBeCloseTo(-Math.max(...ys), 5);
+	});
+
+	it("returns a grid guide with type ARRANGEMENT_GRID and matching vertical/horizontal counts", () => {
+		const members = ["a", "b", "c", "d"].map((id) => makeNode(id));
+		const result = gridOffsets(makeParams({ members }));
+		expect(result.guide?.type).toBe(ARRANGEMENT_GRID);
+		// 4 nodes → 2×2 → 2 verticals + 2 horizontals
+		const guide = result.guide as { type: string; verticals: number[]; horizontals: number[] };
+		expect(guide.verticals.length).toBe(2);
+		expect(guide.horizontals.length).toBe(2);
+	});
+
+	it("respects nodeSpacingMap — per-node multiplier scales placement", () => {
+		const members = ["a", "b"].map((id) => makeNode(id));
+		const map = new Map([
+			["a", 1],
+			["b", 2],
+		]);
+		const a = gridOffsets(makeParams({ members })).offsets.get("b")!;
+		const b = gridOffsets(makeParams({ members, nodeSpacingMap: map })).offsets.get("b")!;
+		// The "b" node's offset should be scaled by its spacing multiplier
+		expect(Math.abs(b.dx)).toBeGreaterThanOrEqual(Math.abs(a.dx));
+	});
+});
+
+describe("triangleOffsets", () => {
+	it("returns empty offsets for an empty member list", () => {
+		const result = triangleOffsets(makeParams({ members: [] }));
+		expect(result.offsets.size).toBe(0);
+		expect(result.guide).toBeUndefined();
+	});
+
+	it("places 1 node at origin (single-row triangle)", () => {
+		const result = triangleOffsets(makeParams({ members: [makeNode("a")] }));
+		const off = result.offsets.get("a")!;
+		expect(off.dx).toBeCloseTo(0, 5);
+		expect(off.dy).toBeCloseTo(0, 5);
+	});
+
+	it("places 6 nodes in 3 rows (1+2+3) — apex/middle/base structure", () => {
+		const members = ["a", "b", "c", "d", "e", "f"].map((id) => makeNode(id));
+		const result = triangleOffsets(makeParams({ members }));
+		expect(result.offsets.size).toBe(6);
+		// Sorted by id: a,b,c,d,e,f. Row 0 = [a], Row 1 = [b,c], Row 2 = [d,e,f].
+		const aY = result.offsets.get("a")!.dy;
+		const bY = result.offsets.get("b")!.dy;
+		const dY = result.offsets.get("d")!.dy;
+		expect(bY).toBeGreaterThan(aY); // row 1 below row 0
+		expect(dY).toBeGreaterThan(bY); // row 2 below row 1
+		// Each row centered: the row-1 nodes b,c have x sum ≈ 0 (centered).
+		expect(result.offsets.get("b")!.dx + result.offsets.get("c")!.dx).toBeCloseTo(0, 5);
+	});
+
+	it("returns a triangle guide with 3 vertices forming an equilateral shape", () => {
+		const members = ["a", "b", "c"].map((id) => makeNode(id));
+		const result = triangleOffsets(makeParams({ members }));
+		expect(result.guide?.type).toBe(ARRANGEMENT_TRIANGLE);
+		const guide = result.guide as { type: string; vertices: { x: number; y: number }[] };
+		expect(guide.vertices.length).toBe(3);
+		// Apex above (smaller y), bottom-left/right below
+		expect(guide.vertices[0].y).toBeLessThan(guide.vertices[1].y);
+		expect(guide.vertices[0].y).toBeLessThan(guide.vertices[2].y);
+	});
+
+	it("partial last row keeps the row centered", () => {
+		// 4 nodes → 3 rows but last row has only 1 (1+2+1)
+		const members = ["a", "b", "c", "d"].map((id) => makeNode(id));
+		const result = triangleOffsets(makeParams({ members }));
+		expect(result.offsets.size).toBe(4);
+		// Row 0 is "a" (single), row 2 is "d" (single) — both centered horizontally.
+		expect(result.offsets.get("a")!.dx).toBeCloseTo(0, 5);
+		expect(result.offsets.get("d")!.dx).toBeCloseTo(0, 5);
+	});
+});
+
+describe("concentricOffsets", () => {
+	it("returns empty offsets for an empty member list", () => {
+		const result = concentricOffsets(makeParams({ members: [] }));
+		expect(result.offsets.size).toBe(0);
+	});
+
+	it("places the first node (highest priority) at origin", () => {
+		const members = ["a", "b", "c", "d"].map((id) => makeNode(id));
+		const result = concentricOffsets(makeParams({ members }));
+		// Sort is by cmp = id.localeCompare → "a" first → at origin
+		const first = result.offsets.get("a")!;
+		expect(first.dx).toBe(0);
+		expect(first.dy).toBe(0);
+	});
+
+	it("places remaining nodes at non-zero radius (rings)", () => {
+		const members = ["a", "b", "c", "d", "e"].map((id) => makeNode(id));
+		const result = concentricOffsets(makeParams({ members }));
+		for (const id of ["b", "c", "d", "e"]) {
+			const o = result.offsets.get(id)!;
+			const r = Math.sqrt(o.dx * o.dx + o.dy * o.dy);
+			expect(r).toBeGreaterThan(0);
+		}
+	});
+
+	it("returns a concentric guide with at least one ring radius", () => {
+		const members = ["a", "b", "c", "d"].map((id) => makeNode(id));
+		const result = concentricOffsets(makeParams({ members }));
+		expect(result.guide?.type).toBe(ARRANGEMENT_CONCENTRIC);
+		const guide = result.guide as { type: string; rings: number[] };
+		expect(guide.rings.length).toBeGreaterThan(0);
+		// Ring radii are strictly positive and sorted ascending
+		for (const r of guide.rings) expect(r).toBeGreaterThan(0);
+		for (let i = 1; i < guide.rings.length; i++) {
+			expect(guide.rings[i]).toBeGreaterThanOrEqual(guide.rings[i - 1]);
+		}
+	});
+
+	it("attaches ringAssignments mapping each non-center node to its ring radius", () => {
+		const members = ["a", "b", "c"].map((id) => makeNode(id));
+		const result = concentricOffsets(makeParams({ members }));
+		expect(result.ringAssignments?.get("a")).toBe(0); // center
+		expect(result.ringAssignments?.get("b")).toBeGreaterThan(0);
+	});
+});
+
+describe("randomOffsets", () => {
+	it("returns empty Map for an empty member list", () => {
+		const result = randomOffsets(makeParams({ members: [] }));
+		expect(result.size).toBe(0);
+	});
+
+	it("is deterministic — same input yields same output (hash-based, no Math.random)", () => {
+		const members = ["a", "b", "c", "d", "e"].map((id) => makeNode(id));
+		const r1 = randomOffsets(makeParams({ members }));
+		const r2 = randomOffsets(makeParams({ members }));
+		for (const id of ["a", "b", "c", "d", "e"]) {
+			expect(r1.get(id)!.dx).toBe(r2.get(id)!.dx);
+			expect(r1.get(id)!.dy).toBe(r2.get(id)!.dy);
+		}
+	});
+
+	it("places exactly one offset per member (no missing or duplicate keys)", () => {
+		const members = Array.from({ length: 10 }, (_, i) => makeNode(`n${i}`));
+		const result = randomOffsets(makeParams({ members }));
+		expect(result.size).toBe(10);
+		for (const n of members) expect(result.has(n.id)).toBe(true);
+	});
+
+	it("offsets stay within disc radius bound (gap × sqrt(n) / 2 + nudge tolerance)", () => {
+		const members = Array.from({ length: 8 }, (_, i) => makeNode(`n${i}`));
+		const result = randomOffsets(makeParams({ members, nodeSize: 18 }));
+		// gap = 18*2*max(1,1) = 36, discR = 36 * sqrt(8) / 2 ≈ 50.9.
+		// Allow generous slack since collision-nudge can push beyond initial disc.
+		const discRWithSlack = 200;
+		for (const off of result.values()) {
+			const r = Math.sqrt(off.dx * off.dx + off.dy * off.dy);
+			expect(r).toBeLessThanOrEqual(discRWithSlack);
+		}
+	});
+
+	it("yields different offsets for different node IDs (hash decorrelates positions)", () => {
+		const members = ["alpha", "beta", "gamma"].map((id) => makeNode(id));
+		const result = randomOffsets(makeParams({ members }));
+		const a = result.get("alpha")!;
+		const b = result.get("beta")!;
+		const g = result.get("gamma")!;
+		// At least one pair must have different positions (hash collision is unlikely for these ids)
+		const allEqual = a.dx === b.dx && a.dy === b.dy && b.dx === g.dx && b.dy === g.dy;
+		expect(allEqual).toBe(false);
 	});
 });
