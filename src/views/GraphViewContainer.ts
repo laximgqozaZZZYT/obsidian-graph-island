@@ -84,6 +84,7 @@ import {
 } from "../utils/graph-filter";
 import { pointInPolygon, hitTestAggregateRegions, computeGroupMemberBounds } from "../utils/geometry";
 import type { AggregateHitRegion } from "../utils/geometry";
+import { computeAvgRadius, spreadDegenerateAxis, computeViewportScaleFactor } from "../utils/viewport-fit";
 import {
 	AGGREGATE_ZOOM_THRESHOLD,
 	collectGroupCentroids,
@@ -5600,9 +5601,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		}
 
 		// Detect and fix degenerate (line-like) distributions
-		const avgNodeR = this._computeAvgNodeRadius();
+		const nodesArr = Array.from(this.pixiNodes.values());
+		const avgNodeR = computeAvgRadius(nodesArr);
 		const degenerateThreshold = avgNodeR * 4;
-		this._spreadDegenerateAxis(cx, cy, vpW, vpH, bboxW, bboxH, degenerateThreshold, minUtil, vpArea);
+		spreadDegenerateAxis(nodesArr, cx, cy, bboxW, bboxH, degenerateThreshold, minUtil, vpArea);
 
 		// Recompute bbox after degenerate fix
 		const bbox2 = this._computeNodeBBox();
@@ -5612,9 +5614,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
 		const cx2 = (bbox2.minX + bbox2.maxX) / 2;
 		const cy2 = (bbox2.minY + bbox2.maxY) / 2;
-		const scaleFactor = this._computeViewportScaleFactor(
+		const scaleFactor = computeViewportScaleFactor(
 			bbox2.maxX - bbox2.minX,
 			bbox2.maxY - bbox2.minY,
+			avgNodeR,
 			minUtil,
 			vpArea,
 			util2,
@@ -5630,68 +5633,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		return computeNodeBBox(
 			Array.from(this.pixiNodes.values(), (pn) => ({ x: pn.data.x, y: pn.data.y, radius: pn.radius })),
 		);
-	}
-
-	/** Compute average node radius across all pixiNodes. */
-	private _computeAvgNodeRadius(): number {
-		let sum = 0;
-		for (const pn of this.pixiNodes.values()) sum += pn.radius ?? 12;
-		return sum / this.pixiNodes.size;
-	}
-
-	/**
-	 * Spread nodes along a degenerate (near-zero) axis so the bbox becomes
-	 * roughly square before uniform scaling.
-	 */
-	private _spreadDegenerateAxis(
-		cx: number,
-		cy: number,
-		vpW: number,
-		vpH: number,
-		bboxW: number,
-		bboxH: number,
-		degenerateThreshold: number,
-		minUtil: number,
-		vpArea: number,
-	): void {
-		if (bboxW > degenerateThreshold && bboxH < degenerateThreshold) {
-			const targetH = Math.max(bboxW * 0.3, (minUtil * vpArea) / bboxW);
-			const nodes = Array.from(this.pixiNodes.values());
-			const n = nodes.length;
-			nodes.forEach((pn, i) => {
-				const t = n > 1 ? i / (n - 1) - 0.5 : 0;
-				pn.data.y = cy + t * targetH;
-			});
-		} else if (bboxH > degenerateThreshold && bboxW < degenerateThreshold) {
-			const targetW = Math.max(bboxH * 0.3, (minUtil * vpArea) / bboxH);
-			const nodes = Array.from(this.pixiNodes.values());
-			const n = nodes.length;
-			nodes.forEach((pn, i) => {
-				const t = n > 1 ? i / (n - 1) - 0.5 : 0;
-				pn.data.x = cx + t * targetW;
-			});
-		}
-	}
-
-	/**
-	 * Compute the uniform scale factor via quadratic equation so that
-	 * scaled positions + constant radii meet the minUtil threshold exactly.
-	 */
-	private _computeViewportScaleFactor(
-		bboxW: number,
-		bboxH: number,
-		minUtil: number,
-		vpArea: number,
-		util: number,
-	): number {
-		const avgR = this._computeAvgNodeRadius();
-		const posSpanW = Math.max(bboxW - 2 * avgR, 1);
-		const posSpanH = Math.max(bboxH - 2 * avgR, 1);
-		const A = posSpanW * posSpanH;
-		const B = 2 * avgR * (posSpanW + posSpanH);
-		const C = 4 * avgR * avgR - minUtil * vpArea;
-		const disc = B * B - 4 * A * C;
-		return disc >= 0 ? (-B + Math.sqrt(disc)) / (2 * A) : Math.sqrt(minUtil / util); // fallback
 	}
 
 	private autoFitView(W: number, H: number) {
