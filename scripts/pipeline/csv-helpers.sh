@@ -245,8 +245,7 @@ csv_file_alert() {
   desc_path="$proj/scripts/pipeline/descriptions/${issue_id}.md"
   mkdir -p "$(dirname "$desc_path")"
   # Body-only: csv_to_prompt_text re-creates frontmatter from CSV columns,
-  # so a frontmatter block here would produce a double-frontmatter prompt
-  # with conflicting summary fields (matches discover-issues.sh / e2e-patrol.sh).
+  # so a frontmatter block here would produce a double-frontmatter prompt.
   echo "$body" > "$desc_path"
 
   csv_atomic_insert issues "$issue_id" \
