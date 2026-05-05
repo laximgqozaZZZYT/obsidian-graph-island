@@ -1,5 +1,12 @@
 import { describe, it, expect, vi } from "vitest";
-import { asInternalApp, asInternalWorkspace, asObsidianWindow, asGraphView } from "../src/obsidian-internals";
+import {
+	asInternalApp,
+	asInternalWorkspace,
+	asInternalVault,
+	asObsidianWindow,
+	asGraphView,
+	asSearchView,
+} from "../src/obsidian-internals";
 
 describe("obsidian-internals cast helpers", () => {
 	it("asInternalApp returns the same object", () => {
@@ -34,5 +41,15 @@ describe("obsidian-internals cast helpers", () => {
 	it("asGraphView returns null for missing view", () => {
 		const leaf = { view: null } as any;
 		expect(asGraphView(leaf)).toBeNull();
+	});
+
+	it("asInternalVault returns the same object", () => {
+		const vault = { read: () => {} } as any;
+		expect(asInternalVault(vault)).toBe(vault);
+	});
+
+	it("asSearchView returns the same object", () => {
+		const view = { query: "foo" } as any;
+		expect(asSearchView(view)).toBe(view);
 	});
 });

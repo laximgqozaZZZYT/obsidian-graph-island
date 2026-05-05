@@ -224,6 +224,23 @@ describe("resolveArrangementFromLayout", () => {
 		};
 		expect(resolveArrangementFromLayout(layout)).toBe(ARRANGEMENT_GRID);
 	});
+
+	it("index+expression on axis1 with even-divide on axis2 and perGroup=false → concentric heuristic", () => {
+		// Non-preset layout that matches the concentric heuristic in resolveArrangementFromLayout
+		const layout: CoordinateLayout = {
+			system: "polar",
+			axis1: {
+				source: { kind: "index" },
+				transform: { kind: "expression", expr: "t * 360", scale: 1 },
+			},
+			axis2: {
+				source: { kind: "index" },
+				transform: { kind: "even-divide", totalRange: 360 },
+			},
+			perGroup: false,
+		};
+		expect(resolveArrangementFromLayout(layout)).toBe(ARRANGEMENT_CONCENTRIC);
+	});
 });
 
 // ---------------------------------------------------------------------------

@@ -67,4 +67,13 @@ describe("ManagedTimers", () => {
 		expect(fn1).not.toHaveBeenCalled();
 		expect(fn2).toHaveBeenCalledTimes(1);
 	});
+
+	it("clear(unknown handle) is a no-op and does not throw", () => {
+		const mt = new ManagedTimers();
+		const foreign = setTimeout(() => {}, 9999) as unknown as ReturnType<typeof setTimeout>;
+		clearTimeout(foreign); // clean up the raw timer
+		// Calling clear with an untracked handle should silently return
+		expect(() => mt.clear(foreign)).not.toThrow();
+		expect(mt.size).toBe(0);
+	});
 });

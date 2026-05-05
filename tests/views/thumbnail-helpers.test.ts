@@ -12,7 +12,13 @@
  *      the suite).
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { extractFrontmatterImage, isNodeOnScreen, createThumbnailClone } from "../../src/views/thumbnail-helpers";
+import { TFile } from "obsidian";
+import {
+	extractFrontmatterImage,
+	isNodeOnScreen,
+	createThumbnailClone,
+	resolveThumbnailUrl,
+} from "../../src/views/thumbnail-helpers";
 
 describe("extractFrontmatterImage", () => {
 	it("prefers `image` over `thumbnail` and `cover`", () => {
@@ -140,5 +146,44 @@ describe("createThumbnailClone", () => {
 		const clone = createThumbnailClone(src, 10, 20, 30);
 		expect(clone).not.toBe(src);
 		expect(src).toEqual({ src: "orig.png" });
+	});
+});
+
+describe("resolveThumbnailUrl", () => {
+	function makeVault(filePath: string | null) {
+		const tf = filePath ? Object.assign(new TFile(), { path: filePath }) : null;
+		return {
+			getAbstractFileByPath: (p: string) => (p === filePath || p.replace(/^\/+/, "") === filePath ? tf : null),
+			getResourcePath: (f: TFile) => `app://resource/${f.path}`,
+		} as unknown as import("obsidian").Vault;
+	}
+
+	it("returns HTTP URLs unchanged (no vault lookup)", () => {
+		const vault = makeVault(null);
+		expect(resolveThumbnailUrl("http://example.com/img.png", vault)).toBe("http://example.com/img.png");
+	});
+
+	it("returns HTTPS URLs unchanged", () => {
+		const vault = makeVault(null);
+		expect(resolveThumbnailUrl("https://cdn.example.com/photo.jpg", vault)).toBe(
+			"https://cdn.example.com/photo.jpg",
+		);
+	});
+
+	it("resolves a vault-relative path to a resource URL", () => {
+		const vault = makeVault("assets/photo.png");
+		const result = resolveThumbnailUrl("assets/photo.png", vault);
+		expect(result).toBe("app://resource/assets/photo.png");
+	});
+
+	it("strips leading slashes before falling back to a clean-path lookup", () => {
+		const vault = makeVault("assets/photo.png");
+		const result = resolveThumbnailUrl("///assets/photo.png", vault);
+		expect(result).toBe("app://resource/assets/photo.png");
+	});
+
+	it("returns null when path is not found in vault", () => {
+		const vault = makeVault(null);
+		expect(resolveThumbnailUrl("missing.png", vault)).toBeNull();
 	});
 });
