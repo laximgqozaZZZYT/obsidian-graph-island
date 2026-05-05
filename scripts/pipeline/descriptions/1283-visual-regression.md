@@ -1,11 +1,3 @@
----
-priority: high
-reported: 2026-04-10
-status: pending
-source: auto-discovered
-summary: visual-regression — labelReadability 3/100 と screenshotReadability 65/100 を回復
----
-
 ## Description
 
 `scripts/pipeline/visual-report.json` (force ビュー / nodeCount=238) で 2 軸が基準値を下回っている:
