@@ -2,7 +2,7 @@
  * Pure utility functions extracted from GraphViewContainer.ts.
  * These functions are stateless and have no dependency on the GVC class.
  */
-import type { ClusterGroupRule, GroupPreset } from "../types";
+import type { ClusterGroupRule, GroupPreset, GroupRule } from "../types";
 import { parseQueryExpr, serializeExpr } from "./query-expr";
 import { hexToRgb } from "./color";
 
@@ -130,6 +130,42 @@ export function findMatchingGroupPreset(
 		return preset;
 	}
 	return null;
+}
+
+/** Result of resolving a GroupPreset into panel-ready state. */
+export interface ResolvedGroupPreset {
+	groups: GroupRule[];
+	/** null = preset has no commonQueries source; caller should leave panel.commonQueries unchanged. */
+	commonQueries: { query: string; recursive: boolean }[] | null;
+	clusterGroupRules: ClusterGroupRule[];
+}
+
+/**
+ * Resolve a GroupPreset into deep-cloned, panel-ready data.
+ * Pure: makes no assumptions about caller state, performs no mutations.
+ * Handles legacy `commonQuery` (single) → `commonQueries[]` (multi) conversion.
+ */
+export function resolveGroupPreset(preset: GroupPreset): ResolvedGroupPreset {
+	const groups = preset.groups.map((g) => ({
+		...g,
+		expression: g.expression ? { ...g.expression } : null,
+	}));
+	let commonQueries: { query: string; recursive: boolean }[] | null = null;
+	if (preset.commonQueries?.length) {
+		commonQueries = preset.commonQueries.map((q) => ({ ...q }));
+	} else if (preset.commonQuery?.expression) {
+		commonQueries = [
+			{
+				query: serializeExpr(preset.commonQuery.expression),
+				recursive: preset.recursive ?? false,
+			},
+		];
+	}
+	return {
+		groups,
+		commonQueries,
+		clusterGroupRules: deriveClusterRules(preset),
+	};
 }
 
 /**

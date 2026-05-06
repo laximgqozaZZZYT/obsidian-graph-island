@@ -22,12 +22,13 @@ import type {
 	GraphTemplate,
 } from "../types";
 import { DEFAULT_COLORS, DEFAULT_CARD_RENDER_CONFIG, DEFAULT_ONTOLOGY, mergeRenderThresholds } from "../types";
-import { buildSearchHopSet, evaluateExpr, parseQueryExpr, serializeExpr } from "../utils/query-expr";
+import { buildSearchHopSet, evaluateExpr, parseQueryExpr } from "../utils/query-expr";
 import { ManagedTimers } from "../utils/managed-timers";
 import { buildRichStatus } from "../utils/status-formatter";
 import {
 	deriveClusterRulesFromQueries,
-	deriveClusterRules,
+	findMatchingGroupPreset,
+	resolveGroupPreset,
 	blendThemeLabel,
 	cleanArcName,
 	areSavedPositionsValid,
@@ -557,29 +558,12 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
 	private applyGroupPresets() {
 		const presets = this.plugin.settings.groupPresets ?? [];
-		for (const preset of presets) {
-			const cond = preset.condition;
-			if (cond.layout && cond.layout !== this.currentLayout) continue;
-			if (cond.tagDisplay && cond.tagDisplay !== this.panel.tagDisplay) continue;
-			// Match found — apply preset
-			this.panel.groups = preset.groups.map((g) => ({
-				...g,
-				expression: g.expression ? { ...g.expression } : null,
-			}));
-			// Restore commonQueries from preset
-			if (preset.commonQueries?.length) {
-				this.panel.commonQueries = preset.commonQueries.map((q) => ({ ...q }));
-			} else if (preset.commonQuery?.expression) {
-				// Legacy single commonQuery → convert to array
-				this.panel.commonQueries = [
-					{
-						query: serializeExpr(preset.commonQuery.expression),
-						recursive: preset.recursive ?? false,
-					},
-				];
-			}
-			this.panel.clusterGroupRules = deriveClusterRules(preset);
-			break;
+		const matched = findMatchingGroupPreset(presets, this.currentLayout, this.panel.tagDisplay);
+		if (matched) {
+			const resolved = resolveGroupPreset(matched);
+			this.panel.groups = resolved.groups;
+			if (resolved.commonQueries) this.panel.commonQueries = resolved.commonQueries;
+			this.panel.clusterGroupRules = resolved.clusterGroupRules;
 		}
 		// Fallback: enclosure mode should always have a commonQuery
 		if (this.panel.tagDisplay === TAG_DISPLAY_ENCLOSURE && this.panel.commonQueries.length === 0) {

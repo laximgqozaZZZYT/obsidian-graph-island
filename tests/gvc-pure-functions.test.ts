@@ -11,6 +11,7 @@ import {
 	heatmapColor,
 	COMMUNITY_PALETTE,
 	findMatchingGroupPreset,
+	resolveGroupPreset,
 	resolveNodeColor,
 	cleanArcName,
 	areSavedPositionsValid,
@@ -328,6 +329,125 @@ describe("findMatchingGroupPreset", () => {
 	it("returns first matching preset", () => {
 		const result = findMatchingGroupPreset([presetC, presetA], "force", "node");
 		expect(result).toBe(presetC); // presetC has empty condition, matches first
+	});
+});
+
+// ---------------------------------------------------------------------------
+// resolveGroupPreset — preset → panel-ready data (deep-cloned)
+// ---------------------------------------------------------------------------
+describe("resolveGroupPreset", () => {
+	it("returns null commonQueries when preset has neither commonQueries nor commonQuery", () => {
+		const preset: GroupPreset = {
+			condition: {},
+			groups: [{ expression: null, color: "#ff0000" }],
+		};
+		const result = resolveGroupPreset(preset);
+		expect(result.commonQueries).toBeNull();
+		expect(result.groups).toHaveLength(1);
+		expect(result.clusterGroupRules).toEqual([]);
+	});
+
+	it("deep-clones groups array (mutating result must not affect input)", () => {
+		const expr = { type: "leaf" as const, field: "tag", value: "x" };
+		const preset: GroupPreset = {
+			condition: {},
+			groups: [{ expression: expr, color: "#abc" }],
+		};
+		const result = resolveGroupPreset(preset);
+		// Mutate cloned expression
+		(result.groups[0].expression as { value: string }).value = "MUTATED";
+		expect(expr.value).toBe("x"); // original untouched
+	});
+
+	it("preserves null expression when cloning", () => {
+		const preset: GroupPreset = {
+			condition: {},
+			groups: [{ expression: null, color: "#000" }],
+		};
+		const result = resolveGroupPreset(preset);
+		expect(result.groups[0].expression).toBeNull();
+	});
+
+	it("clones commonQueries entries (mutation isolation)", () => {
+		const preset: GroupPreset = {
+			condition: {},
+			groups: [],
+			commonQueries: [{ query: "tag:foo", recursive: true }],
+		};
+		const result = resolveGroupPreset(preset);
+		expect(result.commonQueries).toHaveLength(1);
+		(result.commonQueries as { query: string }[])[0].query = "MUTATED";
+		expect(preset.commonQueries![0].query).toBe("tag:foo");
+	});
+
+	it("converts legacy commonQuery → single-entry commonQueries with recursive flag", () => {
+		const preset: GroupPreset = {
+			condition: {},
+			groups: [],
+			commonQuery: { expression: { type: "leaf", field: "tag", value: "*" } },
+			recursive: true,
+		};
+		const result = resolveGroupPreset(preset);
+		expect(result.commonQueries).toHaveLength(1);
+		expect(result.commonQueries![0].recursive).toBe(true);
+		expect(result.commonQueries![0].query).toContain("tag");
+	});
+
+	it("legacy commonQuery defaults recursive=false when preset.recursive is undefined", () => {
+		const preset: GroupPreset = {
+			condition: {},
+			groups: [],
+			commonQuery: { expression: { type: "leaf", field: "category", value: "*" } },
+		};
+		const result = resolveGroupPreset(preset);
+		expect(result.commonQueries![0].recursive).toBe(false);
+	});
+
+	it("prefers commonQueries over legacy commonQuery when both present", () => {
+		const preset: GroupPreset = {
+			condition: {},
+			groups: [],
+			commonQueries: [{ query: "tag:new", recursive: false }],
+			commonQuery: { expression: { type: "leaf", field: "category", value: "old" } },
+			recursive: true,
+		};
+		const result = resolveGroupPreset(preset);
+		expect(result.commonQueries).toHaveLength(1);
+		expect(result.commonQueries![0].query).toBe("tag:new");
+		expect(result.commonQueries![0].recursive).toBe(false);
+	});
+
+	it("treats empty commonQueries array as absent (falls back to legacy commonQuery)", () => {
+		const preset: GroupPreset = {
+			condition: {},
+			groups: [],
+			commonQueries: [],
+			commonQuery: { expression: { type: "leaf", field: "tag", value: "*" } },
+		};
+		const result = resolveGroupPreset(preset);
+		expect(result.commonQueries).toHaveLength(1);
+		expect(result.commonQueries![0].query).toContain("tag");
+	});
+
+	it("clusterGroupRules matches deriveClusterRules(preset)", () => {
+		const preset: GroupPreset = {
+			condition: {},
+			groups: [],
+			commonQueries: [{ query: "tag:*", recursive: false }],
+		};
+		const result = resolveGroupPreset(preset);
+		expect(result.clusterGroupRules).toEqual(deriveClusterRules(preset));
+	});
+
+	it("does not mutate the input preset", () => {
+		const preset: GroupPreset = {
+			condition: {},
+			groups: [{ expression: { type: "leaf", field: "tag", value: "x" }, color: "#abc" }],
+			commonQueries: [{ query: "tag:foo", recursive: true }],
+		};
+		const before = JSON.stringify(preset);
+		resolveGroupPreset(preset);
+		expect(JSON.stringify(preset)).toBe(before);
 	});
 });
 
