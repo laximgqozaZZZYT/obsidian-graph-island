@@ -421,6 +421,73 @@ export function buildTransitionData(
 	return transitionData;
 }
 
+// ---------------------------------------------------------------------------
+// Timeline keyboard navigation (extracted from _handleTimelineArrowKey)
+// ---------------------------------------------------------------------------
+
+export type TimelineArrowKey = "ArrowRight" | "ArrowLeft" | "ArrowUp" | "ArrowDown";
+
+export interface TimelineNavBar {
+	nodeId: string;
+	xStart: number;
+	yCenter: number;
+}
+
+/**
+ * Pick the next timeline bar to focus given an arrow-key press.
+ *
+ * Bars are sorted by `yCenter` (rows) then `xStart` so that horizontal navigation
+ * walks left-to-right across each row before wrapping to the next. Vertical
+ * navigation jumps to the first/last bar whose `yCenter` differs from the
+ * current row by more than `rowEpsilon` (default 10 world units), matching
+ * the heuristic the timeline view uses to detect a "next work group".
+ *
+ * Returns `null` when there are no bars or when navigation produces no target.
+ */
+export function computeTimelineArrowNavigation<B extends TimelineNavBar>(
+	bars: readonly B[],
+	currentId: string | null,
+	key: TimelineArrowKey,
+	rowEpsilon = 10,
+): B | null {
+	if (bars.length === 0) return null;
+
+	const sorted = bars
+		.map((bar, origIdx) => ({ bar, origIdx }))
+		.sort((a, b) => a.bar.yCenter - b.bar.yCenter || a.bar.xStart - b.bar.xStart);
+
+	let sortedIdx = currentId ? sorted.findIndex((s) => s.bar.nodeId === currentId) : -1;
+
+	switch (key) {
+		case "ArrowRight":
+			sortedIdx = Math.min(sortedIdx + 1, sorted.length - 1);
+			if (sortedIdx < 0) sortedIdx = 0;
+			break;
+		case "ArrowLeft":
+			sortedIdx = Math.max(sortedIdx - 1, 0);
+			break;
+		case "ArrowDown": {
+			const curY = sortedIdx >= 0 ? sorted[sortedIdx].bar.yCenter : 0;
+			const nextRowIdx = sorted.findIndex((s, i) => i > sortedIdx && s.bar.yCenter > curY + rowEpsilon);
+			if (nextRowIdx >= 0) sortedIdx = nextRowIdx;
+			break;
+		}
+		case "ArrowUp": {
+			const curY = sortedIdx >= 0 ? sorted[sortedIdx].bar.yCenter : Infinity;
+			for (let i = sortedIdx - 1; i >= 0; i--) {
+				if (sorted[i].bar.yCenter < curY - rowEpsilon) {
+					sortedIdx = i;
+					break;
+				}
+			}
+			break;
+		}
+	}
+
+	if (sortedIdx >= 0 && sortedIdx < sorted.length) return sorted[sortedIdx].bar;
+	return null;
+}
+
 /** Compute timeline viewport fit from bar data. */
 export function computeTimelineFit(
 	bars: { xStart: number; xEnd: number; yCenter: number; barHeight: number }[],
