@@ -680,6 +680,56 @@ export function computeNodeBBox(nodes: readonly { x: number; y: number; radius?:
 }
 
 /**
+ * Compute the average radius across a collection of nodes.
+ * Falls back to `defaultRadius` for any node whose `radius` is undefined.
+ * Returns 0 for an empty input (safe for callers that gate on size > 0).
+ */
+export function computeAvgNodeRadius(nodes: readonly { radius?: number }[], defaultRadius = 12): number {
+	if (nodes.length === 0) return 0;
+	let sum = 0;
+	for (const n of nodes) sum += n.radius ?? defaultRadius;
+	return sum / nodes.length;
+}
+
+/**
+ * Solve for the uniform scale factor that, when applied to node positions
+ * around the bbox center, brings the bbox area / viewport area ratio up to
+ * `minUtil`.
+ *
+ * Position scaling grows the *position span* (bboxW − 2·avgR / bboxH − 2·avgR)
+ * but leaves node radii constant. So the scaled bbox dimensions are:
+ *   bboxW' = posSpanW·s + 2·avgR
+ *   bboxH' = posSpanH·s + 2·avgR
+ * Setting bboxW'·bboxH' = minUtil·vpArea yields a quadratic in s:
+ *   A·s² + B·s + C = 0
+ * where A = posSpanW·posSpanH, B = 2·avgR·(posSpanW + posSpanH),
+ *       C = 4·avgR² − minUtil·vpArea.
+ *
+ * Falls back to the area-ratio estimate `√(minUtil/util)` whenever the
+ * quadratic has no positive real solution. With A > 0 and B ≥ 0 this happens
+ * iff C ≥ 0 (i.e. `4·avgR² ≥ minUtil·vpArea` — radii alone already cover the
+ * target area), since both roots of the quadratic are then non-positive.
+ */
+export function computeViewportScaleFactor(input: {
+	bboxW: number;
+	bboxH: number;
+	avgR: number;
+	minUtil: number;
+	vpArea: number;
+	util: number;
+}): number {
+	const { bboxW, bboxH, avgR, minUtil, vpArea, util } = input;
+	const posSpanW = Math.max(bboxW - 2 * avgR, 1);
+	const posSpanH = Math.max(bboxH - 2 * avgR, 1);
+	const A = posSpanW * posSpanH;
+	const B = 2 * avgR * (posSpanW + posSpanH);
+	const C = 4 * avgR * avgR - minUtil * vpArea;
+	const disc = B * B - 4 * A * C;
+	const root = disc >= 0 ? (-B + Math.sqrt(disc)) / (2 * A) : Number.NaN;
+	return root > 0 ? root : Math.sqrt(minUtil / util);
+}
+
+/**
  * Build tag membership map: assigns each non-tag node to its most specific
  * (smallest-count) tag. Also builds tag relationship pairs cache from
  * inheritance/aggregation edges between tag nodes.
