@@ -153,6 +153,106 @@ export function resolveNodeColor(
 	return defaultColor;
 }
 
+// ---- Force-layout node initialization ----
+//
+// Extracted from GraphViewContainer._setupForceLayout to keep that method
+// under the ESLint complexity budget. Pure: mutates the supplied node array
+// only; no other side-effects.
+
+/** Golden-angle spiral constants for fade-in member placement. */
+export const FADE_GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5)); // ~137.508°
+export const FADE_RING_BASE = 22; // world-unit radius for the innermost member
+export const FADE_RING_STEP = 2.4; // radial growth per member
+const FADE_VELOCITY_NUDGE = 0.8; // tiny outward nudge per fade-in node
+
+/** Minimal shape consumed by initializeForceLayoutNodePositions for fade-in members. */
+export interface FadeInOriginInput {
+	stagger: { has(id: string): boolean };
+	originX: number;
+	originY: number;
+}
+
+/** Mutable node fields touched during force-layout initialization. */
+interface ForceInitNode {
+	id: string;
+	x: number;
+	y: number;
+	vx: number;
+	vy: number;
+	fx?: number | null;
+	fy?: number | null;
+}
+
+export interface ForceLayoutInitOptions {
+	fade: FadeInOriginInput | null | undefined;
+	savedPositions: Map<string, { x: number; y: number }>;
+	savedPositionsValid: boolean;
+	pinnedPositions: Record<string, { x: number; y: number }>;
+	cx: number;
+	cy: number;
+	W: number;
+	H: number;
+	/** Defaults to Math.random; overridable for deterministic tests. */
+	random?: () => number;
+}
+
+/** True when the node has finite, in-range coordinates that aren't (0,0). */
+function hasUsableCoords(n: { x: number; y: number }, maxReasonableCoord: number): boolean {
+	if (!isFinite(n.x) || !isFinite(n.y)) return false;
+	if (n.x === 0 && n.y === 0) return false;
+	if (Math.abs(n.x) > maxReasonableCoord) return false;
+	if (Math.abs(n.y) > maxReasonableCoord) return false;
+	return true;
+}
+
+/** Apply golden-angle spiral placement around fade origin; returns next fadeIdx. */
+function placeFadeInNode(n: ForceInitNode, fade: FadeInOriginInput, fadeIdx: number): void {
+	const r = FADE_RING_BASE + Math.sqrt(fadeIdx) * FADE_RING_STEP * 3;
+	const theta = fadeIdx * FADE_GOLDEN_ANGLE;
+	n.x = fade.originX + Math.cos(theta) * r;
+	n.y = fade.originY + Math.sin(theta) * r;
+	n.vx = Math.cos(theta) * FADE_VELOCITY_NUDGE;
+	n.vy = Math.sin(theta) * FADE_VELOCITY_NUDGE;
+}
+
+/**
+ * Initialize positions for the force layout pass.
+ *
+ * Per-node precedence (matches the previous inline behavior):
+ * 1. fade-in member → spiral placement around fade origin (skip pinned step)
+ * 2. saved position (if savedPositionsValid)
+ * 3. otherwise, randomize when current x/y is unusable (NaN, (0,0), or out-of-range)
+ * 4. pinned position overrides x/y AND sets fx/fy (anchors the node)
+ */
+export function initializeForceLayoutNodePositions(nodes: ForceInitNode[], opts: ForceLayoutInitOptions): void {
+	const { fade, savedPositions, savedPositionsValid, pinnedPositions, cx, cy, W, H } = opts;
+	const random = opts.random ?? Math.random;
+	const maxReasonableCoord = Math.max(W, H) * 5;
+	let fadeIdx = 0;
+	for (const n of nodes) {
+		if (fade && fade.stagger.has(n.id)) {
+			placeFadeInNode(n, fade, fadeIdx);
+			fadeIdx++;
+			continue;
+		}
+		const saved = savedPositionsValid ? savedPositions.get(n.id) : undefined;
+		if (saved) {
+			n.x = saved.x;
+			n.y = saved.y;
+		} else if (!hasUsableCoords(n, maxReasonableCoord)) {
+			n.x = cx + (random() - 0.5) * W * 0.8;
+			n.y = cy + (random() - 0.5) * H * 0.8;
+		}
+		const pinned = pinnedPositions[n.id];
+		if (pinned) {
+			n.x = pinned.x;
+			n.y = pinned.y;
+			n.fx = pinned.x;
+			n.fy = pinned.y;
+		}
+	}
+}
+
 export function giDiag<T extends { nodes: { length: number }; edges: { length: number } }>(stage: string, data: T): T {
 	const w = typeof window !== "undefined" ? (window as { __GI_DIAG__?: boolean }) : null;
 	const env = typeof process !== "undefined" && process.env?.NODE_ENV !== "production";
