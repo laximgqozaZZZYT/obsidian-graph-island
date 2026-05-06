@@ -24,6 +24,7 @@ import type {
 import { DEFAULT_COLORS, DEFAULT_CARD_RENDER_CONFIG, DEFAULT_ONTOLOGY, mergeRenderThresholds } from "../types";
 import { buildSearchHopSet, evaluateExpr, parseQueryExpr, serializeExpr } from "../utils/query-expr";
 import { ManagedTimers } from "../utils/managed-timers";
+import { buildRichStatus } from "../utils/status-formatter";
 import {
 	deriveClusterRulesFromQueries,
 	deriveClusterRules,
@@ -5125,7 +5126,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 				const ci = getColorIdx(arc);
 				const css = DEFAULT_COLORS[ci % DEFAULT_COLORS.length];
 				const baseColor = cssColorToHex(css);
-				const color = this.lightenHexColor(baseColor, depth * depthLighten);
+				const color = lightenHex(baseColor, depth * depthLighten);
 				const fillAlpha = Math.max(
 					RING_FILL_ALPHA_FLOOR,
 					RING_FILL_ALPHA_BASE - depth * RING_FILL_ALPHA_DEPTH_DECAY,
@@ -5145,7 +5146,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 				const ci = getColorIdx(arc);
 				const css = DEFAULT_COLORS[ci % DEFAULT_COLORS.length];
 				const baseColor = cssColorToHex(css);
-				const color = this.lightenHexColor(baseColor, depth * depthLighten);
+				const color = lightenHex(baseColor, depth * depthLighten);
 				const fillAlpha = Math.max(
 					SUNBURST_FILL_ALPHA_FLOOR,
 					SUNBURST_FILL_ALPHA_BASE - depth * SUNBURST_FILL_ALPHA_DEPTH_DECAY,
@@ -5174,11 +5175,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 				gfx.lineTo(cx + rOuter * Math.cos(endAngle), cy + rOuter * Math.sin(endAngle));
 			}
 		}
-	}
-
-	/** Lighten a hex color by a factor (0-1). factor=0.2 means 20% lighter. */
-	private lightenHexColor(hex: number, factor: number): number {
-		return lightenHex(hex, factor);
 	}
 
 	/** Draw labels on cluster sunburst arcs (depth ≤ 1 only, wide arcs) */
@@ -6304,35 +6300,19 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		this.statusEl.style.animation = "";
 	}
 
-	/** U2: Build rich status text with mode, counts, groups, layout, and filter info */
 	private buildRichStatus(nodeCount: number, edgeCount: number, totalNodes?: number): string {
-		const parts: string[] = [];
-		if (this.panel.localGraphCenter) parts.push("Local");
-		else if (this.panel.focusLayout) parts.push("Focus");
-		// Show filtered ratio when applicable
-		const total = totalNodes ?? this.rawData?.nodes.length ?? nodeCount;
-		if (total !== nodeCount) {
-			parts.push(`${nodeCount} / ${total} nodes`);
-		} else {
-			parts.push(`${nodeCount} nodes`);
-		}
-		if (edgeCount > 0) parts.push(`${edgeCount} edges`);
-		// Show group count if groupBy is active
-		const groupCount = this.panel.collapsedGroups?.size ?? 0;
-		if (groupCount > 0) parts.push(`${groupCount} groups`);
-		if (this.panel.searchQuery) {
-			const mode = this.panel.searchMode === "highlight" ? "HL" : "F";
-			parts.push(`[${mode}: ${this.panel.searchQuery.slice(0, 20)}]`);
-		}
-		// Show view mode if not default graph
-		if (this.panel.viewMode && this.panel.viewMode !== "graph") {
-			parts.push(this.panel.viewMode);
-		}
-		// Show groupBy field when active
-		if (this.panel.groupBy && this.panel.groupBy !== "none") {
-			parts.push(`by ${this.panel.groupBy}`);
-		}
-		return parts.join(" \u00B7 ");
+		return buildRichStatus({
+			nodeCount,
+			edgeCount,
+			totalNodes: totalNodes ?? this.rawData?.nodes.length ?? nodeCount,
+			localGraphCenter: this.panel.localGraphCenter,
+			focusLayout: this.panel.focusLayout,
+			groupCount: this.panel.collapsedGroups?.size ?? 0,
+			searchQuery: this.panel.searchQuery,
+			searchMode: this.panel.searchMode,
+			viewMode: this.panel.viewMode,
+			groupBy: this.panel.groupBy,
+		});
 	}
 
 	/** D6: Compute per-node entropy scores (knowledge diversity).
