@@ -3,6 +3,17 @@
  * These functions are stateless and have no dependency on the GVC class.
  */
 import type { ClusterGroupRule, GraphNode, GroupPreset } from "../types";
+import {
+	LAYOUT_FORCE,
+	LAYOUT_TREE,
+	LAYOUT_CONCENTRIC,
+	LAYOUT_SUNBURST,
+	LAYOUT_TIMELINE,
+	LAYOUT_ARC,
+	ARRANGEMENT_GRID,
+	ARRANGEMENT_CONCENTRIC,
+	ARRANGEMENT_TIMELINE,
+} from "../constants";
 import { parseQueryExpr, serializeExpr } from "./query-expr";
 import { hexToRgb } from "./color";
 
@@ -244,6 +255,89 @@ export function initializeNodePositionsForForce(
 			n.fx = pinned.x;
 			n.fy = pinned.y;
 		}
+	}
+}
+
+// ---------------------------------------------------------------------------
+// setState helpers — pure transformations on serialized view state
+// ---------------------------------------------------------------------------
+
+const LEGACY_LAYOUT_TO_ARRANGEMENT: Record<string, string> = {
+	[LAYOUT_TREE]: ARRANGEMENT_GRID,
+	[LAYOUT_CONCENTRIC]: ARRANGEMENT_CONCENTRIC,
+	[LAYOUT_SUNBURST]: ARRANGEMENT_GRID,
+	[LAYOUT_TIMELINE]: ARRANGEMENT_TIMELINE,
+	[LAYOUT_ARC]: ARRANGEMENT_CONCENTRIC,
+};
+
+/**
+ * Migrate a legacy serialized `state.layout` value into the new
+ * `state.panel.clusterArrangement` field. Mutates `state.panel` in place.
+ * No-op when layout is missing, equals force, or has no mapping.
+ */
+export function migrateLegacyLayoutInState(state: Record<string, unknown>): void {
+	if (!state.layout || typeof state.layout !== "string" || state.layout === LAYOUT_FORCE) return;
+	const mapped = LEGACY_LAYOUT_TO_ARRANGEMENT[state.layout];
+	if (!mapped || !state.panel || typeof state.panel !== "object") return;
+	(state.panel as Record<string, unknown>).clusterArrangement = mapped;
+}
+
+/**
+ * Restore panel fields from a deserialized saved-state object.
+ * Mutates `panel` in place, only writing keys present in `defaultKeys`
+ * and defined on `saved`. Special-cases:
+ *  - `collapsedGroups` is rebuilt as a Set from a serialized array
+ *  - `groupByRules` is reset to null (transient — re-derived from groupBy)
+ */
+export function restorePanelFromSavedState(
+	panel: Record<string, unknown>,
+	saved: Record<string, unknown>,
+	defaultKeys: readonly string[],
+): void {
+	for (const key of defaultKeys) {
+		if (!(key in saved) || saved[key] === undefined) continue;
+		if (key === "collapsedGroups") {
+			const arr = Array.isArray(saved[key]) ? (saved[key] as unknown[]) : [];
+			panel[key] = new Set<string>(arr as string[]);
+		} else if (key === "groupByRules") {
+			panel[key] = null;
+		} else {
+			panel[key] = saved[key];
+		}
+	}
+}
+
+/**
+ * Parse a `groupBy` query string (e.g. "tag AND folder, prop-category")
+ * into ClusterGroupRule[]. Splits on commas + AND/OR/XOR/NOR/NAND/NOT operators
+ * and ensures every rule has the trailing `:?` wildcard.
+ */
+export function deriveClusterRulesFromGroupByString(groupBy: string): ClusterGroupRule[] {
+	const withoutOps = groupBy.replace(/\b(AND|OR|XOR|NOR|NAND|NOT)\b/gi, ",");
+	const fields = withoutOps
+		.split(",")
+		.map((s) => s.trim())
+		.filter(Boolean);
+	return fields.map((f) => ({
+		groupBy: f.endsWith(":?") ? f : f + ":?",
+		recursive: false,
+	}));
+}
+
+/**
+ * Apply forward-compatible defaults for renderThresholds fields that were
+ * added after some saved states were serialized. Mutates `panel` in place.
+ *  - `nodeSizeByDegree` defaults to true (was added later as opt-in→opt-out)
+ *  - `autoLOD` defaults to true (was added later)
+ */
+export function applyRenderThresholdsMigrations(panel: { renderThresholds?: { [k: string]: unknown } }): void {
+	const rt = panel.renderThresholds;
+	if (!rt) return;
+	if (rt.nodeSizeByDegree === undefined || rt.nodeSizeByDegree === false) {
+		rt.nodeSizeByDegree = true;
+	}
+	if (rt.autoLOD === undefined) {
+		rt.autoLOD = true;
 	}
 }
 
