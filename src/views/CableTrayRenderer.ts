@@ -290,6 +290,78 @@ export function buildPolarTrunkPath(
 // Cable path computation
 // ---------------------------------------------------------------------------
 
+/** Polar arc routing: from → radial→gap-ring → arc → radial→to. */
+function polarCablePath(
+	from: { x: number; y: number },
+	to: { x: number; y: number },
+	center: { x: number; y: number },
+	ringGaps: number[],
+): { x: number; y: number }[] {
+	const cx = center.x,
+		cy = center.y;
+	const fromR = Math.sqrt((from.x - cx) ** 2 + (from.y - cy) ** 2);
+	const toR = Math.sqrt((to.x - cx) ** 2 + (to.y - cy) ** 2);
+	const fromA = Math.atan2(from.y - cy, from.x - cx);
+	const toA = Math.atan2(to.y - cy, to.x - cx);
+
+	const midR = (fromR + toR) / 2;
+	const gapR = findNearestGap(ringGaps, midR) ?? ringGaps[0];
+
+	let dAngle = toA - fromA;
+	if (dAngle > Math.PI) dAngle -= 2 * Math.PI;
+	if (dAngle < -Math.PI) dAngle += 2 * Math.PI;
+
+	const ARC_STEPS = Math.max(4, Math.ceil(Math.abs(dAngle) / (Math.PI / 12)));
+	const path: { x: number; y: number }[] = [{ x: from.x, y: from.y }];
+	path.push({ x: cx + gapR * Math.cos(fromA), y: cy + gapR * Math.sin(fromA) });
+	for (let i = 1; i < ARC_STEPS; i++) {
+		const a = fromA + dAngle * (i / ARC_STEPS);
+		path.push({ x: cx + gapR * Math.cos(a), y: cy + gapR * Math.sin(a) });
+	}
+	path.push({ x: cx + gapR * Math.cos(toA), y: cy + gapR * Math.sin(toA) });
+	path.push({ x: to.x, y: to.y });
+	return path;
+}
+
+/** Cartesian L-shape routing through a row-gap midline. */
+function cartesianCablePath(
+	from: { x: number; y: number },
+	to: { x: number; y: number },
+	rowGaps: number[],
+): { x: number; y: number }[] {
+	const midY = (from.y + to.y) / 2;
+	const nearest = findNearestGap(rowGaps, midY) ?? rowGaps[0];
+	const minY = Math.min(from.y, to.y);
+	const maxY = Math.max(from.y, to.y);
+	const between = rowGaps.filter((g) => g >= minY && g <= maxY);
+	const gapY = (between.length > 0 ? findNearestGap(between, midY) : null) ?? nearest;
+	return [
+		{ x: from.x, y: from.y },
+		{ x: from.x, y: gapY },
+		{ x: to.x, y: gapY },
+		{ x: to.x, y: to.y },
+	];
+}
+
+/** Fallback: 3-point path with a perpendicular offset at the midpoint. */
+function perpendicularCablePath(
+	from: { x: number; y: number },
+	to: { x: number; y: number },
+	offset: number,
+): { x: number; y: number }[] {
+	const dx = to.x - from.x,
+		dy = to.y - from.y;
+	const len = Math.sqrt(dx * dx + dy * dy) || 1;
+	const perpX = -dy / len,
+		perpY = dx / len;
+	const sign = perpY >= 0 ? 1 : -1;
+	return [
+		{ x: from.x, y: from.y },
+		{ x: (from.x + to.x) / 2 + perpX * offset * sign, y: (from.y + to.y) / 2 + perpY * offset * sign },
+		{ x: to.x, y: to.y },
+	];
+}
+
 /**
  * Compute a cable path that avoids nodes by running through gaps.
  *
@@ -311,75 +383,13 @@ export function computeCablePath(
 			{ x: to.x, y: to.y },
 		];
 	}
-
-	// -- Polar routing --
 	if (opts?.center && opts?.ringGaps && opts.ringGaps.length > 0) {
-		const cx = opts.center.x,
-			cy = opts.center.y;
-		const fromR = Math.sqrt((from.x - cx) ** 2 + (from.y - cy) ** 2);
-		const toR = Math.sqrt((to.x - cx) ** 2 + (to.y - cy) ** 2);
-		const fromA = Math.atan2(from.y - cy, from.x - cx);
-		const toA = Math.atan2(to.y - cy, to.x - cx);
-
-		// Pick the ring gap between from and to radii
-		const midR = (fromR + toR) / 2;
-		const gapR = findNearestGap(opts.ringGaps, midR) ?? opts.ringGaps[0];
-
-		// Arc interpolation along the gap ring from fromAngle to toAngle
-		let dAngle = toA - fromA;
-		// Shortest arc direction
-		if (dAngle > Math.PI) dAngle -= 2 * Math.PI;
-		if (dAngle < -Math.PI) dAngle += 2 * Math.PI;
-
-		const ARC_STEPS = Math.max(4, Math.ceil(Math.abs(dAngle) / (Math.PI / 12)));
-		const path: { x: number; y: number }[] = [{ x: from.x, y: from.y }];
-
-		// Radial move: from -> gap ring at from's angle
-		path.push({ x: cx + gapR * Math.cos(fromA), y: cy + gapR * Math.sin(fromA) });
-
-		// Arc along gap ring
-		for (let i = 1; i < ARC_STEPS; i++) {
-			const t = i / ARC_STEPS;
-			const a = fromA + dAngle * t;
-			path.push({ x: cx + gapR * Math.cos(a), y: cy + gapR * Math.sin(a) });
-		}
-
-		// Radial move: gap ring at to's angle -> to
-		path.push({ x: cx + gapR * Math.cos(toA), y: cy + gapR * Math.sin(toA) });
-		path.push({ x: to.x, y: to.y });
-
-		return path;
+		return polarCablePath(from, to, opts.center, opts.ringGaps);
 	}
-
-	// -- Cartesian routing --
 	if (opts?.rowGaps && opts.rowGaps.length > 0) {
-		const midY = (from.y + to.y) / 2;
-		const nearest = findNearestGap(opts.rowGaps, midY) ?? opts.rowGaps[0];
-		// Prefer a gap between from and to
-		const minY = Math.min(from.y, to.y);
-		const maxY = Math.max(from.y, to.y);
-		const between = opts.rowGaps.filter((g) => g >= minY && g <= maxY);
-		const gapY = (between.length > 0 ? findNearestGap(between, midY) : null) ?? nearest;
-		return [
-			{ x: from.x, y: from.y },
-			{ x: from.x, y: gapY },
-			{ x: to.x, y: gapY },
-			{ x: to.x, y: to.y },
-		];
+		return cartesianCablePath(from, to, opts.rowGaps);
 	}
-
-	// -- Fallback: perpendicular offset --
-	const dx = to.x - from.x,
-		dy = to.y - from.y;
-	const len = Math.sqrt(dx * dx + dy * dy) || 1;
-	const perpX = -dy / len,
-		perpY = dx / len;
-	const sign = perpY >= 0 ? 1 : -1;
-	return [
-		{ x: from.x, y: from.y },
-		{ x: (from.x + to.x) / 2 + perpX * offset * sign, y: (from.y + to.y) / 2 + perpY * offset * sign },
-		{ x: to.x, y: to.y },
-	];
+	return perpendicularCablePath(from, to, offset);
 }
 
 // ---------------------------------------------------------------------------
