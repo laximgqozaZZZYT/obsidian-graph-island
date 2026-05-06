@@ -162,3 +162,111 @@ export function giDiag<T extends { nodes: { length: number }; edges: { length: n
 	}
 	return data;
 }
+
+// ---------------------------------------------------------------------------
+// seedNodePositions — initial position seeding for force-layout restart.
+// Extracted from GraphViewContainer._setupForceLayout to reduce its complexity.
+// ---------------------------------------------------------------------------
+
+/** Subset of `_fadeInTween` needed to place fade-in members on a Fermat spiral. */
+export interface FadeInOrigin {
+	stagger: Map<string, number>;
+	originX: number;
+	originY: number;
+}
+
+/** Minimal node shape mutated by {@link seedNodePositions}. */
+export interface SeedablePosNode {
+	id: string;
+	x: number;
+	y: number;
+	vx?: number;
+	vy?: number;
+	// Accept `null` to match GraphNode.fx/fy (d3-force convention: null = unpinned).
+	fx?: number | null;
+	fy?: number | null;
+}
+
+/** Inputs for {@link seedNodePositions}. */
+export interface SeedNodePositionsOptions {
+	fade: FadeInOrigin | null;
+	savedPositions: Map<string, { x: number; y: number }>;
+	savedPositionsValid: boolean;
+	pinnedPositions: Record<string, { x: number; y: number }>;
+	cx: number;
+	cy: number;
+	W: number;
+	H: number;
+	maxReasonableCoord: number;
+	/** Optional RNG seam for deterministic tests. Defaults to Math.random. */
+	rng?: () => number;
+}
+
+const FADE_GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5)); // ~137.508°
+const FADE_RING_BASE = 22; // world-unit radius for the innermost member
+const FADE_RING_STEP = 2.4; // radial growth per member
+const FADE_NUDGE = 0.8; // tiny outward velocity nudge
+
+/**
+ * Seed initial positions for a force-layout restart.
+ *
+ * Behaviour mirrors the original loop in `_setupForceLayout`:
+ *  1. Fade-in members (present in `fade.stagger`) are placed on a Fermat spiral
+ *     around `fade.origin*` with a small outward velocity.
+ *  2. Otherwise, valid saved positions are reused.
+ *  3. Otherwise (or if current coords are non-finite / origin / out of range),
+ *     positions are randomised inside the canvas.
+ *  4. Pinned positions override 1–3 and additionally set fx/fy.
+ */
+export function seedNodePositions(nodes: SeedablePosNode[], opts: SeedNodePositionsOptions): void {
+	const rng = opts.rng ?? Math.random;
+	let fadeIdx = 0;
+	for (const n of nodes) {
+		if (placeFadeMember(n, opts.fade, fadeIdx)) {
+			fadeIdx++;
+			continue;
+		}
+		seedNonFadeNode(n, opts, rng);
+		applyPinned(n, opts.pinnedPositions[n.id]);
+	}
+}
+
+function placeFadeMember(n: SeedablePosNode, fade: FadeInOrigin | null, fadeIdx: number): boolean {
+	if (!fade || !fade.stagger.has(n.id)) return false;
+	const r = FADE_RING_BASE + Math.sqrt(fadeIdx) * FADE_RING_STEP * 3;
+	const theta = fadeIdx * FADE_GOLDEN_ANGLE;
+	const cosT = Math.cos(theta);
+	const sinT = Math.sin(theta);
+	n.x = fade.originX + cosT * r;
+	n.y = fade.originY + sinT * r;
+	n.vx = cosT * FADE_NUDGE;
+	n.vy = sinT * FADE_NUDGE;
+	return true;
+}
+
+function seedNonFadeNode(n: SeedablePosNode, opts: SeedNodePositionsOptions, rng: () => number): void {
+	const saved = opts.savedPositionsValid ? opts.savedPositions.get(n.id) : undefined;
+	if (saved) {
+		n.x = saved.x;
+		n.y = saved.y;
+		return;
+	}
+	if (needsRandomSeed(n, opts.maxReasonableCoord)) {
+		n.x = opts.cx + (rng() - 0.5) * opts.W * 0.8;
+		n.y = opts.cy + (rng() - 0.5) * opts.H * 0.8;
+	}
+}
+
+function needsRandomSeed(n: SeedablePosNode, maxReasonableCoord: number): boolean {
+	if (!isFinite(n.x) || !isFinite(n.y)) return true;
+	if (n.x === 0 && n.y === 0) return true;
+	return Math.abs(n.x) > maxReasonableCoord || Math.abs(n.y) > maxReasonableCoord;
+}
+
+function applyPinned(n: SeedablePosNode, pinned: { x: number; y: number } | undefined): void {
+	if (!pinned) return;
+	n.x = pinned.x;
+	n.y = pinned.y;
+	n.fx = pinned.x;
+	n.fy = pinned.y;
+}
