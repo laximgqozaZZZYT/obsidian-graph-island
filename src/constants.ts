@@ -720,6 +720,8 @@ export const GVC_THUMBNAIL_VIEWPORT_MARGIN = 50;
 // ---- Density heatmap (grid-based node density visualization) ----
 export const GVC_HEATMAP_CELL_SIZE = 40;
 export const GVC_HEATMAP_GAUSSIAN_RADIUS = 3;
+// σ (Gaussian std-dev) expressed as a factor of radius. Lower values → tighter peaks.
+export const GVC_HEATMAP_GAUSSIAN_SIGMA_FACTOR = 0.8;
 
 // ---- Progressive simulation rendering (sync positions every N ticks) ----
 export const GVC_PROGRESSIVE_INTERVAL = 10;
