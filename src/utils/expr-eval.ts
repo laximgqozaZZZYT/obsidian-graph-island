@@ -427,42 +427,37 @@ export function evalExpr(node: ExprNode, vars: ExprVars): number {
 	return result;
 }
 
+function applyBinaryOp(op: "+" | "-" | "*" | "/" | "%" | "^", l: number, r: number): number {
+	switch (op) {
+		case "+":
+			return l + r;
+		case "-":
+			return l - r;
+		case "*":
+			return l * r;
+		case "/":
+			return r === 0 ? 0 : l / r;
+		case "%":
+			return r === 0 ? 0 : l % r;
+		case "^":
+			return Math.pow(l, r);
+	}
+}
+
 function evalNode(node: ExprNode, vars: ExprVars): number {
 	switch (node.type) {
 		case "number":
 			return node.value;
-
 		case "variable":
 			return vars[node.name as keyof ExprVars] ?? 0;
-
 		case "unary":
 			return -evalNode(node.arg, vars);
-
-		case "binary": {
-			const l = evalNode(node.left, vars);
-			const r = evalNode(node.right, vars);
-			switch (node.op) {
-				case "+":
-					return l + r;
-				case "-":
-					return l - r;
-				case "*":
-					return l * r;
-				case "/":
-					return r === 0 ? 0 : l / r;
-				case "%":
-					return r === 0 ? 0 : l % r;
-				case "^":
-					return Math.pow(l, r);
-			}
-			break;
-		}
-
+		case "binary":
+			return applyBinaryOp(node.op, evalNode(node.left, vars), evalNode(node.right, vars));
 		case "call": {
 			const fn = FUNCTIONS[node.fn];
 			if (!fn) return 0;
-			const args = node.args.map((a) => evalNode(a, vars));
-			return fn(...args);
+			return fn(...node.args.map((a) => evalNode(a, vars)));
 		}
 	}
 	return 0;
