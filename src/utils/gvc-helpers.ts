@@ -3,11 +3,15 @@
  * These functions are stateless and have no dependency on the GVC class.
  */
 import type { ClusterGroupRule, GroupPreset } from "../types";
+import type { TimelineBarInfo } from "../layouts/cluster-force";
 import { parseQueryExpr, serializeExpr } from "./query-expr";
 import { hexToRgb } from "./color";
 
 // ---- Rendering constants ----
 const BLEND_LABEL_FACTOR = 0.15;
+
+/** Y-distance threshold (world px) used to detect "different work group" rows in timeline navigation. */
+export const TIMELINE_ROW_JUMP_PX = 10;
 
 /**
  * Derive a single ClusterGroupRule from a query string + recursive flag.
@@ -151,6 +155,71 @@ export function resolveNodeColor(
 		if (css) return css;
 	}
 	return defaultColor;
+}
+
+/** Arrow keys recognised by the timeline navigator. */
+export type TimelineArrowKey = "ArrowLeft" | "ArrowRight" | "ArrowUp" | "ArrowDown";
+
+/**
+ * Pick the next bar to focus when navigating timeline bars with arrow keys.
+ *
+ * - Bars are visited in (yCenter, xStart) order — i.e. row by row, then left to right.
+ * - ArrowLeft/Right step one bar at a time within the sorted order.
+ * - ArrowUp/Down jump across "rows" (yCenter differing by more than {@link TIMELINE_ROW_JUMP_PX}),
+ *   which corresponds to jumping between work groups in the timeline view.
+ *
+ * Returns `null` when the bars list is empty or the key produces no movement
+ * (e.g. ArrowDown from the last row). The caller is responsible for any side
+ * effects (highlight, pan, redraw).
+ */
+export function pickNextTimelineBar(
+	bars: readonly TimelineBarInfo[],
+	currentNodeId: string | null,
+	key: TimelineArrowKey,
+): TimelineBarInfo | null {
+	if (bars.length === 0) return null;
+
+	const currentIdx = currentNodeId ? bars.findIndex((b) => b.nodeId === currentNodeId) : -1;
+
+	// Stable sort by row (yCenter) then column (xStart). Track each entry's
+	// original index so we can recover currentIdx after sorting.
+	const sorted = bars
+		.map((b, i) => ({ bar: b, origIdx: i }))
+		.sort((a, b) => a.bar.yCenter - b.bar.yCenter || a.bar.xStart - b.bar.xStart);
+
+	let sortedIdx = currentIdx >= 0 ? sorted.findIndex((s) => s.origIdx === currentIdx) : -1;
+
+	switch (key) {
+		case "ArrowRight":
+			sortedIdx = Math.min(sortedIdx + 1, sorted.length - 1);
+			if (sortedIdx < 0) sortedIdx = 0;
+			break;
+		case "ArrowLeft":
+			sortedIdx = Math.max(sortedIdx - 1, 0);
+			break;
+		case "ArrowDown": {
+			const curY = sortedIdx >= 0 ? sorted[sortedIdx].bar.yCenter : 0;
+			// findIndex returns -1 when no row jump is available; propagate that so
+			// the caller can detect "no movement" via a null return.
+			sortedIdx = sorted.findIndex((s, i) => i > sortedIdx && s.bar.yCenter > curY + TIMELINE_ROW_JUMP_PX);
+			break;
+		}
+		case "ArrowUp": {
+			const curY = sortedIdx >= 0 ? sorted[sortedIdx].bar.yCenter : Infinity;
+			let foundIdx = -1;
+			for (let i = sortedIdx - 1; i >= 0; i--) {
+				if (sorted[i].bar.yCenter < curY - TIMELINE_ROW_JUMP_PX) {
+					foundIdx = i;
+					break;
+				}
+			}
+			sortedIdx = foundIdx;
+			break;
+		}
+	}
+
+	if (sortedIdx < 0 || sortedIdx >= sorted.length) return null;
+	return sorted[sortedIdx].bar;
 }
 
 export function giDiag<T extends { nodes: { length: number }; edges: { length: number } }>(stage: string, data: T): T {

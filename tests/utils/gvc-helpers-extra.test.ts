@@ -10,8 +10,11 @@ import {
 	resolveNodeColor,
 	deriveClusterRules,
 	COMMUNITY_PALETTE,
+	pickNextTimelineBar,
+	TIMELINE_ROW_JUMP_PX,
 } from "../../src/utils/gvc-helpers";
 import type { GroupPreset } from "../../src/types";
+import type { TimelineBarInfo } from "../../src/layouts/cluster-force";
 
 // ---------------------------------------------------------------------------
 // giDiag — function coverage bump (untested 11th export)
@@ -304,6 +307,115 @@ describe("findMatchingGroupPreset — tagDisplay-only branch", () => {
 		];
 		// First skipped due to tagDisplay mismatch → fallback unconditional
 		expect(findMatchingGroupPreset(presets, "force", "inline")).toBe(presets[1]);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// pickNextTimelineBar — timeline navigation
+// ---------------------------------------------------------------------------
+describe("pickNextTimelineBar", () => {
+	const mkBar = (id: string, xStart: number, yCenter: number): TimelineBarInfo => ({
+		nodeId: id,
+		xStart,
+		xEnd: xStart + 50,
+		barHeight: 6,
+		yCenter,
+	});
+
+	// Three "rows" (yCenter values 0, 100, 200) with two bars each in time order.
+	const bars: TimelineBarInfo[] = [
+		mkBar("a1", 0, 0),
+		mkBar("a2", 100, 0),
+		mkBar("b1", 0, 100),
+		mkBar("b2", 100, 100),
+		mkBar("c1", 0, 200),
+		mkBar("c2", 100, 200),
+	];
+
+	it("returns null when bars is empty", () => {
+		expect(pickNextTimelineBar([], "anything", "ArrowRight")).toBeNull();
+	});
+
+	it("ArrowRight from no selection picks the first bar in sorted order", () => {
+		const next = pickNextTimelineBar(bars, null, "ArrowRight");
+		expect(next?.nodeId).toBe("a1");
+	});
+
+	it("ArrowLeft from no selection still resolves to first bar (clamped)", () => {
+		const next = pickNextTimelineBar(bars, null, "ArrowLeft");
+		expect(next?.nodeId).toBe("a1");
+	});
+
+	it("ArrowRight advances within the same row", () => {
+		expect(pickNextTimelineBar(bars, "a1", "ArrowRight")?.nodeId).toBe("a2");
+	});
+
+	it("ArrowRight at the last bar clamps and returns last bar", () => {
+		expect(pickNextTimelineBar(bars, "c2", "ArrowRight")?.nodeId).toBe("c2");
+	});
+
+	it("ArrowLeft moves backwards within sorted order", () => {
+		expect(pickNextTimelineBar(bars, "a2", "ArrowLeft")?.nodeId).toBe("a1");
+	});
+
+	it("ArrowLeft at the first bar clamps to first bar", () => {
+		expect(pickNextTimelineBar(bars, "a1", "ArrowLeft")?.nodeId).toBe("a1");
+	});
+
+	it("ArrowDown jumps to the first bar of the next row", () => {
+		// From a2 (yCenter=0), ArrowDown should land on b1 (the first bar at yCenter=100).
+		expect(pickNextTimelineBar(bars, "a2", "ArrowDown")?.nodeId).toBe("b1");
+	});
+
+	it("ArrowDown from last row returns null (no further row)", () => {
+		expect(pickNextTimelineBar(bars, "c1", "ArrowDown")).toBeNull();
+	});
+
+	it("ArrowUp jumps to a bar in the row above", () => {
+		// From c1 (yCenter=200), ArrowUp should land on a bar with yCenter < 200-10 (i.e. row 100 or 0).
+		const next = pickNextTimelineBar(bars, "c1", "ArrowUp");
+		expect(next).not.toBeNull();
+		expect(next!.yCenter).toBeLessThan(200 - TIMELINE_ROW_JUMP_PX);
+	});
+
+	it("ArrowUp from first row returns null", () => {
+		expect(pickNextTimelineBar(bars, "a1", "ArrowUp")).toBeNull();
+	});
+
+	it("does not move when row separation is below TIMELINE_ROW_JUMP_PX", () => {
+		// Two rows separated by less than the threshold should not register as a row jump.
+		const closeBars: TimelineBarInfo[] = [mkBar("x", 0, 0), mkBar("y", 100, 5)];
+		// y - x yCenter diff = 5 ≤ 10 → ArrowDown finds nothing → null.
+		expect(pickNextTimelineBar(closeBars, "x", "ArrowDown")).toBeNull();
+	});
+
+	it("ArrowDown with no current selection finds the first row past the threshold from y=0", () => {
+		// curY=0 (no current), threshold=10 → first bar with yCenter>10 is b1 at y=100.
+		expect(pickNextTimelineBar(bars, null, "ArrowDown")?.nodeId).toBe("b1");
+	});
+
+	it("treats unknown current node id like no selection", () => {
+		// Unknown id → currentIdx = -1 → behaves like no selection
+		expect(pickNextTimelineBar(bars, "ghost", "ArrowRight")?.nodeId).toBe("a1");
+	});
+
+	it("handles unsorted input — sort order is by (yCenter, xStart)", () => {
+		// Provide bars in scrambled order; sorting should still drive navigation.
+		const scrambled: TimelineBarInfo[] = [mkBar("c", 0, 200), mkBar("a", 50, 0), mkBar("b", 0, 100)];
+		// From a (yCenter=0), ArrowRight is next in sorted order: that is b (y=100, x=0)? No:
+		// sorted by (yCenter, xStart): a(0,50), b(100,0), c(200,0). ArrowRight from a → b.
+		expect(pickNextTimelineBar(scrambled, "a", "ArrowRight")?.nodeId).toBe("b");
+	});
+
+	it("does not mutate the input bars array", () => {
+		const input: TimelineBarInfo[] = [mkBar("a", 100, 100), mkBar("b", 0, 0)];
+		const snapshot = input.map((b) => ({ ...b }));
+		pickNextTimelineBar(input, null, "ArrowRight");
+		expect(input).toEqual(snapshot);
+	});
+
+	it("TIMELINE_ROW_JUMP_PX is a positive constant", () => {
+		expect(TIMELINE_ROW_JUMP_PX).toBeGreaterThan(0);
 	});
 });
 
