@@ -72,6 +72,8 @@ import {
 	computePathfinderResult,
 	buildSimEndA11yMessage,
 	resolveViewportSize,
+	buildHierarchyTree,
+	collectOntologyBackbone,
 } from "../utils/graph-helpers";
 import { pushToMapArray, addToMapSet } from "../utils/map-helpers";
 import {
@@ -2600,42 +2602,14 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		const rootId = this.panel.focusNodeId || this.highlightedNodeId;
 		if (!rootId) return null;
 		const relTypes = new Set(this.panel.hierarchyRelations ?? ["inheritance", "is-a", "has-a"]);
-		const tree = new Map<string, string>();
-		const visited = new Set<string>([rootId]);
-		let frontier = [rootId];
-		for (let depth = 0; depth < 5 && frontier.length > 0; depth++) {
-			const next: string[] = [];
-			for (const parentId of frontier) {
-				for (const e of this.graphEdges) {
-					const src = edgeSourceId(e);
-					const tgt = edgeTargetId(e);
-					if (!relTypes.has(e.type ?? "") && !relTypes.has(e.relation ?? "")) continue;
-					const childId = src === parentId ? tgt : tgt === parentId ? src : null;
-					if (childId && !visited.has(childId)) {
-						visited.add(childId);
-						tree.set(childId, parentId);
-						next.push(childId);
-					}
-				}
-			}
-			frontier = next;
-		}
+		const tree = buildHierarchyTree(rootId, relTypes, this.graphEdges);
 		return tree.size > 0 ? tree : null;
 	}
 
 	/** S6: Get ontology backbone (is-a hierarchy edges) */
 	getOntologyBackbone(): { from: string; to: string }[] | null {
 		if (!this.panel.showOntologyBackbone) return null;
-		const result: { from: string; to: string }[] = [];
-		for (const e of this.graphEdges) {
-			const t = e.type ?? "";
-			const r = e.relation ?? "";
-			if (t === "inheritance" || r === "is-a" || r === "parent") {
-				const src = edgeSourceId(e);
-				const tgt = edgeTargetId(e);
-				result.push({ from: src, to: tgt });
-			}
-		}
+		const result = collectOntologyBackbone(this.graphEdges);
 		return result.length > 0 ? result : null;
 	}
 
