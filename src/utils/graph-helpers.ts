@@ -1125,3 +1125,56 @@ export function resolveViewportSize(
 	if (wrapW > 0 && wrapH > 0) return [wrapW, wrapH];
 	return [rendererW || 800, rendererH || 600];
 }
+
+/**
+ * Build a parent-pointer tree by undirected BFS traversal from a root node
+ * along edges whose `type` or `relation` matches `relTypes`.
+ * Either endpoint can be the parent — direction is determined dynamically
+ * during traversal so the same edge list serves both inbound/outbound walks.
+ *
+ * @returns Map<childId, parentId>. Empty when the root has no matching edges.
+ */
+export function buildHierarchyTree(
+	rootId: string,
+	relTypes: ReadonlySet<string>,
+	edges: readonly GraphEdge[],
+	maxDepth = 5,
+): Map<string, string> {
+	const tree = new Map<string, string>();
+	const visited = new Set<string>([rootId]);
+	let frontier: string[] = [rootId];
+	for (let depth = 0; depth < maxDepth && frontier.length > 0; depth++) {
+		const next: string[] = [];
+		for (const parentId of frontier) {
+			for (const e of edges) {
+				if (!relTypes.has(e.type ?? "") && !relTypes.has(e.relation ?? "")) continue;
+				const src = edgeSourceId(e);
+				const tgt = edgeTargetId(e);
+				const childId = src === parentId ? tgt : tgt === parentId ? src : null;
+				if (childId && !visited.has(childId)) {
+					visited.add(childId);
+					tree.set(childId, parentId);
+					next.push(childId);
+				}
+			}
+		}
+		frontier = next;
+	}
+	return tree;
+}
+
+/**
+ * Collect ontology backbone edges (is-a / inheritance / parent) from
+ * an edge list as ordered (from, to) pairs.
+ */
+export function collectOntologyBackbone(edges: readonly GraphEdge[]): { from: string; to: string }[] {
+	const result: { from: string; to: string }[] = [];
+	for (const e of edges) {
+		const t = e.type ?? "";
+		const r = e.relation ?? "";
+		if (t === "inheritance" || r === "is-a" || r === "parent") {
+			result.push({ from: edgeSourceId(e), to: edgeTargetId(e) });
+		}
+	}
+	return result;
+}
