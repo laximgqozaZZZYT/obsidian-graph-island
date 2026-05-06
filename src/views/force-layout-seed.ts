@@ -49,7 +49,7 @@ const JITTER_SPAN = 0.8; // ±40% of W/H around the center
  * positions (faster convergence), 1 otherwise.
  */
 export function seedForceLayoutPositions(nodes: GraphNode[], opts: SeedForcePositionsOpts): number {
-	const { cx, cy, W, H, fade, savedPositions, savedPositionsValid, pinnedPositions } = opts;
+	const { W, H, fade, savedPositions, savedPositionsValid, pinnedPositions } = opts;
 	const random = opts.random ?? Math.random;
 	const restartAlpha = savedPositionsValid && savedPositions.size > 0 ? 0.5 : 1;
 	const maxReasonableCoord = Math.max(W, H) * 5;
