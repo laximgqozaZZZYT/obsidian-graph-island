@@ -2,7 +2,7 @@
  * Pure utility functions extracted from GraphViewContainer.ts.
  * These functions are stateless and have no dependency on the GVC class.
  */
-import type { ClusterGroupRule, GroupPreset } from "../types";
+import type { ClusterGroupRule, GraphNode, GroupPreset } from "../types";
 import { parseQueryExpr, serializeExpr } from "./query-expr";
 import { hexToRgb } from "./color";
 
@@ -151,6 +151,99 @@ export function resolveNodeColor(
 		if (css) return css;
 	}
 	return defaultColor;
+}
+
+// ---- Force-layout seeding constants ----
+const FADE_GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5)); // ~137.508°
+const FADE_RING_BASE = 22; // world-unit radius for the innermost member
+const FADE_RING_STEP = 2.4; // radial growth per member
+const FADE_NUDGE_VELOCITY = 0.8; // tiny outward velocity for fade-in
+const RANDOM_SEED_SPREAD = 0.8; // canvas-fraction for random initial seed
+
+export interface SeedFadeContext {
+	stagger: Map<string, number>;
+	originX: number;
+	originY: number;
+}
+
+export interface SeedNodePositionsParams {
+	nodes: GraphNode[];
+	cx: number;
+	cy: number;
+	W: number;
+	H: number;
+	savedPositions: Map<string, { x: number; y: number }>;
+	pinnedPositions: Record<string, { x: number; y: number }>;
+	fade: SeedFadeContext | null;
+}
+
+/**
+ * Place a fade-in member on a Fermat (golden-angle) spiral around the origin
+ * so the opening frame already has a pleasing radial composition rather than
+ * all members stacked at the super-node coordinate.
+ */
+function seedFadeInPosition(node: GraphNode, fadeIdx: number, fade: SeedFadeContext): void {
+	const r = FADE_RING_BASE + Math.sqrt(fadeIdx) * FADE_RING_STEP * 3;
+	const theta = fadeIdx * FADE_GOLDEN_ANGLE;
+	const cosT = Math.cos(theta);
+	const sinT = Math.sin(theta);
+	node.x = fade.originX + cosT * r;
+	node.y = fade.originY + sinT * r;
+	node.vx = cosT * FADE_NUDGE_VELOCITY;
+	node.vy = sinT * FADE_NUDGE_VELOCITY;
+}
+
+/** True when the current node coordinates are unusable and need re-seeding. */
+function isNodeCoordInvalid(node: GraphNode, maxReasonableCoord: number): boolean {
+	return (
+		!isFinite(node.x) ||
+		!isFinite(node.y) ||
+		(node.x === 0 && node.y === 0) ||
+		Math.abs(node.x) > maxReasonableCoord ||
+		Math.abs(node.y) > maxReasonableCoord
+	);
+}
+
+/**
+ * Seed initial positions for force-layout nodes. Mutates n.x/n.y/n.vx/n.vy/n.fx/n.fy.
+ *
+ * Priority order per node:
+ *   1. fade-stagger members → spiral seed around fade origin
+ *   2. valid saved position from previous render → reuse
+ *   3. invalid/missing coordinates → random spread around (cx, cy)
+ *   4. pinned positions (from panel state) → override + freeze (fx/fy)
+ *
+ * Returns whether saved positions were considered valid for the current canvas.
+ */
+export function seedNodePositionsForForceLayout(params: SeedNodePositionsParams): { savedPositionsValid: boolean } {
+	const { nodes, cx, cy, W, H, savedPositions, pinnedPositions, fade } = params;
+	const savedPositionsValid = areSavedPositionsValid(savedPositions, W, H);
+	const maxReasonableCoord = Math.max(W, H) * 5;
+	let fadeIdx = 0;
+
+	for (const n of nodes) {
+		if (fade && fade.stagger.has(n.id)) {
+			seedFadeInPosition(n, fadeIdx, fade);
+			fadeIdx++;
+			continue;
+		}
+		const saved = savedPositionsValid ? savedPositions.get(n.id) : undefined;
+		if (saved) {
+			n.x = saved.x;
+			n.y = saved.y;
+		} else if (isNodeCoordInvalid(n, maxReasonableCoord)) {
+			n.x = cx + (Math.random() - 0.5) * W * RANDOM_SEED_SPREAD;
+			n.y = cy + (Math.random() - 0.5) * H * RANDOM_SEED_SPREAD;
+		}
+		const pinned = pinnedPositions[n.id];
+		if (pinned) {
+			n.x = pinned.x;
+			n.y = pinned.y;
+			n.fx = pinned.x;
+			n.fy = pinned.y;
+		}
+	}
+	return { savedPositionsValid };
 }
 
 export function giDiag<T extends { nodes: { length: number }; edges: { length: number } }>(stage: string, data: T): T {
