@@ -2,7 +2,7 @@
  * Pure utility functions extracted from GraphViewContainer.ts.
  * These functions are stateless and have no dependency on the GVC class.
  */
-import type { ClusterGroupRule, GroupPreset } from "../types";
+import type { ClusterGroupRule, GraphNode, GroupPreset } from "../types";
 import { parseQueryExpr, serializeExpr } from "./query-expr";
 import { hexToRgb } from "./color";
 
@@ -151,6 +151,74 @@ export function resolveNodeColor(
 		if (css) return css;
 	}
 	return defaultColor;
+}
+
+/** Fade-in tween shape used for golden-spiral seeding of newly-revealed nodes. */
+export interface SeedFadeInTween {
+	stagger: Map<string, number>;
+	originX: number;
+	originY: number;
+}
+
+export interface SeedNodePositionsDeps {
+	fade: SeedFadeInTween | null;
+	savedPositions: Map<string, { x: number; y: number }>;
+	savedPositionsValid: boolean;
+	pinnedPositions: Record<string, { x: number; y: number }>;
+	cx: number;
+	cy: number;
+	canvasW: number;
+	canvasH: number;
+}
+
+const SEED_GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
+const SEED_FADE_RING_BASE = 22;
+const SEED_FADE_RING_STEP = 2.4;
+
+/**
+ * Seed initial positions for nodes before force simulation start.
+ * Mutates `n.x/y/vx/vy/fx/fy` in place. Priority order per node:
+ *   1. fade-in member → golden-angle Fermat spiral around (fade.originX, fade.originY)
+ *   2. saved position from previous render (when savedPositionsValid)
+ *   3. random scatter within canvas (only if x/y is non-finite, exactly (0,0), or out-of-range)
+ *   4. pinned position overrides #2/#3 and locks the node by writing fx/fy
+ */
+export function seedNodePositions(nodes: GraphNode[], deps: SeedNodePositionsDeps): void {
+	const maxReasonableCoord = Math.max(deps.canvasW, deps.canvasH) * 5;
+	let fadeIdx = 0;
+	for (const n of nodes) {
+		if (deps.fade && deps.fade.stagger.has(n.id)) {
+			const r = SEED_FADE_RING_BASE + Math.sqrt(fadeIdx) * SEED_FADE_RING_STEP * 3;
+			const theta = fadeIdx * SEED_GOLDEN_ANGLE;
+			n.x = deps.fade.originX + Math.cos(theta) * r;
+			n.y = deps.fade.originY + Math.sin(theta) * r;
+			n.vx = Math.cos(theta) * 0.8;
+			n.vy = Math.sin(theta) * 0.8;
+			fadeIdx++;
+			continue;
+		}
+		const saved = deps.savedPositionsValid ? deps.savedPositions.get(n.id) : undefined;
+		if (saved) {
+			n.x = saved.x;
+			n.y = saved.y;
+		} else if (
+			!isFinite(n.x) ||
+			!isFinite(n.y) ||
+			(n.x === 0 && n.y === 0) ||
+			Math.abs(n.x) > maxReasonableCoord ||
+			Math.abs(n.y) > maxReasonableCoord
+		) {
+			n.x = deps.cx + (Math.random() - 0.5) * deps.canvasW * 0.8;
+			n.y = deps.cy + (Math.random() - 0.5) * deps.canvasH * 0.8;
+		}
+		const pinned = deps.pinnedPositions[n.id];
+		if (pinned) {
+			n.x = pinned.x;
+			n.y = pinned.y;
+			n.fx = pinned.x;
+			n.fy = pinned.y;
+		}
+	}
 }
 
 export function giDiag<T extends { nodes: { length: number }; edges: { length: number } }>(stage: string, data: T): T {
