@@ -18,7 +18,7 @@ export default defineConfig({
         // From this baseline forward, ratchet up only — autonomous test
         // additions should restore the previous floors over time.
         statements: 55.1,
-        branches: 48.8,
+        branches: 48.9,
         functions: 53.1,
         lines: 55.4,
       },
