@@ -400,82 +400,99 @@ export function createDefaultPanel(): PanelState {
 	return createDefaultPanelState();
 }
 
-/** B2: Validate and sanitize panel state — fix NaN, undefined, out-of-range values */
-export function validatePanelState(panel: PanelState): void {
-	const defaults = createDefaultPanel();
-	// Numeric fields: replace NaN/Infinity with defaults
-	const numericKeys: (keyof PanelState)[] = [
-		"nodeSize",
-		"centerForce",
-		"repelForce",
-		"linkForce",
-		"linkDistance",
-		"textFadeThreshold",
-		"concentricMinRadius",
-		"concentricRadiusStep",
-		"hoverHops",
-		"enclosureSpacing",
-		"edgeBundleStrength",
-		"clusterNodeSpacing",
-		"clusterGroupScale",
-		"clusterGroupSpacing",
-	];
-	for (const key of numericKeys) {
+const PANEL_NUMERIC_KEYS: readonly (keyof PanelState)[] = [
+	"nodeSize",
+	"centerForce",
+	"repelForce",
+	"linkForce",
+	"linkDistance",
+	"textFadeThreshold",
+	"concentricMinRadius",
+	"concentricRadiusStep",
+	"hoverHops",
+	"enclosureSpacing",
+	"edgeBundleStrength",
+	"clusterNodeSpacing",
+	"clusterGroupScale",
+	"clusterGroupSpacing",
+];
+
+const VALID_VIEW_MODES = new Set(["graph", "sunburst", "timeline", "matrix"]);
+
+const VALID_CLUSTER_ARRANGEMENTS = new Set([
+	"inherit",
+	"concentric",
+	"radial",
+	"phyllotaxis",
+	"grid",
+	"triangle",
+	"random",
+	"timeline",
+	"custom",
+	"ego",
+]);
+
+/** Replace NaN/Infinity numeric fields with defaults */
+function validateNumericFields(panel: PanelState, defaults: PanelState): void {
+	for (const key of PANEL_NUMERIC_KEYS) {
 		const val = panel[key] as number;
 		if (typeof val !== "number" || !isFinite(val)) {
-			// Safe: numericKeys is constrained to keyof PanelState with number values
+			// Safe: PANEL_NUMERIC_KEYS is constrained to keyof PanelState with number values
 			(panel as unknown as Record<string, unknown>)[key] = (defaults as unknown as Record<string, unknown>)[key];
 		}
 	}
-	// ViewMode validation
-	const validViewModes = new Set(["graph", "sunburst", "timeline", "matrix"]);
-	if (!validViewModes.has(panel.viewMode)) {
+}
+
+/** Reject unknown enum values (e.g. "force" from old configs) */
+function validateEnumFields(panel: PanelState): void {
+	if (!VALID_VIEW_MODES.has(panel.viewMode)) {
 		panel.viewMode = "graph";
 	}
-	// ClusterArrangement validation — reject unknown values (e.g. "force" from old configs)
-	const validArrangements = new Set([
-		"inherit",
-		"concentric",
-		"radial",
-		"phyllotaxis",
-		"grid",
-		"triangle",
-		"random",
-		"timeline",
-		"custom",
-		"ego",
-	]);
-	if (!validArrangements.has(panel.clusterArrangement)) {
+	if (!VALID_CLUSTER_ARRANGEMENTS.has(panel.clusterArrangement)) {
 		panel.clusterArrangement = "inherit";
 	}
-	// Clamp hoverHops to 0-10
+}
+
+/** Clamp numeric fields into their valid ranges */
+function clampPanelRanges(panel: PanelState): void {
 	if (panel.hoverHops < 0) panel.hoverHops = 0;
 	if (panel.hoverHops > 10) panel.hoverHops = 10;
-	// Clamp nodeSize to 1-100
 	if (panel.nodeSize < 1) panel.nodeSize = 1;
 	if (panel.nodeSize > 100) panel.nodeSize = 100;
-	// Ensure arrays are arrays
+}
+
+/** Coerce array/Set fields to expected types */
+function ensurePanelCollections(panel: PanelState): void {
 	if (!Array.isArray(panel.multiSelectNodeIds)) panel.multiSelectNodeIds = [];
 	if (!Array.isArray(panel.subgraphNodeIds)) panel.subgraphNodeIds = [];
 	if (!Array.isArray(panel.subgraphStack)) panel.subgraphStack = [];
-	// Ensure collapsedGroups is a Set
 	if (!(panel.collapsedGroups instanceof Set)) {
 		panel.collapsedGroups = new Set(Array.isArray(panel.collapsedGroups) ? panel.collapsedGroups : []);
 	}
-	// Settings migration: fix invisible cable trunks (old default was 0)
+}
+
+/** Settings migrations: bump invisible defaults / enable new-default features */
+function migratePanelSettings(panel: PanelState): void {
+	// Fix invisible cable trunks (old default was 0)
 	if (panel.cableTrunkAlpha === 0) panel.cableTrunkAlpha = 0.25;
-	// Settings migration: ensure new-default features are enabled
-	if (panel.renderThresholds) {
-		if (
-			panel.renderThresholds.nodeSizeByDegree === false ||
-			panel.renderThresholds.nodeSizeByDegree === undefined
-		) {
-			panel.renderThresholds.nodeSizeByDegree = true;
-		}
-		if (panel.renderThresholds.autoLOD === undefined) {
-			panel.renderThresholds.autoLOD = true;
-		}
+	const rt = panel.renderThresholds;
+	if (!rt) return;
+	if (rt.nodeSizeByDegree === false || rt.nodeSizeByDegree === undefined) {
+		rt.nodeSizeByDegree = true;
 	}
+	if (rt.autoLOD === undefined) {
+		rt.autoLOD = true;
+	}
+}
+
+/** B2: Validate and sanitize panel state — fix NaN, undefined, out-of-range values */
+export function validatePanelState(panel: PanelState): void {
+	const defaults = createDefaultPanel();
+	validateNumericFields(panel, defaults);
+	validateEnumFields(panel);
+	clampPanelRanges(panel);
+	ensurePanelCollections(panel);
+	migratePanelSettings(panel);
 }
 
 /** Lazy-initialize panel.renderThresholds and return it.
