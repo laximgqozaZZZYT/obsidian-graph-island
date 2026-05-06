@@ -1,5 +1,6 @@
 import { ItemView, WorkspaceLeaf, Platform, TFile, FileView, setIcon, Notice, type ViewStateResult } from "obsidian";
 import { CanvasContainer, CanvasGraphics, CanvasText } from "./canvas2d";
+import { accumulateDensityGrid } from "./density-heatmap";
 import { drawArcLine, drawArcPath, createSunburstArcLabel } from "./arc-drawing";
 import {
 	extractFrontmatterImage,
@@ -217,6 +218,7 @@ import {
 	GVC_THUMBNAIL_VIEWPORT_MARGIN as THUMBNAIL_VIEWPORT_MARGIN,
 	GVC_HEATMAP_CELL_SIZE as HEATMAP_CELL_SIZE,
 	GVC_HEATMAP_GAUSSIAN_RADIUS as HEATMAP_GAUSSIAN_RADIUS,
+	GVC_HEATMAP_GAUSSIAN_SIGMA_FACTOR as HEATMAP_GAUSSIAN_SIGMA_FACTOR,
 	GVC_PROGRESSIVE_INTERVAL as PROGRESSIVE_INTERVAL,
 } from "../constants";
 import {
@@ -6560,7 +6562,19 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
 		const cols = Math.ceil(cw / HEATMAP_CELL_SIZE);
 		const rows = Math.ceil(ch / HEATMAP_CELL_SIZE);
-		const grid = this._accumulateDensityGrid(cols, rows, HEATMAP_CELL_SIZE, wx, wy, ws);
+		const grid = accumulateDensityGrid(
+			this.pixiNodes.values(),
+			(pn) => {
+				const gfx = (pn as unknown as { graphics?: CanvasContainer }).graphics ?? (pn as PixiNode).gfx;
+				if (!gfx) return null;
+				return { sx: gfx.x * ws + wx, sy: gfx.y * ws + wy, visible: gfx.visible };
+			},
+			cols,
+			rows,
+			HEATMAP_CELL_SIZE,
+			HEATMAP_GAUSSIAN_RADIUS,
+			HEATMAP_GAUSSIAN_SIGMA_FACTOR,
+		);
 
 		let maxD = 0;
 		for (let i = 0; i < grid.length; i++) {
@@ -6579,35 +6593,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 				ctx.fillRect(c * HEATMAP_CELL_SIZE, r * HEATMAP_CELL_SIZE, HEATMAP_CELL_SIZE, HEATMAP_CELL_SIZE);
 			}
 		}
-	}
-
-	/** Accumulate Gaussian density contributions from visible nodes into a grid. */
-	private _accumulateDensityGrid(
-		cols: number,
-		rows: number,
-		cell: number,
-		wx: number,
-		wy: number,
-		ws: number,
-	): Float32Array {
-		const grid = new Float32Array(cols * rows);
-		for (const [, pn] of this.pixiNodes) {
-			const gfx = (pn as unknown as { graphics?: CanvasContainer }).graphics ?? pn.gfx;
-			if (!gfx || !gfx.visible) continue;
-			const sx = gfx.x * ws + wx;
-			const sy = gfx.y * ws + wy;
-			const ci = Math.floor(sx / cell);
-			const ri = Math.floor(sy / cell);
-			for (let dr = -HEATMAP_GAUSSIAN_RADIUS; dr <= HEATMAP_GAUSSIAN_RADIUS; dr++) {
-				for (let dc = -HEATMAP_GAUSSIAN_RADIUS; dc <= HEATMAP_GAUSSIAN_RADIUS; dc++) {
-					const r = ri + dr;
-					const c = ci + dc;
-					if (r < 0 || r >= rows || c < 0 || c >= cols) continue;
-					grid[r * cols + c] += Math.exp(-(dr * dr + dc * dc) / (HEATMAP_GAUSSIAN_RADIUS * 0.8));
-				}
-			}
-		}
-		return grid;
 	}
 
 	// =========================================================================
