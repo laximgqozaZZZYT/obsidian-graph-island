@@ -5,6 +5,7 @@ import {
 	computeTooltipEdgePosition,
 	findSharedTagNodes,
 	findSameFolderNodes,
+	addLinkNeighborsToSet,
 	resolveInheritArrangement,
 	clearNonGraphLayers,
 	computeCardBBox,
@@ -387,6 +388,109 @@ describe("findSameFolderNodes", () => {
 		const result = findSameFolderNodes(hoveredPath, "hovered", nodes);
 		expect(result).toContain("n1");
 		expect(result).not.toContain("n2");
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Tests: addLinkNeighborsToSet
+// ---------------------------------------------------------------------------
+
+describe("addLinkNeighborsToSet", () => {
+	function makeAdj(pairs: Array<[string, string]>): Map<string, Set<string>> {
+		const adj = new Map<string, Set<string>>();
+		for (const [a, b] of pairs) {
+			if (!adj.has(a)) adj.set(a, new Set());
+			if (!adj.has(b)) adj.set(b, new Set());
+			adj.get(a)!.add(b);
+			adj.get(b)!.add(a);
+		}
+		return adj;
+	}
+
+	const baseEdges: GraphEdge[] = [
+		{ source: "h", target: "fwd1", type: "link" },
+		{ source: "back1", target: "h", type: "link" },
+		{ source: "fwd1", target: "fwd2", type: "link" },
+	];
+
+	it("adds entire BFS frontier when both directions enabled", () => {
+		const adj = makeAdj([
+			["h", "fwd1"],
+			["fwd1", "fwd2"],
+			["back1", "h"],
+		]);
+		const result = new Set<string>(["h"]);
+		addLinkNeighborsToSet(result, "h", { forwardLinks: true, backlinks: true }, adj, 2, baseEdges);
+		expect(result.has("fwd1")).toBe(true);
+		expect(result.has("fwd2")).toBe(true);
+		expect(result.has("back1")).toBe(true);
+	});
+
+	it("adds only forward neighbors when forwardLinks=true, backlinks=false", () => {
+		const adj = makeAdj([
+			["h", "fwd1"],
+			["back1", "h"],
+		]);
+		const result = new Set<string>(["h"]);
+		addLinkNeighborsToSet(result, "h", { forwardLinks: true, backlinks: false }, adj, 1, baseEdges);
+		expect(result.has("fwd1")).toBe(true);
+		expect(result.has("back1")).toBe(false);
+	});
+
+	it("adds only backlinks when forwardLinks=false, backlinks=true", () => {
+		const adj = makeAdj([
+			["h", "fwd1"],
+			["back1", "h"],
+		]);
+		const result = new Set<string>(["h"]);
+		addLinkNeighborsToSet(result, "h", { forwardLinks: false, backlinks: true }, adj, 1, baseEdges);
+		expect(result.has("back1")).toBe(true);
+		expect(result.has("fwd1")).toBe(false);
+	});
+
+	it("respects hoverHops to limit BFS depth", () => {
+		const adj = makeAdj([
+			["h", "fwd1"],
+			["fwd1", "fwd2"],
+		]);
+		const result = new Set<string>(["h"]);
+		addLinkNeighborsToSet(result, "h", { forwardLinks: true, backlinks: true }, adj, 1, baseEdges);
+		expect(result.has("fwd1")).toBe(true);
+		expect(result.has("fwd2")).toBe(false);
+	});
+
+	it("ignores edges not touching hId in directional mode", () => {
+		const adj = makeAdj([
+			["h", "fwd1"],
+			["fwd1", "fwd2"],
+		]);
+		const edges: GraphEdge[] = [
+			{ source: "h", target: "fwd1", type: "link" },
+			{ source: "fwd1", target: "fwd2", type: "link" },
+		];
+		const result = new Set<string>(["h"]);
+		addLinkNeighborsToSet(result, "h", { forwardLinks: true, backlinks: false }, adj, 2, edges);
+		expect(result.has("fwd1")).toBe(true);
+		// fwd2 is in BFS but its edge does not have h as source/target → excluded
+		expect(result.has("fwd2")).toBe(false);
+	});
+
+	it("does not mutate result when hht has both flags false (no-op)", () => {
+		const adj = makeAdj([["h", "fwd1"]]);
+		const result = new Set<string>(["h"]);
+		addLinkNeighborsToSet(result, "h", { forwardLinks: false, backlinks: false }, adj, 1, baseEdges);
+		expect(result.size).toBe(1);
+		expect(result.has("h")).toBe(true);
+	});
+
+	it("handles edges with object source/target shape", () => {
+		const adj = makeAdj([["h", "fwd1"]]);
+		const edges: GraphEdge[] = [
+			{ source: { id: "h" }, target: { id: "fwd1" }, type: "link" } as unknown as GraphEdge,
+		];
+		const result = new Set<string>(["h"]);
+		addLinkNeighborsToSet(result, "h", { forwardLinks: true, backlinks: false }, adj, 1, edges);
+		expect(result.has("fwd1")).toBe(true);
 	});
 });
 
