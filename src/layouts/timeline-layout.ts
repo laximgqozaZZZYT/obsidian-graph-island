@@ -533,6 +533,49 @@ function timelineComputeBars(
 	return bars;
 }
 
+/**
+ * バーに対するレーン番号を決定する。
+ * 既存の空きレーンを優先し、容量未満なら新規レーン、満杯時は最も早く終了するレーンに上書き。
+ * 副作用: 新規レーン作成時に laneEnds に -Infinity を push する。
+ */
+function findLaneForBar(xStart: number, laneEnds: number[], maxLanes: number): number {
+	const searchLimit = Math.min(laneEnds.length, maxLanes);
+	for (let l = 0; l < searchLimit; l++) {
+		if (xStart >= laneEnds[l]) return l;
+	}
+	if (laneEnds.length < maxLanes) {
+		const newLane = laneEnds.length;
+		laneEnds.push(-Infinity);
+		return newLane;
+	}
+	let minEnd = Infinity;
+	let minL = 0;
+	for (let l = 0; l < laneEnds.length; l++) {
+		if (laneEnds[l] < minEnd) {
+			minEnd = laneEnds[l];
+			minL = l;
+		}
+	}
+	return minL;
+}
+
+/** レーン総高がターゲットを超えていれば yCenter/barHeight/offsets を一律スケールダウン */
+function applyTimelineCompactScaling(
+	bars: TimelineBarInfo[],
+	offsets: Map<string, { dx: number; dy: number }>,
+	totalLaneH: number,
+	targetH: number,
+): void {
+	if (totalLaneH <= targetH) return;
+	const scale = targetH / totalLaneH;
+	for (const bar of bars) {
+		bar.yCenter *= scale;
+		bar.barHeight *= scale;
+		const off = offsets.get(bar.nodeId);
+		if (off) offsets.set(bar.nodeId, { dx: off.dx, dy: bar.yCenter });
+	}
+}
+
 /** バーを非重複 Y レーンに割り当て、必要に応じてコンパクトスケーリングを適用 */
 export function timelineAssignBarLanes(
 	bars: TimelineBarInfo[],
@@ -551,52 +594,20 @@ export function timelineAssignBarLanes(
 	bars.sort((a, b) => a.yCenter - b.yCenter || a.xStart - b.xStart);
 
 	const laneEnds: number[] = [];
-
 	for (const bar of bars) {
-		let assigned = -1;
-		for (let l = 0; l < Math.min(laneEnds.length, maxLanes); l++) {
-			if (bar.xStart >= laneEnds[l]) {
-				assigned = l;
-				break;
-			}
-		}
-		if (assigned < 0 && laneEnds.length < maxLanes) {
-			assigned = laneEnds.length;
-			laneEnds.push(-Infinity);
-		}
-		if (assigned < 0) {
-			let minEnd = Infinity,
-				minL = 0;
-			for (let l = 0; l < laneEnds.length; l++) {
-				if (laneEnds[l] < minEnd) {
-					minEnd = laneEnds[l];
-					minL = l;
-				}
-			}
-			assigned = minL;
-		}
-		laneEnds[assigned] = bar.xEnd;
-
-		const laneY = assigned * laneH;
+		const lane = findLaneForBar(bar.xStart, laneEnds, maxLanes);
+		laneEnds[lane] = bar.xEnd;
+		const laneY = lane * laneH;
 		bar.yCenter = laneY;
 		const off = offsets.get(bar.nodeId);
 		if (off) offsets.set(bar.nodeId, { dx: off.dx, dy: laneY });
 	}
 
-	// トータルレーン高がターゲットを超えた場合のコンパクトスケーリング
 	const totalLaneH = laneEnds.length * laneH;
 	const timelineMinH = cfg.userConstants?._timelineMinH ?? 600;
 	const timelineHPerNode = cfg.userConstants?._timelineHPerNode ?? 0.8;
 	const targetH = Math.max(timelineMinH, memberCount * timelineHPerNode);
-	if (totalLaneH > targetH) {
-		const scale = targetH / totalLaneH;
-		for (const bar of bars) {
-			bar.yCenter *= scale;
-			bar.barHeight *= scale;
-			const off = offsets.get(bar.nodeId);
-			if (off) offsets.set(bar.nodeId, { dx: off.dx, dy: bar.yCenter });
-		}
-	}
+	applyTimelineCompactScaling(bars, offsets, totalLaneH, targetH);
 }
 
 /** 同一タイムカラムの非バーノードを最小ギャップを強制して離間 */
