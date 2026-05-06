@@ -5,6 +5,8 @@ import {
 	computeTooltipEdgePosition,
 	findSharedTagNodes,
 	findSameFolderNodes,
+	addLinkNeighborsToSet,
+	capHoverLabelsBySet,
 	resolveInheritArrangement,
 	clearNonGraphLayers,
 	computeCardBBox,
@@ -1006,5 +1008,165 @@ describe("clearNonGraphLayers - coverage for all branch paths", () => {
 		clearNonGraphLayers("sunburst", layers);
 		expect(sunburstCalls).toHaveLength(0);
 		expect(otherCalls).toHaveLength(2);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Tests: addLinkNeighborsToSet
+// ---------------------------------------------------------------------------
+
+function makeEdge(source: string, target: string): GraphEdge {
+	return { source, target } as GraphEdge;
+}
+
+describe("addLinkNeighborsToSet", () => {
+	it("adds full BFS frontier when both directions enabled", () => {
+		const adj = new Map<string, Set<string>>([
+			["a", new Set(["b", "c"])],
+			["b", new Set(["a", "d"])],
+			["c", new Set(["a"])],
+			["d", new Set(["b"])],
+		]);
+		const result = new Set<string>(["a"]);
+		addLinkNeighborsToSet(result, "a", { forwardLinks: true, backlinks: true }, adj, 1, []);
+		expect(result).toEqual(new Set(["a", "b", "c"]));
+	});
+
+	it("respects hop count of 2 and gathers further neighbors", () => {
+		const adj = new Map<string, Set<string>>([
+			["a", new Set(["b"])],
+			["b", new Set(["a", "c"])],
+			["c", new Set(["b", "d"])],
+			["d", new Set(["c"])],
+		]);
+		const result = new Set<string>(["a"]);
+		addLinkNeighborsToSet(result, "a", { forwardLinks: true, backlinks: true }, adj, 2, []);
+		expect(result.has("c")).toBe(true);
+		expect(result.has("d")).toBe(false);
+	});
+
+	it("filters to forward direction only via graphEdges", () => {
+		const adj = new Map<string, Set<string>>([
+			["a", new Set(["b", "c"])],
+			["b", new Set(["a"])],
+			["c", new Set(["a"])],
+		]);
+		const edges = [makeEdge("a", "b"), makeEdge("c", "a")];
+		const result = new Set<string>(["a"]);
+		addLinkNeighborsToSet(result, "a", { forwardLinks: true, backlinks: false }, adj, 1, edges);
+		expect(result).toEqual(new Set(["a", "b"]));
+	});
+
+	it("filters to backlink direction only via graphEdges", () => {
+		const adj = new Map<string, Set<string>>([
+			["a", new Set(["b", "c"])],
+			["b", new Set(["a"])],
+			["c", new Set(["a"])],
+		]);
+		const edges = [makeEdge("a", "b"), makeEdge("c", "a")];
+		const result = new Set<string>(["a"]);
+		addLinkNeighborsToSet(result, "a", { forwardLinks: false, backlinks: true }, adj, 1, edges);
+		expect(result).toEqual(new Set(["a", "c"]));
+	});
+
+	it("returns hovered-id-only set when both flags are false", () => {
+		const adj = new Map<string, Set<string>>([["a", new Set(["b"])]]);
+		const edges = [makeEdge("a", "b")];
+		const result = new Set<string>(["a"]);
+		addLinkNeighborsToSet(result, "a", { forwardLinks: false, backlinks: false }, adj, 1, edges);
+		expect(result).toEqual(new Set(["a"]));
+	});
+
+	it("ignores edges to nodes outside the BFS frontier", () => {
+		const adj = new Map<string, Set<string>>([
+			["a", new Set(["b"])],
+			["b", new Set(["a"])],
+		]);
+		// Edge "a -> z" exists but z is not in the BFS frontier - should not be added.
+		const edges = [makeEdge("a", "b"), makeEdge("a", "z")];
+		const result = new Set<string>(["a"]);
+		addLinkNeighborsToSet(result, "a", { forwardLinks: true, backlinks: false }, adj, 1, edges);
+		expect(result).toEqual(new Set(["a", "b"]));
+	});
+
+	it("supports object-form source/target via edgeSourceId helper", () => {
+		const adj = new Map<string, Set<string>>([
+			["a", new Set(["b"])],
+			["b", new Set(["a"])],
+		]);
+		const edges = [{ source: { id: "a" }, target: { id: "b" } } as unknown as GraphEdge];
+		const result = new Set<string>(["a"]);
+		addLinkNeighborsToSet(result, "a", { forwardLinks: true, backlinks: false }, adj, 1, edges);
+		expect(result).toEqual(new Set(["a", "b"]));
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Tests: capHoverLabelsBySet
+// ---------------------------------------------------------------------------
+
+describe("capHoverLabelsBySet", () => {
+	it("returns input unchanged when within cap", () => {
+		const result = new Set(["a", "b", "c"]);
+		const degrees = new Map([
+			["a", 5],
+			["b", 3],
+			["c", 1],
+		]);
+		const out = capHoverLabelsBySet(result, "a", 5, degrees);
+		expect(out).toBe(result);
+	});
+
+	it("returns input unchanged at the cap+1 boundary", () => {
+		const result = new Set(["a", "b", "c", "d"]);
+		const degrees = new Map([
+			["a", 5],
+			["b", 3],
+			["c", 2],
+			["d", 1],
+		]);
+		const out = capHoverLabelsBySet(result, "a", 3, degrees);
+		expect(out).toBe(result);
+	});
+
+	it("trims to highest-degree neighbours when over cap", () => {
+		const result = new Set(["a", "b", "c", "d", "e"]);
+		const degrees = new Map([
+			["a", 100],
+			["b", 1],
+			["c", 5],
+			["d", 9],
+			["e", 2],
+		]);
+		const out = capHoverLabelsBySet(result, "a", 2, degrees);
+		expect(out).toEqual(new Set(["a", "d", "c"]));
+	});
+
+	it("always preserves the hovered id at the front", () => {
+		const result = new Set(["a", "b", "c", "d"]);
+		const degrees = new Map([
+			["a", 0],
+			["b", 10],
+			["c", 9],
+			["d", 8],
+		]);
+		const out = capHoverLabelsBySet(result, "a", 2, degrees);
+		expect([...out][0]).toBe("a");
+		expect(out.has("b")).toBe(true);
+		expect(out.has("c")).toBe(true);
+		expect(out.has("d")).toBe(false);
+	});
+
+	it("treats missing degree as 0 when sorting", () => {
+		const result = new Set(["a", "b", "c", "d"]);
+		// b and c have no degree entry; d has 5 — d should win the single slot.
+		const degrees = new Map([
+			["a", 100],
+			["d", 5],
+		]);
+		const out = capHoverLabelsBySet(result, "a", 1, degrees);
+		expect(out.has("a")).toBe(true);
+		expect(out.has("d")).toBe(true);
+		expect(out.size).toBe(2);
 	});
 });
