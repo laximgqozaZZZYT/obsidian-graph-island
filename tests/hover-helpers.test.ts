@@ -5,6 +5,7 @@ import {
 	computeTooltipEdgePosition,
 	findSharedTagNodes,
 	findSameFolderNodes,
+	addLinkNeighborsToSet,
 	resolveInheritArrangement,
 	clearNonGraphLayers,
 	computeCardBBox,
@@ -1006,5 +1007,114 @@ describe("clearNonGraphLayers - coverage for all branch paths", () => {
 		clearNonGraphLayers("sunburst", layers);
 		expect(sunburstCalls).toHaveLength(0);
 		expect(otherCalls).toHaveLength(2);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Tests: addLinkNeighborsToSet
+// ---------------------------------------------------------------------------
+
+describe("addLinkNeighborsToSet", () => {
+	function makeAdj(pairs: [string, string][]): Map<string, Set<string>> {
+		const adj = new Map<string, Set<string>>();
+		const ensure = (id: string) => {
+			if (!adj.has(id)) adj.set(id, new Set());
+			return adj.get(id)!;
+		};
+		for (const [a, b] of pairs) {
+			ensure(a).add(b);
+			ensure(b).add(a);
+		}
+		return adj;
+	}
+
+	it("adds full BFS result when forwardLinks=true and backlinks=true", () => {
+		const adj = makeAdj([
+			["A", "B"],
+			["B", "C"],
+		]);
+		const edges: GraphEdge[] = [
+			{ id: "e1", source: "A", target: "B", type: "link" } as GraphEdge,
+			{ id: "e2", source: "B", target: "C", type: "link" } as GraphEdge,
+		];
+		const result = new Set<string>(["A"]);
+		addLinkNeighborsToSet(result, "A", { forwardLinks: true, backlinks: true }, adj, 2, edges);
+		expect(result.has("A")).toBe(true);
+		expect(result.has("B")).toBe(true);
+		expect(result.has("C")).toBe(true);
+	});
+
+	it("excludes in-edge neighbors when forwardLinks only", () => {
+		const adj = makeAdj([
+			["A", "B"],
+			["X", "A"],
+		]);
+		const edges: GraphEdge[] = [
+			{ id: "e1", source: "A", target: "B", type: "link" } as GraphEdge,
+			{ id: "e2", source: "X", target: "A", type: "link" } as GraphEdge,
+		];
+		const result = new Set<string>(["A"]);
+		addLinkNeighborsToSet(result, "A", { forwardLinks: true, backlinks: false }, adj, 1, edges);
+		expect(result.has("B")).toBe(true);
+		expect(result.has("X")).toBe(false);
+	});
+
+	it("excludes out-edge neighbors when backlinks only", () => {
+		const adj = makeAdj([
+			["A", "B"],
+			["X", "A"],
+		]);
+		const edges: GraphEdge[] = [
+			{ id: "e1", source: "A", target: "B", type: "link" } as GraphEdge,
+			{ id: "e2", source: "X", target: "A", type: "link" } as GraphEdge,
+		];
+		const result = new Set<string>(["A"]);
+		addLinkNeighborsToSet(result, "A", { forwardLinks: false, backlinks: true }, adj, 1, edges);
+		expect(result.has("X")).toBe(true);
+		expect(result.has("B")).toBe(false);
+	});
+
+	it("adds nothing beyond the seed when hops=0", () => {
+		const adj = makeAdj([
+			["A", "B"],
+			["B", "C"],
+		]);
+		const edges: GraphEdge[] = [{ id: "e1", source: "A", target: "B", type: "link" } as GraphEdge];
+		const result = new Set<string>(["A"]);
+		addLinkNeighborsToSet(result, "A", { forwardLinks: true, backlinks: true }, adj, 0, edges);
+		expect(result.size).toBe(1);
+		expect(result.has("A")).toBe(true);
+	});
+
+	it("returns empty (seed only) when hId is missing from hoverAdj", () => {
+		const adj = makeAdj([["B", "C"]]);
+		const edges: GraphEdge[] = [{ id: "e1", source: "B", target: "C", type: "link" } as GraphEdge];
+		const result = new Set<string>(["A"]);
+		expect(() =>
+			addLinkNeighborsToSet(result, "A", { forwardLinks: true, backlinks: true }, adj, 3, edges),
+		).not.toThrow();
+		expect(result.has("A")).toBe(true);
+		expect(result.has("B")).toBe(false);
+		expect(result.has("C")).toBe(false);
+	});
+
+	it("filters multi-hop BFS by edge direction (forwardLinks only, hops=2)", () => {
+		// Topology: A → B → C  and  X → A
+		// BFS hops=2 reaches {A,B,C,X}; forwardLinks should keep only direct A→B (B in graphEdges with src=A).
+		const adj = makeAdj([
+			["A", "B"],
+			["B", "C"],
+			["X", "A"],
+		]);
+		const edges: GraphEdge[] = [
+			{ id: "e1", source: "A", target: "B", type: "link" } as GraphEdge,
+			{ id: "e2", source: "B", target: "C", type: "link" } as GraphEdge,
+			{ id: "e3", source: "X", target: "A", type: "link" } as GraphEdge,
+		];
+		const result = new Set<string>(["A"]);
+		addLinkNeighborsToSet(result, "A", { forwardLinks: true, backlinks: false }, adj, 2, edges);
+		expect(result.has("B")).toBe(true);
+		expect(result.has("C")).toBe(false);
+		expect(result.has("X")).toBe(false);
 	});
 });
