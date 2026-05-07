@@ -82,6 +82,21 @@ declare -a ALLOWED_PATHS=(
 
 cd "$PROJECT_DIR" || exit 1
 
+# ── Log rotation (run at EXIT, after the cycle's output is written) ──
+# Cron parents this script with `>> $LOG_FILE`, establishing an append fd
+# before this script starts. Rotating mid-cycle with `mv` would still write
+# to the renamed file via the inherited fd. `: > "$LOG_FILE"` truncates
+# in place, preserving the fd — the next cycle starts in a fresh file.
+LOG_FILE="/tmp/graph-island-auto-merge.log"
+MAX_LOG_SIZE=$((10 * 1024 * 1024))  # 10MB — mirror autonomous-improve.sh:20
+rotate_log() {
+  if [[ -f "$LOG_FILE" ]] && [[ $(stat -c%s "$LOG_FILE" 2>/dev/null || echo 0) -gt $MAX_LOG_SIZE ]]; then
+    cp "$LOG_FILE" "${LOG_FILE}.old" 2>/dev/null || true
+    : > "$LOG_FILE"
+  fi
+}
+trap 'rotate_log' EXIT
+
 NOW_EPOCH=$(date +%s)
 AGE_THRESHOLD=$(( NOW_EPOCH - MIN_AGE_HOURS * 3600 ))
 

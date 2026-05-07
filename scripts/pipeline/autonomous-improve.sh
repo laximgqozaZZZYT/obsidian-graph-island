@@ -171,11 +171,20 @@ for lockfile in "$LOCK_DIR"/*.pid; do
     log "CLEANED: stale lock $(basename $lockfile) (PID=$LOCK_PID, age=${LOCK_AGE}s)"
   fi
 done
+# session-create lock — atomic check-and-claim (prevents TOCTOU race when
+# two cron ticks fire simultaneously and both observe ACTIVE_COUNT < MAX)
+SESSION_CREATE_LOCK="/tmp/graph-island-session-create.lock"
+exec 200>"$SESSION_CREATE_LOCK"
+flock -n 200 || { log "SKIP: another session-create in progress (flock contention)"; exit 0; }
+
 ACTIVE_COUNT=$(find "$LOCK_DIR" -maxdepth 1 -name '*.pid' 2>/dev/null | wc -l)
 if [[ $ACTIVE_COUNT -ge $MAX_SESSIONS ]]; then
+  flock -u 200
   log "SKIP: $ACTIVE_COUNT sessions running (max $MAX_SESSIONS)"
   exit 0
 fi
+echo $$ > "$LOCK_DIR/$SESSION_ID.pid"
+flock -u 200
 
 # Orphan worktree/branch cleanup. The cleanup() trap at L519 handles
 # graceful exits, but SIGKILL/OOM/host-reboot skip trap → both worktree
@@ -194,8 +203,7 @@ for wt in "$PROJECT_DIR"/.autonomous-worktrees/auto-*; do
 done
 git worktree prune 2>/dev/null || true
 
-# Register this session (cleanup in main trap)
-echo $$ > "$LOCK_DIR/$SESSION_ID.pid"
+# Session already registered atomically above under flock(200).
 log "Active sessions: $ACTIVE_COUNT/$MAX_SESSIONS — proceeding"
 
 # ── Handle orphaned in-progress items (issues + tasks) ──
@@ -1069,11 +1077,24 @@ diff stat: $DIFF_STAT
 findingsがあれば番号付きリストで出力。なければ 'NO FINDINGS' と出力。" \
     --allowedTools "Bash,Read,Glob,Grep" \
     --max-turns 10 \
-    >"$REVIEW_TMP" 2>&1 || echo "NO FINDINGS" >"$REVIEW_TMP"
+    >"$REVIEW_TMP" 2>&1
+  REVIEW_RC=$?
+  # Inline rate-limit guard (mirrors _claude_guard at L67-82). Must run BEFORE
+  # any "NO FINDINGS" fallback, otherwise the echo overwrites rate-limit
+  # markers and the cycle continues to verify/commit blocks misjudging the
+  # state as "review found nothing".
   if grep -qiE "you've hit your limit|rate limit|quota exceeded|resets[[:space:]]+[0-9]+(am|pm)" "$REVIEW_TMP"; then
-    log "RATE LIMIT during review — skipping rest of cycle"
+    log "RATE LIMIT during review — aborting cycle early (no more claude -p calls)"
+    tail -3 "$REVIEW_TMP" | while IFS= read -r l; do log "  $l"; done
     rm -f "$REVIEW_TMP"
     exit 0
+  fi
+  # Non-zero rc without rate-limit signature: claude failed for an unrelated
+  # reason (network, auth, max-turns). Treat as "no findings" to keep the
+  # cycle progressing — same behaviour as the previous `|| echo` shortcut.
+  if [[ $REVIEW_RC -ne 0 ]]; then
+    log "Review claude rc=$REVIEW_RC (non-rate-limit) — treating as NO FINDINGS"
+    echo "NO FINDINGS" >"$REVIEW_TMP"
   fi
   REVIEW_FINDINGS=$(cat "$REVIEW_TMP")
   rm -f "$REVIEW_TMP"
