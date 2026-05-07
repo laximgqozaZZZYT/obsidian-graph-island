@@ -754,8 +754,20 @@ for iter in $(seq 1 "$MAX_ITERATIONS"); do
   log "── Iteration $iter/$MAX_ITERATIONS (focus: $FOCUS, context: clean) ──"
 
   # ── ASSESS (fresh data, no carry-over) ──
-  GATE_JSON=$(bash scripts/pipeline/enforce-gates.sh --json 2>/dev/null || echo '{"passed":0}')
-  GODOBJ_JSON=$(bash scripts/pipeline/god-object-audit.sh --json 2>&1 || echo '{"passed":0}')
+  # Failure here cannot be silently masked: the prompt below feeds GATE_STATUS
+  # back to claude as ground truth, and a fallback like {"passed":0} produces
+  # an empty `gates` map → empty GATE_STATUS → "ゲート: " in the prompt, which
+  # claude reads as "all good" by absence. Skip the iter on failure instead.
+  if ! GATE_JSON=$(bash scripts/pipeline/enforce-gates.sh --json 2>&1); then
+    log "ASSESS-FAIL iter $iter: enforce-gates.sh --json exited non-zero"
+    log "  output: $(echo "$GATE_JSON" | head -3 | tr '\n' '|')"
+    continue
+  fi
+  if ! GODOBJ_JSON=$(bash scripts/pipeline/god-object-audit.sh --json 2>&1); then
+    log "ASSESS-FAIL iter $iter: god-object-audit.sh --json exited non-zero"
+    log "  output: $(echo "$GODOBJ_JSON" | head -3 | tr '\n' '|')"
+    continue
+  fi
 
   # ── IMPLEMENT ──
   log "Claude implementing ($FOCUS)..."
