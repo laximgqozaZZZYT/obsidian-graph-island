@@ -20,16 +20,18 @@ passed=0
 failed=0
 
 # Stage fixtures with unique names so they don't collide with real issues.
-declare -A staged_files
+# Note: stage_fixture() runs inside $(...) subshells, so any state mutation
+# (e.g. an array of staged ids) would not propagate to the parent. Instead
+# the cleanup glob-matches on $TEST_PREFIX so it reaps everything regardless
+# of how many fixtures the parent staged.
 stage_fixture() {
   local case_name="$1" fixture="$2"
   local id="${TEST_PREFIX}-${case_name}"
   cp "$fixture" "$DESC_DIR/${id}.md"
-  staged_files["$id"]="$DESC_DIR/${id}.md"
   echo "$id"
 }
 cleanup_fixtures() {
-  for f in "${staged_files[@]}"; do rm -f "$f"; done
+  rm -f "$DESC_DIR/${TEST_PREFIX}"-*.md
 }
 trap cleanup_fixtures EXIT
 
