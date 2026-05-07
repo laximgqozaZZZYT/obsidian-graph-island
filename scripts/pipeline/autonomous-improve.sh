@@ -120,6 +120,29 @@ else
     pkill -9 -f "vitest.mjs" 2>/dev/null
     log "Killed $ZOMBIE_VT zombie vitest processes"
   fi
+  # claude CLI orphans (rate-limited / hung from decompose-issue, implement-with-gates, etc.)
+  ZOMBIE_CL=$(pgrep -f "^claude -p" 2>/dev/null | wc -l)
+  if [[ $ZOMBIE_CL -gt 0 ]]; then
+    pkill -9 -f "^claude -p" 2>/dev/null
+    log "Killed $ZOMBIE_CL zombie claude processes"
+  fi
+  # tsx orphans (general; visual-report-specific cleanup is above)
+  ZOMBIE_TSX=$(pgrep -f "^tsx " 2>/dev/null | wc -l)
+  if [[ $ZOMBIE_TSX -gt 0 ]]; then
+    pkill -9 -f "^tsx " 2>/dev/null
+    log "Killed $ZOMBIE_TSX zombie tsx processes"
+  fi
+  # Xvfb / isolated obsidian orphans (only when e2e-patrol lock absent — already gated by outer if)
+  ZOMBIE_XV=$(pgrep -f "Xvfb :99" 2>/dev/null | wc -l)
+  if [[ $ZOMBIE_XV -gt 0 ]]; then
+    pkill -9 -f "Xvfb :99" 2>/dev/null
+    log "Killed $ZOMBIE_XV zombie Xvfb processes"
+  fi
+  ZOMBIE_OB=$(pgrep -f "obsidian.*--user-data-dir.*obsidian-e2e" 2>/dev/null | wc -l)
+  if [[ $ZOMBIE_OB -gt 0 ]]; then
+    pkill -9 -f "obsidian.*--user-data-dir.*obsidian-e2e" 2>/dev/null
+    log "Killed $ZOMBIE_OB zombie isolated obsidian processes"
+  fi
 fi
 
 # ── Pre-flight checks ──
@@ -934,7 +957,18 @@ focus=$FOCUS の改善を1つ実装せよ:
   # and `enforce-gates.sh` had no format gate. Run `pnpm format` once here
   # so the autonomous PR ships formatted code; CI's `format:check` then
   # passes downstream.
-  pnpm format >/dev/null 2>&1 || true
+  #
+  # ── Approach A (2026-05-07): moved to commit block ──
+  # Running `pnpm format` here (post-implement, pre-verify) created a
+  # window where format-only edits could land as a separate commit if
+  # the iter's actual work was reverted (verify revert, simplify revert)
+  # while the format diff persisted. That inflated ITER_COMMITS and let
+  # verify-issue-done's MODIFY-only check falsely pass. The format call
+  # now runs immediately before `git status --porcelain` in the COMMIT
+  # block (~L1091), so any format auto-fix is bundled into the same
+  # commit as the iter's semantic work — no standalone format commit
+  # can ever be produced.
+  # pnpm format >/dev/null 2>&1 || true
 
   # ── VERIFY: gates (mechanical) ──
   # (kaizen 2026-04-24) DEBUG_RETRY_COUNT=1 was 3 — 1回で直らないなら3回目も無駄
@@ -1066,8 +1100,31 @@ CLAUDE.md厳守。God Object行数を増やさない。" \
 
 
   # ── COMMIT in worktree ──
+  # Approach A (2026-05-07): format auto-fix immediately before commit so
+  # Prettier reflow lands in the same commit as the iter's actual work.
+  # Prevents a standalone format-only commit from inflating ITER_COMMITS
+  # and triggering verify-issue-done's MODIFY-only false-pass. The
+  # whitespace-only filter below (Approach C, cycle 4) remains as a
+  # second line of defence for the no-semantic-edit case.
+  pnpm format >/dev/null 2>&1 || true
+
   if [[ -n "$(git status --porcelain)" ]]; then
     git add -A
+    # ── Root fix (cycle 7 PR-pileup diagnosis): unstage pipeline code itself ──
+    # discover-issues.sh / csv-helpers.sh are sourced inside the worktree and
+    # may leave incidental edits (whitespace, csv-schema.md churn). If those
+    # land in a `chore(auto)` commit, auto-merge-pr.sh's PROTECTED_GLOBS=*.sh
+    # blocks the PR — every PR piles up.
+    # Rationale: chose "add -A then unstage protected" over an allow-list
+    # because new src/scripts paths appear over time and a hand-maintained
+    # allow-list silently drops them. Deny-list is narrower and self-documenting.
+    git reset HEAD -- \
+      'scripts/pipeline/*.sh' \
+      'scripts/pipeline/*.py' \
+      'scripts/pipeline/*.ts' \
+      'scripts/pipeline/*.mjs' \
+      scripts/pipeline/csv-schema.md \
+      >/dev/null 2>&1 || log "WARN: protected-path unstage failed (continuing)"
     # Skip whitespace-only changes (e.g. lone Prettier auto-fix from L892
     # with no semantic work this iter). Such commits would inflate
     # ITER_COMMITS and let verify-issue-done's MODIFY-only check falsely
