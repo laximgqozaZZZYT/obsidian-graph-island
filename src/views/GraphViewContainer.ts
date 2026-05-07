@@ -51,6 +51,7 @@ import { RoadNetworkBuilder, getBestRoadNetwork, type RoadNetworkHost } from "..
 import * as ExportManager from "./ExportManager";
 import { orchestratePngExport, orchestrateJsonExport } from "./export-orchestrator";
 import { buildRichStatus as buildRichStatusImpl } from "./SearchOrchestrator";
+import { countInterClusterEdges, collectMemberTags } from "./cluster-compare-helpers";
 import {
 	yieldFrame,
 	buildAdj,
@@ -3604,28 +3605,12 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		setA: Set<string>,
 		setB: Set<string>,
 	): { interEdges: number; bridgeNodes: Set<string> } {
-		let interEdges = 0;
-		const bridgeNodes = new Set<string>();
-		for (const e of this.graphEdges) {
-			const src = edgeSourceId(e);
-			const tgt = edgeTargetId(e);
-			if ((setA.has(src) && setB.has(tgt)) || (setB.has(src) && setA.has(tgt))) {
-				interEdges++;
-				bridgeNodes.add(src);
-				bridgeNodes.add(tgt);
-			}
-		}
-		return { interEdges, bridgeNodes };
+		return countInterClusterEdges(this.graphEdges, setA, setB);
 	}
 
 	/** Collect all tags from a list of node IDs. */
 	private _collectMemberTags(memberIds: string[]): Set<string> {
-		const tags = new Set<string>();
-		for (const id of memberIds) {
-			const pn = this.pixiNodes.get(id);
-			if (pn?.data.tags) pn.data.tags.forEach((t) => tags.add(t));
-		}
-		return tags;
+		return collectMemberTags(memberIds, (id) => this.pixiNodes.get(id)?.data.tags);
 	}
 
 	// =========================================================================
