@@ -3,7 +3,13 @@
  * Extracted from GraphViewContainer to reduce complexity.
  */
 import type { ClusterArrangement, GraphEdge, GraphNode } from "../types";
-import { edgeTypeSummary, collapsedGroupSummary } from "../utils/graph-helpers";
+import {
+	edgeTypeSummary,
+	collapsedGroupSummary,
+	edgeSourceId,
+	edgeTargetId,
+	bfsNeighborSet,
+} from "../utils/graph-helpers";
 import { computeSimilarNodes, type SimilarNode } from "../analysis/graph-analysis";
 import { findTopSimilarNodes } from "../utils/find-similar-nodes";
 import { t } from "../i18n";
@@ -247,6 +253,61 @@ export function findSameFolderNodes(
 		if (n.filePath?.split("/")[0] === hoveredFolder) result.push(n.id);
 	}
 	return result;
+}
+
+/** Hover-highlight type flags for the link-neighbor BFS. */
+export interface HoverHighlightTypes {
+	forwardLinks: boolean;
+	backlinks: boolean;
+}
+
+/**
+ * Add link neighbors (forward/back) reachable within `hoverHops` to `result`.
+ * Mutates `result` in place. When both directions are enabled, the full BFS
+ * frontier is added; otherwise edges are filtered by direction relative to `hId`.
+ */
+export function addLinkNeighborsToSet(
+	result: Set<string>,
+	hId: string,
+	hht: HoverHighlightTypes,
+	hoverAdj: Map<string, Set<string>>,
+	hoverHops: number,
+	graphEdges: GraphEdge[],
+): void {
+	const bfsResult = bfsNeighborSet(hoverAdj, hId, hoverHops);
+	if (hht.forwardLinks && hht.backlinks) {
+		for (const id of bfsResult) result.add(id);
+		return;
+	}
+	const forwardIds = new Set<string>();
+	const backlinkIds = new Set<string>();
+	for (const e of graphEdges) {
+		const src = edgeSourceId(e);
+		const tgt = edgeTargetId(e);
+		if (src === hId && bfsResult.has(tgt)) forwardIds.add(tgt);
+		if (tgt === hId && bfsResult.has(src)) backlinkIds.add(src);
+	}
+	if (hht.forwardLinks) for (const id of forwardIds) result.add(id);
+	if (hht.backlinks) for (const id of backlinkIds) result.add(id);
+}
+
+/**
+ * Cap the hover highlight set to `maxNeighborLabels`, keeping the highest-degree
+ * neighbors of `hId`. The hovered node is always retained. If the input is
+ * already small enough, returns it unchanged.
+ */
+export function capHoverLabels(
+	result: Set<string>,
+	hId: string,
+	maxNeighborLabels: number,
+	degrees: Map<string, number>,
+): Set<string> {
+	if (result.size <= maxNeighborLabels + 1) return result;
+	const sorted = [...result]
+		.filter((id) => id !== hId)
+		.sort((a, b) => (degrees.get(b) ?? 0) - (degrees.get(a) ?? 0))
+		.slice(0, maxNeighborLabels);
+	return new Set([hId, ...sorted]);
 }
 
 // ---------------------------------------------------------------------------
