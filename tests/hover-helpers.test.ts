@@ -10,6 +10,7 @@ import {
 	computeCardBBox,
 	buildTransitionData,
 	computeTimelineFit,
+	addLinkNeighborsToSet,
 	type HoverTooltipInput,
 	type HoverTooltipOptions,
 	type OffScreenNodeInfo,
@@ -1006,5 +1007,90 @@ describe("clearNonGraphLayers - coverage for all branch paths", () => {
 		clearNonGraphLayers("sunburst", layers);
 		expect(sunburstCalls).toHaveLength(0);
 		expect(otherCalls).toHaveLength(2);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Tests: addLinkNeighborsToSet
+// ---------------------------------------------------------------------------
+
+describe("addLinkNeighborsToSet", () => {
+	// Diamond graph: A → B → D, A → C → D
+	const adj = new Map<string, Set<string>>([
+		["A", new Set(["B", "C"])],
+		["B", new Set(["A", "D"])],
+		["C", new Set(["A", "D"])],
+		["D", new Set(["B", "C"])],
+	]);
+	const edges: GraphEdge[] = [
+		{ id: "e1", source: "A", target: "B" },
+		{ id: "e2", source: "A", target: "C" },
+		{ id: "e3", source: "B", target: "D" },
+		{ id: "e4", source: "C", target: "D" },
+	];
+
+	it("adds full BFS frontier when both forwardLinks and backlinks are true", () => {
+		const result = new Set<string>(["A"]);
+		addLinkNeighborsToSet(result, "A", { forwardLinks: true, backlinks: true }, adj, 2, edges);
+		expect(result).toEqual(new Set(["A", "B", "C", "D"]));
+	});
+
+	it("excludes pure-backlink neighbors when forwardLinks only", () => {
+		// Add a pure backlink edge: X → A. X reachable from A via undirected adj only via backlink.
+		const adj2 = new Map<string, Set<string>>([
+			["A", new Set(["B", "X"])],
+			["B", new Set(["A"])],
+			["X", new Set(["A"])],
+		]);
+		const edges2: GraphEdge[] = [
+			{ id: "e1", source: "A", target: "B" },
+			{ id: "e2", source: "X", target: "A" },
+		];
+		const result = new Set<string>(["A"]);
+		addLinkNeighborsToSet(result, "A", { forwardLinks: true, backlinks: false }, adj2, 1, edges2);
+		expect(result.has("B")).toBe(true);
+		expect(result.has("X")).toBe(false);
+	});
+
+	it("excludes pure-forward neighbors when backlinks only", () => {
+		const adj2 = new Map<string, Set<string>>([
+			["A", new Set(["B", "X"])],
+			["B", new Set(["A"])],
+			["X", new Set(["A"])],
+		]);
+		const edges2: GraphEdge[] = [
+			{ id: "e1", source: "A", target: "B" },
+			{ id: "e2", source: "X", target: "A" },
+		];
+		const result = new Set<string>(["A"]);
+		addLinkNeighborsToSet(result, "A", { forwardLinks: false, backlinks: true }, adj2, 1, edges2);
+		expect(result.has("X")).toBe(true);
+		expect(result.has("B")).toBe(false);
+	});
+
+	it("adds nothing when hops=0 (start node already in result)", () => {
+		const result = new Set<string>(["A"]);
+		addLinkNeighborsToSet(result, "A", { forwardLinks: true, backlinks: true }, adj, 0, edges);
+		expect(result).toEqual(new Set(["A"]));
+	});
+
+	it("returns empty when hId not present in hoverAdj", () => {
+		const result = new Set<string>(["Z"]);
+		addLinkNeighborsToSet(result, "Z", { forwardLinks: true, backlinks: true }, adj, 2, edges);
+		expect(result).toEqual(new Set(["Z"]));
+	});
+
+	it("supports both directions when both flags false (no add despite BFS reach)", () => {
+		// Both flags false → forwardIds and backlinkIds populated but neither merged
+		const result = new Set<string>(["A"]);
+		addLinkNeighborsToSet(result, "A", { forwardLinks: false, backlinks: false }, adj, 2, edges);
+		expect(result).toEqual(new Set(["A"]));
+	});
+
+	it("respects multi-hop BFS when both directions true", () => {
+		const result = new Set<string>(["A"]);
+		addLinkNeighborsToSet(result, "A", { forwardLinks: true, backlinks: true }, adj, 1, edges);
+		// hops=1: only direct neighbors of A
+		expect(result).toEqual(new Set(["A", "B", "C"]));
 	});
 });

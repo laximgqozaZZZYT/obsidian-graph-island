@@ -3,7 +3,13 @@
  * Extracted from GraphViewContainer to reduce complexity.
  */
 import type { ClusterArrangement, GraphEdge, GraphNode } from "../types";
-import { edgeTypeSummary, collapsedGroupSummary } from "../utils/graph-helpers";
+import {
+	edgeTypeSummary,
+	collapsedGroupSummary,
+	bfsNeighborSet,
+	edgeSourceId,
+	edgeTargetId,
+} from "../utils/graph-helpers";
 import { computeSimilarNodes, type SimilarNode } from "../analysis/graph-analysis";
 import { findTopSimilarNodes } from "../utils/find-similar-nodes";
 import { t } from "../i18n";
@@ -247,6 +253,41 @@ export function findSameFolderNodes(
 		if (n.filePath?.split("/")[0] === hoveredFolder) result.push(n.id);
 	}
 	return result;
+}
+
+// ---------------------------------------------------------------------------
+// Hover BFS link-neighbor set
+// ---------------------------------------------------------------------------
+
+/**
+ * Add link-direction-filtered BFS neighbors to a result set.
+ * - When both forwardLinks and backlinks are true, the full BFS frontier is added.
+ * - Otherwise, the BFS frontier is filtered by edge direction relative to `hId`.
+ * Mirrors the previous `_addLinkNeighbors` private helper from GraphViewContainer.
+ */
+export function addLinkNeighborsToSet(
+	result: Set<string>,
+	hId: string,
+	hht: { forwardLinks: boolean; backlinks: boolean },
+	hoverAdj: Map<string, Set<string>>,
+	hoverHops: number,
+	graphEdges: Iterable<GraphEdge>,
+): void {
+	const bfsResult = bfsNeighborSet(hoverAdj, hId, hoverHops);
+	if (hht.forwardLinks && hht.backlinks) {
+		for (const id of bfsResult) result.add(id);
+		return;
+	}
+	const forwardIds = new Set<string>();
+	const backlinkIds = new Set<string>();
+	for (const e of graphEdges) {
+		const src = edgeSourceId(e);
+		const tgt = edgeTargetId(e);
+		if (src === hId && bfsResult.has(tgt)) forwardIds.add(tgt);
+		if (tgt === hId && bfsResult.has(src)) backlinkIds.add(src);
+	}
+	if (hht.forwardLinks) for (const id of forwardIds) result.add(id);
+	if (hht.backlinks) for (const id of backlinkIds) result.add(id);
 }
 
 // ---------------------------------------------------------------------------
