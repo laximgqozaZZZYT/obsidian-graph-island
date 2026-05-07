@@ -11,7 +11,7 @@
  * Output: scripts/pipeline/visual-report.json
  * ============================================================
  */
-import { chromium, type Page } from "playwright";
+import { chromium, type Page } from "@playwright/test";
 import * as fs from "fs";
 import * as path from "path";
 

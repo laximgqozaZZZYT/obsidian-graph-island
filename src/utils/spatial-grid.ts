@@ -14,6 +14,12 @@ interface Rect {
 
 const DEFAULT_CELL_SIZE = 200;
 const HASH_PRIME = 73856093;
+// Defensive insert guard: pathological scales (e.g., autoFit zoom transitions
+// where a label's compensating scale becomes astronomical) can produce rects
+// that span millions of cells, blowing up the gridMap past V8's Map limit.
+// Skip such rects rather than crash. 10000 cells = 100×100 (~20K×20K screen px
+// with default cellSize 200) — far above any legitimate culling input.
+const MAX_CELLS_PER_INSERT = 10000;
 
 /**
  * A spatial hash grid for O(n*k) AABB overlap detection.
@@ -46,9 +52,12 @@ export class SpatialHashGrid<T extends Rect = Rect> {
 		};
 	}
 
-	/** Insert a rect into the grid. */
+	/** Insert a rect into the grid. Pathological inputs (NaN/Inf size, or rects
+	 *  spanning > MAX_CELLS_PER_INSERT cells) are silently skipped. */
 	insert(rect: T): void {
+		if (!Number.isFinite(rect.w) || !Number.isFinite(rect.h)) return;
 		const { x0, y0, x1, y1 } = this.getCellRange(rect);
+		if ((x1 - x0 + 1) * (y1 - y0 + 1) > MAX_CELLS_PER_INSERT) return;
 		for (let cx = x0; cx <= x1; cx++) {
 			for (let cy = y0; cy <= y1; cy++) {
 				const k = this.cellKey(cx, cy);

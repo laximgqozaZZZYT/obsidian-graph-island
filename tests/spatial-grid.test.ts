@@ -122,4 +122,36 @@ describe("SpatialHashGrid", () => {
 		g.insert(r(100000, 100000, 10, 10));
 		expect(g.checkOverlap(r(100005, 100005, 10, 10))).toBe(true);
 	});
+
+	// --- defensive insert guards ---
+	describe("insert guards against pathological rects", () => {
+		it("skips rects with NaN width or height", () => {
+			const g = new SpatialHashGrid();
+			g.insert(r(0, 0, NaN, 10));
+			g.insert(r(0, 0, 10, NaN));
+			expect(g.cellCount).toBe(0);
+		});
+
+		it("skips rects with Infinity width or height", () => {
+			const g = new SpatialHashGrid();
+			g.insert(r(0, 0, Infinity, 10));
+			g.insert(r(0, 0, 10, Infinity));
+			expect(g.cellCount).toBe(0);
+		});
+
+		it("skips rects spanning > MAX_CELLS_PER_INSERT cells (would overflow Map)", () => {
+			const g = new SpatialHashGrid(200);
+			// 1,000,000 px square / 200 cellSize = 5000 cells per dim → 25M cells
+			// Without the guard this would call Map.set 25M times and likely OOM.
+			g.insert(r(0, 0, 1_000_000, 1_000_000));
+			expect(g.cellCount).toBe(0);
+		});
+
+		it("still accepts large but bounded rects within the cap", () => {
+			const g = new SpatialHashGrid(200);
+			// 10000×10000 px / 200 = 50×50 cells = 2500 cells, well under cap
+			g.insert(r(0, 0, 10000, 10000));
+			expect(g.cellCount).toBeGreaterThan(0);
+		});
+	});
 });

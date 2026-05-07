@@ -109,8 +109,24 @@ if [[ $E2E_EXIT -ne 0 ]]; then
 fi
 
 # ── 2. Visual report ──
+# Stale-detection: capture pre-run mtime so we can tell whether visual-report.ts
+# actually wrote a fresh JSON. Without this guard, a silent crash (e.g. dependency
+# resolution failure as in 2026-05-07) lets the patrol read 27-day-old data and
+# falsely report "healthy" — the exact failure mode that hid label-readability=6
+# from the queue for weeks.
 log "Running visual report..."
-npx tsx scripts/pipeline/visual-report.ts 2>&1 | tail -5
+PRE_MTIME=$(stat -c %Y scripts/pipeline/visual-report.json 2>/dev/null || echo 0)
+VR_OUT=$(npx tsx scripts/pipeline/visual-report.ts 2>&1 | tail -5)
+VR_EXIT=$?
+echo "$VR_OUT"
+POST_MTIME=$(stat -c %Y scripts/pipeline/visual-report.json 2>/dev/null || echo 0)
+if [[ $VR_EXIT -ne 0 || "$POST_MTIME" == "$PRE_MTIME" ]]; then
+  log "ERROR: visual-report.ts failed (exit=$VR_EXIT, mtime_changed=$([[ $POST_MTIME != $PRE_MTIME ]] && echo y || echo n))"
+  file_issue "visual-report-broken" "critical" \
+    "visual-report.ts crashed or produced no output (exit=$VR_EXIT)" \
+    "Patrol cannot assess visual quality. Last 5 lines of output:"$'\n\n'"$VR_OUT" \
+    "- [ ] visual-report.ts runs to completion and writes fresh visual-report.json"
+fi
 if [[ -f scripts/pipeline/visual-report.json ]]; then
   OVERALL=$(python3 -c "import json; print(json.load(open('scripts/pipeline/visual-report.json'))['overallScore'])" 2>/dev/null || echo "0")
   log "Visual score: $OVERALL/100"
