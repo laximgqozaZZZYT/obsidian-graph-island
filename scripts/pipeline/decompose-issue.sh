@@ -302,10 +302,24 @@ for i, block in enumerate(blocks[:3]):
     parent_match2 = re.match(r'(\d+)', parent)
     parent_ref = parent_match2.group(1) if parent_match2 else parent[:10]
     new_id = f'{num}-{parent_ref}-{slug}'
+    # Bake the file paths discovered in the description into the auto-generated
+    # acceptance criteria as backtick-quoted entries. verify-issue-done.sh
+    # (post-hoc reconciler) only sees backtick paths in this section, so a
+    # generic "実装が完了し" template silently passes for any commit including
+    # zero-code state-flips. Listing the affected paths here lets verify catch
+    # false-dones where the path wasn't created/modified.
+    paths_unique = []
+    for p in paths_in_desc:
+        if p not in paths_unique:
+            paths_unique.append(p)
+    paths_block = ''
+    for p in paths_unique:
+        paths_block += f'- [ ] `{p}` の変更が反映されている\\n'
     body = (
         f'## Description (subtask of {parent})\\n\\n'
         f'{description}\\n\\n'
         f'## Acceptance criteria\\n'
+        f'{paths_block}'
         f'- [ ] 実装が完了し、テストが通ること\\n'
         f'- [ ] CLAUDE.md のルールに違反しないこと\\n'
     ).replace('\\n', chr(10))

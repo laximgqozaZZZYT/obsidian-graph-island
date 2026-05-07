@@ -957,35 +957,48 @@ COMMITMSG
   fi
 
   # ── Mark task/issue as done (if applicable) ──
+  # Gate: TOTAL_COMMITS > 0 alone is too lax — the iter's worktree commits may
+  # never reach local main (PR not merged yet), but the done-flip below writes
+  # straight to local main. verify-issue-done.sh additionally checks that
+  # backtick-quoted paths in the issue's "## Acceptance criteria" exist in the
+  # local git index. Failures flip to `blocked` so the next cycle retries
+  # instead of silently piling up false "done" history.
   if [[ ("$FOCUS" == "task" || "$FOCUS" == "auto-issue") && $TOTAL_COMMITS -gt 0 && -n "$ISSUE_NAME" ]]; then
-    # id-based status flip + parent rollup. No file moves.
-    # Determine kind: tasks if id matches in tasks.csv, else issues.
     KIND="issues"
     if [[ -n "$(csv_get_field tasks "$ISSUE_NAME" id 2>/dev/null)" ]]; then
       KIND="tasks"
     fi
-    csv_archive "$KIND" "$ISSUE_NAME" 2>/dev/null || true
-    log "$KIND $ISSUE_NAME → done"
-    if [[ "$KIND" == "tasks" ]]; then
-      PARENT=$(csv_get_field tasks "$ISSUE_NAME" parent 2>/dev/null)
-      if [[ -n "$PARENT" && "$PARENT" != "none" ]]; then
-        REMAINING=0
-        for SIB in $(csv_select_by_parent tasks "$PARENT" 2>/dev/null); do
-          SST=$(csv_get_status tasks "$SIB" 2>/dev/null)
-          if [[ "$SST" == "pending" || "$SST" == "in-progress" ]]; then
-            REMAINING=$((REMAINING + 1))
+    VERIFY_OUT=""
+    if VERIFY_OUT=$(cd "$PROJECT_DIR" && bash scripts/pipeline/verify-issue-done.sh "$ISSUE_NAME" 2>&1); then
+      csv_archive "$KIND" "$ISSUE_NAME" 2>/dev/null || true
+      log "$KIND $ISSUE_NAME → done"
+      if [[ "$KIND" == "tasks" ]]; then
+        PARENT=$(csv_get_field tasks "$ISSUE_NAME" parent 2>/dev/null)
+        if [[ -n "$PARENT" && "$PARENT" != "none" ]]; then
+          REMAINING=0
+          for SIB in $(csv_select_by_parent tasks "$PARENT" 2>/dev/null); do
+            SST=$(csv_get_status tasks "$SIB" 2>/dev/null)
+            if [[ "$SST" == "pending" || "$SST" == "in-progress" ]]; then
+              REMAINING=$((REMAINING + 1))
+            fi
+          done
+          if [[ $REMAINING -eq 0 ]]; then
+            csv_archive issues "$PARENT" 2>/dev/null || true
+            log "Parent issue $PARENT → done (all tasks complete)"
+          else
+            log "Task done. Parent $PARENT: $REMAINING tasks remaining"
           fi
-        done
-        if [[ $REMAINING -eq 0 ]]; then
-          csv_archive issues "$PARENT" 2>/dev/null || true
-          log "Parent issue $PARENT → done (all tasks complete)"
-        else
-          log "Task done. Parent $PARENT: $REMAINING tasks remaining"
         fi
       fi
+      (cd "$PROJECT_DIR" && git add scripts/pipeline/ && \
+        git commit -m "chore: done $ISSUE_NAME" --no-verify 2>/dev/null) || true
+    else
+      log "$KIND $ISSUE_NAME — verify-issue-done FAILED, flipping to blocked"
+      while IFS= read -r vline; do log "  verify: $vline"; done <<< "$VERIFY_OUT" | head -3
+      csv_set_status "$KIND" "$ISSUE_NAME" blocked 2>/dev/null || true
+      (cd "$PROJECT_DIR" && git add scripts/pipeline/ && \
+        git commit -m "chore: blocked $ISSUE_NAME (verify-issue-done failed: required paths missing on main)" --no-verify 2>/dev/null) || true
     fi
-    (cd "$PROJECT_DIR" && git add scripts/pipeline/ && \
-      git commit -m "chore: done $ISSUE_NAME" --no-verify 2>/dev/null) || true
     ISSUE_NAME=""
     ISSUE_FILE=""
   fi
