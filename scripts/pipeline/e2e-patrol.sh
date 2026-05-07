@@ -134,6 +134,23 @@ if [[ -f scripts/pipeline/visual-report.json ]]; then
     ISSUES=$(python3 -c "import json; r=json.load(open('scripts/pipeline/visual-report.json')); print('; '.join(r.get('topIssues',[])[:3]))" 2>/dev/null || echo "?")
     file_issue "visual-quality-low" "high" "Visual quality $OVERALL/100" "Score $OVERALL < 50. Issues: $ISSUES" "- [ ] Visual score >= 50"
   fi
+  # Sub-score floor: averaging into overallScore can hide a single catastrophic
+  # sub-score (observed 2026-05-07: labelReadability=3 hidden by overall=78).
+  # File a separate issue for any sub-score < SUBSCORE_FLOOR even when overall
+  # passes — discover-issues.sh:202 already does this with floor=40, mirror it.
+  COLLAPSED=$(python3 -c "
+import json
+r = json.load(open('scripts/pipeline/visual-report.json'))
+floor = 30
+hits = [f\"{s['name']}={s['score']}\" for s in r.get('scores', []) if s.get('score', 100) < floor]
+print('|'.join(hits) if hits else '')
+" 2>/dev/null || echo "")
+  if [[ -n "$COLLAPSED" ]]; then
+    file_issue "subscore-collapse" "high" \
+      "Visual sub-score collapse: $COLLAPSED" \
+      "One or more sub-scores < 30 even though overall=$OVERALL passes. Hidden by averaging:\n$COLLAPSED" \
+      "- [ ] All visual-report sub-scores >= 30"
+  fi
 fi
 
 # ── 3. Screenshot quality ──

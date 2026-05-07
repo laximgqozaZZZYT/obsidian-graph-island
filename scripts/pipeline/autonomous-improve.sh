@@ -625,6 +625,11 @@ _focus_exhausted() {
 # IMPROVEMENT LOOP
 # ============================================================
 TOTAL_COMMITS=0
+# ITER_COMMITS tracks commits within the current iteration only. Used as the
+# verify-issue-done gate (L1010) so iter N's verify is not falsely triggered
+# by iter N-1's commits — the bleed that could mark a Task B as done based
+# on Task A's iter commits if the two tasks happened to share file paths.
+ITER_COMMITS=0
 
 for iter in $(seq 1 "$MAX_ITERATIONS"); do
 
@@ -641,6 +646,7 @@ for iter in $(seq 1 "$MAX_ITERATIONS"); do
   ISSUE_FILE=""
   ISSUE_CONTENT=""
   ISSUE_NAME=""
+  ITER_COMMITS=0
 
   # ── Work selection: tasks first → issues → focus rotation ──
 
@@ -995,6 +1001,7 @@ Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>
 COMMITMSG
 )" 2>&1 | tail -1
     TOTAL_COMMITS=$((TOTAL_COMMITS + 1))
+    ITER_COMMITS=$((ITER_COMMITS + 1))
     log "Committed (iter $iter)"
   else
     log "No changes (iter $iter)"
@@ -1007,7 +1014,7 @@ COMMITMSG
   # backtick-quoted paths in the issue's "## Acceptance criteria" exist in the
   # local git index. Failures flip to `blocked` so the next cycle retries
   # instead of silently piling up false "done" history.
-  if [[ ("$FOCUS" == "task" || "$FOCUS" == "auto-issue") && $TOTAL_COMMITS -gt 0 && -n "$ISSUE_NAME" ]]; then
+  if [[ ("$FOCUS" == "task" || "$FOCUS" == "auto-issue") && $ITER_COMMITS -gt 0 && -n "$ISSUE_NAME" ]]; then
     KIND="issues"
     if [[ -n "$(csv_get_field tasks "$ISSUE_NAME" id 2>/dev/null)" ]]; then
       KIND="tasks"
