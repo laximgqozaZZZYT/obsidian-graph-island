@@ -6,15 +6,32 @@
 # Each successful cycle creates a PR — extrapolating to ~70 PRs/24h.
 # Without intervention these accumulate as un-reviewed noise.
 #
-# Policy
-#   - Only touches PRs whose head ref starts with "auto-improve-" so
-#     we never disturb human PRs or stacked Phase PRs.
-#   - When a PR is older than $STALE_HOURS (default 24h) and still
-#     OPEN, mark it as a draft. This signals "no longer fresh" to
-#     reviewers WITHOUT closing — the work is preserved, the merge
-#     decision still rests with a human.
-#   - When a PR is older than $CLOSE_DAYS (default 30d), close it
-#     entirely and delete its branch on origin.
+# Policy (in priority order — first match wins per PR)
+#   1. CONFLICTING + ${CONFLICT_HOURS}h (default 6h) → CLOSE.
+#      A merge-state DIRTY autonomous PR has no recovery path: rebase
+#      would re-resolve against a base that has since moved past it,
+#      and a newer cycle has almost certainly produced a fresh PR
+#      that includes the same fix. Holding the slot adds no value.
+#   2. Duplicate-series → CLOSE all but the newest in the series.
+#      Series key:
+#        - "auto: task <id> ..."  → "task-<id>"   (per-task retries)
+#        - "auto: refactor ..."   → "refactor"    (cycle-kind drift)
+#        - "auto: eslint   ..."   → "eslint"
+#        - "auto: coverage ..."   → "coverage"
+#      The newest PR in each series is the one that ran against the
+#      freshest base; older siblings are by definition out of date.
+#   3. Older than ${CLOSE_DAYS}d (default 30d) → CLOSE + delete branch.
+#      Original age-based hard-close.
+#   4. Older than ${STALE_HOURS}h (default 24h) and still ready
+#      (not draft) → mark DRAFT. Original soft-stale signal.
+#
+# Only PRs whose head ref starts with "auto-improve-" are touched —
+# human PRs and stacked Phase PRs are never affected.
+#
+# Safety valve: ${MAX_CLOSE_PER_RUN} (default 30) caps the number of
+# CLOSEs per invocation. DRAFTs are not capped (cheap, reversible).
+# A single bad-batch (e.g. base branch wedged so every PR is DIRTY)
+# could otherwise wipe the whole queue in one shot.
 #
 # Usage
 #   ./auto-stale-pr-close.sh --dry-run   # list candidates, no action
@@ -37,59 +54,134 @@ esac
 PROJECT_DIR="/home/ubuntu/obsidian-plugins/obsidian-graph-island"
 STALE_HOURS="${STALE_HOURS:-24}"
 CLOSE_DAYS="${CLOSE_DAYS:-30}"
+CONFLICT_HOURS="${CONFLICT_HOURS:-6}"
+MAX_CLOSE_PER_RUN="${MAX_CLOSE_PER_RUN:-30}"
 
 cd "$PROJECT_DIR" || exit 1
 
 NOW_EPOCH=$(date +%s)
 STALE_EPOCH=$(( NOW_EPOCH - STALE_HOURS * 3600 ))
 CLOSE_EPOCH=$(( NOW_EPOCH - CLOSE_DAYS * 86400 ))
+CONFLICT_EPOCH=$(( NOW_EPOCH - CONFLICT_HOURS * 3600 ))
 
 echo "=== auto-stale-pr-close ($(date -Iseconds)) ==="
-echo "STALE threshold: ${STALE_HOURS}h  (mark draft)"
-echo "CLOSE threshold: ${CLOSE_DAYS}d  (close + delete branch)"
+echo "STALE threshold:    ${STALE_HOURS}h   (mark draft)"
+echo "CLOSE threshold:    ${CLOSE_DAYS}d   (close + delete branch)"
+echo "CONFLICT threshold: ${CONFLICT_HOURS}h    (close DIRTY merge state)"
+echo "MAX_CLOSE_PER_RUN:  ${MAX_CLOSE_PER_RUN}    (close-action cap; drafts uncapped)"
 echo "Mode: $([[ $DRY_RUN -eq 1 ]] && echo dry-run || echo apply)"
 echo ""
 
 # `gh pr list --json` returns an isDraft field; we only need to flip
-# OPEN non-draft PRs to draft.  Fetch up to 100 to cover bursty
-# accumulation.
-gh pr list --state open --limit 100 \
-  --json number,headRefName,title,createdAt,isDraft \
+# OPEN non-draft PRs to draft. Fetch up to 300 to cover the 190+ PR
+# backlog observed 2026-05-07.
+gh pr list --state open --limit 300 \
+  --json number,headRefName,title,createdAt,isDraft,mergeStateStatus \
   > /tmp/auto-stale-prs.json 2>/dev/null
 
 stale_count=0
 close_count=0
+close_age=0
+close_conflict=0
+close_dup=0
+close_skipped_cap=0
 
 # Pre-collect candidates via mapfile to avoid the bash pipe-subshell
 # stdout-trap (same kind of bug Phase H1 fixed for ratchet-drift-monitor).
-mapfile -t candidates < <(python3 - "$STALE_EPOCH" "$CLOSE_EPOCH" /tmp/auto-stale-prs.json <<'PY'
-import json, sys
+mapfile -t candidates < <(python3 - "$STALE_EPOCH" "$CLOSE_EPOCH" "$CONFLICT_EPOCH" /tmp/auto-stale-prs.json <<'PY'
+import json, re, sys
 from datetime import datetime, timezone
 
-stale_epoch = int(sys.argv[1])
-close_epoch = int(sys.argv[2])
-json_path   = sys.argv[3]
+stale_epoch    = int(sys.argv[1])
+close_epoch    = int(sys.argv[2])
+conflict_epoch = int(sys.argv[3])
+json_path      = sys.argv[4]
 
 with open(json_path) as f:
     prs = json.load(f)
 
+now = int(datetime.now(timezone.utc).timestamp())
+
+def series_key(title):
+    """Return a series key when the title matches a known autonomous
+    cycle pattern, else None. Per-task PRs key on the task ID so the
+    retry-merges-after-fail case collapses; cycle-kind PRs key on the
+    kind so the daily redundant-pass case collapses."""
+    m = re.match(r'^auto:\s+task\s+(\d+)', title, re.IGNORECASE)
+    if m:
+        return f"task-{m.group(1)}"
+    m = re.match(r'^auto:\s+(eslint|coverage|refactor)\b', title, re.IGNORECASE)
+    if m:
+        return m.group(1).lower()
+    return None
+
+# Filter to autonomous PRs
+auto = []
 for p in prs:
     head = p.get("headRefName", "")
     if not head.startswith("auto-improve-"):
         continue
-    ca = datetime.fromisoformat(p["createdAt"].replace("Z", "+00:00"))
-    ca_epoch = int(ca.timestamp())
-    age_h = (int(datetime.now(timezone.utc).timestamp()) - ca_epoch) // 3600
-    if ca_epoch < close_epoch:
-        print(f"CLOSE|{p['number']}|{head}|{p['title'][:60]}|{age_h}")
-    elif ca_epoch < stale_epoch and not p.get("isDraft", False):
-        print(f"DRAFT|{p['number']}|{head}|{p['title'][:60]}|{age_h}")
+    ca_epoch = int(datetime.fromisoformat(p["createdAt"].replace("Z", "+00:00")).timestamp())
+    p["_ca_epoch"] = ca_epoch
+    p["_age_h"] = (now - ca_epoch) // 3600
+    auto.append(p)
+
+# Resolve duplicate-series: keep newest per series, the rest are dup-close candidates.
+series_groups = {}
+for p in auto:
+    k = series_key(p.get("title", ""))
+    if k is not None:
+        series_groups.setdefault(k, []).append(p)
+
+dup_close_nums = set()
+for k, lst in series_groups.items():
+    if len(lst) <= 1:
+        continue
+    # newest first; drop index 0 (keep), close the rest
+    lst.sort(key=lambda p: p["_ca_epoch"], reverse=True)
+    for p in lst[1:]:
+        dup_close_nums.add(p["number"])
+
+# Emit one record per PR; first matching rule wins (priority order).
+for p in auto:
+    num   = p["number"]
+    head  = p.get("headRefName", "")
+    title = (p.get("title") or "")[:60]
+    age_h = p["_age_h"]
+    ca    = p["_ca_epoch"]
+    mss   = p.get("mergeStateStatus") or ""
+
+    # Rule 1: CONFLICTING (DIRTY) + > CONFLICT_HOURS
+    if mss == "DIRTY" and ca < conflict_epoch:
+        print(f"CLOSE_CONFLICT|{num}|{head}|{title}|{age_h}")
+        continue
+    # Rule 2: duplicate-series (older siblings)
+    if num in dup_close_nums:
+        print(f"CLOSE_DUP|{num}|{head}|{title}|{age_h}")
+        continue
+    # Rule 3: age-based hard close
+    if ca < close_epoch:
+        print(f"CLOSE_AGE|{num}|{head}|{title}|{age_h}")
+        continue
+    # Rule 4: stale → draft
+    if ca < stale_epoch and not p.get("isDraft", False):
+        print(f"DRAFT|{num}|{head}|{title}|{age_h}")
 PY
 )
 
 for line in "${candidates[@]}"; do
   [[ -z "$line" ]] && continue
   IFS='|' read -r action num branch title age_h <<< "$line"
+
+  # Apply MAX_CLOSE_PER_RUN cap to all CLOSE_* actions (drafts uncapped).
+  if [[ "$action" == CLOSE_* ]] && (( close_count >= MAX_CLOSE_PER_RUN )); then
+    if [[ "$DRY_RUN" -eq 1 ]]; then
+      echo "  [dry-run] SKIP-CAP  #${num} (${age_h}h)  ${title}  (would: ${action})"
+    fi
+    close_skipped_cap=$((close_skipped_cap + 1))
+    continue
+  fi
+
   case "$action" in
     DRAFT)
       if [[ "$DRY_RUN" -eq 1 ]]; then
@@ -100,20 +192,42 @@ for line in "${candidates[@]}"; do
       fi
       stale_count=$((stale_count + 1))
       ;;
-    CLOSE)
+    CLOSE_CONFLICT)
+      reason="auto-stale (CONFLICTING + ${CONFLICT_HOURS}h): merge state DIRTY, ${age_h}h old — newer autonomous cycles likely supersede"
       if [[ "$DRY_RUN" -eq 1 ]]; then
-        echo "  [dry-run] CLOSE  #${num} (${age_h}h old)  ${title}"
+        echo "  [dry-run] CLOSE-CONFLICT  #${num} (${age_h}h)  ${title}"
       else
-        gh pr close "$num" --delete-branch \
-          --comment "auto-stale: ${age_h}h old without merge — closing per pipeline policy (CLOSE_DAYS=${CLOSE_DAYS})" \
-          2>&1 | tail -1
-        echo "  CLOSE  #${num} (${age_h}h)  ${title}"
+        gh pr close "$num" --delete-branch --comment "$reason" 2>&1 | tail -1
+        echo "  CLOSE-CONFLICT  #${num} (${age_h}h)  ${title}"
       fi
       close_count=$((close_count + 1))
+      close_conflict=$((close_conflict + 1))
+      ;;
+    CLOSE_DUP)
+      reason="auto-stale (duplicate-series): a newer PR in the same autonomous series supersedes this one"
+      if [[ "$DRY_RUN" -eq 1 ]]; then
+        echo "  [dry-run] CLOSE-DUP       #${num} (${age_h}h)  ${title}"
+      else
+        gh pr close "$num" --delete-branch --comment "$reason" 2>&1 | tail -1
+        echo "  CLOSE-DUP  #${num} (${age_h}h)  ${title}"
+      fi
+      close_count=$((close_count + 1))
+      close_dup=$((close_dup + 1))
+      ;;
+    CLOSE_AGE)
+      reason="auto-stale: ${age_h}h old without merge — closing per pipeline policy (CLOSE_DAYS=${CLOSE_DAYS})"
+      if [[ "$DRY_RUN" -eq 1 ]]; then
+        echo "  [dry-run] CLOSE-AGE       #${num} (${age_h}h)  ${title}"
+      else
+        gh pr close "$num" --delete-branch --comment "$reason" 2>&1 | tail -1
+        echo "  CLOSE-AGE  #${num} (${age_h}h)  ${title}"
+      fi
+      close_count=$((close_count + 1))
+      close_age=$((close_age + 1))
       ;;
   esac
 done
 
 echo ""
-echo "Done. (stale=$stale_count, close=$close_count)"
+echo "Done. drafts=${stale_count}  closes=${close_count}  (conflict=${close_conflict}  dup=${close_dup}  age=${close_age})  skipped-by-cap=${close_skipped_cap}"
 rm -f /tmp/auto-stale-prs.json

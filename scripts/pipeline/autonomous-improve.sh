@@ -418,6 +418,51 @@ EOF_BODY
   exit 0
 fi
 
+# ── Backlog throttle (kaizen 2026-05-07) ──
+# autonomous emits ~1 PR/cycle but merge rate has collapsed to ~0%, so the
+# OPEN auto-improve-* backlog grew 30 → 50 → 100 → 190 over a few days.
+# auto-stale-pr-close runs only every 6h and cannot keep up. Cap the open
+# backlog: when it exceeds MAX_OPEN_AUTO_PRS, skip the cycle entirely (no
+# new worktree, no new PR) so the closer / human review can drain the queue.
+# Default 20 = 1 day of cron output at the current cadence — well under any
+# pathological state but high enough to absorb a normal slow merge day.
+# Use critical alert because growth past the threshold while the closer runs
+# implies the closer is itself jammed (worth a human eye, not a chore).
+# Exit 0 (not error) so cron logs stay quiet — same convention as the
+# bifurcation / dirty-skip guards above.
+MAX_OPEN_AUTO_PRS="${MAX_OPEN_AUTO_PRS:-20}"
+open_auto_prs=""
+if open_auto_prs=$(gh pr list --state open --json headRefName --limit 300 2>/dev/null); then
+  open_count=$(printf '%s' "$open_auto_prs" | grep -o "auto-improve-" | wc -l)
+  if [[ "$open_count" -gt "$MAX_OPEN_AUTO_PRS" ]]; then
+    log "BACKLOG: $open_count open auto-improve-* PRs exceeds MAX_OPEN_AUTO_PRS=$MAX_OPEN_AUTO_PRS — skipping cycle"
+    BODY=$(cat <<EOF_BODY
+## Detected
+$open_count OPEN auto-improve-* PRs on origin (threshold MAX_OPEN_AUTO_PRS=$MAX_OPEN_AUTO_PRS).
+autonomous-improve generates ~1 PR/cycle but the merge rate has collapsed,
+so the backlog grew unboundedly. New cycles are now skipped until the
+queue drains below the threshold.
+
+## Recovery
+1. Inspect: \`gh pr list --state open --search "head:auto-improve-" --limit 50\`
+2. Manually merge or close stale PRs, or wait for \`auto-stale-pr-close.sh\`
+3. The next cycle automatically resumes once OPEN count ≤ $MAX_OPEN_AUTO_PRS
+4. If the closer itself is jammed, inspect /tmp/graph-island-stale-pr-close.log
+EOF_BODY
+    )
+    SUMMARY="autonomous backlog: $open_count open auto-improve-* PRs (cap $MAX_OPEN_AUTO_PRS)"
+    if RESULT=$(csv_file_alert "autonomous-backlog-throttled" critical "$SUMMARY" "$BODY"); then
+      log "ALERT FILED: critical issue #${RESULT}"
+    else
+      log "ALERT SUPPRESSED: pending backlog-throttle alert already exists"
+    fi
+    exit 0
+  fi
+  log "Backlog OK: $open_count open auto-improve-* PRs (cap $MAX_OPEN_AUTO_PRS)"
+else
+  log "WARN: gh pr list failed — skipping backlog-throttle check, continuing cycle"
+fi
+
 # ── Create isolated worktree ──
 WORKTREE_DIR="$PROJECT_DIR/.autonomous-worktrees/$SESSION_ID"
 WORKTREE_BRANCH="auto-improve-$SESSION_ID"
