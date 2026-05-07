@@ -45,7 +45,7 @@ These files are oversized. **Do NOT grow them**. Extract logic into new files in
 
 - **Unit tests**: `pnpm test` (vitest), coverage thresholds in `vitest.config.ts`
 - **Coverage ratchet**: thresholds must never decrease
-- **Bundle size budget**: 800KB (`main.js`, current: 759KB)
+- **Bundle size budget**: 800 KiB / 819200 bytes (`main.js`, current: ~779 KiB; enforced in `scripts/pipeline/discover-issues.sh:142`)
 - **Lint**: `pnpm lint` (ESLint flat config + typescript-eslint)
 - **Format**: `pnpm format:check` (Prettier)
 - **E2E** (local only, requires CDP on :9222): `pnpm test:e2e`
