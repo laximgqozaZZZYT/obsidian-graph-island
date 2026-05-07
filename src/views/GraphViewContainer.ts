@@ -50,6 +50,7 @@ import type { RoadNetwork } from "../layouts/cable-tray";
 import { RoadNetworkBuilder, getBestRoadNetwork, type RoadNetworkHost } from "../layouts/RoadNetworkBuilder";
 import * as ExportManager from "./ExportManager";
 import { orchestratePngExport, orchestrateJsonExport } from "./export-orchestrator";
+import { buildRichStatus as buildRichStatusImpl } from "./SearchOrchestrator";
 import {
 	yieldFrame,
 	buildAdj,
@@ -6282,33 +6283,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
 	/** U2: Build rich status text with mode, counts, groups, layout, and filter info */
 	private buildRichStatus(nodeCount: number, edgeCount: number, totalNodes?: number): string {
-		const parts: string[] = [];
-		if (this.panel.localGraphCenter) parts.push("Local");
-		else if (this.panel.focusLayout) parts.push("Focus");
-		// Show filtered ratio when applicable
 		const total = totalNodes ?? this.rawData?.nodes.length ?? nodeCount;
-		if (total !== nodeCount) {
-			parts.push(`${nodeCount} / ${total} nodes`);
-		} else {
-			parts.push(`${nodeCount} nodes`);
-		}
-		if (edgeCount > 0) parts.push(`${edgeCount} edges`);
-		// Show group count if groupBy is active
-		const groupCount = this.panel.collapsedGroups?.size ?? 0;
-		if (groupCount > 0) parts.push(`${groupCount} groups`);
-		if (this.panel.searchQuery) {
-			const mode = this.panel.searchMode === "highlight" ? "HL" : "F";
-			parts.push(`[${mode}: ${this.panel.searchQuery.slice(0, 20)}]`);
-		}
-		// Show view mode if not default graph
-		if (this.panel.viewMode && this.panel.viewMode !== "graph") {
-			parts.push(this.panel.viewMode);
-		}
-		// Show groupBy field when active
-		if (this.panel.groupBy && this.panel.groupBy !== "none") {
-			parts.push(`by ${this.panel.groupBy}`);
-		}
-		return parts.join(" \u00B7 ");
+		return buildRichStatusImpl(nodeCount, edgeCount, total, this.panel);
 	}
 
 	/** D6: Compute per-node entropy scores (knowledge diversity).
