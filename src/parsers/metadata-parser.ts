@@ -25,6 +25,33 @@ interface ClassifyResult {
 	reverse: boolean;
 }
 
+/** Ontology field-list keys checked in order of priority by classifyRelation. */
+type RelationFieldKey =
+	| "inheritanceFields"
+	| "aggregationFields"
+	| "reverseInheritanceFields"
+	| "reverseAggregationFields"
+	| "similarFields"
+	| "siblingFields"
+	| "sequenceFields"
+	| "reverseSequenceFields";
+
+/** Order matters: first match wins. customMappings is consulted last (see classifyRelation). */
+const RELATION_RULES: ReadonlyArray<{
+	field: RelationFieldKey;
+	type: ClassifyResult["type"];
+	reverse: boolean;
+}> = [
+	{ field: "inheritanceFields", type: EDGE_TYPE_INHERITANCE, reverse: false },
+	{ field: "aggregationFields", type: EDGE_TYPE_AGGREGATION, reverse: false },
+	{ field: "reverseInheritanceFields", type: EDGE_TYPE_INHERITANCE, reverse: true },
+	{ field: "reverseAggregationFields", type: EDGE_TYPE_AGGREGATION, reverse: true },
+	{ field: "similarFields", type: EDGE_TYPE_SIMILAR, reverse: false },
+	{ field: "siblingFields", type: EDGE_TYPE_SIBLING, reverse: false },
+	{ field: "sequenceFields", type: EDGE_TYPE_SEQUENCE, reverse: false },
+	{ field: "reverseSequenceFields", type: EDGE_TYPE_SEQUENCE, reverse: true },
+];
+
 /**
  * Classify a field/relation name into an ontology edge type.
  * Handles both raw names ("parent") and @-prefixed names ("@Parent").
@@ -34,20 +61,12 @@ export function classifyRelation(name: string, onto: OntologyConfig): ClassifyRe
 	const clean = name.startsWith("@") ? name.slice(1).trim() : name.trim();
 	const lower = clean.toLowerCase();
 
-	if (onto.inheritanceFields.some((f) => f.toLowerCase() === lower))
-		return { type: EDGE_TYPE_INHERITANCE, reverse: false };
-	if (onto.aggregationFields.some((f) => f.toLowerCase() === lower))
-		return { type: EDGE_TYPE_AGGREGATION, reverse: false };
-	if (onto.reverseInheritanceFields?.some((f) => f.toLowerCase() === lower))
-		return { type: EDGE_TYPE_INHERITANCE, reverse: true };
-	if (onto.reverseAggregationFields?.some((f) => f.toLowerCase() === lower))
-		return { type: EDGE_TYPE_AGGREGATION, reverse: true };
-	if (onto.similarFields.some((f) => f.toLowerCase() === lower)) return { type: EDGE_TYPE_SIMILAR, reverse: false };
-	if (onto.siblingFields?.some((f) => f.toLowerCase() === lower)) return { type: EDGE_TYPE_SIBLING, reverse: false };
-	if (onto.sequenceFields?.some((f) => f.toLowerCase() === lower))
-		return { type: EDGE_TYPE_SEQUENCE, reverse: false };
-	if (onto.reverseSequenceFields?.some((f) => f.toLowerCase() === lower))
-		return { type: EDGE_TYPE_SEQUENCE, reverse: true };
+	for (const rule of RELATION_RULES) {
+		const list = onto[rule.field] as string[] | undefined;
+		if (list?.some((f) => f.toLowerCase() === lower)) {
+			return { type: rule.type, reverse: rule.reverse };
+		}
+	}
 	if (onto.customMappings[clean]) return { type: onto.customMappings[clean], reverse: false };
 
 	return undefined;
