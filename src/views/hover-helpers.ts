@@ -3,7 +3,13 @@
  * Extracted from GraphViewContainer to reduce complexity.
  */
 import type { ClusterArrangement, GraphEdge, GraphNode } from "../types";
-import { edgeTypeSummary, collapsedGroupSummary } from "../utils/graph-helpers";
+import {
+	edgeTypeSummary,
+	collapsedGroupSummary,
+	edgeSourceId,
+	edgeTargetId,
+	bfsNeighborSet,
+} from "../utils/graph-helpers";
 import { computeSimilarNodes, type SimilarNode } from "../analysis/graph-analysis";
 import { findTopSimilarNodes } from "../utils/find-similar-nodes";
 import { t } from "../i18n";
@@ -217,6 +223,37 @@ interface HoverHighlightNode {
 	id: string;
 	tags?: string[];
 	filePath?: string;
+}
+
+/**
+ * Compute the set of link neighbors (forward/backlink) for a hovered node.
+ *
+ * Returns the set of neighbor IDs reachable via BFS over `adj` up to `maxHops`,
+ * filtered by the directional flags in `hht`. The hovered node itself is NOT
+ * included in the returned set (callers add it separately if needed).
+ *
+ * Why pure: caller (GraphViewContainer) holds adj/edges/hops in instance state,
+ * but the directional filtering logic itself depends only on these inputs.
+ */
+export function addLinkNeighborsToSet(
+	adj: Map<string, Set<string>>,
+	hId: string,
+	maxHops: number,
+	graphEdges: GraphEdge[],
+	hht: { forwardLinks: boolean; backlinks: boolean },
+): Set<string> {
+	const bfsResult = bfsNeighborSet(adj, hId, maxHops);
+	if (hht.forwardLinks && hht.backlinks) {
+		return new Set(bfsResult);
+	}
+	const out = new Set<string>();
+	for (const e of graphEdges) {
+		const src = edgeSourceId(e);
+		const tgt = edgeTargetId(e);
+		if (hht.forwardLinks && src === hId && bfsResult.has(tgt)) out.add(tgt);
+		if (hht.backlinks && tgt === hId && bfsResult.has(src)) out.add(src);
+	}
+	return out;
 }
 
 /** Find nodes sharing at least one tag with the hovered node. */

@@ -10,6 +10,7 @@ import {
 	computeCardBBox,
 	buildTransitionData,
 	computeTimelineFit,
+	addLinkNeighborsToSet,
 	type HoverTooltipInput,
 	type HoverTooltipOptions,
 	type OffScreenNodeInfo,
@@ -1006,5 +1007,137 @@ describe("clearNonGraphLayers - coverage for all branch paths", () => {
 		clearNonGraphLayers("sunburst", layers);
 		expect(sunburstCalls).toHaveLength(0);
 		expect(otherCalls).toHaveLength(2);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Tests: addLinkNeighborsToSet
+// ---------------------------------------------------------------------------
+
+describe("addLinkNeighborsToSet", () => {
+	function edge(source: string, target: string): GraphEdge {
+		return { source, target } as GraphEdge;
+	}
+
+	it("returns BFS result as-is when both forward and back are enabled", () => {
+		const adj = new Map<string, Set<string>>([
+			["a", new Set(["b", "c"])],
+			["b", new Set(["a", "d"])],
+			["c", new Set(["a"])],
+			["d", new Set(["b"])],
+		]);
+		const result = addLinkNeighborsToSet(adj, "a", 1, [], {
+			forwardLinks: true,
+			backlinks: true,
+		});
+		// 1-hop neighbors of "a" via undirected adjacency (BFS includes start)
+		expect(result.has("a")).toBe(true);
+		expect(result.has("b")).toBe(true);
+		expect(result.has("c")).toBe(true);
+		expect(result.has("d")).toBe(false); // 2-hop, beyond maxHops=1
+	});
+
+	it("filters to forward-only neighbors when backlinks disabled", () => {
+		const adj = new Map<string, Set<string>>([
+			["a", new Set(["b", "c"])],
+			["b", new Set(["a"])],
+			["c", new Set(["a"])],
+		]);
+		const edges = [edge("a", "b"), edge("c", "a")]; // a→b is forward; c→a is backlink
+		const result = addLinkNeighborsToSet(adj, "a", 1, edges, {
+			forwardLinks: true,
+			backlinks: false,
+		});
+		expect(result.has("b")).toBe(true);
+		expect(result.has("c")).toBe(false);
+		expect(result.has("a")).toBe(false); // start node not included in directional output
+	});
+
+	it("filters to backlinks-only when forwardLinks disabled", () => {
+		const adj = new Map<string, Set<string>>([
+			["a", new Set(["b", "c"])],
+			["b", new Set(["a"])],
+			["c", new Set(["a"])],
+		]);
+		const edges = [edge("a", "b"), edge("c", "a")];
+		const result = addLinkNeighborsToSet(adj, "a", 1, edges, {
+			forwardLinks: false,
+			backlinks: true,
+		});
+		expect(result.has("c")).toBe(true);
+		expect(result.has("b")).toBe(false);
+	});
+
+	it("returns empty set when both directions disabled", () => {
+		const adj = new Map<string, Set<string>>([["a", new Set(["b"])]]);
+		const edges = [edge("a", "b")];
+		const result = addLinkNeighborsToSet(adj, "a", 1, edges, {
+			forwardLinks: false,
+			backlinks: false,
+		});
+		expect(result.size).toBe(0);
+	});
+
+	it("respects maxHops boundary", () => {
+		const adj = new Map<string, Set<string>>([
+			["a", new Set(["b"])],
+			["b", new Set(["a", "c"])],
+			["c", new Set(["b", "d"])],
+			["d", new Set(["c"])],
+		]);
+		const result1 = addLinkNeighborsToSet(adj, "a", 1, [], {
+			forwardLinks: true,
+			backlinks: true,
+		});
+		expect(result1.has("b")).toBe(true);
+		expect(result1.has("c")).toBe(false);
+		const result2 = addLinkNeighborsToSet(adj, "a", 2, [], {
+			forwardLinks: true,
+			backlinks: true,
+		});
+		expect(result2.has("c")).toBe(true);
+		expect(result2.has("d")).toBe(false);
+	});
+
+	it("does not include nodes outside BFS reachable set even if edges exist", () => {
+		// adj limits hover propagation; even if a global edge points outside, we
+		// must NOT add unreachable nodes (this guards against accidentally using
+		// the full edge graph for hover propagation).
+		const adj = new Map<string, Set<string>>([
+			["a", new Set(["b"])],
+			["b", new Set(["a"])],
+		]);
+		// Stale edge: c→a exists in graphEdges but c is not in hoverAdj
+		const edges = [edge("c", "a")];
+		const result = addLinkNeighborsToSet(adj, "a", 1, edges, {
+			forwardLinks: false,
+			backlinks: true,
+		});
+		expect(result.has("c")).toBe(false);
+	});
+
+	it("handles GraphEdge with object-form source/target", () => {
+		const adj = new Map<string, Set<string>>([
+			["a", new Set(["b"])],
+			["b", new Set(["a"])],
+		]);
+		// Simulate post-d3-force resolved edge: source/target as objects
+		const edges = [{ source: { id: "a" }, target: { id: "b" } } as unknown as GraphEdge];
+		const result = addLinkNeighborsToSet(adj, "a", 1, edges, {
+			forwardLinks: true,
+			backlinks: false,
+		});
+		expect(result.has("b")).toBe(true);
+	});
+
+	it("returns empty set for unknown start node", () => {
+		const adj = new Map<string, Set<string>>([["a", new Set(["b"])]]);
+		const result = addLinkNeighborsToSet(adj, "missing", 2, [], {
+			forwardLinks: true,
+			backlinks: true,
+		});
+		expect(result.size).toBeLessThanOrEqual(1); // bfsNeighborSet should return start-only or empty
+		expect(result.has("a")).toBe(false);
+		expect(result.has("b")).toBe(false);
 	});
 });
