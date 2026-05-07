@@ -14,6 +14,8 @@
     "test:e2e:mid": "npx playwright test --config=e2e/cdp-mid.config.ts",
     "test:e2e:full": "npx playwright test --config=e2e/cdp-e2e.config.ts",
     "test:e2e:harness": "npx playwright test --config=playwright.config.ts",
+    "test:pipeline": "bash scripts/run-pipeline-tests.sh",
+    "test:pipeline:full": "bash scripts/run-pipeline-tests.sh --full",
     "lint": "eslint src/",
     "lint:fix": "eslint src/ --fix",
     "format": "prettier --write src/ tests/",
