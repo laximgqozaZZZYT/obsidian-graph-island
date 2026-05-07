@@ -117,6 +117,7 @@ import { drawEdgeLabels as drawEdgeLabelsImpl } from "./EdgeLabelRenderer";
 import { t } from "../i18n";
 import { showToast } from "../utils/toast";
 import { drawEnclosures as drawEnclosuresImpl, type OverlapCache, type EnclosureConfig } from "./EnclosureRenderer";
+import { buildClusterSummaryLabel } from "./cluster-summary";
 import type { ClusterMetadata, TimelineRoute } from "../layouts/cluster-force";
 import { analyzeOverlap, computeAutoOptimize, effectiveRadius, nodeRadius } from "../layouts/cluster-force";
 import { InteractionManager, type PixiNode, type InteractionHost } from "./InteractionManager";
@@ -4789,41 +4790,15 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			enclosureOutlierFactor: rt.enclosureOutlierFactor,
 			highContrast: this.panel.highContrastMode,
 			clusterLabelDetail: this.panel.clusterLabelDetail,
-			getClusterSummary: (tag, count) => {
-				// S3: Cluster summary — detail level determines content
-				const members = this.tagMembership.get(tag);
-				if (!members) return `#${tag} (${count})`;
-				const tagCounts = new Map<string, number>();
-				for (const id of members) {
-					const pn = this.pixiNodes.get(id);
-					if (pn?.data.tags) {
-						for (const t of pn.data.tags) {
-							if (t !== tag) incCounter(tagCounts, t);
-						}
-					}
-				}
-				const topTags = [...tagCounts.entries()]
-					.sort((a, b) => b[1] - a[1])
-					.slice(0, 3)
-					.map(([t]) => t);
-				const tagSuffix = topTags.length > 0 ? ` · ${topTags.join(", ")}` : "";
-				// "detailed" level: count + top tags (no health score)
-				if (this.panel.clusterLabelDetail === "detailed") {
-					return `#${tag} (${count})${tagSuffix}`;
-				}
-				// "rich" level: count + health score + top tags
-				const memberSet = new Set(members);
-				let internalEdges = 0;
-				if (this.graphEdges && memberSet.size >= 2) {
-					for (const e of this.graphEdges) {
-						if (memberSet.has(e.source) && memberSet.has(e.target)) internalEdges++;
-					}
-				}
-				const maxEdges = (memberSet.size * (memberSet.size - 1)) / 2;
-				const density = maxEdges > 0 ? ((internalEdges / maxEdges) * 100).toFixed(0) : "0";
-				const healthSuffix = memberSet.size >= 3 ? ` [${density}%]` : "";
-				return `#${tag} (${count})${healthSuffix}${tagSuffix}`;
-			},
+			getClusterSummary: (tag, count) =>
+				buildClusterSummaryLabel(
+					tag,
+					count,
+					this.tagMembership.get(tag),
+					(id) => this.pixiNodes.get(id)?.data.tags,
+					this.graphEdges,
+					this.panel.clusterLabelDetail,
+				),
 		};
 		drawEnclosuresImpl(this.enclosureGraphics, this.enclosureLabels, this.overlapCache, cfg);
 	}
