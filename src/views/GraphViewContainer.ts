@@ -121,7 +121,8 @@ import { drawEnclosures as drawEnclosuresImpl, type OverlapCache, type Enclosure
 import type { ClusterMetadata, TimelineRoute } from "../layouts/cluster-force";
 import { analyzeOverlap, computeAutoOptimize, effectiveRadius, nodeRadius } from "../layouts/cluster-force";
 import { InteractionManager, type PixiNode, type InteractionHost } from "./InteractionManager";
-import { RenderPipeline, MIN_WORLD_RADIUS_PX, type RenderHost } from "./RenderPipeline";
+import { RenderPipeline, type RenderHost } from "./RenderPipeline";
+import { prepareHitTestConfig } from "./hit-test-config";
 import { LayoutController, type LayoutHost } from "./LayoutController";
 import { LabelManager } from "./LabelManager";
 import { Minimap, type MinimapHost } from "./Minimap";
@@ -2925,59 +2926,14 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
 	/** Pre-compute all configuration values needed for hit testing. */
 	private _prepareHitTestConfig() {
-		const rt = mergeRenderThresholds(this.panel.renderThresholds);
-		const minScreenPx = rt.minHoverScreenPx;
-		const zoom = this.worldContainer?.scale?.x ?? 1;
-		const minWorldRadius = Math.max(0, MIN_WORLD_RADIUS_PX / zoom);
-		const pad = rt.collisionPadding;
-		const displayMode = this.panel.nodeDisplayMode ?? "node";
-		const glowRadius = rt.glowBaseRadius;
-		const hitScreenPx = Math.max(MIN_WORLD_RADIUS_PX * glowRadius, minScreenPx);
-		const hitWorldR = hitScreenPx / zoom + pad;
-
-		let hitCardMaxHalfW = 0;
-		let hitCardAR = 0;
-		let hitCardWidthFactor = 0;
-		let hitCardAspectRatio = 0;
-		let hitCardHalfH = 0;
-		if (displayMode === "card") {
-			const crc = { ...DEFAULT_CARD_RENDER_CONFIG, ...(this.panel.cardRenderConfig ?? {}) };
-			const cardConfig = this.panel.cardDisplayConfig ?? { fields: [], maxWidth: 120, showIcon: false };
-			const headerStyle = cardConfig.headerStyle ?? "plain";
-			const fieldLineH = crc.fieldLineHeight / zoom;
-			hitCardMaxHalfW = (cardConfig.maxWidth ?? 120) / zoom / 2;
-			hitCardAR = crc.cardAspectRatio > 0 ? crc.cardAspectRatio : GOLDEN_RATIO_FALLBACK;
-			hitCardWidthFactor = crc.cardWidthFactor;
-			hitCardAspectRatio = crc.cardAspectRatio;
-			if (headerStyle === "table") {
-				const headerH = crc.tableHeaderHeight / zoom;
-				const cardPad = crc.cardPadding / zoom;
-				const hasDefField = (this.panel.definitionField ?? "").length > 0 ? 1 : 0;
-				const hasPreview = 1; // bodyPreview row
-				const fieldCount = (cardConfig.fields?.length ?? 0) + hasDefField + hasPreview;
-				hitCardHalfH = (headerH + fieldCount * fieldLineH + cardPad * 2) / 2;
-			} else {
-				// HM: Plain card uses base height (golden ratio width derived from this)
-				const plainH = crc.plainCardHeight / zoom;
-				const metaH = (cardConfig.fields?.length ?? 0) > 0 ? (cardConfig.fields?.length ?? 0) * fieldLineH : 0;
-				hitCardHalfH = (plainH + metaH) / 2;
-			}
-		}
-
-		return {
-			zoom,
-			minWorldRadius,
-			pad,
-			displayMode,
-			glowRadius,
-			hitScreenPx,
-			hitWorldR,
-			hitCardMaxHalfW,
-			hitCardAR,
-			hitCardWidthFactor,
-			hitCardAspectRatio,
-			hitCardHalfH,
-		};
+		return prepareHitTestConfig({
+			renderThresholds: this.panel.renderThresholds,
+			nodeDisplayMode: this.panel.nodeDisplayMode,
+			cardRenderConfig: this.panel.cardRenderConfig,
+			cardDisplayConfig: this.panel.cardDisplayConfig,
+			definitionField: this.panel.definitionField,
+			zoom: this.worldContainer?.scale?.x ?? 1,
+		});
 	}
 
 	/** Hit-test timeline duration bars (rectangles). */
