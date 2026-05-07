@@ -75,6 +75,18 @@ file_issue() {
     fi
   done
 
+  # 3b. 24h cooldown for same-slug recently DONE (parity with
+  # csv_file_alert at csv-helpers.sh:243+). Without this, the implementer
+  # marks an issue done but the underlying structural condition (e.g.
+  # 124 dead-exports while the threshold is 50) persists, so the very
+  # next discover cycle re-files the same slug. Observed 2026-05-07:
+  # `dead-exports` slug was filed 65 times historically, `settimeout-
+  # leaks` 32 times.
+  if csv_select_recent_done_by_slug issues "$slug" "$cooldown_sec" \
+       2>/dev/null | grep -q .; then
+    return 0
+  fi
+
   # 4. insert
   local next_num new_id desc_path desc_rel
   next_num=$(csv_next_id_num)

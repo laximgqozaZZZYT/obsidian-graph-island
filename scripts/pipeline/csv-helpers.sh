@@ -67,6 +67,14 @@ csv_select_active_by_slug() { _csv_run select_active_by_slug "$1" "$2"; }
 #   Used by the 24h cooldown check in file_issue().
 csv_select_blocked_by_slug() { _csv_run select_blocked_by_slug "$1" "$2"; }
 
+# csv_select_recent_done_by_slug <kind> <slug> <cooldown_secs>
+#   Prints ids whose id ends with `-<slug>`, status is `done`, and whose
+#   updated_at is within the last <cooldown_secs> seconds. Mirrors the
+#   cooldown logic in csv_file_alert; share via this wrapper so the two
+#   filing functions (csv_file_alert + discover-issues.sh:file_issue)
+#   stay aligned.
+csv_select_recent_done_by_slug() { _csv_run select_recent_done_by_slug "$1" "$2" "$3"; }
+
 # csv_max_summary_jaccard <kind> <summary>
 #   Outputs `<score>|<best_match_summary>` where score is the Jaccard
 #   word-set similarity (×100, integer) against the closest active row.

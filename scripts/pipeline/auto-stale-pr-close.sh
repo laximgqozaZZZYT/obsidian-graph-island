@@ -54,6 +54,10 @@ esac
 PROJECT_DIR="/home/ubuntu/obsidian-plugins/obsidian-graph-island"
 STALE_HOURS="${STALE_HOURS:-24}"
 CLOSE_DAYS="${CLOSE_DAYS:-30}"
+# Draft-specific close threshold: drafts older than this are closed even
+# if they haven't hit CLOSE_DAYS. Drafts represent PRs already deemed
+# stale once; keeping them around for the full 30d adds backlog noise.
+DRAFT_CLOSE_DAYS="${DRAFT_CLOSE_DAYS:-7}"
 CONFLICT_HOURS="${CONFLICT_HOURS:-6}"
 MAX_CLOSE_PER_RUN="${MAX_CLOSE_PER_RUN:-30}"
 
@@ -62,6 +66,7 @@ cd "$PROJECT_DIR" || exit 1
 NOW_EPOCH=$(date +%s)
 STALE_EPOCH=$(( NOW_EPOCH - STALE_HOURS * 3600 ))
 CLOSE_EPOCH=$(( NOW_EPOCH - CLOSE_DAYS * 86400 ))
+DRAFT_CLOSE_EPOCH=$(( NOW_EPOCH - DRAFT_CLOSE_DAYS * 86400 ))
 CONFLICT_EPOCH=$(( NOW_EPOCH - CONFLICT_HOURS * 3600 ))
 
 echo "=== auto-stale-pr-close ($(date -Iseconds)) ==="
@@ -84,18 +89,20 @@ close_count=0
 close_age=0
 close_conflict=0
 close_dup=0
+close_draft_age=0
 close_skipped_cap=0
 
 # Pre-collect candidates via mapfile to avoid the bash pipe-subshell
 # stdout-trap (same kind of bug Phase H1 fixed for ratchet-drift-monitor).
-mapfile -t candidates < <(python3 - "$STALE_EPOCH" "$CLOSE_EPOCH" "$CONFLICT_EPOCH" /tmp/auto-stale-prs.json <<'PY'
+mapfile -t candidates < <(python3 - "$STALE_EPOCH" "$CLOSE_EPOCH" "$CONFLICT_EPOCH" "$DRAFT_CLOSE_EPOCH" /tmp/auto-stale-prs.json <<'PY'
 import json, re, sys
 from datetime import datetime, timezone
 
-stale_epoch    = int(sys.argv[1])
-close_epoch    = int(sys.argv[2])
-conflict_epoch = int(sys.argv[3])
-json_path      = sys.argv[4]
+stale_epoch       = int(sys.argv[1])
+close_epoch       = int(sys.argv[2])
+conflict_epoch    = int(sys.argv[3])
+draft_close_epoch = int(sys.argv[4])
+json_path      = sys.argv[5]
 
 with open(json_path) as f:
     prs = json.load(f)
@@ -163,6 +170,14 @@ for p in auto:
     if ca < close_epoch:
         print(f"CLOSE_AGE|{num}|{head}|{title}|{age_h}")
         continue
+    # Rule 3b: already-draft hard close after DRAFT_CLOSE_DAYS (default 7d).
+    # Drafts that have been parked > 7d have demonstrably failed to attract
+    # human review; the autonomous loop produces fresher equivalents so the
+    # work is not lost. Without this, drafts pile up until CLOSE_DAYS=30
+    # fires — observed 2026-05-07: 49 drafts at median age 156h waiting.
+    if p.get("isDraft", False) and ca < draft_close_epoch:
+        print(f"CLOSE_DRAFT_AGE|{num}|{head}|{title}|{age_h}")
+        continue
     # Rule 4: stale → draft
     if ca < stale_epoch and not p.get("isDraft", False):
         print(f"DRAFT|{num}|{head}|{title}|{age_h}")
@@ -225,9 +240,20 @@ for line in "${candidates[@]}"; do
       close_count=$((close_count + 1))
       close_age=$((close_age + 1))
       ;;
+    CLOSE_DRAFT_AGE)
+      reason="auto-stale: draft for ${age_h}h without review — closing per DRAFT_CLOSE_DAYS=${DRAFT_CLOSE_DAYS} policy"
+      if [[ "$DRY_RUN" -eq 1 ]]; then
+        echo "  [dry-run] CLOSE-DRAFT-AGE #${num} (${age_h}h)  ${title}"
+      else
+        gh pr close "$num" --delete-branch --comment "$reason" 2>&1 | tail -1
+        echo "  CLOSE-DRAFT-AGE  #${num} (${age_h}h)  ${title}"
+      fi
+      close_count=$((close_count + 1))
+      close_draft_age=$((close_draft_age + 1))
+      ;;
   esac
 done
 
 echo ""
-echo "Done. drafts=${stale_count}  closes=${close_count}  (conflict=${close_conflict}  dup=${close_dup}  age=${close_age})  skipped-by-cap=${close_skipped_cap}"
+echo "Done. drafts=${stale_count}  closes=${close_count}  (conflict=${close_conflict}  dup=${close_dup}  age=${close_age}  draft_age=${close_draft_age})  skipped-by-cap=${close_skipped_cap}"
 rm -f /tmp/auto-stale-prs.json
