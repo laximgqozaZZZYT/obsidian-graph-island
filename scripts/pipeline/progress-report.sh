@@ -146,19 +146,29 @@ fi
 # ─────────────────────────────────────────────
 # God Object サイズ
 # ─────────────────────────────────────────────
-declare -A LIMITS=(
-  ["src/views/EdgeRenderer.ts"]=3853
-  ["src/views/PanelBuilder.ts"]=4377
-  ["src/views/RenderPipeline.ts"]=3438
-  ["src/views/GraphViewContainer.ts"]=9947
-)
-# god-object-audit.sh から動的に取得を試みる
-if [[ -f scripts/pipeline/god-object-audit.sh ]]; then
-  while IFS= read -r line; do
-    f=$(echo "$line" | grep -oP 'LIMITS\["\K[^"]+')
-    v=$(echo "$line" | grep -oP '\]=\K[0-9]+')
-    [[ -n "$f" && -n "$v" ]] && LIMITS["$f"]="$v"
-  done < <(grep -E 'LIMITS\["[^"]+"\]=[0-9]+' scripts/pipeline/god-object-audit.sh)
+# Single source of truth: god-object-audit.sh --json (which itself parses
+# CLAUDE.md "GOD OBJECT Policy" table). NO fallback — if the audit script
+# is missing or its JSON shape changed, fail loudly so drift is visible.
+GO_AUDIT="scripts/pipeline/god-object-audit.sh"
+if [[ ! -x "$GO_AUDIT" && ! -f "$GO_AUDIT" ]]; then
+  echo "ERROR: $GO_AUDIT not found — cannot resolve god-object limits" >&2
+  exit 3
+fi
+# audit exits 1 when any file is over its limit; we still want the JSON,
+# so capture stdout and decouple from its exit status.
+GO_JSON="$(bash "$GO_AUDIT" --json 2>/dev/null || true)"
+if [[ -z "$GO_JSON" ]] || ! echo "$GO_JSON" | jq -e '.files' >/dev/null 2>&1; then
+  echo "ERROR: $GO_AUDIT --json produced no parseable JSON — schema drift?" >&2
+  echo "       got: $(printf '%s' "$GO_JSON" | head -c 200)" >&2
+  exit 3
+fi
+declare -A LIMITS=()
+while IFS=$'\t' read -r f v; do
+  [[ -n "$f" && -n "$v" ]] && LIMITS["$f"]="$v"
+done < <(echo "$GO_JSON" | jq -r '.files | to_entries[] | "\(.key)\t\(.value.limit)"')
+if [[ ${#LIMITS[@]} -eq 0 ]]; then
+  echo "ERROR: $GO_AUDIT --json returned empty .files map" >&2
+  exit 3
 fi
 
 GO_TABLE=""

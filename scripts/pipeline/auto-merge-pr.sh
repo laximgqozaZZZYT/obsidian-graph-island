@@ -133,6 +133,12 @@ PY
 merged_count=0
 rejected_protected=0
 rejected_outside=0
+rejected_test_less=0
+
+# Threshold: src/ additions below this many lines are exempted from the
+# tests-required gate (typo / comment / 1-line bugfix territory). Set via
+# env if you want a stricter or looser bar.
+TESTLESS_MIN_ADDITIONS="${TESTLESS_MIN_ADDITIONS:-20}"
 
 for line in "${candidates[@]}"; do
   [[ -z "$line" ]] && continue
@@ -191,6 +197,71 @@ for line in "${candidates[@]}"; do
     continue
   fi
 
+  # ── Test-less gate ──
+  # Reject PRs that add a non-trivial NEW src/ file but ship zero tests/
+  # changes. Audit on 2026-05-07 found 37% of recent autonomous PRs merged
+  # with no test coverage at all — this catches that class.
+  #
+  # Exempted (gate passes):
+  #   - src/types.ts                       (type-only declarations)
+  #   - any *.d.ts                         (declaration files)
+  #   - src/**/index.ts with additions ≤ 5 (pure re-export barrels)
+  #   - src/ files with additions < TESTLESS_MIN_ADDITIONS (default 20)
+  pr_files_tmp="/tmp/auto-merge-pr-${num}-files.json"
+  gh pr view "$num" --json files --jq '.files' > "$pr_files_tmp" 2>/dev/null
+  if [[ -s "$pr_files_tmp" ]]; then
+    testless_reason=$(python3 - "$TESTLESS_MIN_ADDITIONS" "$pr_files_tmp" <<'PY'
+import json, sys
+threshold = int(sys.argv[1])
+path_in   = sys.argv[2]
+try:
+    with open(path_in) as f:
+        files = json.load(f)
+except Exception:
+    sys.exit(0)
+if not isinstance(files, list):
+    sys.exit(0)
+
+has_test_change = any(f.get("path", "").startswith("tests/") for f in files)
+
+new_src_offenders = []
+for f in files:
+    path = f.get("path", "")
+    add  = int(f.get("additions", 0) or 0)
+    dele = int(f.get("deletions", 0) or 0)
+    if not path.startswith("src/"):
+        continue
+    # New file = additions only, no deletions on same path.
+    if dele != 0:
+        continue
+    # Tiny edits don't require new tests.
+    if add < threshold:
+        continue
+    # Type-only / declaration exemptions.
+    if path == "src/types.ts":
+        continue
+    if path.endswith(".d.ts"):
+        continue
+    # Pure re-export barrel (index.ts with ≤ 5 additions).
+    if path.endswith("/index.ts") and add <= 5:
+        continue
+    new_src_offenders.append((path, add))
+
+if new_src_offenders and not has_test_change:
+    p, a = new_src_offenders[0]
+    print(f"no tests for new src files: {p} (+{a})")
+PY
+)
+    rm -f "$pr_files_tmp"
+    if [[ -n "$testless_reason" ]]; then
+      echo "  SKIP  #${num} (${age_h}h)  ${testless_reason}"
+      rejected_test_less=$((rejected_test_less + 1))
+      continue
+    fi
+  else
+    rm -f "$pr_files_tmp"
+  fi
+
   if [[ $DRY_RUN -eq 1 ]]; then
     echo "  [dry-run] MERGE #${num} (${age_h}h)  ${title}"
   else
@@ -204,5 +275,5 @@ for line in "${candidates[@]}"; do
 done
 
 echo ""
-echo "Done. (merged=$merged_count, rejected-protected=$rejected_protected, rejected-outside=$rejected_outside)"
+echo "Done. (merged=$merged_count, rejected-protected=$rejected_protected, rejected-outside=$rejected_outside, rejected-test-less=$rejected_test_less)"
 rm -f /tmp/auto-merge-prs.json
