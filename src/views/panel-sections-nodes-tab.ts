@@ -19,15 +19,11 @@ import {
 	type PanelContext,
 	type NodeTreeEntry,
 } from "./PanelBuilder";
+import { buildDirTree, countFiles, collectDirIds, type DirNode } from "./panel-sections-nodes-tab-tree";
 
 // ---------------------------------------------------------------------------
-// Internal types & helpers (not exported)
+// Internal DOM context type (rendering-only)
 // ---------------------------------------------------------------------------
-interface DirNode {
-	children: Map<string, DirNode>;
-	files: NodeTreeEntry[];
-}
-
 interface TreeCtx {
 	panel: PanelState;
 	cb: PanelCallbacks;
@@ -35,33 +31,6 @@ interface TreeCtx {
 	hoveredId: string | null;
 	fwdLinks: Set<string>;
 	bkLinks: Set<string>;
-}
-
-function buildDirTree(entries: NodeTreeEntry[]): DirNode {
-	const root: DirNode = { children: new Map(), files: [] };
-	for (const entry of entries) {
-		const parts = entry.path.split("/");
-		parts.pop();
-		let cur = root;
-		for (const dir of parts) {
-			if (!cur.children.has(dir)) cur.children.set(dir, { children: new Map(), files: [] });
-			cur = cur.children.get(dir)!;
-		}
-		cur.files.push(entry);
-	}
-	return root;
-}
-
-function countFiles(dir: DirNode): number {
-	let count = dir.files.length;
-	for (const child of dir.children.values()) count += countFiles(child);
-	return count;
-}
-
-function collectDirIds(dir: DirNode): string[] {
-	const ids: string[] = dir.files.map((f) => f.id);
-	for (const child of dir.children.values()) ids.push(...collectDirIds(child));
-	return ids;
 }
 
 function renderFileRow(parent: HTMLElement, entry: NodeTreeEntry, depth: number, tctx: TreeCtx): void {
