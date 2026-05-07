@@ -351,6 +351,41 @@ fi
 # Clear the dirty-skip counter on any non-SKIP cycle.
 dirty_skip_clear
 
+# ── Bifurcation guard ──
+# autonomous-improve operates on local main, but PR merges land on origin/main.
+# If local main has not been pulled for a while it can drift far behind origin
+# (observed 2026-05-06: 7 substantive PRs merged on origin while local stayed
+# at the older tip, causing extract tasks to reference helper files that did
+# not exist locally → guaranteed false-done). Abort + alert when the gap is
+# wide so the operator pulls before the next cycle.
+BIFURCATION_THRESHOLD=5
+git fetch origin main --quiet 2>/dev/null || true
+behind=$(git rev-list --count HEAD..origin/main 2>/dev/null || echo 0)
+if [[ "$behind" -ge "$BIFURCATION_THRESHOLD" ]]; then
+  log "ABORT: local main is $behind commits behind origin/main (threshold=$BIFURCATION_THRESHOLD)"
+  BODY=$(cat <<EOF_BODY
+## Detected
+local main is $behind commits behind origin/main. autonomous-improve runs
+against local, so any extract task referencing files merged into origin
+(but not yet pulled) is impossible to satisfy and produces false-done
+or false-blocked outcomes.
+
+## Recovery
+1. Inspect: \`git -C $PROJECT_DIR log HEAD..origin/main --oneline\`
+2. Pull: \`git -C $PROJECT_DIR pull --rebase origin main\`
+3. Resolve any conflicts (typically state-flip CSV rows)
+4. The next cycle will detect zero gap and proceed normally
+EOF_BODY
+  )
+  SUMMARY="local main is $behind commits behind origin/main — autonomous halted"
+  if RESULT=$(csv_file_alert "autonomous-stalled-bifurcation" critical "$SUMMARY" "$BODY"); then
+    log "ALERT FILED: critical issue #${RESULT}"
+  else
+    log "ALERT SUPPRESSED: pending bifurcation alert already exists"
+  fi
+  exit 0
+fi
+
 # ── Create isolated worktree ──
 WORKTREE_DIR="$PROJECT_DIR/.autonomous-worktrees/$SESSION_ID"
 WORKTREE_BRANCH="auto-improve-$SESSION_ID"
