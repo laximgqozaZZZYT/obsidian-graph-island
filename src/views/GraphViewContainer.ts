@@ -21,6 +21,7 @@ import type {
 	DirectionalGravityRule,
 } from "../types";
 import { buildTemplateFromPanel, upsertTemplate, applyTemplate, removeTemplate } from "./template-store";
+import { drawSearchCardHalo, countSearchMatches, formatSearchAnnouncement, applySearchPulse } from "./search-highlight";
 import { DEFAULT_COLORS, DEFAULT_CARD_RENDER_CONFIG, DEFAULT_ONTOLOGY, mergeRenderThresholds } from "../types";
 import { buildSearchHopSet, evaluateExpr, parseQueryExpr, serializeExpr } from "../utils/query-expr";
 import { ManagedTimers } from "../utils/managed-timers";
@@ -8164,52 +8165,20 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
 	/** Draw card-mode search halo rect. */
 	private _drawSearchCardHalo(pn: PixiNode, searchHitColor: number): void {
-		const crc = { ...DEFAULT_CARD_RENDER_CONFIG, ...(this.panel.cardRenderConfig ?? {}) };
-		const cardAR = crc.cardAspectRatio > 0 ? crc.cardAspectRatio : GOLDEN_RATIO_FALLBACK;
-		const baseH = pn.radius * 2;
-		const halfH = baseH;
-		const halfW = Math.max(20, (baseH * cardAR) / 2);
-		const outset = 4;
-		const cr = crc.cardCornerRadius ?? 6;
-		pn.circle.beginFill(searchHitColor, 0.1);
-		pn.circle.drawRoundedRect(-halfW - outset, -halfH - outset, (halfW + outset) * 2, (halfH + outset) * 2, cr);
-		pn.circle.endFill();
-		pn.circle.lineStyle(SEARCH_HALO_STROKE_WIDTH, searchHitColor, SEARCH_HALO_STROKE_ALPHA);
-		pn.circle.drawRoundedRect(-halfW, -halfH, halfW * 2, halfH * 2, cr);
+		drawSearchCardHalo(pn, searchHitColor, this.panel.cardRenderConfig);
 	}
 
 	/** EJ: Pulse animation — brief scale bounce on first search highlight. */
 	private _searchPulse(pn: PixiNode, hlSet: Set<string> | null): void {
-		const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
-
-		if (hlSet && !pn._searchPulsed && !reducedMotion) {
-			pn._searchPulsed = true;
-			const sx = pn.gfx.scale.x;
-			pn.gfx.scale.set(sx * SEARCH_PULSE_SCALE);
-			this._scheduleTimer(() => {
-				if (pn.gfx) pn.gfx.scale.set(sx);
-			}, SEARCH_PULSE_MS);
-		} else if (hlSet && !pn._searchPulsed) {
-			pn._searchPulsed = true;
-		}
+		applySearchPulse(pn, hlSet, (cb, ms) => this._scheduleTimer(cb, ms));
 	}
 
 	/** A11y: announce search filter results for screen readers. */
 	private _announceSearchResults(raw: string, hopSet: Set<string> | null, hlSet: Set<string> | null): void {
 		const hasHighlight = hopSet !== null || hlSet !== null;
-		if (hasHighlight) {
-			let matchCount = 0;
-			for (const pn of this.pixiNodes.values()) {
-				const hopOk = hopSet === null || hopSet.has(pn.data.id);
-				const textOk = !hlSet || hlSet.has(pn.data.id);
-				if (hopOk && textOk) matchCount++;
-			}
-			this._announceA11y(
-				`${t("a11y.filterResult") ?? "Filter"}: ${matchCount} / ${this.pixiNodes.size} ${t("a11y.nodesVisible") ?? "nodes"}`,
-			);
-		} else if (!raw.trim()) {
-			this._announceA11y(t("a11y.filterCleared") ?? "Filter cleared");
-		}
+		const matchCount = hasHighlight ? countSearchMatches(this.pixiNodes.values(), hopSet, hlSet) : 0;
+		const msg = formatSearchAnnouncement(raw, hasHighlight, matchCount, this.pixiNodes.size);
+		if (msg !== null) this._announceA11y(msg);
 	}
 
 	applyTextFade() {
