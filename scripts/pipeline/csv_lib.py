@@ -499,8 +499,28 @@ def cmd_insert(kind: str, row_id: str, fields: dict[str, str]) -> None:
 
 
 def cmd_archive(kind: str, row_id: str) -> None:
-    """Mark as done (no file move; status is the archive marker)."""
+    """Mark as done and delete the per-issue description markdown.
+
+    Without the unlink, scripts/pipeline/descriptions/ accumulates one .md
+    per filed issue forever (observed 2026-05-07: 1913 files / 7.7MB after
+    weeks). Done is terminal — if a task ever needs to re-open, the
+    issuing script (e2e-patrol, discover-issues, decompose-issue) recreates
+    the description from scratch on next filing. blocked/cancelled keep
+    their description (they may be retried/re-opened).
+    """
     cmd_set_status(kind, row_id, "done")
+    spec = SPECS[kind]
+    rows = _read(spec)
+    for row in rows:
+        if row.get("id") == row_id:
+            desc_rel = (row.get("description_path") or "").strip()
+            if desc_rel:
+                desc_path = REPO_ROOT / desc_rel
+                try:
+                    desc_path.unlink(missing_ok=True)
+                except OSError:
+                    pass  # best-effort cleanup; status flip already succeeded
+            break
 
 
 def cmd_append_attempt(parent_kind: str, parent_id: str,

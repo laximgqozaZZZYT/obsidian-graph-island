@@ -217,6 +217,11 @@ async function measureAll(page: Page): Promise<VisualReport> {
   }
 
   // ── 6. Screenshot capture + pixel readability analysis ──
+  // Rotation: keep MAX_SCREENSHOTS most recent visual-*.png files. Without
+  // this, hourly e2e-patrol cron accumulates ~17MB/day in git-tracked dir
+  // (observed 2026-05-07: 666 files / 64MB after weeks of unbounded growth).
+  // 24 = 1 day at hourly cadence — enough history for trend visualization.
+  const MAX_SCREENSHOTS = 24;
   let screenshotPath: string | null = null;
   try {
     const ssDir = path.join(__dirname, "../../e2e/pipeline-screenshots");
@@ -224,6 +229,14 @@ async function measureAll(page: Page): Promise<VisualReport> {
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
     screenshotPath = path.join(ssDir, `visual-${timestamp}.png`);
     await page.screenshot({ path: screenshotPath, fullPage: false });
+    // Prune older screenshots, keeping the newest MAX_SCREENSHOTS (incl. this one).
+    const visuals = fs.readdirSync(ssDir)
+      .filter((f) => f.startsWith("visual-") && f.endsWith(".png"))
+      .map((f) => ({ name: f, mtime: fs.statSync(path.join(ssDir, f)).mtimeMs }))
+      .sort((a, b) => b.mtime - a.mtime);
+    for (const v of visuals.slice(MAX_SCREENSHOTS)) {
+      try { fs.unlinkSync(path.join(ssDir, v.name)); } catch { /* best-effort */ }
+    }
   } catch {
     screenshotPath = null;
   }

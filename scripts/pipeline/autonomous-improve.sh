@@ -153,6 +153,24 @@ if [[ $ACTIVE_COUNT -ge $MAX_SESSIONS ]]; then
   log "SKIP: $ACTIVE_COUNT sessions running (max $MAX_SESSIONS)"
   exit 0
 fi
+
+# Orphan worktree/branch cleanup. The cleanup() trap at L519 handles
+# graceful exits, but SIGKILL/OOM/host-reboot skip trap → both worktree
+# dir AND local branch leak. Walk .autonomous-worktrees/, extract trailing
+# PID from the dir name (auto-YYYYMMDD-HHMMSS-PID), drop the worktree if
+# the PID is dead. Idempotent; live sessions' worktrees are preserved.
+for wt in "$PROJECT_DIR"/.autonomous-worktrees/auto-*; do
+  [[ -d "$wt" ]] || continue
+  WT_ID=$(basename "$wt")
+  WT_PID="${WT_ID##*-}"
+  if [[ "$WT_PID" =~ ^[0-9]+$ ]] && ! kill -0 "$WT_PID" 2>/dev/null; then
+    log "ORPHAN: removing worktree $WT_ID (PID $WT_PID dead)"
+    git worktree remove "$wt" --force 2>/dev/null || rm -rf "$wt"
+    git branch -D "auto-improve-$WT_ID" 2>/dev/null || true
+  fi
+done
+git worktree prune 2>/dev/null || true
+
 # Register this session (cleanup in main trap)
 echo $$ > "$LOCK_DIR/$SESSION_ID.pid"
 log "Active sessions: $ACTIVE_COUNT/$MAX_SESSIONS — proceeding"
