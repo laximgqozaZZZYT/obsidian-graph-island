@@ -61,7 +61,6 @@ import {
 	bfsDistanceMap,
 	incCounter,
 	computeGaps,
-	buildHierarchyTree,
 	hitTestTimelineBars,
 	computeNodeBBox,
 	buildTagMembership,
