@@ -203,7 +203,12 @@ for kind in tasks issues; do
   for ID in $(csv_select_by_status "$kind" in-progress 2>/dev/null); do
     UPDATED=$(csv_get_field "$kind" "$ID" updated_at 2>/dev/null)
     [[ -n "$UPDATED" ]] || continue
-    UPDATED_EPOCH=$(date -d "$UPDATED" +%s 2>/dev/null || echo "$NOW")
+    # Fallback to 0 (Unix epoch) on parse failure → FILE_AGE is huge → row
+    # is treated as expired and timed out. The previous fallback of $NOW
+    # produced FILE_AGE=0 → never timed out → unparseable timestamps left
+    # rows stuck in-progress forever. The peer fallback at L291 already
+    # uses 0 for the same reason; harmonize here.
+    UPDATED_EPOCH=$(date -d "$UPDATED" +%s 2>/dev/null || echo 0)
     FILE_AGE=$(( NOW - UPDATED_EPOCH ))
     [[ $FILE_AGE -gt $IN_PROGRESS_TIMEOUT ]] || continue
 
@@ -1051,7 +1056,12 @@ COMMITMSG
     fi
     VERIFY_OUT=""
     if VERIFY_OUT=$(cd "$PROJECT_DIR" && bash scripts/pipeline/verify-issue-done.sh "$ISSUE_NAME" 2>&1); then
-      csv_archive "$KIND" "$ISSUE_NAME" 2>/dev/null || true
+      # Surface archive failures (CSV concurrent write, atomic-write error)
+      # instead of silently swallowing — without visibility, a row can stay
+      # in-progress on disk while the task is marked done in flow control.
+      if ! ARCHIVE_ERR=$(csv_archive "$KIND" "$ISSUE_NAME" 2>&1); then
+        log "WARN: csv_archive $KIND/$ISSUE_NAME failed: $ARCHIVE_ERR"
+      fi
       log "$KIND $ISSUE_NAME → done"
       if [[ "$KIND" == "tasks" ]]; then
         PARENT=$(csv_get_field tasks "$ISSUE_NAME" parent 2>/dev/null)
@@ -1064,7 +1074,9 @@ COMMITMSG
             fi
           done
           if [[ $REMAINING -eq 0 ]]; then
-            csv_archive issues "$PARENT" 2>/dev/null || true
+            if ! ARCHIVE_ERR=$(csv_archive issues "$PARENT" 2>&1); then
+              log "WARN: csv_archive issues/$PARENT failed: $ARCHIVE_ERR"
+            fi
             log "Parent issue $PARENT → done (all tasks complete)"
           else
             log "Task done. Parent $PARENT: $REMAINING tasks remaining"

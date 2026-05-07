@@ -44,7 +44,8 @@ section="$(awk '
 ' "$ISSUE_FILE")"
 
 if [[ -z "$section" ]]; then
-  # No Acceptance criteria section — nothing to verify.
+  # No Acceptance criteria section — nothing to verify. (warn for visibility)
+  echo "WARN: $ID has no '## Acceptance criteria' section — verify skipped" >&2
   exit 0
 fi
 
@@ -61,6 +62,14 @@ mapfile -t paths < <(
     | grep -E "$path_prefix_re" \
     | sort -u
 ) || true
+
+# Visibility for "section present but no path tokens" — common with
+# e2e-patrol issues where criteria are subjective ("Visual score >= 50")
+# rather than file paths. Without this warn, such issues silently pass
+# verify with zero validation, hiding false-done.
+if [[ ${#paths[@]} -eq 0 ]]; then
+  echo "WARN: $ID has no recognized path tokens in '## Acceptance criteria' — only EXISTENCE+MODIFY checks rely on paths, neither runs" >&2
+fi
 
 missing=0
 for p in "${paths[@]}"; do

@@ -35,18 +35,22 @@ fi
 moved=0
 checked=0
 
-for ID in $(csv_select_by_status issues done 2>/dev/null); do
-  checked=$((checked + 1))
-  missing_output=""
-  if ! missing_output="$(bash "$VERIFY_SCRIPT" "$ID" 2>&1)"; then
-    if [[ "$DRY_RUN" -eq 1 ]]; then
-      echo "RECONCILE [dry-run]: $ID would flip back to pending (missing: $missing_output)"
-    else
-      csv_set_status issues "$ID" pending 2>/dev/null || true
-      echo "RECONCILE: $ID flipped back to pending (missing: $missing_output)"
+# Scan both issues and tasks. Previously only issues — false-done tasks
+# (verify pass on EXISTENCE alone, no actual edits) were reconcile-blind.
+for KIND in issues tasks; do
+  for ID in $(csv_select_by_status "$KIND" done 2>/dev/null); do
+    checked=$((checked + 1))
+    missing_output=""
+    if ! missing_output="$(bash "$VERIFY_SCRIPT" "$ID" 2>&1)"; then
+      if [[ "$DRY_RUN" -eq 1 ]]; then
+        echo "RECONCILE [dry-run]: $KIND/$ID would flip back to pending (missing: $missing_output)"
+      else
+        csv_set_status "$KIND" "$ID" pending 2>/dev/null || true
+        echo "RECONCILE: $KIND/$ID flipped back to pending (missing: $missing_output)"
+      fi
+      moved=$((moved + 1))
     fi
-    moved=$((moved + 1))
-  fi
+  done
 done
 
-echo "Checked $checked issues, $moved need reconciliation."
+echo "Checked $checked rows (issues+tasks), $moved need reconciliation."
