@@ -19,8 +19,8 @@ import type {
 	ViewMode,
 	ShellInfo,
 	DirectionalGravityRule,
-	GraphTemplate,
 } from "../types";
+import { buildTemplateFromPanel, upsertTemplate, applyTemplate, removeTemplate } from "./template-store";
 import { DEFAULT_COLORS, DEFAULT_CARD_RENDER_CONFIG, DEFAULT_ONTOLOGY, mergeRenderThresholds } from "../types";
 import { buildSearchHopSet, evaluateExpr, parseQueryExpr, serializeExpr } from "../utils/query-expr";
 import { ManagedTimers } from "../utils/managed-timers";
@@ -6123,51 +6123,15 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	}
 
 	// =========================================================================
-	// テンプレート保存・読込・削除
+	// テンプレート保存・読込・削除 — pure logic は ./template-store に抽出済み
 	// =========================================================================
-
-	/** テンプレートから除外する一時的なフィールド */
-	private static readonly TEMPLATE_TRANSIENT_KEYS: Set<string> = new Set([
-		"searchQuery",
-		"localGraphCenter",
-		"focusNodeId",
-		"annotations",
-		"searchHistory",
-		"syncViewId",
-		"bookmarkedNodes",
-	]);
 
 	/** 現在のパネル設定を名前付きテンプレートとして保存 */
 	private _saveTemplate(name: string): boolean {
 		const templates = this.plugin.settings.templates ?? [];
-		if (templates.length >= 20) return false;
-
-		// パネル状態からテンプレート用データを構築（一時的フィールドを除外）
-		const panelData: Record<string, unknown> = {};
-		for (const [key, value] of Object.entries(this.panel)) {
-			if (GraphViewContainer.TEMPLATE_TRANSIENT_KEYS.has(key)) continue;
-			// Set → Array に変換（JSON シリアライズ対応）
-			if (value instanceof Set) {
-				panelData[key] = Array.from(value);
-			} else {
-				panelData[key] = value;
-			}
-		}
-
-		const template: GraphTemplate = {
-			name,
-			createdAt: new Date().toISOString(),
-			panel: panelData,
-		};
-
-		// 同名テンプレートがあれば上書き
-		const idx = templates.findIndex((t) => t.name === name);
-		if (idx >= 0) {
-			templates[idx] = template;
-		} else {
-			templates.push(template);
-		}
-		this.plugin.settings.templates = templates;
+		const next = upsertTemplate(buildTemplateFromPanel(name, this.panel), templates);
+		if (!next) return false;
+		this.plugin.settings.templates = next;
 		this.plugin.saveSettings();
 		return true;
 	}
@@ -6175,22 +6139,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	/** 保存済みテンプレートを現在のパネルに適用 */
 	private _loadTemplate(name: string): void {
 		const templates = this.plugin.settings.templates ?? [];
-		const template = templates.find((t) => t.name === name);
-		if (!template) return;
-
-		// テンプレートのパネルデータを適用（Set フィールドの復元を含む）
-		const src = this.panel as unknown as Record<string, unknown>;
-		for (const [key, value] of Object.entries(template.panel)) {
-			// 一時的フィールドはスキップ（念のため）
-			if (GraphViewContainer.TEMPLATE_TRANSIENT_KEYS.has(key)) continue;
-			// 現在値が Set で、テンプレート値が Array の場合は Set に変換
-			if (src[key] instanceof Set && Array.isArray(value)) {
-				src[key] = new Set(value as unknown[]);
-			} else {
-				src[key] = value;
-			}
-		}
-
+		if (!applyTemplate(name, templates, this.panel)) return;
 		this.doRender();
 		this.requestSave();
 	}
@@ -6198,7 +6147,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	/** 保存済みテンプレートを削除 */
 	private _deleteTemplate(name: string): void {
 		const templates = this.plugin.settings.templates ?? [];
-		this.plugin.settings.templates = templates.filter((t) => t.name !== name);
+		this.plugin.settings.templates = removeTemplate(name, templates);
 		this.plugin.saveSettings();
 	}
 
