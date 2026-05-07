@@ -173,14 +173,21 @@ MAX_ISSUE_ATTEMPTS=2  # 2026-04-30 token-reduction (Phase R3): was 3
 NOW=$(date +%s)
 # CSV-mode timed-out scan: walk both kinds via CSV instead of glob+stat.
 # Uses updated_at as the age proxy (file mtime equivalent). Active rows
-# whose updated_at is older than 600s + status=in-progress are timed out.
+# with status=in-progress and age > IN_PROGRESS_TIMEOUT are timed out.
+#
+# Threshold MUST exceed the longest legitimate session duration. Sessions
+# can run up to MAX_SESSION_AGE=7200s (2h) per the lock-cleanup policy at
+# L140, so anything shorter (e.g. the previous 600s) caused live tasks to
+# be falsely timed out by the next-hour cron tick. Use MAX_SESSION_AGE
+# directly so the two thresholds stay coupled.
+IN_PROGRESS_TIMEOUT=$MAX_SESSION_AGE
 for kind in tasks issues; do
   for ID in $(csv_select_by_status "$kind" in-progress 2>/dev/null); do
     UPDATED=$(csv_get_field "$kind" "$ID" updated_at 2>/dev/null)
     [[ -n "$UPDATED" ]] || continue
     UPDATED_EPOCH=$(date -d "$UPDATED" +%s 2>/dev/null || echo "$NOW")
     FILE_AGE=$(( NOW - UPDATED_EPOCH ))
-    [[ $FILE_AGE -gt 600 ]] || continue
+    [[ $FILE_AGE -gt $IN_PROGRESS_TIMEOUT ]] || continue
 
     if [[ "$kind" == "tasks" ]]; then
       # FIX A: Timed-out task → straight to blocked. No re-SUBDIVIDE.
@@ -189,10 +196,12 @@ for kind in tasks issues; do
         "chore: block timed-out task $ID" 2>/dev/null || true
     else
       # Issue timed out → bump decompose_attempts, or block if exhausted.
+      # Note: empty-lock-dir branch is dead at this point (this session's own
+      # lock was created at L157), but kept as defensive belt-and-suspenders.
       ORPHANED=false
       if [[ -z "$(find "$LOCK_DIR" -maxdepth 1 -name '*.pid' 2>/dev/null | head -1)" ]]; then
         ORPHANED=true
-      elif [[ $FILE_AGE -gt 600 ]]; then
+      elif [[ $FILE_AGE -gt $IN_PROGRESS_TIMEOUT ]]; then
         ORPHANED=true
       fi
       if [[ "$ORPHANED" == true ]]; then

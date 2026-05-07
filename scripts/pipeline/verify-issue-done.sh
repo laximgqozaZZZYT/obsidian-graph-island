@@ -72,16 +72,20 @@ done
 
 # Diff-aware check: the EXISTENCE check above passes for MODIFY-only tasks
 # even when the task's iter produced zero edits to <path>. Locate the most
-# recent "chore: start task <ID>" commit on this branch and require that at
-# least one acceptance-criteria path was actually touched in commits since.
+# recent "chore: start task <ID>" commit and require that at least one
+# acceptance-criteria path was actually touched in commits since.
+# Uses --all so worktree-branch commits (auto-improve-<SESSION_ID>, not
+# yet merged to main) are visible from a main checkout — without --all,
+# MODIFY-only tasks are falsely UNTOUCHED during the pre-merge window
+# because their work commits live on the unmerged worktree branch.
 # Skipped if no start commit is found (issue may pre-date the convention).
 if [[ "$missing" -eq 0 && ${#paths[@]} -gt 0 ]]; then
-  start_sha=$(git log --grep="^chore: start task ${ID}\$" -n 1 --format=%H 2>/dev/null || true)
+  start_sha=$(git log --all --grep="^chore: start task ${ID}\$" -n 1 --format=%H 2>/dev/null || true)
   if [[ -z "$start_sha" ]]; then
-    start_sha=$(git log --grep="^chore: start ${ID}\$" -n 1 --format=%H 2>/dev/null || true)
+    start_sha=$(git log --all --grep="^chore: start ${ID}\$" -n 1 --format=%H 2>/dev/null || true)
   fi
   if [[ -n "$start_sha" ]]; then
-    touched=$(git log "${start_sha}..HEAD" --name-only --pretty=format: -- "${paths[@]}" 2>/dev/null | grep -v '^$' | head -1 || true)
+    touched=$(git log --all "${start_sha}.." --name-only --pretty=format: -- "${paths[@]}" 2>/dev/null | grep -v '^$' | head -1 || true)
     if [[ -z "$touched" ]]; then
       echo "UNTOUCHED: no commit since $start_sha touched any of: ${paths[*]}" >&2
       missing=1

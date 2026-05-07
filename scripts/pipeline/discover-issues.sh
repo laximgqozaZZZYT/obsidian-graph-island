@@ -190,11 +190,24 @@ fi
 # ============================================================
 # 7. VISUAL QUALITY REGRESSION (CDP required)
 # ============================================================
+# Stale-detection: visual-report.ts crashing (e.g. dependency drift, like
+# the @playwright/test vs playwright import mismatch fixed 2026-05-07) used
+# to leave stale visual-report.json untouched and silently passed off as
+# "healthy". Capture exit code + pre/post mtime; file a critical issue
+# instead of swallowing the failure. Mirrors e2e-patrol.sh:111+.
 if curl -sf "http://localhost:9222/json/version" >/dev/null 2>&1; then
-  # Run visual report (background, no display occupation)
-  timeout 30 npx tsx scripts/pipeline/visual-report.ts 2>/dev/null
+  PRE_MTIME=$(stat -c %Y scripts/pipeline/visual-report.json 2>/dev/null || echo 0)
+  VR_OUT=$(timeout 30 npx tsx scripts/pipeline/visual-report.ts 2>&1 | tail -5)
+  VR_EXIT=$?
+  POST_MTIME=$(stat -c %Y scripts/pipeline/visual-report.json 2>/dev/null || echo 0)
 
-  if [[ -f scripts/pipeline/visual-report.json ]]; then
+  if [[ $VR_EXIT -ne 0 || "$POST_MTIME" == "$PRE_MTIME" ]]; then
+    file_issue "visual-report-broken" "critical" \
+      "visual-report.ts crashed in discover-issues (exit=$VR_EXIT)" \
+      "discover-issues Section 7 cannot assess visual quality. Last 5 lines:\n\n$VR_OUT" \
+      "- [ ] visual-report.ts runs to completion and writes fresh JSON"
+    ISSUES_FOUND=$((ISSUES_FOUND + 1))
+  elif [[ -f scripts/pipeline/visual-report.json ]]; then
     VISUAL_ISSUES=$(python3 -c "
 import json
 r = json.load(open('scripts/pipeline/visual-report.json'))
