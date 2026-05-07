@@ -22,12 +22,15 @@ SMOKE_TESTS=(
   handoff-git-status-short.test.sh
   verify-body-match.test.sh
   verify-issue-done.test.sh
+  csv-helpers.test.sh
 )
 
-# Tests with known rot — surfaced by --full but not gating.
+# Tests retained as SKIP stubs documenting dead SUTs (deleted in commit
+# 5c94aaed, 2026-04-25 md→CSV migration). They exit 0 trivially. Kept in
+# this list as informational markers — promotion to SMOKE_TESTS would mean
+# regressing the SUT, which is not what we want.
 KNOWN_ROTTEN=(
   classify-git-status.test.sh
-  csv-helpers.test.sh
   find-status-modified-target.test.sh
 )
 

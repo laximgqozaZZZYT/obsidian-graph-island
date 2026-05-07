@@ -1,146 +1,47 @@
 #!/usr/bin/env bash
 # Unit tests for scripts/pipeline/find-status-modified-target.sh
+#
+# # SKIP: SUT permanently removed.
+#
+# This test was authored against `scripts/pipeline/find-status-modified-target.sh`,
+# a helper that scanned `git status --porcelain docs/issues/` for ` M `
+# (worktree-modified-only) lines and emitted the first match as
+# `TARGET_FILE=<path>` on stdout.
+#
+# That helper — together with classify-git-status.sh, verify-status-only-diff.sh,
+# and report-status-diff-failure.sh — was deleted in commit 5c94aaed
+# ("feat(pipeline): Phase 3 — flip USE_CSV=true default + drop legacy",
+# 2026-04-25) as part of the md → CSV state-store migration. The CSV
+# pipeline tracks `status` as a column on tasks.csv / issues.csv rows;
+# the whole concept of "diff touched only the status: line of an md
+# frontmatter" no longer exists, so there is nothing left to verify.
+#
+# Per the repair brief (constraint: "テストファイル本体のみ編集可" — SUT
+# must not be re-created), the only honest repair is to retire all 10
+# cases. Each case asserts behaviour of a script that the codebase
+# deliberately decided to no longer have. The fixtures under
+# tests/pipeline/fixtures/git-status/case*.txt are kept in place — they
+# are read-only inputs and removing them is out of scope for a test-file
+# edit.
+#
+# # SKIP: case1  — ' M target' → TARGET_FILE=docs/issues/target.md
+# # SKIP: case2  — 'M  target' (index-only) ignored
+# # SKIP: case3  — empty input → empty stdout
+# # SKIP: case4  — target + untracked '??' → emit only target
+# # SKIP: case5  — 'MM target' (both index+worktree) ignored
+# # SKIP: case6  — no ' M' lines → skip
+# # SKIP: case7  — multiple ' M' candidates → first one
+# # SKIP: case8  — stdin via "-" argument
+# # SKIP: case9  — bad file path → exit 2
+# # SKIP: case10 — mixed-status fixture → only ' M' line wins
+#
+# When/if a successor verifier emerges, replace this stub with cases
+# scoped to that successor's contract. Until then, this script is a
+# documented no-op so that scripts/run-pipeline-tests.sh --full can
+# treat the entry as green instead of perpetually red.
 set -uo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-SUT="$REPO_ROOT/scripts/pipeline/find-status-modified-target.sh"
-FIXTURES="$SCRIPT_DIR/fixtures/git-status"
-
-passed=0
-failed=0
-
-assert_exit() {
-  local label="$1" expected="$2" actual="$3"
-  if [[ "$actual" -eq "$expected" ]]; then
-    echo "PASS: $label"
-    passed=$((passed+1))
-  else
-    echo "FAIL: $label (expected exit $expected, got $actual)"
-    failed=$((failed+1))
-  fi
-}
-
-assert_stdout_eq() {
-  local label="$1" expected="$2" stdout_file="$3"
-  local actual
-  actual="$(cat "$stdout_file")"
-  if [[ "$actual" == "$expected" ]]; then
-    echo "PASS: $label"
-    passed=$((passed+1))
-  else
-    echo "FAIL: $label"
-    echo "  expected: $(printf '%q' "$expected")"
-    echo "  actual:   $(printf '%q' "$actual")"
-    failed=$((failed+1))
-  fi
-}
-
-tmpdir="$(mktemp -d)"
-trap 'rm -rf "$tmpdir"' EXIT
-
-# --- Case 1: Single worktree-modified target → emit its path, exit 0 ---
-rc=0
-bash "$SUT" "$FIXTURES/case1-target-worktree-modified.txt" \
-  >"$tmpdir/c1.out" 2>"$tmpdir/c1.err" || rc=$?
-assert_exit "case1: ' M target' → exit 0" 0 "$rc"
-assert_stdout_eq "case1: stdout = TARGET_FILE=<path>" \
-  "TARGET_FILE=docs/issues/target.md" "$tmpdir/c1.out"
-
-# --- Case 2: Target is index-modified ("M "), not worktree ("  M") ---
-# Script must ignore — only " M " counts as a status-line-edit candidate.
-rc=0
-bash "$SUT" "$FIXTURES/case2-target-index-modified.txt" \
-  >"$tmpdir/c2.out" 2>"$tmpdir/c2.err" || rc=$?
-assert_exit "case2: 'M  target' → exit 0 (skip)" 0 "$rc"
-assert_stdout_eq "case2: index-only modification yields empty stdout" \
-  "" "$tmpdir/c2.out"
-
-# --- Case 3: Empty porcelain output → skip, exit 0, empty stdout ---
-rc=0
-bash "$SUT" "$FIXTURES/case3-target-missing.txt" \
-  >"$tmpdir/c3.out" 2>"$tmpdir/c3.err" || rc=$?
-assert_exit "case3: empty input → exit 0" 0 "$rc"
-assert_stdout_eq "case3: empty stdout" "" "$tmpdir/c3.out"
-
-# --- Case 4: Target + untracked file → emit target, ignore "??" leak ---
-rc=0
-bash "$SUT" "$FIXTURES/case4-target-plus-untracked.txt" \
-  >"$tmpdir/c4.out" 2>"$tmpdir/c4.err" || rc=$?
-assert_exit "case4: target + untracked → exit 0" 0 "$rc"
-assert_stdout_eq "case4: emits only the ' M' target, not the '??' file" \
-  "TARGET_FILE=docs/issues/target.md" "$tmpdir/c4.out"
-
-# --- Case 5: Target with MM ("both index and worktree") → not a clean
-# status-line-edit candidate; script filters only on leading " M ". ---
-rc=0
-bash "$SUT" "$FIXTURES/case5-target-mm-suspicious.txt" \
-  >"$tmpdir/c5.out" 2>"$tmpdir/c5.err" || rc=$?
-assert_exit "case5: 'MM target' → exit 0" 0 "$rc"
-assert_stdout_eq "case5: MM is not ' M' — empty stdout" "" "$tmpdir/c5.out"
-
-# --- Case 6: No ' M' lines at all (only untracked/staged/deleted) → skip.
-# Note: docs/issues/ filtering happens at the `git status --porcelain` layer
-# when the script is called with no args; when given a fixture, the caller
-# owns pre-filtering. This case verifies the " M " matcher, not scoping. ---
-no_m_fixture="$tmpdir/no-m.txt"
-cat >"$no_m_fixture" <<'EOF'
-?? docs/issues/new.md
-A  docs/issues/staged.md
- D docs/issues/deleted.md
-EOF
-rc=0
-bash "$SUT" "$no_m_fixture" >"$tmpdir/c6.out" 2>"$tmpdir/c6.err" || rc=$?
-assert_exit "case6: no ' M' lines → exit 0 (skip)" 0 "$rc"
-assert_stdout_eq "case6: empty stdout when no ' M' candidate exists" \
-  "" "$tmpdir/c6.out"
-
-# --- Case 7: Multiple ' M' candidates → emit the first one only ---
-multi_fixture="$tmpdir/multi.txt"
-cat >"$multi_fixture" <<'EOF'
- M docs/issues/first.md
- M docs/issues/second.md
- M docs/issues/third.md
-EOF
-rc=0
-bash "$SUT" "$multi_fixture" >"$tmpdir/c7.out" 2>"$tmpdir/c7.err" || rc=$?
-assert_exit "case7: multiple candidates → exit 0" 0 "$rc"
-assert_stdout_eq "case7: emits first candidate only" \
-  "TARGET_FILE=docs/issues/first.md" "$tmpdir/c7.out"
-
-# --- Case 8: Stdin input ("-") ---
-rc=0
-printf ' M docs/issues/target.md\n' \
-  | bash "$SUT" - >"$tmpdir/c8.out" 2>"$tmpdir/c8.err" || rc=$?
-assert_exit "case8: stdin → exit 0" 0 "$rc"
-assert_stdout_eq "case8: stdin path emitted" \
-  "TARGET_FILE=docs/issues/target.md" "$tmpdir/c8.out"
-
-# --- Case 9: Non-existent file → usage error, exit 2 ---
-rc=0
-bash "$SUT" "$tmpdir/does-not-exist.txt" \
-  >"$tmpdir/c9.out" 2>"$tmpdir/c9.err" || rc=$?
-assert_exit "case9: bad path → exit 2" 2 "$rc"
-
-# --- Case 10: Subpath with spaces in neighbor lines don't confuse awk ---
-# Guards against regex false-positives like "MM" or "DM" getting matched.
-edge_fixture="$tmpdir/edge.txt"
-cat >"$edge_fixture" <<'EOF'
-MM docs/issues/not-this.md
- D docs/issues/deleted.md
-?? docs/issues/new.md
- M docs/issues/real-target.md
-AM docs/issues/added-then-modified.md
-EOF
-rc=0
-bash "$SUT" "$edge_fixture" >"$tmpdir/c10.out" 2>"$tmpdir/c10.err" || rc=$?
-assert_exit "case10: mixed statuses → exit 0" 0 "$rc"
-assert_stdout_eq "case10: picks only the ' M' line" \
-  "TARGET_FILE=docs/issues/real-target.md" "$tmpdir/c10.out"
-
-# --- Summary ---
+echo "SKIP: find-status-modified-target.sh was removed in 5c94aaed (md→CSV migration); no SUT to test."
 echo ""
-echo "Results: $passed passed, $failed failed"
-if [[ "$failed" -gt 0 ]]; then
-  exit 1
-fi
+echo "Results: 0 passed, 0 failed (all cases skipped — see header comment)"
+exit 0

@@ -509,8 +509,8 @@ def cmd_archive(kind: str, row_id: str) -> None:
     their description (they may be retried/re-opened).
     """
     cmd_set_status(kind, row_id, "done")
-    spec = SPECS[kind]
-    rows = _read(spec)
+    spec = _kind(kind)
+    _, rows = _read_rows(spec)
     for row in rows:
         if row.get("id") == row_id:
             desc_rel = (row.get("description_path") or "").strip()
@@ -520,6 +520,9 @@ def cmd_archive(kind: str, row_id: str) -> None:
                     desc_path.unlink(missing_ok=True)
                 except OSError:
                     pass  # best-effort cleanup; status flip already succeeded
+                # Clear the field so _validate() doesn't flag the row as
+                # "description_path missing" — the file is intentionally gone.
+                cmd_set_field(kind, row_id, "description_path", "")
             break
 
 
