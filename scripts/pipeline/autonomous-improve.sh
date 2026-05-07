@@ -802,6 +802,17 @@ for iter in $(seq 1 "$MAX_ITERATIONS"); do
         log "ABORT: decomposition hit rate-limit — skipping rest of cycle to conserve tokens"
         exit 0
       fi
+      if [[ $DECOMPOSE_EXIT -eq 5 ]]; then
+        # Short response — claude judged the issue undecomposable (no src/
+        # paths in description, single-line task, etc.). Mark and move on
+        # rather than aborting the cycle on a phantom rate-limit signal.
+        log "WARN: decompose returned short response — marking $ISSUE_NAME undecomposable, continuing cycle"
+        csv_atomic_set_status issues "$ISSUE_NAME" undecomposable \
+          "chore: mark $ISSUE_NAME undecomposable (short LLM response)" 2>/dev/null || true
+        ISSUE_NAME=""
+        ISSUE_FILE=""
+        continue
+      fi
       if [[ $DECOMPOSE_EXIT -eq 4 ]]; then
         log "ABORT: task queue at cap (MAX_TOTAL_TASKS=$MAX_TOTAL_TASKS) — skipping decomposition this cycle"
         # Roll back the attempts increment so the issue isn't penalized.

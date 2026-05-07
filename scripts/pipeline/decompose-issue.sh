@@ -122,8 +122,14 @@ if echo "$RESULT" | grep -qiE "you've hit your limit|rate limit|quota exceeded|r
   exit 2
 fi
 if [[ ${#RESULT} -lt 100 ]]; then
+  # Distinct exit code from the rate-limit branch above (exit 2). Short
+  # responses can legitimately mean "issue is undecomposable" (e.g. issue
+  # 1706 had no src/ paths in its description and claude returned ~29
+  # chars after 154 seconds — that is genuine analysis, not rate-limit).
+  # autonomous-improve.sh handles exit 5 by marking the issue undecomposable
+  # and continuing the cycle, instead of aborting on a phantom rate-limit.
   echo "ERROR: decomposition aborted — LLM response too short (${#RESULT} chars)"
-  exit 2
+  exit 5
 fi
 
 # Parse subtasks from result and write rows into tasks.csv

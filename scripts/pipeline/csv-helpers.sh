@@ -240,6 +240,19 @@ csv_file_alert() {
     return 1  # suppressed — caller can log
   fi
 
+  # Cooldown: also suppress if the slug was just resolved (status=done)
+  # within the last 24h. Without this, a structural condition that recurs
+  # (e.g. dirty-skip after each cycle's CSV write) re-fires the same alert
+  # every cycle once the previous one is archived. Observed 2026-05-07:
+  # `autonomous-stalled-dirty-skip` slug had 30+ historical filings.
+  local recent_done now_epoch
+  now_epoch=$(date +%s 2>/dev/null || echo 0)
+  recent_done=$(_csv_run select_recent_done_by_slug issues "$slug" 86400 2>/dev/null \
+    | head -1)
+  if [[ -n "$recent_done" ]]; then
+    return 1  # suppressed — same slug just resolved within 24h
+  fi
+
   next_id=$(_csv_run next_id_num 2>/dev/null || echo 9999)
   issue_id="${next_id}-${slug}"
   desc_path="$proj/scripts/pipeline/descriptions/${issue_id}.md"

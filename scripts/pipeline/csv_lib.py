@@ -346,6 +346,37 @@ def cmd_select_blocked_by_slug(kind: str, slug: str) -> list[str]:
     return out
 
 
+def cmd_select_recent_done_by_slug(kind: str, slug: str,
+                                    cooldown_secs: int) -> list[str]:
+    """Find rows whose id ends with `-<slug>`, status is `done`, and whose
+    `updated_at` is within the last `cooldown_secs` seconds. Used by
+    csv_file_alert to suppress re-firing the same slug right after it was
+    resolved (otherwise structural recurrences like dirty-skip flood the
+    queue with duplicate alerts)."""
+    import datetime
+    spec = _kind(kind)
+    _, rows = _read_rows(spec)
+    suffix = "-" + slug
+    cutoff_epoch = (datetime.datetime.now(datetime.timezone.utc).timestamp()
+                    - cooldown_secs)
+    out: list[str] = []
+    for r in rows:
+        rid = r.get("id", "")
+        if not (rid.endswith(suffix) and r.get("status") == "done"):
+            continue
+        upd = (r.get("updated_at") or "").strip()
+        if not upd:
+            continue
+        try:
+            upd_epoch = datetime.datetime.fromisoformat(
+                upd.replace("Z", "+00:00")).timestamp()
+        except ValueError:
+            continue
+        if upd_epoch >= cutoff_epoch:
+            out.append(rid)
+    return out
+
+
 def cmd_max_summary_jaccard(kind: str, summary: str) -> tuple[int, str]:
     """Return the highest Jaccard similarity (×100, integer) between the
     given summary and any active row's summary in `kind`. Used by
@@ -657,6 +688,9 @@ def main(argv: list[str]) -> int:
             _print_lines(cmd_select_active_by_slug(args[0], args[1]))
         elif sub == "select_blocked_by_slug":
             _print_lines(cmd_select_blocked_by_slug(args[0], args[1]))
+        elif sub == "select_recent_done_by_slug":
+            _print_lines(cmd_select_recent_done_by_slug(
+                args[0], args[1], int(args[2])))
         elif sub == "max_summary_jaccard":
             score, winner = cmd_max_summary_jaccard(args[0], args[1])
             print(f"{score}|{winner}")
