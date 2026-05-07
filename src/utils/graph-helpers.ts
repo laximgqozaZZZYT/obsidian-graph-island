@@ -621,6 +621,39 @@ export function computeGaps(
 }
 
 /**
+ * BFS-build a parent map (childId → parentId) over edges whose `type` or `relation`
+ * is in `relTypes`. Stops at `maxDepth` hops. Returns null when no children found.
+ */
+export function buildHierarchyTree(
+	rootId: string,
+	edges: readonly GraphEdge[],
+	relTypes: Set<string>,
+	maxDepth = 5,
+): Map<string, string> | null {
+	const tree = new Map<string, string>();
+	const visited = new Set<string>([rootId]);
+	let frontier = [rootId];
+	for (let depth = 0; depth < maxDepth && frontier.length > 0; depth++) {
+		const next: string[] = [];
+		for (const parentId of frontier) {
+			for (const e of edges) {
+				if (!relTypes.has(e.type ?? "") && !relTypes.has(e.relation ?? "")) continue;
+				const src = edgeSourceId(e);
+				const tgt = edgeTargetId(e);
+				const childId = src === parentId ? tgt : tgt === parentId ? src : null;
+				if (childId && !visited.has(childId)) {
+					visited.add(childId);
+					tree.set(childId, parentId);
+					next.push(childId);
+				}
+			}
+		}
+		frontier = next;
+	}
+	return tree.size > 0 ? tree : null;
+}
+
+/**
  * Hit-test timeline bars at a given world coordinate.
  * Returns the node ID of the bar that contains (wx, wy), or null.
  */
