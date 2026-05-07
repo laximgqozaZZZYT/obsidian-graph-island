@@ -101,6 +101,7 @@ samples/test-*.json
 # Plan docs (tracked separately in memory)
 docs/plans/
 coverage/
+coverage-temp/
 .autonomous-worktrees/
 .nyc_output/
 e2e/pipeline-screenshots/

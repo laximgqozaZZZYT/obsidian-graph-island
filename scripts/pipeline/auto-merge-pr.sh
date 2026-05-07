@@ -47,16 +47,37 @@ declare -a PROTECTED_PATHS=(
   "vitest.config.ts"
   "package.json"
   "pnpm-lock.yaml"
+  "scripts/pipeline/csv-schema.md"
 )
-declare -a PROTECTED_PREFIXES=(
-  "scripts/pipeline/"
-  ".github/workflows/"
+# Glob patterns matching protected pipeline CODE files. Bash `*` does not
+# match `/`, so e.g. `scripts/pipeline/*.sh` does not cover descriptions/.
+# Previously the catch-all prefix `scripts/pipeline/` blocked auto-merge for
+# every PR that touched any pipeline state file (issues.csv, descriptions/),
+# which the autonomous loop produces as side effects on every cycle —
+# observed 2026-05-07: 12 PRs stuck "rejected-protected" for 25h+ that way.
+declare -a PROTECTED_GLOBS=(
+  "scripts/pipeline/*.sh"
+  "scripts/pipeline/*.py"
+  "scripts/pipeline/*.ts"
+  "scripts/pipeline/*.mjs"
+  ".github/workflows/*"
 )
 
-# Allowed prefixes — every changed file must match at least one of these.
+# Allowed prefixes — every changed file must match either an allowed prefix
+# or an allowed exact path.
 declare -a ALLOWED_PREFIXES=(
   "src/"
   "tests/"
+  "scripts/pipeline/descriptions/"
+  "scripts/pipeline/attempts/"
+  "scripts/pipeline/reports/"
+  "scripts/pipeline/tasks/"
+)
+declare -a ALLOWED_PATHS=(
+  "scripts/pipeline/issues.csv"
+  "scripts/pipeline/tasks.csv"
+  "scripts/pipeline/attempts.csv"
+  "scripts/pipeline/visual-report.json"
 )
 
 cd "$PROJECT_DIR" || exit 1
@@ -126,8 +147,8 @@ for line in "${candidates[@]}"; do
   fi
 
   # Check every file:
-  #   - must be under an ALLOWED prefix
-  #   - must NOT be a protected path or under a protected prefix
+  #   - must NOT be a protected path or match a protected glob
+  #   - must match an allowed exact path or be under an allowed prefix
   ok=1
   reason=""
   while IFS= read -r f; do
@@ -138,19 +159,25 @@ for line in "${candidates[@]}"; do
         ok=0; reason="protected file: $f"; break 2
       fi
     done
-    # Protected prefix?
-    for pre in "${PROTECTED_PREFIXES[@]}"; do
-      if [[ "$f" == "$pre"* ]]; then
-        ok=0; reason="protected prefix: $f"; break 2
+    # Protected glob (bash pathname matching — * does not span /)
+    for g in "${PROTECTED_GLOBS[@]}"; do
+      # shellcheck disable=SC2053  # intentional glob (no quotes around $g)
+      if [[ "$f" == $g ]]; then
+        ok=0; reason="protected glob: $f"; break 2
       fi
     done
-    # Must be under an allowed prefix
+    # Must match an allowed exact path or an allowed prefix
     allowed=0
-    for pre in "${ALLOWED_PREFIXES[@]}"; do
-      [[ "$f" == "$pre"* ]] && { allowed=1; break; }
+    for p in "${ALLOWED_PATHS[@]}"; do
+      [[ "$f" == "$p" ]] && { allowed=1; break; }
     done
     if [[ $allowed -eq 0 ]]; then
-      ok=0; reason="outside src/ or tests/: $f"; break
+      for pre in "${ALLOWED_PREFIXES[@]}"; do
+        [[ "$f" == "$pre"* ]] && { allowed=1; break; }
+      done
+    fi
+    if [[ $allowed -eq 0 ]]; then
+      ok=0; reason="outside allowed paths: $f"; break
     fi
   done <<< "$files"
 

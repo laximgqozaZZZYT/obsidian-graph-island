@@ -1023,21 +1023,31 @@ CLAUDE.md厳守。God Object行数を増やさない。" \
   # ── COMMIT in worktree ──
   if [[ -n "$(git status --porcelain)" ]]; then
     git add -A
-    COMMIT_PREFIX="chore(auto)"
-    COMMIT_DETAIL="$FOCUS improvement"
-    if [[ "$FOCUS" == "user-issue" && -n "$ISSUE_NAME" ]]; then
-      COMMIT_PREFIX="fix(auto)"
-      COMMIT_DETAIL="resolve $ISSUE_NAME"
-    fi
-    git commit -m "$(cat <<COMMITMSG
+    # Skip whitespace-only changes (e.g. lone Prettier auto-fix from L892
+    # with no semantic work this iter). Such commits would inflate
+    # ITER_COMMITS and let verify-issue-done's MODIFY-only check falsely
+    # pass for tasks that produced zero real edits — the file is "touched"
+    # by `git log --name-only` but only by whitespace.
+    if git diff --cached --quiet --ignore-all-space 2>/dev/null; then
+      log "Skipping whitespace-only changes (format auto-fix, no semantic content)"
+      git reset >/dev/null 2>&1 || true
+    else
+      COMMIT_PREFIX="chore(auto)"
+      COMMIT_DETAIL="$FOCUS improvement"
+      if [[ "$FOCUS" == "user-issue" && -n "$ISSUE_NAME" ]]; then
+        COMMIT_PREFIX="fix(auto)"
+        COMMIT_DETAIL="resolve $ISSUE_NAME"
+      fi
+      git commit -m "$(cat <<COMMITMSG
 $COMMIT_PREFIX: $COMMIT_DETAIL (session $SESSION_ID, iter $iter)
 
 Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>
 COMMITMSG
 )" 2>&1 | tail -1
-    TOTAL_COMMITS=$((TOTAL_COMMITS + 1))
-    ITER_COMMITS=$((ITER_COMMITS + 1))
-    log "Committed (iter $iter)"
+      TOTAL_COMMITS=$((TOTAL_COMMITS + 1))
+      ITER_COMMITS=$((ITER_COMMITS + 1))
+      log "Committed (iter $iter)"
+    fi
   else
     log "No changes (iter $iter)"
   fi
