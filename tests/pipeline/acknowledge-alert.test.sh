@@ -174,22 +174,28 @@ else
 fi
 
 # ---------- Case 10: --ack-all argparse + empty-alerts contract ----------
-# Goal: verify the --ack-all branch is reachable and (a) accepts --yes
-# without arg-error, (b) the "No open alerts to acknowledge." string is
-# present in the SUT (locking in the empty-list message).
+# Goal: lock in the **contract** for --ack-all on an empty alert list.
 #
-# We deliberately do NOT execute --ack-all against a sandbox CSV here:
-# there is a known cosmetic bug in the SUT (grep -c . || echo 0 yields
-# "0\n0" when stdin is empty, breaking the [[ -eq 0 ]] guard). That bug
-# is out of scope for this regression test — its fix should land with
-# its own test. What we lock in is the **contract**:
-#   - --ack-all is a recognized mode (not an arg error)
-#   - --yes after --ack-all skips the prompt (SKIP_CONFIRM=1 path exists)
-#   - the empty-list message string is present in the source
+# 2026-05-09 R11-D upgrade: the previous source-grep-only approach masked
+# a real bug — `count=$(echo "$open_ids" | grep -c . || echo 0)` produced
+# "0\n0" when open_ids was empty (echo "" prints a single empty line; grep
+# -c . returns 0 with rc=1; `|| echo 0` then appended a second "0"). That
+# broke the `[[ "$count" -eq 0 ]]` integer comparison.
+#
+# Case 10d/10e now exercise the empty-list path end-to-end against a
+# sandbox issues.csv that has zero open alerts, asserting:
+#   - exit 0
+#   - stdout contains "No open alerts to acknowledge."
+#   - no "syntax error" / "integer expression expected" leakage from the
+#     buggy compound `count` value
+#
+# Sandboxing strategy:
+#   The SUT hardcodes PROJECT_DIR/ISSUES_CSV at the top. We rewrite both
+#   in a temp copy of the script via sed, and point csv-helpers.sh at the
+#   real one (it has no PROJECT_DIR coupling that matters for this path —
+#   the empty-list branch exits before any csv_atomic_set_status call).
 
 # 10a. --ack-all --yes is recognized as a valid mode (not Unknown arg, not Usage).
-# We assert via source-grep because executing it would either acknowledge
-# real open alerts (destructive) or trip the empty-list bug above.
 if grep -qE '^[[:space:]]*--ack-all\)' "$SUT"; then
   echo "PASS: case10a: SUT has --ack-all case branch"
   ((passed++))
@@ -214,6 +220,55 @@ if grep -qE 'No open alerts to acknowledge' "$SUT"; then
 else
   echo "FAIL: case10c: SUT missing 'No open alerts to acknowledge' message"
   ((failed++))
+fi
+
+# 10d. behavioural: --ack-all --yes against an empty alert CSV → exit 0
+# Build a sandbox: copy SUT, rewrite PROJECT_DIR + ISSUES_CSV to point at
+# a tempdir holding an issues.csv with zero open alerts (or none matching
+# the alert/critical filter).
+sandbox="$tmpdir/sandbox"
+mkdir -p "$sandbox/scripts/pipeline"
+# Minimal issues.csv: a header + one closed/done row that does NOT match
+# the open-alerts predicate (status not in pending/in-progress + no
+# source=alert / priority=critical). This guarantees an empty result set.
+cat > "$sandbox/scripts/pipeline/issues.csv" <<'CSV'
+id,summary,status,priority,source,reported
+done-noise-1,closed unrelated row,done,low,kaizen,2026-05-09T00:00:00+00:00
+CSV
+
+# Copy + rewrite SUT so PROJECT_DIR / ISSUES_CSV / csv-helpers source
+# all resolve inside the sandbox-or-real-repo. We only need PROJECT_DIR
+# and ISSUES_CSV pointing at the sandbox; csv-helpers.sh can stay sourced
+# from the real repo because the empty-list branch never invokes any of
+# its functions.
+sandbox_sut="$sandbox/scripts/pipeline/acknowledge-alert.sh"
+cp "$SUT" "$sandbox_sut"
+# shellcheck disable=SC2016
+sed -i "s|^PROJECT_DIR=.*|PROJECT_DIR=\"$sandbox\"|" "$sandbox_sut"
+sed -i "s|^ISSUES_CSV=.*|ISSUES_CSV=\"$sandbox/scripts/pipeline/issues.csv\"|" "$sandbox_sut"
+# Re-point the csv-helpers source to the real repo so `set -uo pipefail`
+# doesn't fail on a missing helper file.
+sed -i "s|\. \"\$PROJECT_DIR/scripts/pipeline/csv-helpers.sh\"|. \"$REPO_ROOT/scripts/pipeline/csv-helpers.sh\"|" "$sandbox_sut"
+chmod +x "$sandbox_sut"
+
+rc=0
+bash "$sandbox_sut" --ack-all --yes > "$tmpdir/c10d.out" 2>&1 || rc=$?
+assert_exit     "case10d: --ack-all --yes (empty alerts) → exit 0"        0                                "$rc"
+assert_contains "case10d: stdout contains 'No open alerts to acknowledge'" "No open alerts to acknowledge"  "$tmpdir/c10d.out"
+
+# 10e. The buggy compound `count` value would surface as a bash "[[: ... :
+# syntax error in expression" / "integer expression expected" line on
+# stderr. Assert that no such leakage occurred — this is the regression
+# guard for the R11-D fix.
+if grep -qE '(syntax error in expression|integer expression expected|式に構文エラー)' "$tmpdir/c10d.out"; then
+  echo "FAIL: case10e: --ack-all empty-list path leaks integer-compare error"
+  echo "--- output ---"
+  cat "$tmpdir/c10d.out"
+  echo "--- end ---"
+  ((failed++))
+else
+  echo "PASS: case10e: no integer-compare error from compound count value"
+  ((passed++))
 fi
 
 # ---------- Summary ----------
