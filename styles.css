@@ -3671,4 +3671,10 @@
   color: var(--text-muted);
   opacity: 0.85;
   z-index: 10;
+  /* Keep the pill on a single line; truncate long folder summaries with
+     an ellipsis so the chip silhouette stays a clean pill. */
+  max-width: min(70%, 480px);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
