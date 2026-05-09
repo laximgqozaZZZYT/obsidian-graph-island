@@ -98,8 +98,34 @@ export class CanvasApp implements IApp {
 		const wy = world.y * this.dpr;
 		const ws = (world.scale?.x ?? 1) * this.dpr;
 
+		// Theme-aware dot color (computed once for both world + screen passes)
+		const { r, g, b } = hexToRgb(this.bgColor);
+		const brightness = getLuminance(r, g, b);
+		const isLight = brightness > 128;
+		const baseDotAlpha = isLight ? 0.08 : 0.12;
+		const baseDotColor = isLight
+			? (a: number) => `rgba(0,0,0,${a})`
+			: (a: number) => `rgba(255,255,255,${a})`;
+
 		const spacing = 30 * ws; // 30 world-units between dots
-		if (spacing < 4) return; // Don't draw when too zoomed out (dots merge)
+		if (spacing < 4) {
+			// Extreme zoom-out: world-space dots would merge into a fill, so
+			// instead draw a coarse screen-space anchor pattern to keep the
+			// canvas from going featureless black. Half-alpha vs the world
+			// pattern so it reads as ambient texture rather than a real grid.
+			const anchorSpacing = 32 * this.dpr;
+			const anchorR = Math.max(0.5, this.dpr * 0.6);
+			ctx.fillStyle = baseDotColor(baseDotAlpha * 0.5);
+			ctx.beginPath();
+			for (let x = anchorSpacing / 2; x < w; x += anchorSpacing) {
+				for (let y = anchorSpacing / 2; y < h; y += anchorSpacing) {
+					ctx.moveTo(x + anchorR, y);
+					ctx.arc(x, y, anchorR, 0, Math.PI * 2);
+				}
+			}
+			ctx.fill();
+			return;
+		}
 
 		const dotR = Math.max(0.5, ws * 0.8); // Dot radius scales with zoom
 
@@ -107,13 +133,7 @@ export class CanvasApp implements IApp {
 		const startX = ((wx % spacing) + spacing) % spacing;
 		const startY = ((wy % spacing) + spacing) % spacing;
 
-		// Use theme-aware dot color (slightly brighter/darker than background)
-		const { r, g, b } = hexToRgb(this.bgColor);
-		const brightness = getLuminance(r, g, b);
-		const dotAlpha = brightness > 128 ? 0.08 : 0.12;
-		const dotColor = brightness > 128 ? `rgba(0,0,0,${dotAlpha})` : `rgba(255,255,255,${dotAlpha})`;
-
-		ctx.fillStyle = dotColor;
+		ctx.fillStyle = baseDotColor(baseDotAlpha);
 		ctx.beginPath();
 		for (let x = startX; x < w; x += spacing) {
 			for (let y = startY; y < h; y += spacing) {
