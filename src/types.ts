@@ -1496,7 +1496,7 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
 	cardBodyFontSize: 8,
 	labelMaxChars: 0,
 	enclosureStrokeWidth: 0,
-	globalEdgeAlpha: 1.0,
+	globalEdgeAlpha: 0.8,
 	edgeLabelFontSize: 10,
 	enclosureFillOpacity: 0,
 	glowNodeCount: 800,
