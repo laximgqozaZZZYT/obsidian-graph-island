@@ -94,8 +94,12 @@ describe("constants — types", () => {
 	});
 
 	it("no string constants contain whitespace", () => {
-		for (const val of Object.values(C)) {
-			if (typeof val === "string") {
+		// Identifier-style string constants (used as === discriminators) must not contain
+		// accidental whitespace. CSS-value strings (rgba, font-family lists, etc.) legitimately
+		// contain whitespace and are exempt.
+		const CSS_VALUE_KEYS = new Set(["DIFF_STATUS_BG", "CARD_FONT_FAMILY"]);
+		for (const [key, val] of Object.entries(C)) {
+			if (typeof val === "string" && !CSS_VALUE_KEYS.has(key)) {
 				expect(val).not.toMatch(/\s/);
 			}
 		}
@@ -245,6 +249,9 @@ describe("constants — EDGE_TYPE_SPECS coverage", () => {
 			"triangle",
 			"sunburst",
 			"tree",
+			// DIFF_ADDED_COLOR and DIFF_ADDED_EDGE_COLOR intentionally share the
+			// same green so added-node ring and added-edge line read as one signal.
+			"#22c55e",
 		]);
 		const unexpectedDups = duplicates.filter((d) => !expectedDups.has(d));
 		expect(unexpectedDups).toEqual([]);

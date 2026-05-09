@@ -5,7 +5,32 @@ import { hslToHex, stringHash } from "../utils/graph-helpers";
 import { wcagContrastRatio, contrastColor } from "../utils/color";
 import { darkenColor } from "./RenderPipeline";
 // DEFAULT_COLORS removed (unused)
-import { TAG_DISPLAY_ENCLOSURE } from "../constants";
+import {
+	TAG_DISPLAY_ENCLOSURE,
+	OUTLINE_PAD_MIN,
+	OUTLINE_PAD_FACTOR,
+	HULL_SAMPLES,
+	OVERLAP_RECOMPUTE_FRAMES,
+	SIZE_FADE_DIVISOR,
+	FILL_ALPHA_BASE,
+	FILL_ALPHA_OVERLAP,
+	LABEL_COLLISION_MAX_ATTEMPTS,
+	STROKE_ALPHA_NO_OVERLAP,
+	STROKE_ALPHA_OVERLAP_MIN,
+	STROKE_ALPHA_OVERLAP_BASE,
+	STROKE_WIDTH_NO_OVERLAP,
+	STROKE_WIDTH_OVERLAP_BASE,
+	STROKE_WIDTH_OVERLAP_MIN,
+	BORDER_OUTER_WIDTH,
+	BORDER_OUTER_ALPHA_FACTOR,
+	SIZE_FADE_MIN,
+	FILL_ALPHA_VISIBILITY_THRESHOLD,
+	LABEL_DARKEN_FACTOR,
+	LABEL_PILL_PAD_X,
+	LABEL_PILL_PAD_Y,
+	COLLISION_ESCAPE_MARGIN,
+	ZOOM_OUT_THRESHOLD,
+} from "../constants";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -80,72 +105,12 @@ interface EncData {
 	maxY: number;
 }
 
-/** Minimum extra padding beyond node radius for the outline.
- *  These are rendering constants — not user-facing tuning parameters.
- *  They affect hull geometry, not layout behavior. */
-const OUTLINE_PAD_MIN = 10;
-/** Padding scales with node radius: pad = max(MIN, radius × factor) */
-const OUTLINE_PAD_FACTOR = 0.8;
-/** Number of sample points around each node circle for hull generation.
- *  Higher = more accurate circle approximation, but more hull vertices. */
-const HULL_SAMPLES = 24;
-
-/** Overlap re-computation interval in frames */
-const OVERLAP_RECOMPUTE_FRAMES = 30;
-
-/** Size fade divisor: large groups → lower alpha */
-const SIZE_FADE_DIVISOR = 200;
-
-/** Base fill alpha for non-overlapping enclosures (zoomed out) */
-const FILL_ALPHA_BASE = 0.1;
-/** Base fill alpha for overlapping enclosures (zoomed out) */
-const FILL_ALPHA_OVERLAP = 0.04;
-
-/** Maximum label collision resolution attempts */
-const LABEL_COLLISION_MAX_ATTEMPTS = 6;
-
-/** Stroke alpha for non-overlapping enclosures — bold border like map boundaries */
-const STROKE_ALPHA_NO_OVERLAP = 0.85;
-/** Minimum stroke alpha for overlapping enclosures */
-const STROKE_ALPHA_OVERLAP_MIN = 0.5;
-/** Stroke alpha numerator for overlapping enclosures */
-const STROKE_ALPHA_OVERLAP_BASE = 0.75;
-/** Stroke line width for non-overlapping enclosures — thick border for map-like appearance */
-const STROKE_WIDTH_NO_OVERLAP = 4.0;
-/** Stroke line width base for overlapping enclosures */
-const STROKE_WIDTH_OVERLAP_BASE = 3.5;
-/** Minimum stroke width for overlapping enclosures */
-const STROKE_WIDTH_OVERLAP_MIN = 2.5;
-/** Outer border width for double-line "map border" effect */
-const BORDER_OUTER_WIDTH = 7.0;
-/** Outer border alpha (darker, behind main stroke — higher = more visible border) */
-const BORDER_OUTER_ALPHA_FACTOR = 0.6;
-/** Size fade minimum fraction (large groups don't fully disappear) */
-const SIZE_FADE_MIN = 0.3;
-/** Fill alpha visibility threshold */
-const FILL_ALPHA_VISIBILITY_THRESHOLD = 0.005;
-/** Radial fill edge alpha factor */
-/** Label darken factor for background pill */
-const LABEL_DARKEN_FACTOR = 0.25;
-/** Label pill padding (horizontal) */
-const LABEL_PILL_PAD_X = 8;
-/** Label pill padding (vertical) */
-const LABEL_PILL_PAD_Y = 3;
-/** Collision escape margin factor */
-const COLLISION_ESCAPE_MARGIN = 0.15;
-
 /** Compute dynamic padding for a given node radius */
 function outlinePad(radius: number, memberCount?: number): number {
 	const base = Math.max(OUTLINE_PAD_MIN, radius * OUTLINE_PAD_FACTOR);
 	// DQ-10: Shrink padding for very small groups (1-3 members)
 	return memberCount != null && memberCount <= 3 ? base * 0.6 : base;
 }
-
-/**
- * Zoom threshold: below this worldScale the view is considered "zoomed out".
- * In zoomed-out mode enclosures switch to filled regions with prominent labels.
- */
-const ZOOM_OUT_THRESHOLD = 0.45;
 
 // Module-level reusable buffers — reduce per-frame allocations
 const _hullInputBuf: Pt[] = [];
