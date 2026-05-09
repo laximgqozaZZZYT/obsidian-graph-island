@@ -1302,13 +1302,19 @@ COMMITMSG
           fi
         fi
       fi
-      (cd "$PROJECT_DIR" && git add scripts/pipeline/ && \
+      # 2026-05-09 R13-A: narrow git add to autonomous-scope files only.
+      # Previous `git add scripts/pipeline/` swept up operator-edited *.sh /
+      # README.md / migrations/, attributing them to autonomous task commits
+      # (observed Round 12 cfb87d06). Whitelist explicitly: csv state files
+      # + descriptions/ (autonomous-generated) + reports/ (autonomous output).
+      (cd "$PROJECT_DIR" && git add scripts/pipeline/issues.csv scripts/pipeline/tasks.csv scripts/pipeline/attempts.csv scripts/pipeline/descriptions/ scripts/pipeline/reports/ 2>/dev/null && \
         git commit -m "chore: done $ISSUE_NAME" --no-verify 2>/dev/null) || true
     else
       log "$KIND $ISSUE_NAME — verify-issue-done FAILED, flipping to blocked"
       while IFS= read -r vline; do log "  verify: $vline"; done <<< "$VERIFY_OUT" | head -3
       csv_set_status "$KIND" "$ISSUE_NAME" blocked 2>/dev/null || true
-      (cd "$PROJECT_DIR" && git add scripts/pipeline/ && \
+      # R13-A: same whitelist as the done-commit path above.
+      (cd "$PROJECT_DIR" && git add scripts/pipeline/issues.csv scripts/pipeline/tasks.csv scripts/pipeline/attempts.csv scripts/pipeline/descriptions/ scripts/pipeline/reports/ 2>/dev/null && \
         git commit -m "chore: blocked $ISSUE_NAME (verify-issue-done failed: required paths missing on main)" --no-verify 2>/dev/null) || true
     fi
     ISSUE_NAME=""
