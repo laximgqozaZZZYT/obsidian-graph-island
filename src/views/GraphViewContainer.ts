@@ -457,6 +457,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	private _frameCounter = 0;
 	private cachedLabelColor: number | null = null;
 	private cachedIsDark: boolean | null = null;
+	/** Memoization for drawGuides — skip CanvasText destroy/recreate when inputs unchanged. */
+	private _guidesCacheKey: string | null = null;
+	private _guidesCacheRef: object | null = null;
 	/** Ephemeral highlight set from side-panel hover (null = not active) */
 	private ephemeralHighlight: Set<string> | null = null;
 
@@ -4478,19 +4481,40 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	drawGuides() {
 		if (!this.guideRenderer || !this.guideGraphics) return;
 		const g = this.guideGraphics;
-		g.clear();
 		// clusterMeta may not exist if no cluster force is active
 		const guides = this.clusterMeta?.groupGuides;
 		if (!guides || guides.length === 0) {
-			// No guides available — canvas cleared above, nothing more to draw.
+			// No guides available — canvas cleared, nothing more to draw.
 			// All valid arrangements (grid, timeline, concentric, etc.) produce
 			// groupGuides in clusterMeta when buildClusterForce succeeds.
+			g.clear();
+			this._guidesCacheKey = "";
 			return;
 		}
 		const isDark = this.isDarkTheme();
+		const worldScale = this.worldContainer?.scale?.x ?? 1;
+		// Memoization gate: drawGuides destroys/recreates 2 CanvasText DOM elements
+		// per coordinate guide every call (~88 ms for 21 guides). When the inputs
+		// below are unchanged, the previously-emitted Pixi commands are still valid,
+		// so skip the entire redraw cycle and leave g + label container as-is.
+		// guides array identity changes whenever buildClusterForce rebuilds.
+		const ws100 = Math.round(worldScale * 100);
+		const cacheKey =
+			isDark +
+			"|" +
+			ws100 +
+			"|" +
+			(this.panel.gridShowHeaders ? 1 : 0) +
+			"|" +
+			(this.panel.gridLabelPlacement ?? "") +
+			"|" +
+			(this.panel.showAxisTitles === false ? 0 : 1);
+		if (cacheKey === this._guidesCacheKey && guides === this._guidesCacheRef) return;
+		this._guidesCacheKey = cacheKey;
+		this._guidesCacheRef = guides;
+		g.clear();
 		const lineW = 1;
 		const color = isDark ? 0x555555 : 0xcccccc;
-		const worldScale = this.worldContainer?.scale?.x ?? 1;
 		for (const entry of guides) {
 			const { guide, centerX, centerY } = entry;
 			if (guide.type === "coordinate") {
@@ -4585,9 +4609,15 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		}
 		this._drawPathfinderOverlay();
 
-		// Ensure arrow layer stays on top of all node containers
+		// Ensure arrow layer stays on top of all node containers.
+		// addChild() reorders children even when already attached — skip the
+		// reorder when arrow is already the topmost child to avoid wasted work
+		// in Canvas2D's child-list traversal on every drawEdges call.
 		if (this.arrowGraphics && this.worldContainer) {
-			this.worldContainer.addChild(this.arrowGraphics);
+			const kids = this.worldContainer.children;
+			if (kids[kids.length - 1] !== this.arrowGraphics) {
+				this.worldContainer.addChild(this.arrowGraphics);
+			}
 		}
 	}
 
