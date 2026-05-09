@@ -10,6 +10,16 @@
 # ============================================================
 set -uo pipefail
 
+# ── Kill-switch (2026-05-08 kaizen) ──
+# Operator can disable the entire autonomous pipeline by creating
+# $PROJECT_DIR/.pipeline-disabled (touch the file). All cron scripts
+# bail at exit 0 so cron sees no error. Re-enable by removing the file.
+PIPELINE_DISABLE_FILE="${PIPELINE_DISABLE_FILE:-/home/ubuntu/obsidian-plugins/obsidian-graph-island/.pipeline-disabled}"
+if [[ -f "$PIPELINE_DISABLE_FILE" ]]; then
+  echo "PIPELINE-DISABLED: $PIPELINE_DISABLE_FILE exists — skipping cycle" >&2
+  exit 0
+fi
+
 export PATH="/home/ubuntu/.local/bin:/home/ubuntu/.nvm/versions/node/v22.18.0/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 export HOME="/home/ubuntu"
 

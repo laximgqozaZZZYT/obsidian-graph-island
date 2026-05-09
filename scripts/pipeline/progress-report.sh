@@ -14,6 +14,16 @@
 
 set -uo pipefail
 
+# ── Kill-switch (2026-05-08 kaizen) ──
+# Operator can disable the entire autonomous pipeline by creating
+# $PROJECT_DIR/.pipeline-disabled (touch the file). All cron scripts
+# bail at exit 0 so cron sees no error. Re-enable by removing the file.
+PIPELINE_DISABLE_FILE="${PIPELINE_DISABLE_FILE:-/home/ubuntu/obsidian-plugins/obsidian-graph-island/.pipeline-disabled}"
+if [[ -f "$PIPELINE_DISABLE_FILE" ]]; then
+  echo "PIPELINE-DISABLED: $PIPELINE_DISABLE_FILE exists — skipping cycle" >&2
+  exit 0
+fi
+
 # Resolve project root once. R7 paths (REJ_DIR + csv-helpers source) need this.
 PROJECT_DIR="${PROJECT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
 
@@ -338,6 +348,116 @@ EOF
     echo "| ${DATE:-?} | ${SLUG:-?} | ${SCORE:-?} | ${REASON:-?} |"
   done
 fi
+
+# ─────────────────────────────────────────────
+# Kaizen Metrics (2026-05-08)
+# ─────────────────────────────────────────────
+# Surface kaizen-introduced pipeline state so operators get a deterministic
+# "is the pipeline healthy?" answer. Each metric falls back to "?" so a
+# rate-limited gh / missing python / network blip never aborts the whole
+# report (set -uo pipefail is in effect, NO -e).
+
+# 1. Kill-switch
+KILL_SWITCH="NO"
+KS_FILE="$PROJECT_DIR/.pipeline-disabled"
+if [[ -f "$KS_FILE" ]]; then
+  ks_mtime=$(stat -c %Y "$KS_FILE" 2>/dev/null || echo 0)
+  if [[ "$ks_mtime" =~ ^[0-9]+$ && "$ks_mtime" -gt 0 ]]; then
+    age_seconds=$(( $(date +%s) - ks_mtime ))
+    KILL_SWITCH="YES — touched ${age_seconds}s ago"
+  else
+    KILL_SWITCH="YES — touched ?s ago"
+  fi
+fi
+
+# 2. Decompose throttle status (matches decompose-issue.sh:37 default)
+THROTTLE_DEPTH=$(python3 - <<'PY' 2>/dev/null || echo "?"
+import csv, os, sys
+path = os.path.join(os.environ.get('PROJECT_DIR', os.getcwd()),
+                    'scripts', 'pipeline', 'tasks.csv')
+if not os.path.exists(path):
+    print("?"); sys.exit(0)
+try:
+    with open(path, encoding='utf-8', newline='') as f:
+        n = sum(1 for r in csv.DictReader(f)
+                if r.get('status') in ('pending', 'decomposed', 'in_progress', 'in-progress'))
+    print(n)
+except Exception:
+    print("?")
+PY
+)
+THROTTLE_DEPTH="${THROTTLE_DEPTH:-?}"
+THROTTLE_CAP="${DECOMPOSE_THROTTLE_CAP:-200}"
+if [[ "$THROTTLE_DEPTH" =~ ^[0-9]+$ && "$THROTTLE_DEPTH" -ge "$THROTTLE_CAP" ]]; then
+  THROTTLE_STATUS="ACTIVE"
+else
+  THROTTLE_STATUS="clear"
+fi
+
+# 3. Bifurcation: how far behind origin/main are we?
+git fetch origin main --quiet 2>/dev/null || true
+BIFURCATION_BEHIND=$(git rev-list --count HEAD..origin/main 2>/dev/null || echo "?")
+BIFURCATION_BEHIND="${BIFURCATION_BEHIND:-?}"
+
+# 4. Dirty-skip counter — file path is /tmp/graph-island-dirty-skip-count
+# (csv-helpers.sh:213 _dirty_skip_state). Override via env for tests.
+DIRTY_COUNTER_FILE="${DIRTY_COUNTER_FILE:-/tmp/graph-island-dirty-skip-count}"
+DIRTY_COUNTER=0
+if [[ -f "$DIRTY_COUNTER_FILE" ]]; then
+  DIRTY_COUNTER=$(cat "$DIRTY_COUNTER_FILE" 2>/dev/null || echo 0)
+  DIRTY_COUNTER=${DIRTY_COUNTER//[^0-9]/}
+  DIRTY_COUNTER=${DIRTY_COUNTER:-0}
+fi
+
+# 5. PR backlog (gh CLI). Each query degrades to "?" on failure.
+if command -v gh >/dev/null 2>&1; then
+  OPEN_AUTO_PRS=$(gh pr list --limit 60 --state open --json headRefName \
+    --jq 'map(select(.headRefName | startswith("auto-improve-"))) | length' 2>/dev/null || echo "?")
+  STALE_DRAFTS=$(gh pr list --limit 60 --state open --draft --json createdAt \
+    --jq "map(select((now - (.createdAt | fromdateiso8601)) > 604800)) | length" 2>/dev/null || echo "?")
+  CI_FAIL_NONDRAFT=$(gh pr list --limit 60 --state open --json isDraft,statusCheckRollup \
+    --jq '[.[] | select(.isDraft == false) | select(.statusCheckRollup // [] | any(.conclusion == "FAILURE"))] | length' 2>/dev/null || echo "?")
+else
+  OPEN_AUTO_PRS="?"
+  STALE_DRAFTS="?"
+  CI_FAIL_NONDRAFT="?"
+fi
+OPEN_AUTO_PRS="${OPEN_AUTO_PRS:-?}"
+STALE_DRAFTS="${STALE_DRAFTS:-?}"
+CI_FAIL_NONDRAFT="${CI_FAIL_NONDRAFT:-?}"
+# Cap warning hint when over threshold
+PR_CAP_HINT=""
+if [[ "$OPEN_AUTO_PRS" =~ ^[0-9]+$ && "$OPEN_AUTO_PRS" -gt 20 ]]; then
+  PR_CAP_HINT="  (cap warning: >20)"
+fi
+
+# 6. Recent auto-actions (last 24h, not the report-window HOURS)
+LAST24_LOG="$(git log --since='24 hours ago' --pretty=format:'%s' 2>/dev/null || true)"
+count_24h() { awk -v pat="$1" '$0 ~ pat { c++ } END { print c+0 }' <<<"$LAST24_LOG"; }
+AUTO_UNBLOCK=$(count_24h '^chore: auto-unblock')
+AUTO_STALE=$(count_24h 'auto-stale|auto-close')
+KAIZEN_COUNT=$(count_24h 'kaizen')
+
+cat <<EOF
+
+## Kaizen Metrics
+
+### Pipeline Status
+- Kill-switch active:    ${KILL_SWITCH}
+- Decompose throttle:    ${THROTTLE_DEPTH}/${THROTTLE_CAP}  (${THROTTLE_STATUS})
+- Bifurcation behind:    ${BIFURCATION_BEHIND} commits behind origin/main
+- Dirty-skip counter:    ${DIRTY_COUNTER}/3 cycles
+
+### Backlog Health
+- Open auto-improve PRs: ${OPEN_AUTO_PRS}${PR_CAP_HINT}
+- Stale draft PRs ≥7d:   ${STALE_DRAFTS}
+- CI=FAIL non-draft PRs: ${CI_FAIL_NONDRAFT}
+
+### Recent Auto-actions (last 24h)
+- auto-unblock commits:  ${AUTO_UNBLOCK}
+- auto-stale-close:      ${AUTO_STALE}
+- kaizen commits:        ${KAIZEN_COUNT}
+EOF
 } > "$OUT"
 
 echo "Wrote ${OUT} ($(wc -l < "$OUT") lines)"

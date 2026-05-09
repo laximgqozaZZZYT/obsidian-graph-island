@@ -24,6 +24,26 @@
 # ============================================================
 set -uo pipefail
 
+# ── Heartbeat (2026-05-09 R10-A kaizen) ──
+# Touch the log file at startup so cron-health.sh (R9-C) can detect that
+# the cron actually fired, even if subsequent guards (kill-switch /
+# dirty-skip / kaizen exit) exit before any normal output is produced.
+# Without this, mtime stays at the previous run and cron-health flags
+# the cron as MISSING when in fact it has been running on schedule.
+# TODO: apply same pattern to other 6 cron scripts in future kaizen.
+LOG_FILE="${FEATURE_PROPOSER_LOG_FILE:-/tmp/graph-island-feature-proposer.log}"
+{ printf '[heartbeat] %s feature-proposer started\n' "$(date -Iseconds)"; } >> "$LOG_FILE" 2>/dev/null || true
+
+# ── Kill-switch (2026-05-08 kaizen) ──
+# Operator can disable the entire autonomous pipeline by creating
+# $PROJECT_DIR/.pipeline-disabled (touch the file). All cron scripts
+# bail at exit 0 so cron sees no error. Re-enable by removing the file.
+PIPELINE_DISABLE_FILE="${PIPELINE_DISABLE_FILE:-/home/ubuntu/obsidian-plugins/obsidian-graph-island/.pipeline-disabled}"
+if [[ -f "$PIPELINE_DISABLE_FILE" ]]; then
+  echo "PIPELINE-DISABLED: $PIPELINE_DISABLE_FILE exists — skipping cycle" >&2
+  exit 0
+fi
+
 case "${1:-}" in
   --dry-run) APPLY=0 ;;
   --apply)   APPLY=1 ;;

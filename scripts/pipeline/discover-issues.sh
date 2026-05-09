@@ -15,7 +15,31 @@ set -uo pipefail
 
 # Hard timeout — kill self after 120s
 DISCOVER_TIMEOUT=${DISCOVER_TIMEOUT:-120}
-( sleep "$DISCOVER_TIMEOUT" && kill $$ 2>/dev/null ) &
+
+# ── Graceful timeout shutdown (2026-05-08 kaizen) ──
+# kill $$ defaults to SIGTERM. Without a handler the shell would die mid-
+# csv_atomic_* call, leaving stale .tasks.csv.<rand>.tmp residue (csv_lib.py
+# atomic-rename pattern at scripts/pipeline/.{tasks,issues,attempts}.csv.*.tmp).
+# Trap SIGTERM, give in-flight writers up to 3s to land their os.replace(),
+# then sweep any orphaned .tmp files and exit with the conventional 124.
+TIMEOUT_FIRED=0
+on_timeout() {
+  TIMEOUT_FIRED=1
+  echo "TIMEOUT: discover-issues exceeded ${DISCOVER_TIMEOUT}s — graceful shutdown" >&2
+  for _ in 1 2 3; do
+    if [[ -z "$(ls scripts/pipeline/.{tasks,issues,attempts}.csv.*.tmp 2>/dev/null)" ]]; then
+      break
+    fi
+    sleep 1
+  done
+  rm -f scripts/pipeline/.tasks.csv.*.tmp \
+        scripts/pipeline/.issues.csv.*.tmp \
+        scripts/pipeline/.attempts.csv.*.tmp 2>/dev/null || true
+  exit 124
+}
+trap on_timeout TERM
+
+( sleep "$DISCOVER_TIMEOUT" && kill -TERM $$ 2>/dev/null ) &
 TIMEOUT_PID=$!
 trap 'kill $TIMEOUT_PID 2>/dev/null' EXIT
 

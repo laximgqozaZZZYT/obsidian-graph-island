@@ -44,9 +44,14 @@ section="$(awk '
 ' "$ISSUE_FILE")"
 
 if [[ -z "$section" ]]; then
-  # No Acceptance criteria section — nothing to verify. (warn for visibility)
-  echo "WARN: $ID has no '## Acceptance criteria' section — verify skipped" >&2
-  exit 0
+  # No Acceptance criteria section — false-done risk. Past 2026-05-06 cascaded
+  # false-done (#1700/#1702/#1704) traced to verify silently passing such issues.
+  # Hard-fail so the operator (or decomposer) adds explicit criteria before the
+  # task is closed. Exit code 1 keeps the issue/task in_progress, blocking merge.
+  echo "ERROR: $ID has no '## Acceptance criteria' section — verify cannot run" >&2
+  echo "       Add '## Acceptance criteria' with backtick-quoted file paths, e.g." >&2
+  echo "         - \`src/foo.ts\` exports bar()" >&2
+  exit 1
 fi
 
 # Collect backtick-quoted file paths. A "file path" here is a token that:

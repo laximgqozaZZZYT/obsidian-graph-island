@@ -10,6 +10,16 @@
 # ============================================================
 set -uo pipefail
 
+# ── Kill-switch (2026-05-08 kaizen) ──
+# Operator can disable the entire autonomous pipeline by creating
+# $PROJECT_DIR/.pipeline-disabled (touch the file). All cron scripts
+# bail at exit 0 so cron sees no error. Re-enable by removing the file.
+PIPELINE_DISABLE_FILE="${PIPELINE_DISABLE_FILE:-/home/ubuntu/obsidian-plugins/obsidian-graph-island/.pipeline-disabled}"
+if [[ -f "$PIPELINE_DISABLE_FILE" ]]; then
+  echo "PIPELINE-DISABLED: $PIPELINE_DISABLE_FILE exists — skipping cycle" >&2
+  exit 0
+fi
+
 # ── Environment ──
 export PATH="/home/ubuntu/.local/bin:/home/ubuntu/.nvm/versions/node/v22.18.0/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 export HOME="/home/ubuntu"
@@ -59,6 +69,43 @@ SESSION_ID="auto-$(date +%Y%m%d-%H%M%S)-$$"
 SESSION_LOG="$RESULT_DIR/$SESSION_ID.log"
 
 log() { echo "[$(date -Iseconds)] [$SESSION_ID] $*" | tee -a "$SESSION_LOG"; }
+
+# ── Pre-flight self-test (2026-05-09 kaizen) ──
+# Run pipeline unit tests before entering the autonomous loop. If they
+# fail the loop would build on broken foundations (csv_lib, verify-issue-done,
+# csv-helpers — all critical to correctness). Past incident: commit
+# 5924e352 traced a critical csv_lib cmd_archive bug to "tests rotted"
+# while autonomous loop kept running. Now we fail-fast.
+PREFLIGHT_LOG="${PREFLIGHT_LOG:-/tmp/graph-island-preflight.log}"
+if [[ -x "$PROJECT_DIR/tests/pipeline/run-all.sh" ]]; then
+  if ! bash "$PROJECT_DIR/tests/pipeline/run-all.sh" -q > "$PREFLIGHT_LOG" 2>&1; then
+    log "PRE-FLIGHT FAILED — pipeline tests broken; aborting autonomous cycle"
+    log "  see $PREFLIGHT_LOG for failed test names"
+    SUMMARY="autonomous-improve aborted: pipeline self-tests failing"
+    BODY=$(cat <<EOF_BODY
+## Detected
+\`tests/pipeline/run-all.sh -q\` failed. Autonomous loop refuses to run on
+broken pipeline foundations.
+
+## Failed tests (last 30 lines of preflight log)
+\`\`\`
+$(tail -30 "$PREFLIGHT_LOG")
+\`\`\`
+
+## Recovery
+1. Inspect: \`bash tests/pipeline/run-all.sh -v\`
+2. Fix the failing tests on main
+3. Counter clears automatically on the next non-fail cycle
+EOF_BODY
+    )
+    if RESULT=$(csv_file_alert "pipeline-tests-broken" critical "$SUMMARY" "$BODY" 2>&1); then
+      log "ALERT FILED: critical issue #${RESULT}"
+    else
+      log "ALERT SUPPRESSED: pending pipeline-tests-broken alert already exists"
+    fi
+    exit 1
+  fi
+fi
 
 # ── Rate-limit-aware claude wrapper (kaizen 2026-04-24) ──
 # Captures claude -p output, detects rate-limit/quota messages, and exits the
@@ -372,6 +419,7 @@ done
 cd "$PROJECT_DIR" || exit 1
 if [[ -n "$(git status --porcelain)" ]]; then
   log "SKIP: Main working directory dirty"
+  log "  HEAD: $(git log --oneline -1 2>/dev/null || echo unknown)"
   git status --short | head -5 | while IFS= read -r line; do log "  $line"; done
 
   # ── Phase R2 (2026-04-27): consecutive-dirty-SKIP watchdog ──
@@ -424,6 +472,26 @@ dirty_skip_clear
 BIFURCATION_THRESHOLD=5
 git fetch origin main --quiet 2>/dev/null || true
 behind=$(git rev-list --count HEAD..origin/main 2>/dev/null || echo 0)
+if [[ "$behind" -ge "$BIFURCATION_THRESHOLD" ]]; then
+  # ── Auto-recovery (2026-05-08 kaizen) ──
+  # If working tree is clean we can try a fast-forward pull. Only abort
+  # when the FF fails (divergence, not just lag). This eliminates the
+  # 2026-05-06 false-done cascade root cause: local main 7 commits
+  # behind origin → extract tasks reference helpers that did not exist
+  # locally → guaranteed false-done until human pulled.
+  if [[ -z "$(git status --porcelain)" ]]; then
+    log "AUTO-RECOVERY: local main is $behind commits behind, attempting fast-forward pull..."
+    if git pull --ff-only origin main --quiet 2>/dev/null; then
+      new_behind=$(git rev-list --count HEAD..origin/main 2>/dev/null || echo 0)
+      log "AUTO-RECOVERY: pulled successfully (now $new_behind behind)"
+      behind="$new_behind"
+    else
+      log "AUTO-RECOVERY: FF-only pull failed (non-FF divergence) — falling through to abort"
+    fi
+  fi
+fi
+
+# Re-check after recovery attempt
 if [[ "$behind" -ge "$BIFURCATION_THRESHOLD" ]]; then
   log "ABORT: local main is $behind commits behind origin/main (threshold=$BIFURCATION_THRESHOLD)"
   BODY=$(cat <<EOF_BODY

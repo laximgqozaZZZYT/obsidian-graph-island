@@ -27,6 +27,29 @@ DESCRIPTIONS_DIR="$PROJECT_DIR/scripts/pipeline/descriptions"
 . "$PROJECT_DIR/scripts/pipeline/csv-helpers.sh"
 mkdir -p "$DESCRIPTIONS_DIR"
 
+# ── Backlog throttle (2026-05-08 kaizen) ──
+# When the decomposed-pending task pool already exceeds capacity, skip
+# new decomposition for this cycle. Issue stays in 'pending' status
+# and is re-tried by the next cron tick. Without this throttle, the
+# auto-discover→decompose pipeline produces tasks 6.3× faster than the
+# implementer can process them, and tasks.csv grew from ~400 to 1600
+# rows in 30 days. Throttle stabilises queue depth around the cap.
+THROTTLE_CAP="${DECOMPOSE_THROTTLE_CAP:-200}"
+pending_depth=$(
+  python3 -c "
+import csv
+with open('$PROJECT_DIR/scripts/pipeline/tasks.csv') as f:
+    r = csv.DictReader(f)
+    n = sum(1 for row in r if row.get('status', '') in ('pending', 'decomposed', 'in_progress', 'in-progress'))
+print(n)
+" 2>/dev/null || echo 0
+)
+if [[ "$pending_depth" -ge "$THROTTLE_CAP" ]]; then
+  echo "THROTTLE: $pending_depth pending tasks ≥ cap $THROTTLE_CAP — skipping decompose this cycle" >&2
+  exit 0
+fi
+echo "QUEUE-DEPTH: $pending_depth pending tasks (cap $THROTTLE_CAP)" >&2
+
 # Argument is treated as an issue id (basename + .md stripped, so a
 # path is also accepted for legacy callers).
 ISSUE_NAME=$(basename "$ARG" .md)
