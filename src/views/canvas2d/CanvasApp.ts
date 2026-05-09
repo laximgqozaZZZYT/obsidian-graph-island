@@ -103,9 +103,7 @@ export class CanvasApp implements IApp {
 		const brightness = getLuminance(r, g, b);
 		const isLight = brightness > 128;
 		const baseDotAlpha = isLight ? 0.08 : 0.12;
-		const baseDotColor = isLight
-			? (a: number) => `rgba(0,0,0,${a})`
-			: (a: number) => `rgba(255,255,255,${a})`;
+		const baseDotColor = isLight ? (a: number) => `rgba(0,0,0,${a})` : (a: number) => `rgba(255,255,255,${a})`;
 
 		const spacing = 30 * ws; // 30 world-units between dots
 		if (spacing < 4) {
