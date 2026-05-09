@@ -54,6 +54,16 @@ Design principles:
 | `read-verify-report.sh` | Aggregate subtask verify report into a one-line gate summary |
 | `progress-report.sh` | (also utility) Outputs Kaizen metrics block to `/tmp/graph-island-progress.md` |
 
+### Operator tools (R8–R10)
+
+| Script | Responsibility |
+|---|---|
+| `pipeline-status.sh` | 30 ms one-line OK / WARN / CRITICAL verdict (R8-B) |
+| `pipeline-debug.sh` | Step-by-step recovery guidance for each status code (R9-B) |
+| `pr-drainage.sh` | Generates safe `gh` commands for PR backlog drainage (R9-A) |
+| `cron-health.sh` | 7-cron watchdog via `/tmp/graph-island-*.log` mtime (R9-C) |
+| `acknowledge-alert.sh` | Operator helper to ack `csv_file_alert` critical issues. R10-C. |
+
 ### Node / TypeScript scripts
 
 | Script | Responsibility |
@@ -91,6 +101,21 @@ Kill-switch is present in all 7 cron scripts. Verify with:
 
 ```bash
 grep -l "Kill-switch\|pipeline-disabled" scripts/pipeline/*.sh
+```
+
+### Heartbeat (R10-A + R11-A, 2026-05-09)
+
+Every cron script writes a heartbeat line to its log at startup, **before**
+the kill-switch / dirty-skip guards. This ensures `cron-health.sh` (R9-C)
+always knows the cron actually fired, not just that it was scheduled.
+
+Heartbeat format: `[heartbeat] <ISO-date> <script-name> started`
+
+Override the log path via `<SCRIPT_NAME>_LOG_FILE` env vars (used in tests).
+
+```bash
+# Verify all 7 cron have heartbeat:
+grep -l 'heartbeat' scripts/pipeline/*.sh | wc -l   # should be 7
 ```
 
 ---
@@ -149,6 +174,16 @@ For a read-only PR audit:
 bash scripts/pipeline/audit-pr-backlog.sh
 ```
 
+For monitoring tools / quick visual scan:
+
+```bash
+ls /tmp/graph-island-alerts/        # parallel file sink (R11-B)
+cat /tmp/graph-island-alerts/*.txt  # human-readable alerts
+```
+
+Each alert is also written to `issues.csv` (`priority=critical` / `source=alert`).
+Two channels stay in sync — `acknowledge-alert.sh --ack` deletes both.
+
 ---
 
 ## Testing
@@ -206,6 +241,11 @@ bash scripts/pipeline/god-object-audit.sh
 # All quality gates (same as CI):
 bash scripts/pipeline/enforce-gates.sh
 bash scripts/pipeline/enforce-gates.sh --json
+
+# Acknowledge resolved alerts (R10-C)
+bash scripts/pipeline/acknowledge-alert.sh --list           # show open alerts
+bash scripts/pipeline/acknowledge-alert.sh --ack <id>       # ack one
+bash scripts/pipeline/acknowledge-alert.sh --ack-all --yes  # bulk ack
 ```
 
 ---
@@ -222,5 +262,8 @@ mode observed in the autonomous pipeline:
 | R3 | Self-protection gates + observability (test runner, 7 tests / 75 assertions) |
 | R4 | Consistency + worktree isolation + Kaizen Metrics in progress-report |
 | R5 | Pre-flight self-test in autonomous-improve + PR audit tool + this README |
+| R6–R9 | Operator tools: pipeline-status, pipeline-debug, pr-drainage, cron-health |
+| R10 | heartbeat (feature-proposer) + smoke tests for 4 operator tools + acknowledge-alert.sh |
+| R11 | heartbeat to all 7 cron + csv_file_alert parallel file sink (`/tmp/graph-island-alerts/`) + acknowledge-alert / pipeline-debug tests (35 new assertions) |
 
 Full commit history: `git log --grep="kaizen" --oneline`.

@@ -95,7 +95,17 @@ for r in rows:
             print(r['id'])
 PY
 )
-    count=$(echo "$open_ids" | grep -c . || echo 0)
+    # Use printf %s + grep -c so the empty-list case yields "0" cleanly.
+    # The previous form `echo "$open_ids" | grep -c . || echo 0` produced
+    # "0\n0" on empty input (echo "" prints a single empty line; grep -c .
+    # returns 0 with rc=1, then `|| echo 0` appended a second "0"), which
+    # broke the [[ "$count" -eq 0 ]] integer comparison below (R11-D fix).
+    if [[ -z "$open_ids" ]]; then
+      count=0
+    else
+      count=$(printf '%s\n' "$open_ids" | grep -c . || true)
+      [[ -z "$count" ]] && count=0
+    fi
     if [[ "$count" -eq 0 ]]; then
       echo "No open alerts to acknowledge."
       exit 0
