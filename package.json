@@ -16,6 +16,7 @@
     "test:e2e:harness": "npx playwright test --config=playwright.config.ts",
     "test:pipeline": "bash scripts/run-pipeline-tests.sh",
     "test:pipeline:full": "bash scripts/run-pipeline-tests.sh --full",
+    "test:pipeline:all": "bash tests/pipeline/run-all.sh",
     "lint": "eslint src/",
     "lint:fix": "eslint src/ --fix",
     "format": "prettier --write src/ tests/",

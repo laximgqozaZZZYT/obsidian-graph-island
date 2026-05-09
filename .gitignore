@@ -116,3 +116,6 @@ tmp/
 # Python bytecode cache
 __pycache__/
 *.pyc
+
+# Migration backup files (one-shot migrations create *.bak; delete after verification)
+*.bak

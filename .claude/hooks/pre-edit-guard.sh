@@ -41,6 +41,32 @@ BLOCKED
   exit 1
 fi
 
+# 2026-05-08 kaizen: protect pipeline scripts from autonomous self-modification.
+# scripts/pipeline/*.{sh,py,mjs} drive the autonomous loop; edits from auto-improve-*
+# branches caused the 2026-05-02 csv-helpers PR pollution incident. Branch-name
+# detection isolates autonomous sessions from human kaizen sessions on main.
+# Fail-open on unknown branch (false-positive avoidance for non-git contexts).
+if [[ "$FILE_PATH" =~ scripts/pipeline/.+\.(sh|py|mjs)$ ]]; then
+  current_branch=$(git -C "$(dirname "$FILE_PATH")" rev-parse --abbrev-ref HEAD 2>/dev/null \
+                   || git rev-parse --abbrev-ref HEAD 2>/dev/null \
+                   || echo unknown)
+  if [[ "$current_branch" =~ ^auto-(improve|fix)- ]]; then
+    cat >&2 <<BLOCKED
+============================================
+  PRE-EDIT GUARD — pipeline self-modification blocked
+============================================
+  File: $FILE_PATH
+  Branch: $current_branch
+  Reason: scripts/pipeline/*.{sh,py,mjs} are pipeline drivers. Autonomous
+  sessions on auto-improve-* / auto-fix-* branches must not modify their
+  own runtime — see csv-helpers PR pollution incident (2026-05-02).
+  Recovery: file an issue describing the change, let a human review on main.
+============================================
+BLOCKED
+    exit 1
+  fi
+fi
+
 # Skip non-source files
 if [[ ! "$FILE_PATH" =~ ^.*/src/.*\.ts$ ]]; then
   exit 0
