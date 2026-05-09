@@ -91,6 +91,15 @@ assert_exit "case4: bare paths ignored → exit 0" 0 "$rc"
 assert_stderr_empty_of "case4: no MISSING in stderr" "MISSING" "$tmpdir/case4.err"
 assert_stderr_contains "case4: WARN logged (no backtick paths)" "WARN.*no recognized path tokens" "$tmpdir/case4.err"
 
+# --- Case 5: No '## Acceptance criteria' section at all → exit 1 (hard-fail) ---
+# 2026-05-08 kaizen: the silent pass was the root cause of cascaded false-done
+# (#1700/#1702/#1704). verify must refuse to validate an issue that lacks
+# explicit criteria so the operator/decomposer surfaces the gap.
+id5=$(stage_fixture "case5" "$FIXTURES/case5-no-criteria.md")
+rc=0; bash "$SUT" "$id5" 2>"$tmpdir/case5.err" || rc=$?
+assert_exit "case5: no Acceptance criteria → exit 1" 1 "$rc"
+assert_stderr_contains "case5: ERROR logged" "ERROR.*no '## Acceptance criteria'" "$tmpdir/case5.err"
+
 # --- Summary ---
 echo ""
 echo "Results: $passed passed, $failed failed"
