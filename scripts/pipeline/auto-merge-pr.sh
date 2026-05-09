@@ -27,6 +27,13 @@
 # ============================================================
 set -uo pipefail
 
+# ── Heartbeat (2026-05-09 R11-A kaizen) ──
+# Touch the log file at startup so cron-health.sh (R9-C) can detect that
+# the cron actually fired, even if subsequent guards (kill-switch /
+# dirty-skip / exit) bail before any normal output is produced.
+LOG_FILE="${AUTO_MERGE_PR_LOG_FILE:-/tmp/graph-island-auto-merge.log}"
+{ printf '[heartbeat] %s auto-merge-pr started\n' "$(date -Iseconds)"; } >> "$LOG_FILE" 2>/dev/null || true
+
 # ── Kill-switch (2026-05-08 kaizen) ──
 # Operator can disable the entire autonomous pipeline by creating
 # $PROJECT_DIR/.pipeline-disabled (touch the file). All cron scripts

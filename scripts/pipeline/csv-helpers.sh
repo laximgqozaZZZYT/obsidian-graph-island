@@ -275,5 +275,22 @@ csv_file_alert() {
     "source=auto-discovered" \
     "summary=$summary" \
     "description_path=descriptions/${issue_id}.md"
+
+  # Parallel file sink (2026-05-09 R11-B kaizen) — write a human-readable
+  # .txt file under /tmp/graph-island-alerts/ so operators / monitoring tools
+  # can see alerts via simple `ls` rather than parsing issues.csv.
+  # Removed by acknowledge-alert.sh --ack <id> when operator resolves.
+  local result="$issue_id"
+  ALERT_DIR="${GRAPH_ISLAND_ALERT_DIR:-/tmp/graph-island-alerts}"
+  mkdir -p "$ALERT_DIR" 2>/dev/null || true
+  {
+    printf 'ID: %s\n' "$result"
+    printf 'Slug: %s\n' "$slug"
+    printf 'Priority: %s\n' "$priority"
+    printf 'Reported: %s\n' "$(date -Iseconds)"
+    printf 'Summary: %s\n' "$summary"
+    printf '\n%s\n' "$body"
+  } > "$ALERT_DIR/${result}.txt" 2>/dev/null || true
+
   echo "$issue_id"
 }

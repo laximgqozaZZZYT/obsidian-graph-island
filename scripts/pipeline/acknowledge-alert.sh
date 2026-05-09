@@ -78,6 +78,9 @@ case "$MODE" in
     csv_atomic_set_status issues "$TARGET" done \
       "chore: ack alert $TARGET (operator-resolved)" 2>&1 \
       || { echo "ERROR: failed to ack $TARGET" >&2; exit 1; }
+    # Remove parallel file sink (2026-05-09 R11-B kaizen)
+    ALERT_DIR="${GRAPH_ISLAND_ALERT_DIR:-/tmp/graph-island-alerts}"
+    rm -f "$ALERT_DIR/${TARGET}.txt" 2>/dev/null || true
     echo "Acknowledged: $TARGET"
     ;;
   --ack-all)
@@ -106,11 +109,14 @@ PY
       [[ "$reply" =~ ^[Yy] ]] || { echo "Cancelled."; exit 0; }
     fi
 
+    ALERT_DIR="${GRAPH_ISLAND_ALERT_DIR:-/tmp/graph-island-alerts}"
     while IFS= read -r id; do
       [[ -z "$id" ]] && continue
       csv_atomic_set_status issues "$id" done \
         "chore: ack alert $id (operator-bulk)" 2>/dev/null || \
         echo "  WARN: failed to ack $id"
+      # Remove parallel file sink (2026-05-09 R11-B kaizen)
+      rm -f "$ALERT_DIR/${id}.txt" 2>/dev/null || true
       echo "  acked: $id"
     done <<< "$open_ids"
     echo "Done. Acknowledged $count alert(s)."
