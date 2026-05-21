@@ -1,0 +1,53 @@
+.gim-hover-tip {
+	position: absolute;
+	z-index: 95;
+	background: var(--background-primary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 6px;
+	padding: 6px 10px;
+	max-width: 280px;
+	font-size: 11px;
+	line-height: 1.4;
+	color: var(--text-normal);
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+	pointer-events: none;
+	white-space: pre-wrap;
+	word-break: break-word;
+}
+
+.theme-dark .gim-hover-tip {
+	background: var(--background-secondary);
+}
+
+.gim-hover-tip .gim-tip-title {
+	font-weight: 600;
+	color: var(--text-normal);
+	display: block;
+	margin-bottom: 2px;
+}
+
+.gim-hover-tip .gim-tip-sub {
+	color: var(--text-muted);
+	font-size: 10px;
+	display: block;
+	margin-bottom: 4px;
+}
+
+.gim-hover-tip .gim-tip-list {
+	margin: 0;
+	padding-left: 14px;
+	color: var(--text-muted);
+}
+
+.gim-hover-tip .gim-tip-body {
+	color: var(--text-muted);
+	margin-top: 2px;
+}
+
+.gim-marquee {
+	position: absolute;
+	z-index: 90;
+	border: 1px dashed var(--interactive-accent);
+	background: rgba(120, 170, 255, 0.10);
+	pointer-events: none;
+}
