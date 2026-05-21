@@ -51,3 +51,142 @@
 	background: rgba(120, 170, 255, 0.10);
 	pointer-events: none;
 }
+
+/* ---- Graph settings side panel ---- */
+.gim-panel {
+	position: absolute;
+	top: 0;
+	right: 0;
+	bottom: 0;
+	width: 320px;
+	background: var(--background-secondary);
+	border-left: 1px solid var(--background-modifier-border);
+	box-shadow: -2px 0 8px rgba(0, 0, 0, 0.18);
+	padding: 12px;
+	overflow-y: auto;
+	z-index: 100;
+	font-size: 12px;
+	color: var(--text-normal);
+}
+
+.gim-panel-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	margin-bottom: 8px;
+}
+
+.gim-panel-header h3 {
+	margin: 0;
+	font-size: 14px;
+}
+
+.gim-panel-close {
+	background: transparent;
+	border: none;
+	color: var(--text-muted);
+	font-size: 16px;
+	cursor: pointer;
+	padding: 2px 8px;
+	line-height: 1;
+}
+
+.gim-panel-close:hover {
+	color: var(--text-normal);
+}
+
+.gim-panel-section {
+	margin-bottom: 12px;
+}
+
+.gim-panel-section h4 {
+	margin: 0 0 6px 0;
+	font-size: 12px;
+	color: var(--text-muted);
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+}
+
+.gim-expr-row {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	margin-bottom: 4px;
+}
+
+.gim-expr {
+	flex: 1;
+	min-width: 0;
+	box-sizing: border-box;
+	padding: 4px 6px;
+	font-family: var(--font-monospace);
+	font-size: 11px;
+	background: var(--background-primary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 4px;
+	color: var(--text-normal);
+}
+
+.gim-expr-del {
+	background: transparent;
+	border: 1px solid var(--background-modifier-border);
+	color: var(--text-muted);
+	width: 22px;
+	height: 22px;
+	border-radius: 3px;
+	cursor: pointer;
+	font-size: 11px;
+	padding: 0;
+	line-height: 1;
+}
+
+.gim-expr-del:hover:not(:disabled) {
+	background: var(--background-modifier-hover);
+	color: var(--color-red);
+}
+
+.gim-expr-del:disabled {
+	opacity: 0.3;
+	cursor: default;
+}
+
+.gim-expr-add {
+	margin-top: 4px;
+	padding: 3px 8px;
+	font-size: 11px;
+	background: var(--interactive-normal);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 4px;
+	color: var(--text-normal);
+	cursor: pointer;
+}
+
+.gim-expr-add:hover {
+	background: var(--interactive-hover);
+}
+
+.gim-toggle-row {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	font-size: 11px;
+	color: var(--text-normal);
+	margin-bottom: 4px;
+	cursor: pointer;
+}
+
+.gim-toggle-row input[type="checkbox"] {
+	margin: 0;
+}
+
+.gim-expr-error {
+	border-color: var(--color-red);
+	background: var(--background-modifier-error, rgba(255, 80, 80, 0.08));
+}
+
+.gim-expr-msg {
+	margin-top: 4px;
+	color: var(--color-red);
+	font-size: 10px;
+	line-height: 1.4;
+}

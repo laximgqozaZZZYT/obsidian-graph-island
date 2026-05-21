@@ -8,7 +8,7 @@ export interface SizedNode extends GraphNode {
 export interface PositionedNode {
 	id: string;
 	label: string;
-	groupKey: string;
+	memberships: string[];
 	x: number;
 	y: number;
 	width: number;
@@ -24,6 +24,7 @@ export interface PositionedEdge {
 
 export interface ClusterRect {
 	groupKey: string;
+	label: string;
 	x: number;
 	y: number;
 	width: number;
@@ -42,6 +43,7 @@ export interface LayoutOptions {
 	nodeSpacing: number;
 	clusterOffsets?: Record<string, { dx: number; dy: number }>;
 	nodeOffsets?: Record<string, { dx: number; dy: number }>;
+	clusterLabels?: Map<string, string>;
 }
 
 interface Rect {
@@ -51,220 +53,260 @@ interface Rect {
 	h: number;
 }
 
+// Euler-diagram-style layout:
+//  1. Place every distinct cluster on an anchor grid.
+//  2. Group nodes by their exact membership set; each sub-group's position is
+//     the centroid of its clusters' anchors.
+//  3. Cluster rectangles are computed as the bbox of member nodes — clusters
+//     whose memberships overlap end up with overlapping rectangles, and
+//     multi-tag files land in the overlap regions.
 export function layout(data: GraphData, sized: SizedNode[], opts: LayoutOptions): LaidOut {
 	const sizedById = new Map<string, SizedNode>();
 	for (const s of sized) sizedById.set(s.id, s);
-
-	const buckets = bucketByGroup(data.nodes);
-	const groupKeys = [...buckets.keys()].sort();
-	const cols = Math.max(1, Math.ceil(Math.sqrt(groupKeys.length)));
+	const labels = opts.clusterLabels ?? new Map<string, string>();
 	const clusterOff = opts.clusterOffsets ?? {};
 	const nodeOff = opts.nodeOffsets ?? {};
 
-	// 1) Pack each cluster's cards (relative coords inside the cluster).
-	interface Packed {
-		groupKey: string;
-		members: {
-			node: GraphNode;
-			size: SizedNode;
-			relX: number;
-			relY: number;
-			row: number;
-		}[];
-		rows: { top: number; bottom: number }[]; // cluster-relative
+	const clusterKeys = collectClusterKeys(data.nodes, labels);
+	const subgroups = groupByMembershipSet(data.nodes);
+
+	// Pack each sub-group locally so we know how much room each centroid needs.
+	interface PackedSubgroup {
+		memberships: string[];
+		nodes: GraphNode[];
+		positions: { x: number; y: number }[]; // relative to centroid (already centered)
 		width: number;
 		height: number;
 	}
-	const packed: Packed[] = groupKeys.map((g) => {
-		const members = buckets.get(g) ?? [];
-		const sizes = members.map((m) => sizedById.get(m.id) ?? fallbackSize(m));
+	const packed: PackedSubgroup[] = subgroups.map((sg) => {
+		const sizes = sg.nodes.map((n) => sizedById.get(n.id) ?? fallbackSize(n));
 		const pp = shelfPack(sizes, opts.nodeSpacing);
-		return {
-			groupKey: g,
-			members: members.map((node, i) => ({
-				node,
-				size: sizes[i],
-				relX: pp.positions[i].x,
-				relY: pp.positions[i].y,
-				row: pp.rows[i],
-			})),
-			rows: pp.rowBounds,
-			width: pp.width,
-			height: pp.height,
-		};
+		const positions = pp.positions.map((p) => ({
+			x: p.x - pp.width / 2,
+			y: p.y - pp.height / 2,
+		}));
+		return { memberships: sg.memberships, nodes: sg.nodes, positions, width: pp.width, height: pp.height };
 	});
 
-	// 2) Outer grid: uniform stride = max cluster size. Clusters sit at their cell's
-	//    top-left and may leave slack room toward the right/bottom.
-	const maxClusterW = Math.max(1, ...packed.map((p) => p.width));
-	const maxClusterH = Math.max(1, ...packed.map((p) => p.height));
-	const strideX = maxClusterW + opts.clusterSpacing;
-	const strideY = maxClusterH + opts.clusterSpacing;
+	// Anchor stride: derived from largest sub-group so neighbors don't collide.
+	const maxSubW = packed.reduce((m, p) => Math.max(m, p.width), 0);
+	const maxSubH = packed.reduce((m, p) => Math.max(m, p.height), 0);
+	// Wider stride so the corridor between adjacent anchors is visible enough
+	// for edge routing to pass through without grazing enclosure borders.
+	const strideX = maxSubW + opts.clusterSpacing * 3;
+	const strideY = maxSubH + opts.clusterSpacing * 3;
 
-	const nodes: PositionedNode[] = [];
-	const clusters: ClusterRect[] = [];
-	const idToRect = new Map<string, Rect>();
-	const idToCluster = new Map<string, ClusterRect>();
-	const idToRow = new Map<string, number>();
-	const clusterRows = new Map<string, { top: number; bottom: number }[]>();
-
-	packed.forEach((p, i) => {
+	// Place clusters in a roughly square grid. Anchors are the "ideal" home
+	// position of files belonging only to that cluster.
+	const cols = Math.max(1, Math.ceil(Math.sqrt(clusterKeys.length)));
+	const anchors = new Map<string, { x: number; y: number }>();
+	clusterKeys.forEach((k, i) => {
 		const col = i % cols;
 		const row = Math.floor(i / cols);
-		const co = clusterOff[p.groupKey] ?? { dx: 0, dy: 0 };
-		const cx = col * strideX + co.dx;
-		const cy = row * strideY + co.dy;
-		const cluster: ClusterRect = {
-			groupKey: p.groupKey,
-			x: cx,
-			y: cy,
-			width: p.width,
-			height: p.height,
-			memberCount: p.members.length,
-		};
-		clusters.push(cluster);
-		clusterRows.set(p.groupKey, p.rows);
-
-		for (const m of p.members) {
-			const no = nodeOff[m.node.id] ?? { dx: 0, dy: 0 };
-			const x = cx + m.relX + no.dx;
-			const y = cy + m.relY + no.dy;
-			const n: PositionedNode = {
-				id: m.node.id,
-				label: m.node.label,
-				groupKey: m.node.groupKey,
-				x,
-				y,
-				width: m.size.width,
-				height: m.size.height,
-			};
-			nodes.push(n);
-			idToRect.set(n.id, { x, y, w: n.width, h: n.height });
-			idToCluster.set(n.id, cluster);
-			idToRow.set(n.id, m.row);
-		}
+		anchors.set(k, { x: col * strideX, y: row * strideY });
 	});
 
-	// 3) Edges: aggregate by undirected pair, then route through gaps.
+	const positionedNodes: PositionedNode[] = [];
+	const idToRect = new Map<string, Rect>();
+	const idToSize = new Map<string, SizedNode>();
+
+	for (const p of packed) {
+		const centroid = centroidOf(p.memberships, anchors);
+		// Cluster offsets piggyback onto the first membership of the sub-group:
+		// dragging a single-tag cluster shifts only that anchor's worth of files.
+		const off = clusterOff[p.memberships[0] ?? ""] ?? { dx: 0, dy: 0 };
+		const cx = centroid.x + off.dx;
+		const cy = centroid.y + off.dy;
+
+		p.nodes.forEach((n, i) => {
+			const sz = sizedById.get(n.id) ?? fallbackSize(n);
+			// p.positions[i] is the card CENTER, already centered around the
+			// sub-group centroid. Do not add sz.width/2 here — that was a bug
+			// that pushed every card half a card-size to the right/down and
+			// distorted every cluster bbox.
+			const rel = p.positions[i];
+			const no = nodeOff[n.id] ?? { dx: 0, dy: 0 };
+			const x = cx + rel.x + no.dx;
+			const y = cy + rel.y + no.dy;
+			positionedNodes.push({
+				id: n.id,
+				label: n.label,
+				memberships: n.memberships,
+				x,
+				y,
+				width: sz.width,
+				height: sz.height,
+			});
+			idToRect.set(n.id, { x, y, w: sz.width, h: sz.height });
+			idToSize.set(n.id, sz);
+		});
+	}
+
+	// Build the member set for each cluster so we can detect nesting and give
+	// outer clusters extra padding. Without this, an outer cluster whose
+	// rightmost member is shared with an inner cluster would have the same
+	// right edge as the inner one, making the inner enclosure appear to lie
+	// directly on the outer's border.
+	const memberSets = new Map<string, Set<string>>();
+	for (const key of clusterKeys) {
+		const set = new Set<string>();
+		for (const n of positionedNodes) {
+			if (n.memberships.includes(key)) set.add(n.id);
+		}
+		memberSets.set(key, set);
+	}
+	const nestingDepth = new Map<string, number>();
+	for (const x of clusterKeys) {
+		const xs = memberSets.get(x)!;
+		let depth = 0;
+		for (const y of clusterKeys) {
+			if (x === y) continue;
+			const ys = memberSets.get(y)!;
+			if (ys.size < xs.size && isSubset(ys, xs)) depth++;
+		}
+		nestingDepth.set(x, depth);
+	}
+
+	// Base padding around member cards, plus per-nesting-level boost so each
+	// containing layer sits clearly outside the layers it encloses.
+	const BASE_PAD = Math.max(24, opts.clusterSpacing / 2);
+	const NEST_PAD = 18;
+	const clusters: ClusterRect[] = [];
+	for (const key of clusterKeys) {
+		let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+		let count = 0;
+		for (const n of positionedNodes) {
+			if (!n.memberships.includes(key)) continue;
+			count++;
+			minX = Math.min(minX, n.x - n.width / 2);
+			maxX = Math.max(maxX, n.x + n.width / 2);
+			minY = Math.min(minY, n.y - n.height / 2);
+			maxY = Math.max(maxY, n.y + n.height / 2);
+		}
+		if (count === 0) continue;
+		const PAD = BASE_PAD + (nestingDepth.get(key) ?? 0) * NEST_PAD;
+		clusters.push({
+			groupKey: key,
+			label: labels.get(key) ?? key,
+			x: minX - PAD,
+			y: minY - PAD,
+			width: maxX - minX + 2 * PAD,
+			height: maxY - minY + 2 * PAD,
+			memberCount: count,
+		});
+	}
+
+	// Edges: simple L-shape routing. Cards drawn over the endpoints hide the
+	// "stub" segments inside each card.
 	const aggregated = aggregateEdges(data.edges, idToRect);
-	const lanes = new LaneCounter();
 	const edges: PositionedEdge[] = aggregated.map((e) => {
 		const a = idToRect.get(e.source)!;
 		const b = idToRect.get(e.target)!;
-		const ca = idToCluster.get(e.source)!;
-		const cb = idToCluster.get(e.target)!;
-		const intra = ca === cb;
-		let path: { x: number; y: number }[];
-		if (intra) {
-			path = routeWithinCluster(
-				a,
-				b,
-				idToRow.get(e.source)!,
-				idToRow.get(e.target)!,
-				ca,
-				clusterRows.get(ca.groupKey)!,
-				opts.nodeSpacing,
-				lanes,
-			);
-		} else {
-			path = routeAcrossClusters(
-				a,
-				ca,
-				idToRow.get(e.source)!,
-				clusterRows.get(ca.groupKey)!,
-				b,
-				cb,
-				idToRow.get(e.target)!,
-				clusterRows.get(cb.groupKey)!,
-				opts.nodeSpacing,
-				lanes,
-			);
-		}
-		return { source: e.source, target: e.target, weight: e.weight, path };
+		return { source: e.source, target: e.target, weight: e.weight, path: lShape(a, b) };
 	});
 
-	return { nodes, edges, clusters };
+	return { nodes: positionedNodes, edges, clusters };
+}
+
+function collectClusterKeys(
+	nodes: GraphNode[],
+	labels: Map<string, string>,
+): string[] {
+	const set = new Set<string>();
+	for (const n of nodes) for (const m of n.memberships) set.add(m);
+	return [...set].sort((a, b) => {
+		// NONE_BUCKET sinks to the end.
+		if (a === NONE_BUCKET && b !== NONE_BUCKET) return 1;
+		if (b === NONE_BUCKET && a !== NONE_BUCKET) return -1;
+		const la = labels.get(a) ?? a;
+		const lb = labels.get(b) ?? b;
+		const cmp = la.localeCompare(lb);
+		return cmp !== 0 ? cmp : a.localeCompare(b);
+	});
+}
+
+interface SubGroup {
+	memberships: string[]; // sorted
+	nodes: GraphNode[];
+}
+
+function groupByMembershipSet(nodes: GraphNode[]): SubGroup[] {
+	const m = new Map<string, SubGroup>();
+	for (const n of nodes) {
+		const sorted = [...n.memberships].sort();
+		const key = sorted.join("");
+		let sg = m.get(key);
+		if (!sg) {
+			sg = { memberships: sorted, nodes: [] };
+			m.set(key, sg);
+		}
+		sg.nodes.push(n);
+	}
+	return [...m.values()];
+}
+
+function isSubset<T>(small: Set<T>, big: Set<T>): boolean {
+	if (small.size > big.size) return false;
+	for (const v of small) if (!big.has(v)) return false;
+	return true;
+}
+
+function centroidOf(
+	memberships: string[],
+	anchors: Map<string, { x: number; y: number }>,
+): { x: number; y: number } {
+	let x = 0, y = 0, n = 0;
+	for (const m of memberships) {
+		const a = anchors.get(m);
+		if (!a) continue;
+		x += a.x;
+		y += a.y;
+		n++;
+	}
+	if (n === 0) return { x: 0, y: 0 };
+	return { x: x / n, y: y / n };
 }
 
 function fallbackSize(n: GraphNode): SizedNode {
 	return { ...n, width: 80, height: 24 };
 }
 
-function bucketByGroup(ns: GraphNode[]): Map<string, GraphNode[]> {
-	const m = new Map<string, GraphNode[]>();
-	for (const n of ns) {
-		const k = n.groupKey || NONE_BUCKET;
-		const arr = m.get(k);
-		if (arr) arr.push(n);
-		else m.set(k, [n]);
-	}
-	return m;
-}
-
-// Shelf packing: cards fill rows left-to-right, wrapping at a target width
-// chosen to make the cluster roughly square. Card x,y in result is the CENTER
-// of each card relative to the cluster's top-left.
+// Shelf-pack cards into rows until the row would exceed a sqrt-area target,
+// then wrap. Returned positions are top-left-relative centers.
 function shelfPack(
 	sizes: SizedNode[],
 	gap: number,
 ): {
 	positions: { x: number; y: number }[];
-	rows: number[];
-	rowBounds: { top: number; bottom: number }[];
 	width: number;
 	height: number;
 } {
-	if (sizes.length === 0) {
-		return { positions: [], rows: [], rowBounds: [], width: 32, height: 24 };
-	}
+	if (sizes.length === 0) return { positions: [], width: 32, height: 24 };
 	let totalArea = 0;
 	let maxCardW = 0;
-	let maxCardH = 0;
 	for (const s of sizes) {
 		totalArea += (s.width + gap) * (s.height + gap);
 		if (s.width > maxCardW) maxCardW = s.width;
-		if (s.height > maxCardH) maxCardH = s.height;
 	}
 	const targetW = Math.max(maxCardW, Math.ceil(Math.sqrt(totalArea) * 1.15));
-
-	// Pad the cluster so even the top-most and bottom-most rows have a real gap
-	// strip above/below for edge routing. Without this, routing through
-	// rowYAbove(0) collapses onto the cluster's top boundary and the line
-	// appears to "scrape" the card edges.
-	const padTop = gap;
-	const padBottom = gap;
-	const padLeft = gap / 2;
-	const padRight = gap / 2;
-
 	const positions: { x: number; y: number }[] = new Array(sizes.length);
-	const rows: number[] = new Array(sizes.length);
-	const rowBounds: { top: number; bottom: number }[] = [];
-	let curX = padLeft;
-	let curY = padTop;
+	let curX = 0;
+	let curY = 0;
 	let rowH = 0;
-	let rowIdx = 0;
-	let maxRowEnd = padLeft;
-	rowBounds.push({ top: padTop, bottom: padTop });
+	let maxEnd = 0;
 	for (let i = 0; i < sizes.length; i++) {
 		const s = sizes[i];
-		if (curX > padLeft && curX + s.width > padLeft + targetW) {
-			rowBounds[rowIdx].bottom = curY + rowH;
+		if (curX > 0 && curX + s.width > targetW) {
 			curY += rowH + gap;
-			curX = padLeft;
+			curX = 0;
 			rowH = 0;
-			rowIdx++;
-			rowBounds.push({ top: curY, bottom: curY });
 		}
 		positions[i] = { x: curX + s.width / 2, y: curY + s.height / 2 };
-		rows[i] = rowIdx;
 		curX += s.width + gap;
 		if (s.height > rowH) rowH = s.height;
-		if (curX - gap > maxRowEnd) maxRowEnd = curX - gap;
+		if (curX - gap > maxEnd) maxEnd = curX - gap;
 	}
-	rowBounds[rowIdx].bottom = curY + rowH;
-	const width = Math.max(maxCardW + padLeft + padRight, maxRowEnd + padRight);
-	const height = curY + rowH + padBottom;
-	return { positions, rows, rowBounds, width, height };
+	return { positions, width: maxEnd, height: curY + rowH };
 }
 
 interface AggregatedEdge {
@@ -290,289 +332,19 @@ function aggregateEdges(
 	return [...counts.values()];
 }
 
-// Tracks how many edges have claimed a particular routing "track" (a row gap
-// or column gap). Each subsequent edge in the same track gets a small offset
-// so lines fan out instead of overlapping.
-class LaneCounter {
-	private map = new Map<string, number>();
-	next(key: string): number {
-		const v = this.map.get(key) ?? 0;
-		this.map.set(key, v + 1);
-		return v;
+// Simple orthogonal L-shape: go horizontal first, then vertical. The card
+// renderer draws on top of these segments so the inside-card portions are
+// hidden visually.
+function lShape(a: Rect, b: Rect): { x: number; y: number }[] {
+	if (Math.abs(a.x - b.x) < 0.5) {
+		return [{ x: a.x, y: a.y }, { x: a.x, y: b.y }];
 	}
-}
-
-function laneOffset(lane: number, gapWidth: number): number {
-	if (gapWidth <= 0) return 0;
-	const step = Math.max(1.5, gapWidth / 10);
-	const idx = Math.floor((lane + 1) / 2);
-	const sign = lane % 2 === 0 ? 1 : -1;
-	const limit = gapWidth * 0.4;
-	return Math.max(-limit, Math.min(limit, sign * idx * step));
-}
-
-function rectEdges(r: Rect) {
-	return {
-		left: r.x - r.w / 2,
-		right: r.x + r.w / 2,
-		top: r.y - r.h / 2,
-		bottom: r.y + r.h / 2,
-	};
-}
-
-interface RowGapY {
-	(r: number): number;
-}
-
-// Build per-cluster row-gap accessors with lane offsets so multiple edges
-// sharing the same gap fan out instead of overlapping.
-function makeGapAccessors(
-	cluster: ClusterRect,
-	rowBounds: { top: number; bottom: number }[],
-	gap: number,
-	lanes: LaneCounter,
-	bucket: string,
-): { above: RowGapY; below: RowGapY; gapWidth: number } {
-	const abs = rowBounds.map((r) => ({
-		top: cluster.y + r.top,
-		bottom: cluster.y + r.bottom,
-	}));
-	const gapWidth = gap;
-	const aboveCenter = (r: number): { y: number; w: number } => {
-		if (r <= 0) {
-			// Top padding strip (cluster.y .. abs[0].top).
-			const yMid = (cluster.y + abs[0].top) / 2;
-			const w = Math.max(2, abs[0].top - cluster.y);
-			return { y: yMid, w };
-		}
-		const yMid = (abs[r - 1].bottom + abs[r].top) / 2;
-		const w = Math.max(2, abs[r].top - abs[r - 1].bottom);
-		return { y: yMid, w };
-	};
-	const belowCenter = (r: number): { y: number; w: number } => {
-		if (r >= abs.length - 1) {
-			const yMid = (abs[r].bottom + cluster.y + cluster.height) / 2;
-			const w = Math.max(2, cluster.y + cluster.height - abs[r].bottom);
-			return { y: yMid, w };
-		}
-		const yMid = (abs[r].bottom + abs[r + 1].top) / 2;
-		const w = Math.max(2, abs[r + 1].top - abs[r].bottom);
-		return { y: yMid, w };
-	};
-	const above: RowGapY = (r) => {
-		const c = aboveCenter(r);
-		const lane = lanes.next(`${bucket}:hAbove:${r}`);
-		return c.y + laneOffset(lane, c.w);
-	};
-	const below: RowGapY = (r) => {
-		const c = belowCenter(r);
-		const lane = lanes.next(`${bucket}:hBelow:${r}`);
-		return c.y + laneOffset(lane, c.w);
-	};
-	return { above, below, gapWidth };
-}
-
-// Row-aware orthogonal routing inside a single cluster. All edges travel via
-// row gaps so they pass BETWEEN cards rather than along card edges.
-function routeWithinCluster(
-	a: Rect,
-	b: Rect,
-	rowA: number,
-	rowB: number,
-	cluster: ClusterRect,
-	rowBounds: { top: number; bottom: number }[],
-	gap: number,
-	lanes: LaneCounter,
-): { x: number; y: number }[] {
-	const { above, below } = makeGapAccessors(
-		cluster,
-		rowBounds,
-		gap,
-		lanes,
-		`intra:${cluster.groupKey}`,
-	);
-	const ae = rectEdges(a);
-	const be = rectEdges(b);
-
-	if (rowA === rowB) {
-		// Same row: detour through the gap above (or below, when row 0 has more rows).
-		const useAbove = rowA > 0 || rowBounds.length === 1;
-		const detourY = useAbove ? above(rowA) : below(rowA);
-		const aExitY = useAbove ? ae.top : ae.bottom;
-		const bExitY = useAbove ? be.top : be.bottom;
-		return [
-			{ x: a.x, y: a.y },
-			{ x: a.x, y: aExitY },
-			{ x: a.x, y: detourY },
-			{ x: b.x, y: detourY },
-			{ x: b.x, y: bExitY },
-			{ x: b.x, y: b.y },
-		];
+	if (Math.abs(a.y - b.y) < 0.5) {
+		return [{ x: a.x, y: a.y }, { x: b.x, y: a.y }];
 	}
-
-	// Different rows: travel through the gap immediately exiting the source row.
-	const downward = rowB > rowA;
-	const aExitY = downward ? ae.bottom : ae.top;
-	const bExitY = downward ? be.top : be.bottom;
-	const yMid1 = downward ? below(rowA) : above(rowA);
-	const yMid2 = downward ? above(rowB) : below(rowB);
-	if (Math.abs(rowA - rowB) === 1) {
-		// Adjacent rows share a gap; route through it with a single horizontal.
-		return [
-			{ x: a.x, y: a.y },
-			{ x: a.x, y: aExitY },
-			{ x: a.x, y: yMid1 },
-			{ x: b.x, y: yMid1 },
-			{ x: b.x, y: bExitY },
-			{ x: b.x, y: b.y },
-		];
-	}
-	// Non-adjacent: use a "trunk" near the closer cluster side to bypass middle rows.
-	const cxMid = cluster.x + cluster.width / 2;
-	const trunkX = b.x >= cxMid ? cluster.x + cluster.width - gap / 2 : cluster.x + gap / 2;
 	return [
 		{ x: a.x, y: a.y },
-		{ x: a.x, y: aExitY },
-		{ x: a.x, y: yMid1 },
-		{ x: trunkX, y: yMid1 },
-		{ x: trunkX, y: yMid2 },
-		{ x: b.x, y: yMid2 },
-		{ x: b.x, y: bExitY },
+		{ x: b.x, y: a.y },
 		{ x: b.x, y: b.y },
 	];
-}
-
-// Inter-cluster routing: card-to-port legs use the source/target row gaps so
-// they pass BETWEEN cards. The middle "trunk" between cluster boundaries is the
-// aggregated section drawn between the two cluster ports.
-function routeAcrossClusters(
-	a: Rect,
-	ca: ClusterRect,
-	rowA: number,
-	rowBoundsA: { top: number; bottom: number }[],
-	b: Rect,
-	cb: ClusterRect,
-	rowB: number,
-	rowBoundsB: { top: number; bottom: number }[],
-	gap: number,
-	lanes: LaneCounter,
-): { x: number; y: number }[] {
-	const srcSide = sideTowards(ca, cb);
-	const tgtSide = sideTowards(cb, ca);
-	const srcPort = clusterPort(ca, srcSide);
-	const tgtPort = clusterPort(cb, tgtSide);
-
-	const srcLeg = routeCardToPort(a, rowA, ca, rowBoundsA, gap, srcSide, srcPort, lanes);
-	const tgtLeg = routeCardToPort(b, rowB, cb, rowBoundsB, gap, tgtSide, tgtPort, lanes);
-	const linkLeg = portToPort(srcPort, srcSide, tgtPort, tgtSide);
-
-	const tgtLegRev = [...tgtLeg].reverse();
-	const path: { x: number; y: number }[] = [];
-	path.push({ x: a.x, y: a.y });
-	for (const p of srcLeg) path.push(p);
-	for (let i = 1; i < linkLeg.length - 1; i++) path.push(linkLeg[i]);
-	for (const p of tgtLegRev) path.push(p);
-	path.push({ x: b.x, y: b.y });
-	return path;
-}
-
-type Side = "top" | "bottom" | "left" | "right";
-
-function sideTowards(self: ClusterRect, other: ClusterRect): Side {
-	const sCx = self.x + self.width / 2;
-	const sCy = self.y + self.height / 2;
-	const oCx = other.x + other.width / 2;
-	const oCy = other.y + other.height / 2;
-	const dx = oCx - sCx;
-	const dy = oCy - sCy;
-	if (Math.abs(dx) >= Math.abs(dy)) return dx >= 0 ? "right" : "left";
-	return dy >= 0 ? "bottom" : "top";
-}
-
-function clusterPort(c: ClusterRect, side: Side): { x: number; y: number } {
-	const cx = c.x + c.width / 2;
-	const cy = c.y + c.height / 2;
-	if (side === "top") return { x: cx, y: c.y };
-	if (side === "bottom") return { x: cx, y: c.y + c.height };
-	if (side === "left") return { x: c.x, y: cy };
-	return { x: c.x + c.width, y: cy };
-}
-
-function routeCardToPort(
-	card: Rect,
-	row: number,
-	cluster: ClusterRect,
-	rowBounds: { top: number; bottom: number }[],
-	gap: number,
-	side: Side,
-	port: { x: number; y: number },
-	lanes: LaneCounter,
-): { x: number; y: number }[] {
-	const ce = rectEdges(card);
-	const { above, below } = makeGapAccessors(
-		cluster,
-		rowBounds,
-		gap,
-		lanes,
-		`port:${cluster.groupKey}:${side}`,
-	);
-	// Pick the row gap on the same side as the destination boundary when
-	// possible, so the path doesn't backtrack across the card.
-	const preferAbove =
-		side === "top" || (side !== "bottom" && row > 0);
-	const detourY = preferAbove ? above(row) : below(row);
-	const cardExitY = preferAbove ? ce.top : ce.bottom;
-
-	if (side === "left" || side === "right") {
-		// Row gap → cluster boundary edge → port y along the outside boundary.
-		// (port.x == cluster.left/right by construction.)
-		const boundaryX = side === "left" ? cluster.x : cluster.x + cluster.width;
-		return [
-			{ x: card.x, y: cardExitY },
-			{ x: card.x, y: detourY },
-			{ x: boundaryX, y: detourY },
-			{ x: boundaryX, y: port.y },
-			{ x: port.x, y: port.y },
-		];
-	}
-
-	// side === "top" or "bottom": travel through row gap, hop to the cluster's
-	// nearer left/right boundary to escape stacked rows, then climb along the
-	// outside boundary to the port y.
-	const cxMid = cluster.x + cluster.width / 2;
-	const escapeX =
-		port.x >= cxMid ? cluster.x + cluster.width : cluster.x;
-	return [
-		{ x: card.x, y: cardExitY },
-		{ x: card.x, y: detourY },
-		{ x: escapeX, y: detourY },
-		{ x: escapeX, y: port.y },
-		{ x: port.x, y: port.y },
-	];
-}
-
-function portToPort(
-	src: { x: number; y: number },
-	srcSide: Side,
-	tgt: { x: number; y: number },
-	tgtSide: Side,
-): { x: number; y: number }[] {
-	if (srcSide === tgtSide && (srcSide === "left" || srcSide === "right")) {
-		const outX =
-			srcSide === "right" ? Math.max(src.x, tgt.x) + 16 : Math.min(src.x, tgt.x) - 16;
-		return [src, { x: outX, y: src.y }, { x: outX, y: tgt.y }, tgt];
-	}
-	if (srcSide === tgtSide && (srcSide === "top" || srcSide === "bottom")) {
-		const outY =
-			srcSide === "bottom" ? Math.max(src.y, tgt.y) + 16 : Math.min(src.y, tgt.y) - 16;
-		return [src, { x: src.x, y: outY }, { x: tgt.x, y: outY }, tgt];
-	}
-	// Opposite or perpendicular sides — Z-shape via midpoint.
-	const midX = (src.x + tgt.x) / 2;
-	const midY = (src.y + tgt.y) / 2;
-	if (srcSide === "left" || srcSide === "right") {
-		// horizontal exit, then vertical, then horizontal
-		return [src, { x: midX, y: src.y }, { x: midX, y: tgt.y }, tgt];
-	}
-	return [src, { x: src.x, y: midY }, { x: tgt.x, y: midY }, tgt];
 }

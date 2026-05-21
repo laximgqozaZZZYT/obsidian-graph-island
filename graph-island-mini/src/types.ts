@@ -1,7 +1,9 @@
 export interface GraphNode {
 	id: string;
 	label: string;
-	groupKey: string;
+	// Cluster keys this node belongs to. Single-cluster files have one entry;
+	// multi-tag files (when GROUP_BY uses `tag:?`) have one entry per tag.
+	memberships: string[];
 }
 
 export interface GraphEdge {
@@ -14,31 +16,38 @@ export interface GraphData {
 	edges: GraphEdge[];
 }
 
-export type GroupBySpec =
-	| { kind: "none" }
-	| { kind: "folder" }
-	| { kind: "tag" }
-	| { kind: "frontmatter"; field: string };
-
 export interface Offset {
 	dx: number;
 	dy: number;
 }
 
 export interface MiniSettings {
-	groupBy: GroupBySpec;
 	clusterSpacing: number;
 	nodeSpacing: number;
 	cardMaxChars: number;
+	// Each entry is one query row in the panel. Empty rows are ignored; all
+	// non-empty rows are AND-combined for evaluation.
+	where: string[];
+	groupBy: string[];
+	// Per-view display toggles.
+	showBody: boolean;
+	showEnclosures: boolean;
+	showEdges: boolean;
+	panelVisible: boolean;
 	clusterOffsets: Record<string, Offset>;
 	nodeOffsets: Record<string, Offset>;
 }
 
 export const DEFAULT_SETTINGS: MiniSettings = {
-	groupBy: { kind: "folder" },
 	clusterSpacing: 48,
 	nodeSpacing: 16,
 	cardMaxChars: 160,
+	where: [],
+	groupBy: ["tag:?"],
+	showBody: true,
+	showEnclosures: true,
+	showEdges: true,
+	panelVisible: false,
 	clusterOffsets: {},
 	nodeOffsets: {},
 };

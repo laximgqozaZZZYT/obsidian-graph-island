@@ -22,14 +22,19 @@ await esbuild.build({
 
 const { layout } = await import(bundlePath);
 
-// Four clusters × 9 nodes each, with several inter-cluster edges.
+// Four clusters × 9 nodes each, with several inter-cluster edges. Sprinkle in
+// a few multi-membership files so the Euler-style layout gets exercised.
 const data = { nodes: [], edges: [] };
 const groups = ["a", "b", "c", "d"];
 for (const g of groups) {
 	for (let i = 0; i < 9; i++) {
-		data.nodes.push({ id: `${g}/${i}.md`, label: `${i}`, groupKey: g });
+		data.nodes.push({ id: `${g}/${i}.md`, label: `${i}`, memberships: [g] });
 	}
 }
+// Three multi-membership files: in a+b, in b+c, in a+c+d
+data.nodes.find((n) => n.id === "a/0.md").memberships = ["a", "b"];
+data.nodes.find((n) => n.id === "b/3.md").memberships = ["b", "c"];
+data.nodes.find((n) => n.id === "c/2.md").memberships = ["a", "c", "d"];
 // Inter edges going every which way
 const interPairs = [
 	["a/0.md", "b/8.md"], ["a/4.md", "b/0.md"], ["a/8.md", "d/0.md"],
@@ -57,7 +62,7 @@ const laid = layout(data, sized, {
 });
 
 const idToPos = new Map(laid.nodes.map((n) => [n.id, { x: n.x, y: n.y }]));
-const groupOf = new Map(laid.nodes.map((n) => [n.id, n.groupKey]));
+const memOf = new Map(laid.nodes.map((n) => [n.id, n.memberships]));
 
 // Axis-aligned: returns true when segment a→b passes through n's interior
 // (the card rectangle). Edges may touch a node's edge (= card border) but not
@@ -88,9 +93,9 @@ function isOrtho(a, b) {
 let pass = true;
 let interHits = 0, intraHits = 0, nonOrtho = 0, totalSegs = 0;
 for (const e of laid.edges) {
-	const sg = groupOf.get(e.source);
-	const tg = groupOf.get(e.target);
-	const isIntra = sg === tg;
+	const sm = memOf.get(e.source) ?? [];
+	const tm = memOf.get(e.target) ?? [];
+	const isIntra = sm.some((m) => tm.includes(m));
 	const sp = idToPos.get(e.source);
 	const tp = idToPos.get(e.target);
 	const p0 = e.path[0];

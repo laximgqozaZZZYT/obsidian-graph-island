@@ -1,5 +1,5 @@
 import { Plugin, PluginSettingTab, Setting, WorkspaceLeaf } from "obsidian";
-import { DEFAULT_SETTINGS, MiniSettings, GroupBySpec } from "./types";
+import { DEFAULT_SETTINGS, MiniSettings } from "./types";
 import { MiniGraphView, VIEW_TYPE_MINI } from "./view";
 
 export default class GraphIslandMiniPlugin extends Plugin {
@@ -29,6 +29,10 @@ export default class GraphIslandMiniPlugin extends Plugin {
 		this.views = [];
 	}
 
+	firstView(): MiniGraphView | null {
+		return this.views[0] ?? null;
+	}
+
 	async activateView(): Promise<void> {
 		const { workspace } = this.app;
 		const existing = workspace.getLeavesOfType(VIEW_TYPE_MINI)[0];
@@ -44,9 +48,33 @@ export default class GraphIslandMiniPlugin extends Plugin {
 	async loadSettings(): Promise<void> {
 		const raw = await this.loadData();
 		const merged = { ...DEFAULT_SETTINGS, ...(raw ?? {}) } as Record<string, unknown>;
+		// Strip legacy / removed fields so they don't leak back into data.json.
 		delete merged.collapsedGroups;
-		// Drop legacy circle-era setting; cardMaxChars supersedes it.
 		delete merged.nodeRadius;
+		delete merged.manifestPath;
+		delete merged.rules;
+		// Migrate groupBy: GroupBySpec object → string[] or string → string[].
+		if (Array.isArray(merged.groupBy)) {
+			// already in new shape
+		} else if (typeof merged.groupBy === "string") {
+			merged.groupBy = merged.groupBy.trim() ? [merged.groupBy.trim()] : [];
+		} else {
+			const gb = merged.groupBy as { kind?: string; field?: string } | undefined;
+			if (gb?.kind === "tag") merged.groupBy = ["tag:?"];
+			else if (gb?.kind === "frontmatter" && gb.field) merged.groupBy = [`${gb.field}:?`];
+			else merged.groupBy = [];
+		}
+		if (Array.isArray(merged.where)) {
+			// already in new shape
+		} else if (typeof merged.where === "string") {
+			merged.where = merged.where.trim() ? [merged.where.trim()] : [];
+		} else {
+			merged.where = [];
+		}
+		if (typeof merged.panelVisible !== "boolean") merged.panelVisible = false;
+		if (typeof merged.showBody !== "boolean") merged.showBody = true;
+		if (typeof merged.showEnclosures !== "boolean") merged.showEnclosures = true;
+		if (typeof merged.showEdges !== "boolean") merged.showEdges = true;
 		this.settings = merged as unknown as MiniSettings;
 	}
 
@@ -65,35 +93,6 @@ class MiniSettingTab extends PluginSettingTab {
 		const { containerEl } = this;
 		containerEl.empty();
 		const s = this.plugin.settings;
-
-		new Setting(containerEl)
-			.setName("Group by")
-			.setDesc("Cluster nodes by folder, tag, frontmatter field, or none.")
-			.addDropdown((d) => {
-				d.addOption("folder", "Folder");
-				d.addOption("tag", "Tag");
-				d.addOption("frontmatter", "Frontmatter field");
-				d.addOption("none", "None");
-				d.setValue(s.groupBy.kind);
-				d.onChange(async (v) => {
-					s.groupBy = toSpec(v, currentField(s.groupBy));
-					await this.plugin.saveSettings();
-					this.display();
-				});
-			});
-
-		if (s.groupBy.kind === "frontmatter") {
-			new Setting(containerEl)
-				.setName("Frontmatter field")
-				.addText((t) => {
-					t.setPlaceholder("category");
-					t.setValue(s.groupBy.kind === "frontmatter" ? s.groupBy.field : "");
-					t.onChange(async (v) => {
-						s.groupBy = { kind: "frontmatter", field: v.trim() || "category" };
-						await this.plugin.saveSettings();
-					});
-				});
-		}
 
 		new Setting(containerEl)
 			.setName("Cluster spacing")
@@ -128,16 +127,18 @@ class MiniSettingTab extends PluginSettingTab {
 				});
 			});
 
+		new Setting(containerEl)
+			.setName("WHERE / GROUP_BY")
+			.setDesc(
+				"Filter and partition expressions are edited inside the view. " +
+					"Open the mini graph view and click the sliders icon in its toolbar.",
+			)
+			.addButton((b) => {
+				b.setButtonText("Open mini graph")
+					.setCta()
+					.onClick(async () => {
+						await this.plugin.activateView();
+					});
+			});
 	}
-}
-
-function currentField(spec: GroupBySpec): string {
-	return spec.kind === "frontmatter" ? spec.field : "category";
-}
-
-function toSpec(kind: string, field: string): GroupBySpec {
-	if (kind === "folder") return { kind: "folder" };
-	if (kind === "tag") return { kind: "tag" };
-	if (kind === "frontmatter") return { kind: "frontmatter", field };
-	return { kind: "none" };
 }

@@ -1,7 +1,7 @@
 import { ItemView, WorkspaceLeaf, TFile } from "obsidian";
 import { buildGraph } from "./parser";
 import { layout, type LaidOut, type PositionedNode, type SizedNode } from "./layout";
-import type { MiniSettings, GroupBySpec, GraphNode } from "./types";
+import type { MiniSettings, GraphNode } from "./types";
 import {
 	CARD_TITLE_FONT_PX,
 	CARD_BODY_FONT_PX,
@@ -62,6 +62,10 @@ export class MiniGraphView extends ItemView {
 	private bodyCache: Map<string, string> = new Map();
 	private cardCache: Map<string, CardContent> = new Map();
 	private rebuildGen = 0;
+	private clusterLabels: Map<string, string> = new Map();
+	private whereError = "";
+	private groupByError = "";
+	private panelEl: HTMLDivElement | null = null;
 
 	constructor(
 		leaf: WorkspaceLeaf,
@@ -137,26 +141,157 @@ export class MiniGraphView extends ItemView {
 			}),
 		);
 
+		this.addAction("sliders-horizontal", "Toggle graph settings", () => this.togglePanel());
+
 		void this.rebuild();
 		this.resize();
+		if (this.settings.panelVisible) this.renderPanel();
+	}
+
+	private togglePanel(): void {
+		this.settings.panelVisible = !this.settings.panelVisible;
+		void this.save();
+		if (this.settings.panelVisible) this.renderPanel();
+		else this.tearDownPanel();
 	}
 
 	async onClose(): Promise<void> {
 		this.resizeObs?.disconnect();
 		cancelAnimationFrame(this.rafId);
 		this.cancelHover();
+		this.tearDownPanel();
+	}
+
+	// ---- Settings panel (in-view, Obsidian-core-graph-style) ----
+
+	private tearDownPanel(): void {
+		this.panelEl?.remove();
+		this.panelEl = null;
+	}
+
+	private renderPanel(): void {
+		if (!this.settings.panelVisible) {
+			this.tearDownPanel();
+			return;
+		}
+		if (!this.panelEl) {
+			this.panelEl = this.root.createDiv({ cls: "gim-panel" });
+		}
+		const el = this.panelEl;
+		el.empty();
+
+		const header = el.createDiv({ cls: "gim-panel-header" });
+		header.createEl("h3", { text: "Graph settings" });
+		const closeBtn = header.createEl("button", { cls: "gim-panel-close", text: "×" });
+		closeBtn.setAttr("aria-label", "Close settings");
+		closeBtn.addEventListener("click", () => this.togglePanel());
+
+		this.renderExprSection(el, "WHERE", this.settings.where, this.whereError);
+		this.renderExprSection(el, "GROUP_BY", this.settings.groupBy, this.groupByError);
+		this.renderToggleSection(el, "Node display", [
+			{ key: "showBody", label: "Show body preview" },
+		]);
+		this.renderToggleSection(el, "Graph display", [
+			{ key: "showEnclosures", label: "Show enclosures" },
+			{ key: "showEdges", label: "Show edges" },
+		]);
+	}
+
+	private renderToggleSection(
+		parent: HTMLElement,
+		heading: string,
+		toggles: { key: "showBody" | "showEnclosures" | "showEdges"; label: string }[],
+	): void {
+		const section = parent.createDiv({ cls: "gim-panel-section" });
+		section.createEl("h4", { text: heading });
+		for (const t of toggles) {
+			const row = section.createEl("label", { cls: "gim-toggle-row" });
+			const cb = row.createEl("input", { type: "checkbox" });
+			cb.checked = this.settings[t.key];
+			cb.addEventListener("change", () => {
+				this.settings[t.key] = cb.checked;
+				void this.save();
+			});
+			row.createSpan({ text: t.label });
+		}
+	}
+
+	private renderExprSection(
+		parent: HTMLElement,
+		label: string,
+		rows: string[],
+		error: string,
+	): void {
+		const section = parent.createDiv({ cls: "gim-panel-section" });
+		section.createEl("h4", { text: label });
+
+		// Ensure at least one editable row is shown so users can type into it.
+		const displayRows = rows.length > 0 ? rows : [""];
+
+		displayRows.forEach((value, idx) => {
+			const row = section.createDiv({ cls: "gim-expr-row" });
+			const input = row.createEl("input", { type: "text", cls: "gim-expr" });
+			input.value = value;
+			input.placeholder = "e.g. tag:#wip AND status:draft";
+			input.spellcheck = false;
+			input.addEventListener("change", () => {
+				this.updateRow(rows, idx, input.value.trim());
+			});
+			const del = row.createEl("button", { cls: "gim-expr-del", text: "×" });
+			del.setAttr("aria-label", "Remove row");
+			del.disabled = rows.length === 0;
+			del.addEventListener("click", () => this.removeRow(rows, idx));
+		});
+
+		const addBtn = section.createEl("button", { cls: "gim-expr-add", text: "+ Add row" });
+		addBtn.addEventListener("click", () => this.addRow(rows));
+
+		if (error) section.createDiv({ cls: "gim-expr-msg", text: error });
+	}
+
+	private updateRow(rows: string[], idx: number, value: string): void {
+		// Re-materialize: a blank value should disappear so empty rows don't
+		// silently pile up in the saved settings.
+		if (rows.length === 0) {
+			if (value) rows.push(value);
+		} else {
+			if (value) rows[idx] = value;
+			else rows.splice(idx, 1);
+		}
+		void this.save();
+	}
+
+	private addRow(rows: string[]): void {
+		rows.push("");
+		this.renderPanel();
+	}
+
+	private removeRow(rows: string[], idx: number): void {
+		if (rows.length === 0) return;
+		rows.splice(idx, 1);
+		void this.save();
 	}
 
 	updateSettings(s: MiniSettings): void {
-		const bodyChanged = s.cardMaxChars !== this.settings.cardMaxChars;
+		const sizingChanged =
+			s.cardMaxChars !== this.settings.cardMaxChars ||
+			s.showBody !== this.settings.showBody;
 		this.settings = s;
-		if (bodyChanged) this.cardCache.clear();
+		if (sizingChanged) this.cardCache.clear();
 		void this.rebuild();
 	}
 
 	private async rebuild(): Promise<void> {
 		const gen = ++this.rebuildGen;
-		const data = buildGraph(this.app, this.settings.groupBy);
+		const { result, errors } = buildGraph(
+			this.app,
+			this.settings.where,
+			this.settings.groupBy,
+		);
+		this.whereError = errors.where ?? "";
+		this.groupByError = errors.groupBy ?? "";
+		const { data, clusterLabels } = result;
+		this.clusterLabels = clusterLabels;
 		await this.ensureBodies(data.nodes);
 		if (gen !== this.rebuildGen) return;
 
@@ -167,6 +302,7 @@ export class MiniGraphView extends ItemView {
 			nodeSpacing: this.settings.nodeSpacing,
 			clusterOffsets: this.settings.clusterOffsets,
 			nodeOffsets: this.settings.nodeOffsets,
+			clusterLabels,
 		});
 		this.adjacency = new Map();
 		this.laid.edges.forEach((e, i) => {
@@ -179,6 +315,7 @@ export class MiniGraphView extends ItemView {
 		this.highlightedEdgeIdx.clear();
 		if (wasEmpty) this.fitToView();
 		this.requestDraw();
+		if (this.settings.panelVisible) this.renderPanel();
 	}
 
 	private async ensureBodies(nodes: GraphNode[]): Promise<void> {
@@ -218,6 +355,9 @@ export class MiniGraphView extends ItemView {
 		const padX = CARD_PAD_X;
 		const padY = CARD_PAD_Y;
 		const innerMax = CARD_MAX_W - 2 * padX;
+		// Honour the showBody toggle at measurement time so cards stay compact
+		// (title-only) when previews are off.
+		const effectiveBody = this.settings.showBody ? body : "";
 
 		// Title: single line. Width is the natural width capped at innerMax.
 		ctx.font = `600 ${CARD_TITLE_FONT_PX}px sans-serif`;
@@ -226,7 +366,7 @@ export class MiniGraphView extends ItemView {
 		// Body: wrap to the maximum allowable inner width, then trim card width to
 		// the actual longest line.
 		ctx.font = `${CARD_BODY_FONT_PX}px sans-serif`;
-		const bodyLines = body ? wrapText(ctx, body, innerMax) : [];
+		const bodyLines = effectiveBody ? wrapText(ctx, effectiveBody, innerMax) : [];
 		let bodyMaxW = 0;
 		for (const line of bodyLines) {
 			const w = Math.ceil(ctx.measureText(line).width);
@@ -257,7 +397,7 @@ export class MiniGraphView extends ItemView {
 		const rect = this.canvas.getBoundingClientRect();
 		const sx = rect.width / 2;
 		const sy = rect.height / 2;
-		const next = Math.max(0.05, Math.min(8, this.zoom * factor));
+		const next = Math.max(0.005, Math.min(8, this.zoom * factor));
 		const wx = (sx - this.panX) / this.zoom;
 		const wy = (sy - this.panY) / this.zoom;
 		this.zoom = next;
@@ -274,7 +414,7 @@ export class MiniGraphView extends ItemView {
 		const dw = Math.max(1, world.maxX - world.minX);
 		const dh = Math.max(1, world.maxY - world.minY);
 		const z = Math.min((w - 2 * pad) / dw, (h - 2 * pad) / dh);
-		this.zoom = Math.min(8, Math.max(0.05, z));
+		this.zoom = Math.min(8, Math.max(0.005, z));
 		this.panX = w / 2 - ((world.minX + world.maxX) / 2) * this.zoom;
 		this.panY = h / 2 - ((world.minY + world.maxY) / 2) * this.zoom;
 		this.cancelHover();
@@ -290,14 +430,28 @@ export class MiniGraphView extends ItemView {
 			maxX = Math.max(maxX, c.x + c.width);
 			maxY = Math.max(maxY, c.y + c.height);
 		}
-		const w = this.canvas.clientWidth;
-		const h = this.canvas.clientHeight;
-		const pad = 40;
-		const zx = (w - 2 * pad) / Math.max(1, maxX - minX);
-		const zy = (h - 2 * pad) / Math.max(1, maxY - minY);
-		this.zoom = Math.min(2, Math.max(0.05, Math.min(zx, zy)));
-		this.panX = w / 2 - ((minX + maxX) / 2) * this.zoom;
-		this.panY = h / 2 - ((minY + maxY) / 2) * this.zoom;
+		// The settings panel overlays the right side of the canvas without
+		// pushing it, so subtract its width from the effective fit area and
+		// centre against the visible half.
+		const panelW = this.settings.panelVisible && this.panelEl ? this.panelEl.offsetWidth : 0;
+		const visW = Math.max(1, this.canvas.clientWidth - panelW);
+		const visH = this.canvas.clientHeight;
+		// Reserve canvas-pixel padding (zoom-independent). Top gets extra room
+		// for cluster labels which sit ~20 canvas px above each enclosure.
+		const padX = 20;
+		const padTop = 36;
+		const padBottom = 20;
+		const fitW = Math.max(1, visW - 2 * padX);
+		const fitH = Math.max(1, visH - padTop - padBottom);
+		const zx = fitW / Math.max(1, maxX - minX);
+		const zy = fitH / Math.max(1, maxY - minY);
+		// Min floor is intentionally very low so huge vaults still fit on
+		// screen; the user can zoom in interactively as needed.
+		this.zoom = Math.min(2, Math.max(0.005, Math.min(zx, zy)));
+		const worldCenterX = (minX + maxX) / 2;
+		const worldCenterY = (minY + maxY) / 2;
+		this.panX = padX + fitW / 2 - worldCenterX * this.zoom;
+		this.panY = padTop + fitH / 2 - worldCenterY * this.zoom;
 		this.requestDraw();
 	}
 
@@ -316,12 +470,21 @@ export class MiniGraphView extends ItemView {
 		ctx.fillRect(0, 0, cw, ch);
 		ctx.setTransform(dpr * this.zoom, 0, 0, dpr * this.zoom, dpr * this.panX, dpr * this.panY);
 
-		ctx.lineWidth = 1 / this.zoom;
-		ctx.strokeStyle = "rgba(140,160,190,0.45)";
-		ctx.fillStyle = "rgba(60,80,110,0.20)";
-		for (const c of this.laid.clusters) {
-			ctx.fillRect(c.x, c.y, c.width, c.height);
-			ctx.strokeRect(c.x, c.y, c.width, c.height);
+		// Outline-only enclosures: stroke colours are hue-distinct so the
+		// boundaries stay readable when clusters overlap or nest. Fills are
+		// intentionally absent — translucent fills stacked additively where
+		// clusters intersect, producing murky regions.
+		if (this.settings.showEnclosures) {
+			const sortedClusters = [...this.laid.clusters].sort(
+				(a, b) => b.width * b.height - a.width * a.height,
+			);
+			const strokeW = 1.6 / this.zoom;
+			for (const c of sortedClusters) {
+				const hue = clusterHue(c.groupKey);
+				ctx.strokeStyle = `hsla(${hue}, 70%, 62%, 0.9)`;
+				ctx.lineWidth = strokeW;
+				ctx.strokeRect(c.x, c.y, c.width, c.height);
+			}
 		}
 
 		ctx.lineCap = "round";
@@ -333,18 +496,20 @@ export class MiniGraphView extends ItemView {
 		const glow = "rgba(255,157,63,0.35)";
 
 		// Layer 1: base edges (skip highlighted ones; we draw them on top later)
-		this.laid.edges.forEach((e, i) => {
-			if (hasHighlight && this.highlightedEdgeIdx.has(i)) return;
-			const path = e.path;
-			if (!path || path.length < 2) return;
-			ctx.strokeStyle = hasHighlight ? dim : base;
-			const baseW = Math.max(0.6, Math.log2(1 + e.weight) * 1.1);
-			ctx.lineWidth = baseW / this.zoom;
-			ctx.beginPath();
-			ctx.moveTo(path[0].x, path[0].y);
-			for (let i2 = 1; i2 < path.length; i2++) ctx.lineTo(path[i2].x, path[i2].y);
-			ctx.stroke();
-		});
+		if (this.settings.showEdges) {
+			this.laid.edges.forEach((e, i) => {
+				if (hasHighlight && this.highlightedEdgeIdx.has(i)) return;
+				const path = e.path;
+				if (!path || path.length < 2) return;
+				ctx.strokeStyle = hasHighlight ? dim : base;
+				const baseW = Math.max(0.6, Math.log2(1 + e.weight) * 1.1);
+				ctx.lineWidth = baseW / this.zoom;
+				ctx.beginPath();
+				ctx.moveTo(path[0].x, path[0].y);
+				for (let i2 = 1; i2 < path.length; i2++) ctx.lineTo(path[i2].x, path[i2].y);
+				ctx.stroke();
+			});
+		}
 
 		// Layer 2: base cards (covers the "stub" segment from edge port → card center)
 		for (const n of this.laid.nodes) {
@@ -353,7 +518,7 @@ export class MiniGraphView extends ItemView {
 		}
 
 		// Layer 3: accent edges (drawn on top of base cards so they reach the focus card)
-		if (hasHighlight) {
+		if (hasHighlight && this.settings.showEdges) {
 			this.laid.edges.forEach((e, i) => {
 				if (!this.highlightedEdgeIdx.has(i)) return;
 				const path = e.path;
@@ -382,17 +547,22 @@ export class MiniGraphView extends ItemView {
 			this.drawCard(ctx, n, true);
 		}
 
-		// Cluster labels above each enclosure
-		ctx.fillStyle = "#e6edf3";
-		const groupFontPx = 12 / this.zoom;
-		ctx.font = `${groupFontPx}px sans-serif`;
-		ctx.textBaseline = "middle";
-		ctx.textAlign = "center";
-		for (const c of this.laid.clusters) {
-			const label = truncateToWidth(ctx, `${c.groupKey} (${c.memberCount})`, c.width);
-			ctx.fillText(label, c.x + c.width / 2, c.y - 8 / this.zoom);
+		// Cluster labels above each enclosure, tinted with the cluster's hue
+		// so they tie back visually to the matching enclosure.
+		if (this.settings.showEnclosures) {
+			const groupFontPx = 12 / this.zoom;
+			ctx.font = `${groupFontPx}px sans-serif`;
+			ctx.textBaseline = "middle";
+			ctx.textAlign = "center";
+			for (const c of this.laid.clusters) {
+				const hue = clusterHue(c.groupKey);
+				ctx.fillStyle = `hsla(${hue}, 65%, 70%, 1)`;
+				const display = `${c.label} (${c.memberCount})`;
+				const label = truncateToWidth(ctx, display, c.width);
+				ctx.fillText(label, c.x + c.width / 2, c.y - 8 / this.zoom);
+			}
+			ctx.textAlign = "start";
 		}
-		ctx.textAlign = "start";
 	}
 
 	private drawCard(
@@ -431,7 +601,7 @@ export class MiniGraphView extends ItemView {
 		const titleFitted = truncateToWidth(ctx, n.label, innerRight - innerLeft);
 		ctx.fillText(titleFitted, innerLeft, innerTop);
 
-		if (bodyLines.length > 0) {
+		if (bodyLines.length > 0 && this.settings.showBody) {
 			ctx.font = `${CARD_BODY_FONT_PX}px sans-serif`;
 			ctx.fillStyle = highlighted ? "#3a2400" : "#9eb0c4";
 			let ly = innerTop + CARD_LINE_HEIGHT_PX + CARD_TITLE_BODY_GAP;
@@ -489,7 +659,12 @@ export class MiniGraphView extends ItemView {
 
 	private clampNodeOffset(nodeId: string, dx: number, dy: number): { dx: number; dy: number } {
 		const node = this.laid.nodes.find((n) => n.id === nodeId);
-		const cluster = node ? this.laid.clusters.find((c) => c.groupKey === node.groupKey) : null;
+		// Multi-membership nodes have multiple enclosing rects; use the first as
+		// the "home" cluster for drag clamping.
+		const primary = node?.memberships[0];
+		const cluster = primary
+			? this.laid.clusters.find((c) => c.groupKey === primary)
+			: null;
 		if (!node || !cluster) return { dx, dy };
 		// rel is the card-center position relative to the (un-offset) cluster origin.
 		const rel = {
@@ -589,7 +764,7 @@ export class MiniGraphView extends ItemView {
 		} else {
 			const cl = this.laid.clusters.find((c) => c.groupKey === target.group);
 			if (!cl) return;
-			tip.createSpan({ cls: "gim-tip-title", text: cl.groupKey });
+			tip.createSpan({ cls: "gim-tip-title", text: cl.label });
 			tip.createSpan({ cls: "gim-tip-sub", text: cl.memberCount + " items" });
 		}
 
@@ -795,7 +970,7 @@ export class MiniGraphView extends ItemView {
 			const sx = e.clientX - rect.left;
 			const sy = e.clientY - rect.top;
 			const factor = Math.exp(-e.deltaY * 0.0015);
-			const next = Math.max(0.05, Math.min(8, this.zoom * factor));
+			const next = Math.max(0.005, Math.min(8, this.zoom * factor));
 			const wx = (sx - this.panX) / this.zoom;
 			const wy = (sy - this.panY) / this.zoom;
 			this.zoom = next;
@@ -807,18 +982,25 @@ export class MiniGraphView extends ItemView {
 	}
 }
 
-export function describeGroupSpec(s: GroupBySpec): string {
-	if (s.kind === "none") return "none";
-	if (s.kind === "frontmatter") return `frontmatter:${s.field}`;
-	return s.kind;
-}
-
 function sameTarget(a: HoverTarget, b: HoverTarget): boolean {
 	if (a === null || b === null) return a === b;
 	if (a.kind !== b.kind) return false;
 	if (a.kind === "cluster" && b.kind === "cluster") return a.group === b.group;
 	if (a.kind === "node" && b.kind === "node") return a.nodeId === b.nodeId;
 	return false;
+}
+
+// Stable hue (0-359) derived from a cluster's groupKey. Uses a tiny string
+// hash multiplied by the golden-angle constant so neighbouring clusters end up
+// far apart on the colour wheel even when their keys are similar.
+function clusterHue(key: string): number {
+	let h = 2166136261;
+	for (let i = 0; i < key.length; i++) {
+		h ^= key.charCodeAt(i);
+		h = Math.imul(h, 16777619);
+	}
+	const u = (h >>> 0) / 0xffffffff;
+	return (u * 360 * 1.61803398875) % 360;
 }
 
 function roundedRectPath(
