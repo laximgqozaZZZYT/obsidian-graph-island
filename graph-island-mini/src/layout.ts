@@ -96,15 +96,26 @@ export function layout(data: GraphData, sized: SizedNode[], opts: LayoutOptions)
 	const strideX = maxSubW + opts.clusterSpacing * 3;
 	const strideY = maxSubH + opts.clusterSpacing * 3;
 
-	// Place clusters in a roughly square grid. Anchors are the "ideal" home
-	// position of files belonging only to that cluster.
-	const cols = Math.max(1, Math.ceil(Math.sqrt(clusterKeys.length)));
+	// NONE_BUCKET is exclusive (never appears in a multi-membership sub-group)
+	// so it doesn't belong on the main anchor grid: when placed there, other
+	// clusters' multi-membership centroids can land at NONE's position and
+	// those clusters' bboxes end up engulfing NONE. We put NONE_BUCKET into a
+	// dedicated row below the main grid instead.
+	const mainKeys = clusterKeys.filter((k) => k !== NONE_BUCKET);
+	const hasNone = mainKeys.length !== clusterKeys.length;
+	const cols = Math.max(1, Math.ceil(Math.sqrt(mainKeys.length || 1)));
 	const anchors = new Map<string, { x: number; y: number }>();
-	clusterKeys.forEach((k, i) => {
+	mainKeys.forEach((k, i) => {
 		const col = i % cols;
 		const row = Math.floor(i / cols);
 		anchors.set(k, { x: col * strideX, y: row * strideY });
 	});
+	if (hasNone) {
+		const mainRows = Math.max(1, Math.ceil(mainKeys.length / cols));
+		const noneCol = Math.floor((cols - 1) / 2); // centred under the main grid
+		// +1 gives a full extra row of empty space between the grid and NONE.
+		anchors.set(NONE_BUCKET, { x: noneCol * strideX, y: (mainRows + 1) * strideY });
+	}
 
 	const positionedNodes: PositionedNode[] = [];
 	const idToRect = new Map<string, Rect>();

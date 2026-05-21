@@ -29,6 +29,10 @@ export interface MiniSettings {
 	// non-empty rows are AND-combined for evaluation.
 	where: string[];
 	groupBy: string[];
+	// SQL-like aggregate post-filter. Each row is "count <op> <number>"; rows
+	// are AND-combined. Failing clusters keep their nodes visible but their
+	// enclosure (outline + label) is suppressed.
+	having: string[];
 	// Per-view display toggles.
 	showBody: boolean;
 	showEnclosures: boolean;
@@ -43,7 +47,8 @@ export const DEFAULT_SETTINGS: MiniSettings = {
 	nodeSpacing: 16,
 	cardMaxChars: 160,
 	where: [],
-	groupBy: ["tag:?"],
+	groupBy: ["tag:*"],
+	having: [],
 	showBody: true,
 	showEnclosures: true,
 	showEdges: true,

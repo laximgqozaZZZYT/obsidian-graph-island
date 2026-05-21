@@ -1,7 +1,8 @@
 import { ItemView, WorkspaceLeaf, TFile } from "obsidian";
 import { buildGraph } from "./parser";
 import { layout, type LaidOut, type PositionedNode, type SizedNode } from "./layout";
-import type { MiniSettings, GraphNode } from "./types";
+import type { MiniSettings, GraphNode, GraphData } from "./types";
+import { NONE_BUCKET } from "./types";
 import {
 	CARD_TITLE_FONT_PX,
 	CARD_BODY_FONT_PX,
@@ -65,6 +66,7 @@ export class MiniGraphView extends ItemView {
 	private clusterLabels: Map<string, string> = new Map();
 	private whereError = "";
 	private groupByError = "";
+	private havingError = "";
 	private panelEl: HTMLDivElement | null = null;
 
 	constructor(
@@ -188,6 +190,9 @@ export class MiniGraphView extends ItemView {
 
 		this.renderExprSection(el, "WHERE", this.settings.where, this.whereError);
 		this.renderExprSection(el, "GROUP_BY", this.settings.groupBy, this.groupByError);
+		this.renderExprSection(el, "HAVING", this.settings.having, this.havingError, {
+			placeholder: "e.g. count >= 3",
+		});
 		this.renderToggleSection(el, "Node display", [
 			{ key: "showBody", label: "Show body preview" },
 		]);
@@ -221,18 +226,20 @@ export class MiniGraphView extends ItemView {
 		label: string,
 		rows: string[],
 		error: string,
+		opts: { placeholder?: string } = {},
 	): void {
 		const section = parent.createDiv({ cls: "gim-panel-section" });
 		section.createEl("h4", { text: label });
 
 		// Ensure at least one editable row is shown so users can type into it.
 		const displayRows = rows.length > 0 ? rows : [""];
+		const placeholder = opts.placeholder ?? "e.g. tag:#wip AND status:draft";
 
 		displayRows.forEach((value, idx) => {
 			const row = section.createDiv({ cls: "gim-expr-row" });
 			const input = row.createEl("input", { type: "text", cls: "gim-expr" });
 			input.value = value;
-			input.placeholder = "e.g. tag:#wip AND status:draft";
+			input.placeholder = placeholder;
 			input.spellcheck = false;
 			input.addEventListener("change", () => {
 				this.updateRow(rows, idx, input.value.trim());
@@ -290,7 +297,17 @@ export class MiniGraphView extends ItemView {
 		);
 		this.whereError = errors.where ?? "";
 		this.groupByError = errors.groupBy ?? "";
-		const { data, clusterLabels } = result;
+		let { data, clusterLabels } = result;
+
+		// Apply HAVING BEFORE layout so dropped clusters are removed from each
+		// node's memberships and the layout repositions nodes around only the
+		// surviving clusters. Files whose ONLY membership was dropped fall back
+		// to the NONE_BUCKET cluster.
+		const dropped = this.computeDroppedClusters(data.nodes);
+		if (dropped.size > 0) {
+			data = filterMemberships(data, dropped);
+			clusterLabels = filterLabels(clusterLabels, dropped, data.nodes);
+		}
 		this.clusterLabels = clusterLabels;
 		await this.ensureBodies(data.nodes);
 		if (gen !== this.rebuildGen) return;
@@ -316,6 +333,41 @@ export class MiniGraphView extends ItemView {
 		if (wasEmpty) this.fitToView();
 		this.requestDraw();
 		if (this.settings.panelVisible) this.renderPanel();
+	}
+
+	// Parse + evaluate HAVING. Counts come from `data.nodes` BEFORE any cluster
+	// drop so the test runs against the input partitioning. Returns the set of
+	// cluster keys that fail the HAVING conditions.
+	private computeDroppedClusters(nodes: GraphNode[]): Set<string> {
+		this.havingError = "";
+		const dropped = new Set<string>();
+		const rows = this.settings.having.map((s) => s.trim()).filter((s) => s.length > 0);
+		if (rows.length === 0) return dropped;
+		const tests: ((count: number) => boolean)[] = [];
+		for (const r of rows) {
+			try {
+				tests.push(parseHaving(r));
+			} catch (e) {
+				const msg = e instanceof Error ? e.message : String(e);
+				this.havingError = this.havingError ? this.havingError + "; " + msg : msg;
+			}
+		}
+		if (tests.length === 0) return dropped;
+		const counts = new Map<string, number>();
+		for (const n of nodes) {
+			for (const m of n.memberships) {
+				counts.set(m, (counts.get(m) ?? 0) + 1);
+			}
+		}
+		for (const [key, count] of counts) {
+			for (const t of tests) {
+				if (!t(count)) {
+					dropped.add(key);
+					break;
+				}
+			}
+		}
+		return dropped;
 	}
 
 	private async ensureBodies(nodes: GraphNode[]): Promise<void> {
@@ -430,6 +482,15 @@ export class MiniGraphView extends ItemView {
 			maxX = Math.max(maxX, c.x + c.width);
 			maxY = Math.max(maxY, c.y + c.height);
 		}
+		// Cards stay visible even when no enclosure surrounds them (e.g. files
+		// that landed in NONE_BUCKET after HAVING dropped their only cluster).
+		for (const n of this.laid.nodes) {
+			minX = Math.min(minX, n.x - n.width / 2);
+			minY = Math.min(minY, n.y - n.height / 2);
+			maxX = Math.max(maxX, n.x + n.width / 2);
+			maxY = Math.max(maxY, n.y + n.height / 2);
+		}
+		if (!isFinite(minX)) return;
 		// The settings panel overlays the right side of the canvas without
 		// pushing it, so subtract its width from the effective fit area and
 		// centre against the visible half.
@@ -988,6 +1049,51 @@ function sameTarget(a: HoverTarget, b: HoverTarget): boolean {
 	if (a.kind === "cluster" && b.kind === "cluster") return a.group === b.group;
 	if (a.kind === "node" && b.kind === "node") return a.nodeId === b.nodeId;
 	return false;
+}
+
+// Strip dropped clusters from each node's memberships. Files left with no
+// memberships fall back to NONE_BUCKET so they remain visible.
+function filterMemberships(data: GraphData, dropped: Set<string>): GraphData {
+	const nodes = data.nodes.map((n) => {
+		const kept = n.memberships.filter((m) => !dropped.has(m));
+		return { ...n, memberships: kept.length > 0 ? kept : [NONE_BUCKET] };
+	});
+	return { nodes, edges: data.edges };
+}
+
+function filterLabels(
+	labels: Map<string, string>,
+	dropped: Set<string>,
+	nodes: GraphNode[],
+): Map<string, string> {
+	const out = new Map(labels);
+	for (const k of dropped) out.delete(k);
+	if (nodes.some((n) => n.memberships.includes(NONE_BUCKET)) && !out.has(NONE_BUCKET)) {
+		out.set(NONE_BUCKET, NONE_BUCKET);
+	}
+	return out;
+}
+
+// Parse a single HAVING row into a predicate on cluster member count. Grammar:
+//   <aggregate> <op> <number>
+// where <aggregate> is `count` (only supported aggregate today) and <op> is
+// one of >= <= == != > <.
+function parseHaving(s: string): (count: number) => boolean {
+	const m = s.match(/^\s*([A-Za-z_]+)\s*(>=|<=|==|!=|>|<)\s*(-?\d+(?:\.\d+)?)\s*$/);
+	if (!m) throw new Error(`expected "count <op> <number>", got: "${s}"`);
+	const agg = m[1].toLowerCase();
+	if (agg !== "count") throw new Error(`unknown aggregate "${agg}" (only "count" supported)`);
+	const op = m[2];
+	const n = Number(m[3]);
+	switch (op) {
+		case ">=": return (c) => c >= n;
+		case "<=": return (c) => c <= n;
+		case ">": return (c) => c > n;
+		case "<": return (c) => c < n;
+		case "==": return (c) => c === n;
+		case "!=": return (c) => c !== n;
+	}
+	throw new Error(`unknown operator: ${op}`);
 }
 
 // Stable hue (0-359) derived from a cluster's groupKey. Uses a tiny string

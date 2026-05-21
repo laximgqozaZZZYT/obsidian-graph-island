@@ -73,6 +73,22 @@ const matched = (r) => isMatched(r);
 		!matched(evalQuery(q, file({ tags: [] }))));
 }
 
+// `tag:*` is an alias for `tag:?`
+{
+	const q = parseQuery("tag:*");
+	const r = evalQuery(q, file({ tags: ["wip", "later"] }));
+	assert("tag:* alias matches", matched(r) && r.instances.length === 2);
+	const tags = r.instances.map((m) => m.get("tag")).sort();
+	assert("tag:* alias binds each tag", tags[0] === "later" && tags[1] === "wip");
+}
+
+// `<fm>:*` also aliased
+{
+	const q = parseQuery("status:*");
+	const r = evalQuery(q, file({ fm: { status: "draft" } }));
+	assert("fm:* alias matches", matched(r) && r.instances[0].get("status") === "draft");
+}
+
 // folder / path field is rejected at parse time
 expectParseError("folder:src/work", "folder: is rejected");
 expectParseError("path:notes", "path: is rejected");

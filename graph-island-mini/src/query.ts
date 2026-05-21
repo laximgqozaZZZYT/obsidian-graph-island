@@ -83,6 +83,9 @@ function parseAtomText(text: string): Atom {
 	const field = text.slice(0, colon);
 	let value = text.slice(colon + 1);
 	if (value === "") throw new Error(`empty value in "${text}"`);
+	// `*` is accepted as an alias for the `?` partition wildcard so the
+	// notation matches glob-style conventions some users expect.
+	if (value === "*") value = "?";
 	if (field === "tag") {
 		if (value !== "?" && value.startsWith("#")) value = value.slice(1);
 		return { kind: "tag", value };

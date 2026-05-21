@@ -60,8 +60,8 @@ export default class GraphIslandMiniPlugin extends Plugin {
 			merged.groupBy = merged.groupBy.trim() ? [merged.groupBy.trim()] : [];
 		} else {
 			const gb = merged.groupBy as { kind?: string; field?: string } | undefined;
-			if (gb?.kind === "tag") merged.groupBy = ["tag:?"];
-			else if (gb?.kind === "frontmatter" && gb.field) merged.groupBy = [`${gb.field}:?`];
+			if (gb?.kind === "tag") merged.groupBy = ["tag:*"];
+			else if (gb?.kind === "frontmatter" && gb.field) merged.groupBy = [`${gb.field}:*`];
 			else merged.groupBy = [];
 		}
 		if (Array.isArray(merged.where)) {
@@ -71,6 +71,7 @@ export default class GraphIslandMiniPlugin extends Plugin {
 		} else {
 			merged.where = [];
 		}
+		if (!Array.isArray(merged.having)) merged.having = [];
 		if (typeof merged.panelVisible !== "boolean") merged.panelVisible = false;
 		if (typeof merged.showBody !== "boolean") merged.showBody = true;
 		if (typeof merged.showEnclosures !== "boolean") merged.showEnclosures = true;
