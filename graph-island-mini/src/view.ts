@@ -36,7 +36,7 @@ export class MiniGraphView extends ItemView {
 	private canvas!: HTMLCanvasElement;
 	private ctx!: CanvasRenderingContext2D;
 	private root!: HTMLElement;
-	private laid: LaidOut = { nodes: [], edges: [], clusters: [] };
+	private laid: LaidOut = { nodes: [], edges: [], clusters: [], trunks: [] };
 	private panX = 0;
 	private panY = 0;
 	private zoom = 1;
@@ -67,6 +67,9 @@ export class MiniGraphView extends ItemView {
 	private whereError = "";
 	private groupByError = "";
 	private havingError = "";
+	private limitError = "";
+	private displayMode: Map<string, "full" | "brief"> = new Map();
+	private degreeMap: Map<string, number> = new Map();
 	private panelEl: HTMLDivElement | null = null;
 
 	constructor(
@@ -188,10 +191,20 @@ export class MiniGraphView extends ItemView {
 		closeBtn.setAttr("aria-label", "Close settings");
 		closeBtn.addEventListener("click", () => this.togglePanel());
 
-		this.renderExprSection(el, "WHERE", this.settings.where, this.whereError);
-		this.renderExprSection(el, "GROUP_BY", this.settings.groupBy, this.groupByError);
+		this.renderExprSection(el, "WHERE", this.settings.where, this.whereError, {
+			autoKey: "whereAuto",
+		});
+		this.renderExprSection(el, "GROUP_BY", this.settings.groupBy, this.groupByError, {
+			autoKey: "groupByAuto",
+		});
 		this.renderExprSection(el, "HAVING", this.settings.having, this.havingError, {
 			placeholder: "e.g. count >= 3",
+			autoKey: "havingAuto",
+		});
+		this.renderOrderBySection(el);
+		this.renderExprSection(el, "LIMIT", this.settings.limit, this.limitError, {
+			placeholder: "limit 10 / brief 30",
+			autoKey: "limitAuto",
 		});
 		this.renderToggleSection(el, "Node display", [
 			{ key: "showBody", label: "Show body preview" },
@@ -200,6 +213,94 @@ export class MiniGraphView extends ItemView {
 			{ key: "showEnclosures", label: "Show enclosures" },
 			{ key: "showEdges", label: "Show edges" },
 		]);
+	}
+
+	// ORDER_BY is a scalar (single field + direction) rather than an array of
+	// rows, so it gets a dedicated UI: two selects plus an optional text input
+	// that appears only when the user picks "custom..." for an arbitrary
+	// frontmatter field.
+	private renderOrderBySection(parent: HTMLElement): void {
+		const section = parent.createDiv({ cls: "gim-panel-section" });
+		const header = section.createDiv({ cls: "gim-panel-section-header" });
+		header.createEl("h4", { text: "ORDER_BY" });
+
+		const row = section.createDiv({ cls: "gim-order-row" });
+		// Built-in fields grouped by source so the dropdown reads like a menu.
+		const GROUPS: { label: string; opts: { value: string; text: string }[] }[] = [
+			{
+				label: "File",
+				opts: [
+					{ value: "name", text: "name" },
+					{ value: "path", text: "path" },
+					{ value: "extension", text: "extension" },
+					{ value: "mtime", text: "modified" },
+					{ value: "ctime", text: "created" },
+					{ value: "size", text: "size" },
+				],
+			},
+			{
+				label: "Graph",
+				opts: [
+					{ value: "degree", text: "degree (links)" },
+					{ value: "memberships", text: "memberships (cluster count)" },
+				],
+			},
+			{
+				label: "Frontmatter",
+				opts: [{ value: "title", text: "title" }],
+			},
+			{
+				label: "Other",
+				opts: [{ value: "random", text: "random" }],
+			},
+		];
+		const KNOWN = new Set<string>();
+		for (const g of GROUPS) for (const o of g.opts) KNOWN.add(o.value);
+		const isCustom = !KNOWN.has(this.settings.orderField);
+
+		const fieldSel = row.createEl("select", { cls: "gim-order-field" });
+		for (const g of GROUPS) {
+			const grp = fieldSel.createEl("optgroup");
+			grp.setAttr("label", g.label);
+			for (const o of g.opts) {
+				const opt = grp.createEl("option", { value: o.value, text: o.text });
+				if (!isCustom && this.settings.orderField === o.value) opt.selected = true;
+			}
+		}
+		const customOpt = fieldSel.createEl("option", { value: "__custom__", text: "custom frontmatter…" });
+		if (isCustom) customOpt.selected = true;
+
+		const customInput = row.createEl("input", { type: "text", cls: "gim-order-custom" });
+		customInput.value = isCustom ? this.settings.orderField : "";
+		customInput.placeholder = "frontmatter field";
+		customInput.style.display = isCustom ? "" : "none";
+
+		fieldSel.addEventListener("change", () => {
+			if (fieldSel.value === "__custom__") {
+				customInput.style.display = "";
+				customInput.focus();
+				this.settings.orderField = customInput.value.trim() || "name";
+			} else {
+				customInput.style.display = "none";
+				this.settings.orderField = fieldSel.value;
+			}
+			void this.save();
+		});
+		customInput.addEventListener("change", () => {
+			const v = customInput.value.trim();
+			this.settings.orderField = v || "name";
+			void this.save();
+		});
+
+		const dirSel = row.createEl("select", { cls: "gim-order-dir" });
+		for (const d of ["asc", "desc"] as const) {
+			const opt = dirSel.createEl("option", { value: d, text: d });
+			if (this.settings.orderDir === d) opt.selected = true;
+		}
+		dirSel.addEventListener("change", () => {
+			this.settings.orderDir = dirSel.value as "asc" | "desc";
+			void this.save();
+		});
 	}
 
 	private renderToggleSection(
@@ -226,10 +327,25 @@ export class MiniGraphView extends ItemView {
 		label: string,
 		rows: string[],
 		error: string,
-		opts: { placeholder?: string } = {},
+		opts: {
+			placeholder?: string;
+			autoKey?: "whereAuto" | "groupByAuto" | "havingAuto" | "limitAuto";
+		} = {},
 	): void {
 		const section = parent.createDiv({ cls: "gim-panel-section" });
-		section.createEl("h4", { text: label });
+		const header = section.createDiv({ cls: "gim-panel-section-header" });
+		header.createEl("h4", { text: label });
+		if (opts.autoKey) {
+			const autoLabel = header.createEl("label", { cls: "gim-auto-toggle" });
+			const cb = autoLabel.createEl("input", { type: "checkbox" });
+			const key = opts.autoKey;
+			cb.checked = this.settings[key];
+			cb.addEventListener("change", () => {
+				this.settings[key] = cb.checked;
+				void this.save();
+			});
+			autoLabel.createSpan({ text: "auto" });
+		}
 
 		// Ensure at least one editable row is shown so users can type into it.
 		const displayRows = rows.length > 0 ? rows : [""];
@@ -290,25 +406,81 @@ export class MiniGraphView extends ItemView {
 
 	private async rebuild(): Promise<void> {
 		const gen = ++this.rebuildGen;
-		const { result, errors } = buildGraph(
-			this.app,
-			this.settings.where,
-			this.settings.groupBy,
-		);
+		// AUTO augmentation: manual rows are absolute (always kept). When the
+		// matching auto flag is on, append computed rows that AND-combine with
+		// the manual ones. The user can disable auto per section.
+		let effGroupBy = [...this.settings.groupBy];
+		if (
+			this.settings.groupByAuto &&
+			!effGroupBy.some((r) => r.trim().length > 0)
+		) {
+			effGroupBy = ["tag:*"];
+		}
+		let effWhere = [...this.settings.where];
+		if (this.settings.whereAuto) {
+			for (const r of effGroupBy) {
+				if (r.trim().length > 0) effWhere.push(r);
+			}
+		}
+		const { result, errors } = buildGraph(this.app, effWhere, effGroupBy);
 		this.whereError = errors.where ?? "";
 		this.groupByError = errors.groupBy ?? "";
 		let { data, clusterLabels } = result;
+
+		// Compute the effective HAVING after WHERE/GROUP_BY have produced
+		// node counts so auto thresholds can scale with data size.
+		let effHaving = [...this.settings.having];
+		if (this.settings.havingAuto) {
+			const n = data.nodes.length;
+			if (n > 10) {
+				const floor = Math.max(2, Math.floor(Math.sqrt(n) / 3));
+				effHaving.push(`count >= ${floor}`);
+			}
+			if (n > 30) {
+				// Tighter ceiling so single mega-clusters can't dominate the view.
+				const ceiling = Math.floor(n * 0.2);
+				effHaving.push(`count <= ${ceiling}`);
+			}
+		}
 
 		// Apply HAVING BEFORE layout so dropped clusters are removed from each
 		// node's memberships and the layout repositions nodes around only the
 		// surviving clusters. Files whose ONLY membership was dropped fall back
 		// to the NONE_BUCKET cluster.
-		const dropped = this.computeDroppedClusters(data.nodes);
+		const dropped = this.computeDroppedClusters(data.nodes, effHaving);
 		if (dropped.size > 0) {
 			data = filterMemberships(data, dropped);
-			clusterLabels = filterLabels(clusterLabels, dropped, data.nodes);
+			clusterLabels = filterLabels(clusterLabels, dropped);
 		}
 		this.clusterLabels = clusterLabels;
+
+		// Pre-compute degree (number of incident edges) per node so the
+		// "degree" sort field can be resolved in O(1) during ORDER_BY.
+		this.degreeMap.clear();
+		for (const e of data.edges) {
+			this.degreeMap.set(e.source, (this.degreeMap.get(e.source) ?? 0) + 1);
+			this.degreeMap.set(e.target, (this.degreeMap.get(e.target) ?? 0) + 1);
+		}
+		// LIMIT: filter visible nodes per cluster + assign display modes,
+		// using the standalone ORDER_BY field/direction as sort criterion.
+		const limitTiers = this.parseLimitRules();
+		const { visibleNodes, modes } = applyLimitRules(
+			data.nodes,
+			limitTiers,
+			this.settings.orderField,
+			this.settings.orderDir,
+			(id, field) => this.getSortKey(id, field),
+		);
+		this.displayMode = modes;
+		data = {
+			nodes: visibleNodes,
+			edges: data.edges.filter(
+				(e) =>
+					modes.has(e.source) &&
+					modes.has(e.target),
+			),
+		};
+
 		await this.ensureBodies(data.nodes);
 		if (gen !== this.rebuildGen) return;
 
@@ -323,6 +495,8 @@ export class MiniGraphView extends ItemView {
 		});
 		this.adjacency = new Map();
 		this.laid.edges.forEach((e, i) => {
+			// Every edge (bundled or not) carries the underlying source/target
+			// node IDs now, so the adjacency map can be built uniformly.
 			const sa = this.adjacency.get(e.source);
 			if (sa) sa.push(i); else this.adjacency.set(e.source, [i]);
 			const ta = this.adjacency.get(e.target);
@@ -335,35 +509,133 @@ export class MiniGraphView extends ItemView {
 		if (this.settings.panelVisible) this.renderPanel();
 	}
 
-	// Parse + evaluate HAVING. Counts come from `data.nodes` BEFORE any cluster
-	// drop so the test runs against the input partitioning. Returns the set of
-	// cluster keys that fail the HAVING conditions.
-	private computeDroppedClusters(nodes: GraphNode[]): Set<string> {
-		this.havingError = "";
-		const dropped = new Set<string>();
-		const rows = this.settings.having.map((s) => s.trim()).filter((s) => s.length > 0);
-		if (rows.length === 0) return dropped;
-		const tests: ((count: number) => boolean)[] = [];
-		for (const r of rows) {
+	// Build the effective LIMIT rule list by parsing manual rows + filling in
+	// missing slots with auto defaults when `limitAuto` is on. Manual rows are
+	// always respected; auto only adds rules of kinds the user didn't specify.
+	private parseLimitRules(): LimitRule[] {
+		this.limitError = "";
+		const errs: string[] = [];
+		const parse = (s: string): LimitRule | null => {
 			try {
-				tests.push(parseHaving(r));
+				return parseLimitRow(s);
 			} catch (e) {
-				const msg = e instanceof Error ? e.message : String(e);
-				this.havingError = this.havingError ? this.havingError + "; " + msg : msg;
+				errs.push(e instanceof Error ? e.message : String(e));
+				return null;
+			}
+		};
+		const manualRows = this.settings.limit
+			.map((s) => s.trim())
+			.filter((s) => s.length > 0);
+		const manual: LimitRule[] = [];
+		for (const r of manualRows) {
+			const p = parse(r);
+			if (p) manual.push(p);
+		}
+		if (this.settings.limitAuto) {
+			const hasLimit = manual.some((r) => r.kind === "limit");
+			const hasBrief = manual.some((r) => r.kind === "brief");
+			if (!hasLimit) manual.push({ kind: "limit", n: 15 });
+			if (!hasBrief) manual.push({ kind: "brief", n: 30 });
+		}
+		if (errs.length > 0) this.limitError = errs.join("; ");
+		return manual;
+	}
+
+	// Resolve a sort-key value for a node id. Supports built-in file fields
+	// (name/path/mtime/ctime/size/extension), graph-derived fields (degree,
+	// cluster, memberships), random shuffling, and any frontmatter field by
+	// name (default fallback).
+	private getSortKey(id: string, field: string): string | number {
+		const f = this.app.vault.getAbstractFileByPath(id);
+		if (!(f instanceof TFile)) return "";
+		switch (field) {
+			case "name":
+				return f.basename;
+			case "path":
+				return f.path;
+			case "extension":
+				return f.extension;
+			case "mtime":
+				return f.stat.mtime;
+			case "ctime":
+				return f.stat.ctime;
+			case "size":
+				return f.stat.size;
+			case "degree":
+				return this.degreeMap.get(id) ?? 0;
+			case "memberships": {
+				// Number of clusters the node belongs to. Useful for sorting
+				// "boundary" multi-tag files vs. "core" single-tag files.
+				const node = this.laid.nodes.find((n) => n.id === id);
+				return node?.memberships.length ?? 0;
+			}
+			case "random":
+				return Math.random();
+			case "title": {
+				// Frontmatter `title` field if present, else basename.
+				const cache = this.app.metadataCache.getFileCache(f);
+				const v = cache?.frontmatter?.title;
+				return v != null ? String(v) : f.basename;
+			}
+			default: {
+				const cache = this.app.metadataCache.getFileCache(f);
+				const v = cache?.frontmatter?.[field];
+				if (v == null) return "";
+				return Array.isArray(v) ? String(v[0]) : String(v);
 			}
 		}
-		if (tests.length === 0) return dropped;
+	}
+
+	// Parse + evaluate HAVING. Counts come from `data.nodes` BEFORE any cluster
+	// drop so the test runs against the input partitioning. Returns the set of
+	// cluster keys that fail the HAVING conditions plus auto-driven exclusions
+	// (NONE_BUCKET, top-K cap) when havingAuto is on.
+	private computeDroppedClusters(nodes: GraphNode[], rawRows: string[]): Set<string> {
+		this.havingError = "";
+		const dropped = new Set<string>();
+		// Cluster counts (used by both manual HAVING tests and top-K cap below)
 		const counts = new Map<string, number>();
 		for (const n of nodes) {
 			for (const m of n.memberships) {
 				counts.set(m, (counts.get(m) ?? 0) + 1);
 			}
 		}
-		for (const [key, count] of counts) {
-			for (const t of tests) {
-				if (!t(count)) {
-					dropped.add(key);
-					break;
+
+		// AUTO: top-K cap — keep only the K largest clusters. This trims a
+		// noisy long tail of mid-sized clusters that count thresholds alone
+		// don't catch.
+		if (this.settings.havingAuto) {
+			const TOP_K = 20;
+			const sorted = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+			for (let i = TOP_K; i < sorted.length; i++) {
+				dropped.add(sorted[i][0]);
+			}
+			// AUTO: NONE_BUCKET is always suppressed when auto is on (its
+			// members would otherwise have been removed by SQL HAVING anyway).
+			dropped.add(NONE_BUCKET);
+		}
+
+		// Manual HAVING rows (parsed)
+		const rows = rawRows.map((s) => s.trim()).filter((s) => s.length > 0);
+		if (rows.length > 0) {
+			const tests: ((count: number) => boolean)[] = [];
+			for (const r of rows) {
+				try {
+					tests.push(parseHaving(r));
+				} catch (e) {
+					const msg = e instanceof Error ? e.message : String(e);
+					this.havingError = this.havingError
+						? this.havingError + "; " + msg
+						: msg;
+				}
+			}
+			for (const [key, count] of counts) {
+				if (dropped.has(key)) continue;
+				for (const t of tests) {
+					if (!t(count)) {
+						dropped.add(key);
+						break;
+					}
 				}
 			}
 		}
@@ -392,24 +664,30 @@ export class MiniGraphView extends ItemView {
 	}
 
 	private cardFor(n: GraphNode): SizedNode {
-		const cached = this.cardCache.get(n.id);
+		const mode = this.displayMode.get(n.id) ?? "full";
+		const cacheKey = `${n.id}:${mode}`;
+		const cached = this.cardCache.get(cacheKey);
 		if (cached && cached.title === n.label) {
 			return { ...n, width: cached.width, height: cached.height };
 		}
 		const body = (this.bodyCache.get(n.id) ?? "").slice(0, this.settings.cardMaxChars);
-		const card = this.measureCard(n.label, body);
-		this.cardCache.set(n.id, card);
+		const card = this.measureCard(n.label, body, mode);
+		this.cardCache.set(cacheKey, card);
 		return { ...n, width: card.width, height: card.height };
 	}
 
-	private measureCard(title: string, body: string): CardContent {
+	private measureCard(
+		title: string,
+		body: string,
+		mode: "full" | "brief" = "full",
+	): CardContent {
 		const ctx = this.ctx;
 		const padX = CARD_PAD_X;
 		const padY = CARD_PAD_Y;
 		const innerMax = CARD_MAX_W - 2 * padX;
-		// Honour the showBody toggle at measurement time so cards stay compact
-		// (title-only) when previews are off.
-		const effectiveBody = this.settings.showBody ? body : "";
+		// Honour the showBody toggle AND the per-node display mode at
+		// measurement time. Brief mode = title-only regardless of showBody.
+		const effectiveBody = mode === "brief" || !this.settings.showBody ? "" : body;
 
 		// Title: single line. Width is the natural width capped at innerMax.
 		ctx.font = `600 ${CARD_TITLE_FONT_PX}px sans-serif`;
@@ -552,24 +830,38 @@ export class MiniGraphView extends ItemView {
 		ctx.lineJoin = "round";
 		const hasHighlight = this.highlightedEdgeIdx.size > 0;
 		const dim = "rgba(180,200,220,0.10)";
-		const base = "rgba(180,200,220,0.55)";
+		const line = "rgba(180,200,220,0.55)";
+		const trunkColor = "rgba(150,200,255,0.95)";
 		const accent = "#ff9d3f";
 		const glow = "rgba(255,157,63,0.35)";
 
-		// Layer 1: base edges (skip highlighted ones; we draw them on top later)
+		// Layer 1: all edges as thin LINEs. Every node-touching connection
+		// uses this uniform single-line style regardless of bundling.
 		if (this.settings.showEdges) {
+			const lineW = 0.7 / this.zoom;
+			ctx.lineWidth = lineW;
 			this.laid.edges.forEach((e, i) => {
 				if (hasHighlight && this.highlightedEdgeIdx.has(i)) return;
 				const path = e.path;
 				if (!path || path.length < 2) return;
-				ctx.strokeStyle = hasHighlight ? dim : base;
-				const baseW = Math.max(0.6, Math.log2(1 + e.weight) * 1.1);
-				ctx.lineWidth = baseW / this.zoom;
+				ctx.strokeStyle = hasHighlight ? dim : line;
 				ctx.beginPath();
 				ctx.moveTo(path[0].x, path[0].y);
 				for (let i2 = 1; i2 < path.length; i2++) ctx.lineTo(path[i2].x, path[i2].y);
 				ctx.stroke();
 			});
+			// Layer 1.5: TRUNKs overlay the shared trunk sections of bundled
+			// polylines. Drawn between cluster boundaries only — never reaching
+			// the cards themselves. Thickness scales with the bundle count.
+			for (const t of this.laid.trunks) {
+				const tw = (2.0 + Math.min(6, Math.log2(1 + t.count) * 1.0)) / this.zoom;
+				ctx.strokeStyle = hasHighlight ? dim : trunkColor;
+				ctx.lineWidth = tw;
+				ctx.beginPath();
+				ctx.moveTo(t.path[0].x, t.path[0].y);
+				for (let i2 = 1; i2 < t.path.length; i2++) ctx.lineTo(t.path[i2].x, t.path[i2].y);
+				ctx.stroke();
+			}
 		}
 
 		// Layer 2: base cards (covers the "stub" segment from edge port → card center)
@@ -578,23 +870,26 @@ export class MiniGraphView extends ItemView {
 			this.drawCard(ctx, n, false);
 		}
 
-		// Layer 3: accent edges (drawn on top of base cards so they reach the focus card)
+		// Layer 3: accent edges. Always drawn at LINE thickness (not TRUNK)
+		// because hover should highlight individual connections, not paint over
+		// the bundled cable.
 		if (hasHighlight && this.settings.showEdges) {
+			const accentSolidW = 1.8 / this.zoom;
+			const accentGlowW = 5 / this.zoom;
 			this.laid.edges.forEach((e, i) => {
 				if (!this.highlightedEdgeIdx.has(i)) return;
 				const path = e.path;
 				if (!path || path.length < 2) return;
-				const baseW = Math.max(0.6, Math.log2(1 + e.weight) * 1.1);
 				// Glow halo
 				ctx.strokeStyle = glow;
-				ctx.lineWidth = (baseW * 5) / this.zoom;
+				ctx.lineWidth = accentGlowW;
 				ctx.beginPath();
 				ctx.moveTo(path[0].x, path[0].y);
 				for (let i2 = 1; i2 < path.length; i2++) ctx.lineTo(path[i2].x, path[i2].y);
 				ctx.stroke();
 				// Solid accent
 				ctx.strokeStyle = accent;
-				ctx.lineWidth = (baseW * 2.5) / this.zoom;
+				ctx.lineWidth = accentSolidW;
 				ctx.beginPath();
 				ctx.moveTo(path[0].x, path[0].y);
 				for (let i2 = 1; i2 < path.length; i2++) ctx.lineTo(path[i2].x, path[i2].y);
@@ -648,7 +943,8 @@ export class MiniGraphView extends ItemView {
 		roundedRectPath(ctx, x, y, w, h, r);
 		ctx.stroke();
 
-		const card = this.cardCache.get(n.id);
+		const mode = this.displayMode.get(n.id) ?? "full";
+		const card = this.cardCache.get(`${n.id}:${mode}`);
 		const bodyLines = card?.bodyLines ?? [];
 		const innerLeft = x + CARD_PAD_X;
 		const innerTop = y + CARD_PAD_Y;
@@ -1051,27 +1347,103 @@ function sameTarget(a: HoverTarget, b: HoverTarget): boolean {
 	return false;
 }
 
-// Strip dropped clusters from each node's memberships. Files left with no
-// memberships fall back to NONE_BUCKET so they remain visible.
+// Strip dropped clusters from each node's memberships. Nodes whose entire
+// membership set was dropped are removed from the result entirely (SQL HAVING
+// semantics: a row whose group is filtered out shouldn't reappear in a
+// fallback bucket). Edges referencing removed nodes are also dropped.
 function filterMemberships(data: GraphData, dropped: Set<string>): GraphData {
-	const nodes = data.nodes.map((n) => {
-		const kept = n.memberships.filter((m) => !dropped.has(m));
-		return { ...n, memberships: kept.length > 0 ? kept : [NONE_BUCKET] };
-	});
-	return { nodes, edges: data.edges };
+	const nodes = data.nodes
+		.map((n) => ({
+			...n,
+			memberships: n.memberships.filter((m) => !dropped.has(m)),
+		}))
+		.filter((n) => n.memberships.length > 0);
+	const aliveIds = new Set(nodes.map((n) => n.id));
+	const edges = data.edges.filter(
+		(e) => aliveIds.has(e.source) && aliveIds.has(e.target),
+	);
+	return { nodes, edges };
 }
 
 function filterLabels(
 	labels: Map<string, string>,
 	dropped: Set<string>,
-	nodes: GraphNode[],
 ): Map<string, string> {
 	const out = new Map(labels);
 	for (const k of dropped) out.delete(k);
-	if (nodes.some((n) => n.memberships.includes(NONE_BUCKET)) && !out.has(NONE_BUCKET)) {
-		out.set(NONE_BUCKET, NONE_BUCKET);
-	}
 	return out;
+}
+
+// ---- LIMIT section: per-cluster node display rules ----
+
+type LimitRule = { kind: "limit"; n: number } | { kind: "brief"; n: number };
+
+function parseLimitRow(s: string): LimitRule {
+	const t = s.trim();
+	const limitM = t.match(/^limit\s+(\d+)$/i);
+	if (limitM) return { kind: "limit", n: parseInt(limitM[1], 10) };
+	const briefM = t.match(/^brief\s+(\d+)$/i);
+	if (briefM) return { kind: "brief", n: parseInt(briefM[1], 10) };
+	throw new Error(`LIMIT row: expected "limit N" or "brief N", got: "${s}"`);
+}
+
+// Apply tier rules per cluster. Each cluster sorts its members by the order
+// rule (default: name asc), then `limit` / `brief` rows consume successive
+// rank ranges. Anything past the last tier is implicitly hidden.
+//
+// Multi-membership nodes pick the BEST mode they earned across their clusters
+// (full > brief > hidden) so an "important in cluster A" node isn't suppressed
+// just because it's a low rank in cluster B.
+function applyLimitRules(
+	nodes: GraphNode[],
+	tiers: LimitRule[],
+	field: string,
+	dir: "asc" | "desc",
+	getSortKey: (id: string, field: string) => string | number,
+): { visibleNodes: GraphNode[]; modes: Map<string, "full" | "brief"> } {
+	// No tier rules → everything visible at full mode.
+	if (tiers.length === 0) {
+		const modes = new Map<string, "full" | "brief">();
+		for (const n of nodes) modes.set(n.id, "full");
+		return { visibleNodes: nodes, modes };
+	}
+
+	const byCluster = new Map<string, GraphNode[]>();
+	for (const n of nodes) {
+		for (const m of n.memberships) {
+			const arr = byCluster.get(m);
+			if (arr) arr.push(n);
+			else byCluster.set(m, [n]);
+		}
+	}
+
+	const modes = new Map<string, "full" | "brief">();
+	const rank = (m: "full" | "brief") => (m === "full" ? 2 : 1);
+
+	for (const members of byCluster.values()) {
+		const sorted = [...members].sort((a, b) => {
+			const ka = getSortKey(a.id, field);
+			const kb = getSortKey(b.id, field);
+			let cmp: number;
+			if (typeof ka === "number" && typeof kb === "number") cmp = ka - kb;
+			else cmp = String(ka).localeCompare(String(kb));
+			return dir === "asc" ? cmp : -cmp;
+		});
+		let cursor = 0;
+		for (const tier of tiers) {
+			const target = Math.min(tier.n, sorted.length);
+			const mode = tier.kind === "limit" ? "full" : "brief";
+			for (let i = cursor; i < target; i++) {
+				const id = sorted[i].id;
+				const existing = modes.get(id);
+				if (!existing || rank(mode) > rank(existing)) modes.set(id, mode);
+			}
+			cursor = target;
+		}
+	}
+
+	const visibleNodes = nodes.filter((n) => modes.has(n.id));
+	return { visibleNodes, modes };
 }
 
 // Parse a single HAVING row into a predicate on cluster member count. Grammar:

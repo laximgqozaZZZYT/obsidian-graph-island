@@ -92,7 +92,23 @@ function isOrtho(a, b) {
 
 let pass = true;
 let interHits = 0, intraHits = 0, nonOrtho = 0, totalSegs = 0;
+let bundledCount = 0;
 for (const e of laid.edges) {
+	if (e.bundled) {
+		// Bundled edges connect cluster boundaries, not card centres; only the
+		// orthogonality invariant is meaningful here.
+		bundledCount++;
+		for (let i = 1; i < e.path.length; i++) {
+			totalSegs++;
+			const a = e.path[i - 1], b = e.path[i];
+			if (!isOrtho(a, b)) {
+				nonOrtho++;
+				console.log(`FAIL non-ortho bundled seg ${e.source}->${e.target}`);
+				pass = false;
+			}
+		}
+		continue;
+	}
 	const sm = memOf.get(e.source) ?? [];
 	const tm = memOf.get(e.target) ?? [];
 	const isIntra = sm.some((m) => tm.includes(m));
@@ -125,6 +141,6 @@ for (const e of laid.edges) {
 // Structural invariants (endpoints + ortho-only) must hold. Card-body hits are
 // expected with variable-size cards and simple orthogonal routing; we report
 // them as a quality signal but don't fail the build for them.
-console.log(`segs=${totalSegs} nonOrtho=${nonOrtho} interHits=${interHits} intraHits=${intraHits}`);
+console.log(`segs=${totalSegs} nonOrtho=${nonOrtho} interHits=${interHits} intraHits=${intraHits} bundled=${bundledCount}`);
 console.log(pass ? "OK (structural)" : "FAIL (structural)");
 process.exit(pass ? 0 : 1);

@@ -20,6 +20,12 @@ export interface PositionedEdge {
 	target: string;
 	weight: number;
 	path: { x: number; y: number }[];
+	// True when this edge represents many individual file-to-file links bundled
+	// into a single line between two clusters. The renderer uses this to draw
+	// bundled edges with a heavier, brighter stroke than ordinary 1:1 edges.
+	bundled: boolean;
+	// For bundled edges, the number of underlying file pairs aggregated.
+	bundleCount: number;
 }
 
 export interface ClusterRect {
@@ -32,10 +38,21 @@ export interface ClusterRect {
 	memberCount: number;
 }
 
+// A trunk is the heavy "cable" drawn ONLY between two cluster boundaries.
+// Nodes never touch trunks directly — they connect to the trunk via thin
+// stub LINEs (the per-edge polylines below).
+export interface TrunkLine {
+	srcCluster: string;
+	tgtCluster: string;
+	count: number; // number of underlying file-to-file links carried
+	path: { x: number; y: number }[];
+}
+
 export interface LaidOut {
 	nodes: PositionedNode[];
 	edges: PositionedEdge[];
 	clusters: ClusterRect[];
+	trunks: TrunkLine[];
 }
 
 export interface LayoutOptions {
@@ -121,13 +138,79 @@ export function layout(data: GraphData, sized: SizedNode[], opts: LayoutOptions)
 	const idToRect = new Map<string, Rect>();
 	const idToSize = new Map<string, SizedNode>();
 
-	for (const p of packed) {
+	// 1) Compute initial sub-group centres from the centroid of their cluster
+	//    anchors. Multi-membership sub-groups get a tiny hash perturbation so
+	//    coincident centroids have a defined push direction during relaxation.
+	// 2) Iterate a collision-resolution loop: for every pair of overlapping
+	//    sub-group bboxes, push them apart along the shorter overlap axis.
+	//    Single-membership sub-groups are "anchored" with higher pin weight so
+	//    they barely drift; multi-membership ones absorb most of the
+	//    displacement.
+	interface SubPos {
+		cx: number;
+		cy: number;
+		halfW: number;
+		halfH: number;
+		pin: number; // higher = harder to move
+	}
+	const subPositions: SubPos[] = packed.map((p) => {
 		const centroid = centroidOf(p.memberships, anchors);
-		// Cluster offsets piggyback onto the first membership of the sub-group:
-		// dragging a single-tag cluster shifts only that anchor's worth of files.
 		const off = clusterOff[p.memberships[0] ?? ""] ?? { dx: 0, dy: 0 };
-		const cx = centroid.x + off.dx;
-		const cy = centroid.y + off.dy;
+		const tinyOff =
+			p.memberships.length > 1
+				? subgroupHashOffset(p.memberships.join("|"), 4)
+				: { x: 0, y: 0 };
+		return {
+			cx: centroid.x + off.dx + tinyOff.x,
+			cy: centroid.y + off.dy + tinyOff.y,
+			halfW: p.width / 2,
+			halfH: p.height / 2,
+			pin: p.memberships.length, // singles pin=1, doubles pin=2, etc.
+		};
+	});
+	const RELAX_GAP = opts.nodeSpacing;
+	const MAX_ITER = 80;
+	for (let iter = 0; iter < MAX_ITER; iter++) {
+		let any = false;
+		for (let i = 0; i < subPositions.length; i++) {
+			for (let j = i + 1; j < subPositions.length; j++) {
+				const a = subPositions[i];
+				const b = subPositions[j];
+				const dx = b.cx - a.cx;
+				const dy = b.cy - a.cy;
+				const reqX = a.halfW + b.halfW + RELAX_GAP;
+				const reqY = a.halfH + b.halfH + RELAX_GAP;
+				const overlapX = reqX - Math.abs(dx);
+				const overlapY = reqY - Math.abs(dy);
+				if (overlapX <= 0 || overlapY <= 0) continue;
+				any = true;
+				// Singles barely budge; bigger membership sets absorb the push.
+				// Push fraction for `a` is proportional to `b`'s pin (and vice
+				// versa), so a single (pin=1) vs a double (pin=2) splits 2:1.
+				const totalPin = a.pin + b.pin;
+				const fracA = b.pin / totalPin;
+				const fracB = a.pin / totalPin;
+				if (overlapX < overlapY) {
+					const push = overlapX + 0.5;
+					const sign = dx >= 0 ? 1 : -1;
+					a.cx -= sign * push * fracA;
+					b.cx += sign * push * fracB;
+				} else {
+					const push = overlapY + 0.5;
+					const sign = dy >= 0 ? 1 : -1;
+					a.cy -= sign * push * fracA;
+					b.cy += sign * push * fracB;
+				}
+			}
+		}
+		if (!any) break;
+	}
+
+	for (let pi = 0; pi < packed.length; pi++) {
+		const p = packed[pi];
+		const sp = subPositions[pi];
+		const cx = sp.cx;
+		const cy = sp.cy;
 
 		p.nodes.forEach((n, i) => {
 			const sz = sizedById.get(n.id) ?? fallbackSize(n);
@@ -207,16 +290,206 @@ export function layout(data: GraphData, sized: SizedNode[], opts: LayoutOptions)
 		});
 	}
 
-	// Edges: simple L-shape routing. Cards drawn over the endpoints hide the
-	// "stub" segments inside each card.
-	const aggregated = aggregateEdges(data.edges, idToRect);
-	const edges: PositionedEdge[] = aggregated.map((e) => {
-		const a = idToRect.get(e.source)!;
-		const b = idToRect.get(e.target)!;
-		return { source: e.source, target: e.target, weight: e.weight, path: lShape(a, b) };
-	});
+	// Edge bundling: group inter-cluster edges by (srcCluster, tgtCluster). If
+	// a pair has multiple file-to-file links, draw ONE bundled line between the
+	// two cluster boundaries instead of N parallel card-to-card lines. Intra
+	// cluster and singleton inter-cluster edges stay as 1:1.
+	const nodeToCluster = new Map<string, string>();
+	for (const n of positionedNodes) {
+		nodeToCluster.set(n.id, n.memberships[0] ?? "");
+	}
+	const clusterByKey = new Map<string, ClusterRect>();
+	for (const c of clusters) clusterByKey.set(c.groupKey, c);
 
-	return { nodes: positionedNodes, edges, clusters };
+	const aggregated = aggregateEdges(data.edges, idToRect);
+	interface PairGroup {
+		intra: boolean;
+		items: AggregatedEdge[];
+	}
+	const pairGroups = new Map<string, PairGroup>();
+	for (const e of aggregated) {
+		const ca = nodeToCluster.get(e.source) ?? "";
+		const cb = nodeToCluster.get(e.target) ?? "";
+		let key: string;
+		let intra: boolean;
+		if (ca === cb && ca !== "") {
+			key = `intra:${e.source}:${e.target}`;
+			intra = true;
+		} else {
+			const [a, b] = ca < cb ? [ca, cb] : [cb, ca];
+			key = `inter:${a}:${b}`;
+			intra = false;
+		}
+		const pg = pairGroups.get(key);
+		if (pg) pg.items.push(e);
+		else pairGroups.set(key, { intra, items: [e] });
+	}
+
+	const edges: PositionedEdge[] = [];
+	const trunks: TrunkLine[] = [];
+	for (const pg of pairGroups.values()) {
+		// Intra-cluster edges stay as a simple L between card centres (the
+		// path is entirely inside one cluster, where there's no risk of
+		// crossing another cluster's border).
+		if (pg.intra) {
+			for (const e of pg.items) {
+				const a = idToRect.get(e.source)!;
+				const b = idToRect.get(e.target)!;
+				edges.push({
+					source: e.source,
+					target: e.target,
+					weight: e.weight,
+					path: lShape(a, b),
+					bundled: false,
+					bundleCount: 1,
+				});
+			}
+			continue;
+		}
+		// Inter-cluster: route via cluster boundary midpoints regardless of how
+		// many underlying edges there are. This keeps every inter-cluster
+		// connection perpendicular to the cluster borders instead of running
+		// diagonally across them. The TRUNK overlay is only emitted when the
+		// pair carries 2+ links AND both sides have more than one card — that
+		// preserves the bundled vs single-line visual distinction.
+		const repE = pg.items[0];
+		const caKey = nodeToCluster.get(repE.source) ?? "";
+		const cbKey = nodeToCluster.get(repE.target) ?? "";
+		const ra = clusterByKey.get(caKey);
+		const rb = clusterByKey.get(cbKey);
+		if (!ra || !rb) {
+			for (const e of pg.items) {
+				const a = idToRect.get(e.source)!;
+				const b = idToRect.get(e.target)!;
+				edges.push({
+					source: e.source,
+					target: e.target,
+					weight: e.weight,
+					path: lShape(a, b),
+					bundled: false,
+					bundleCount: 1,
+				});
+			}
+			continue;
+		}
+		const aSingleton = ra.memberCount <= 1;
+		const bSingleton = rb.memberCount <= 1;
+		const showTrunk = pg.items.length >= 2 && !aSingleton && !bSingleton;
+		const sideA = sideTowards(ra, rb);
+		const sideB = sideTowards(rb, ra);
+		const trunkA = sidePoint(ra, sideA);
+		const trunkB = sidePoint(rb, sideB);
+		const bundleCount = pg.items.length;
+		if (showTrunk) {
+			trunks.push({
+				srcCluster: caKey,
+				tgtCluster: cbKey,
+				count: bundleCount,
+				path: trunkPathBetween(trunkA, trunkB),
+			});
+		}
+		for (const e of pg.items) {
+			const a = idToRect.get(e.source)!;
+			const b = idToRect.get(e.target)!;
+			// Always route via trunkA/trunkB so the line approaches each
+			// cluster perpendicular to its boundary. When showTrunk is false
+			// (singletons / single-member clusters) the same polyline is drawn
+			// without the heavy trunk overlay, so it reads as a thin line that
+			// happens to detour through the cluster gap.
+			const path = bundledPath(a, b, trunkA, sideA, trunkB, sideB);
+			edges.push({
+				source: e.source,
+				target: e.target,
+				weight: e.weight,
+				path,
+				bundled: showTrunk,
+				bundleCount,
+			});
+		}
+	}
+
+	return { nodes: positionedNodes, edges, clusters, trunks };
+}
+
+// L-shape polyline between two trunk boundary points. Used by the trunk
+// renderer; the per-edge polylines already trace the same path internally so
+// the trunk overlay sits cleanly on top of them.
+function trunkPathBetween(
+	a: { x: number; y: number },
+	b: { x: number; y: number },
+): { x: number; y: number }[] {
+	if (Math.abs(a.x - b.x) < 0.5) return [a, b];
+	if (Math.abs(a.y - b.y) < 0.5) return [a, b];
+	return [a, { x: b.x, y: a.y }, b];
+}
+
+type Side = "top" | "bottom" | "left" | "right";
+
+// Which side of `self` faces `other`?
+function sideTowards(self: ClusterRect, other: ClusterRect): Side {
+	const sx = self.x + self.width / 2;
+	const sy = self.y + self.height / 2;
+	const ox = other.x + other.width / 2;
+	const oy = other.y + other.height / 2;
+	const dx = ox - sx;
+	const dy = oy - sy;
+	if (Math.abs(dx) >= Math.abs(dy)) return dx >= 0 ? "right" : "left";
+	return dy >= 0 ? "bottom" : "top";
+}
+
+function sidePoint(c: ClusterRect, side: Side): { x: number; y: number } {
+	const cx = c.x + c.width / 2;
+	const cy = c.y + c.height / 2;
+	if (side === "top") return { x: cx, y: c.y };
+	if (side === "bottom") return { x: cx, y: c.y + c.height };
+	if (side === "left") return { x: c.x, y: cy };
+	return { x: c.x + c.width, y: cy };
+}
+
+// Orthogonal polyline: card center → bend_a → trunkA → trunkB → bend_b → card.
+// The bend point on each side is chosen so the last segment touching the trunk
+// is PERPENDICULAR to the cluster boundary (otherwise the stub would run along
+// the enclosure border and visually merge with its stroke).
+function bundledPath(
+	a: Rect,
+	b: Rect,
+	trunkA: { x: number; y: number },
+	sideA: Side,
+	trunkB: { x: number; y: number },
+	sideB: Side,
+): { x: number; y: number }[] {
+	const pts: { x: number; y: number }[] = [];
+	push(pts, { x: a.x, y: a.y });
+	push(pts, bendPoint({ x: a.x, y: a.y }, trunkA, sideA));
+	push(pts, trunkA);
+	// trunk segment between boundary points; L-bend if they're not axis-aligned.
+	if (Math.abs(trunkA.x - trunkB.x) > 0.5 && Math.abs(trunkA.y - trunkB.y) > 0.5) {
+		push(pts, { x: trunkB.x, y: trunkA.y });
+	}
+	push(pts, trunkB);
+	push(pts, bendPoint({ x: b.x, y: b.y }, trunkB, sideB));
+	push(pts, { x: b.x, y: b.y });
+	return pts;
+}
+
+// Bend at (cardX, trunkY) for left/right sides so the segment ending at the
+// trunk runs HORIZONTALLY (perpendicular to a vertical boundary). Mirrored
+// for top/bottom sides.
+function bendPoint(
+	card: { x: number; y: number },
+	trunk: { x: number; y: number },
+	side: Side,
+): { x: number; y: number } {
+	if (side === "left" || side === "right") return { x: card.x, y: trunk.y };
+	return { x: trunk.x, y: card.y };
+}
+
+// Append `next` if it differs from the last point already in the list (keeps
+// polylines clean for renderers that don't like duplicate vertices).
+function push(pts: { x: number; y: number }[], next: { x: number; y: number }): void {
+	const last = pts[pts.length - 1];
+	if (last && Math.abs(last.x - next.x) < 0.5 && Math.abs(last.y - next.y) < 0.5) return;
+	pts.push(next);
 }
 
 function collectClusterKeys(
@@ -260,6 +533,21 @@ function isSubset<T>(small: Set<T>, big: Set<T>): boolean {
 	if (small.size > big.size) return false;
 	for (const v of small) if (!big.has(v)) return false;
 	return true;
+}
+
+// Deterministic radial offset from a sub-group's membership signature. The
+// angle is derived from an FNV-1a hash so different membership sets are
+// pushed in different directions even when their grid centroid coincides.
+function subgroupHashOffset(key: string, magnitude: number): { x: number; y: number } {
+	if (magnitude <= 0) return { x: 0, y: 0 };
+	let h = 2166136261;
+	for (let i = 0; i < key.length; i++) {
+		h ^= key.charCodeAt(i);
+		h = Math.imul(h, 16777619);
+	}
+	const u = (h >>> 0) / 0xffffffff;
+	const angle = u * Math.PI * 2;
+	return { x: Math.cos(angle) * magnitude, y: Math.sin(angle) * magnitude };
 }
 
 function centroidOf(

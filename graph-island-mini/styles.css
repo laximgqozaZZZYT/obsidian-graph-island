@@ -107,6 +107,32 @@
 	letter-spacing: 0.04em;
 }
 
+.gim-panel-section-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	margin-bottom: 6px;
+}
+
+.gim-panel-section-header h4 {
+	margin: 0;
+}
+
+.gim-auto-toggle {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	font-size: 10px;
+	color: var(--text-muted);
+	cursor: pointer;
+	text-transform: none;
+	letter-spacing: 0;
+}
+
+.gim-auto-toggle input[type="checkbox"] {
+	margin: 0;
+}
+
 .gim-expr-row {
 	display: flex;
 	align-items: center;
@@ -163,6 +189,38 @@
 
 .gim-expr-add:hover {
 	background: var(--interactive-hover);
+}
+
+.gim-order-row {
+	display: flex;
+	gap: 4px;
+	align-items: center;
+}
+
+.gim-order-row select,
+.gim-order-row input[type="text"] {
+	padding: 3px 6px;
+	font-size: 11px;
+	background: var(--background-primary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 4px;
+	color: var(--text-normal);
+}
+
+.gim-order-field {
+	flex: 0 0 auto;
+	min-width: 80px;
+}
+
+.gim-order-custom {
+	flex: 1;
+	min-width: 0;
+	font-family: var(--font-monospace);
+}
+
+.gim-order-dir {
+	flex: 0 0 auto;
+	min-width: 60px;
 }
 
 .gim-toggle-row {

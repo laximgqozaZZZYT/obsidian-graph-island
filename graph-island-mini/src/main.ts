@@ -72,10 +72,21 @@ export default class GraphIslandMiniPlugin extends Plugin {
 			merged.where = [];
 		}
 		if (!Array.isArray(merged.having)) merged.having = [];
+		if (!Array.isArray(merged.limit)) merged.limit = [];
+		if (typeof merged.orderField !== "string" || merged.orderField === "") {
+			merged.orderField = "name";
+		}
+		if (merged.orderDir !== "asc" && merged.orderDir !== "desc") {
+			merged.orderDir = "asc";
+		}
 		if (typeof merged.panelVisible !== "boolean") merged.panelVisible = false;
 		if (typeof merged.showBody !== "boolean") merged.showBody = true;
 		if (typeof merged.showEnclosures !== "boolean") merged.showEnclosures = true;
 		if (typeof merged.showEdges !== "boolean") merged.showEdges = true;
+		if (typeof merged.whereAuto !== "boolean") merged.whereAuto = true;
+		if (typeof merged.groupByAuto !== "boolean") merged.groupByAuto = true;
+		if (typeof merged.havingAuto !== "boolean") merged.havingAuto = true;
+		if (typeof merged.limitAuto !== "boolean") merged.limitAuto = true;
 		this.settings = merged as unknown as MiniSettings;
 	}
 

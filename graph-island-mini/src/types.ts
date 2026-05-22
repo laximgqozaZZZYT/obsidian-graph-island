@@ -33,6 +33,23 @@ export interface MiniSettings {
 	// are AND-combined. Failing clusters keep their nodes visible but their
 	// enclosure (outline + label) is suppressed.
 	having: string[];
+	// Per-cluster node display tiers: `limit N` (top N shown full) and
+	// `brief N` (next batch shown title-only). Anything beyond the highest
+	// tier is hidden. The sort order used to compute "top N" comes from
+	// orderField/orderDir below.
+	limit: string[];
+	// Sort criterion shared by LIMIT tiers. `orderField` accepts built-ins
+	// (name/mtime/ctime/size) plus any frontmatter field name.
+	orderField: string;
+	orderDir: "asc" | "desc";
+	// When `*Auto` is true, the system AND-augments the corresponding section
+	// with auto-computed conditions so the default view stays readable. Manual
+	// rows are always respected and combine multiplicatively with the auto
+	// additions.
+	whereAuto: boolean;
+	groupByAuto: boolean;
+	havingAuto: boolean;
+	limitAuto: boolean;
 	// Per-view display toggles.
 	showBody: boolean;
 	showEnclosures: boolean;
@@ -49,6 +66,13 @@ export const DEFAULT_SETTINGS: MiniSettings = {
 	where: [],
 	groupBy: ["tag:*"],
 	having: [],
+	limit: [],
+	orderField: "name",
+	orderDir: "asc",
+	whereAuto: true,
+	groupByAuto: true,
+	havingAuto: true,
+	limitAuto: true,
 	showBody: true,
 	showEnclosures: true,
 	showEdges: true,
