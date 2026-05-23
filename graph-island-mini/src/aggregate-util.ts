@@ -108,3 +108,66 @@ export function nodeFootprint(
 		endRow: startRow + rowSpan - 1,
 	};
 }
+
+// Build AABB rectangles for every visible card (= not aggregated and not
+// hidden). Used as the badge-snap "hit any card" geometric check, in
+// addition to the cell-occupied set.
+export function buildCardAABBs(
+	nodes: { id: string; x: number; y: number; width: number; height: number }[],
+	exclude: (id: string) => boolean,
+): CardAABB[] {
+	const out: CardAABB[] = [];
+	for (const n of nodes) {
+		if (exclude(n.id)) continue;
+		out.push({
+			left: n.x - n.width / 2,
+			right: n.x + n.width / 2,
+			top: n.y - n.height / 2,
+			bottom: n.y + n.height / 2,
+		});
+	}
+	return out;
+}
+
+// True when the centre of cell (col, row) — converted to world space via
+// the slotW / slotH lattice — falls inside any of the supplied card
+// AABBs. Used STRICTLY (open intervals) so a cell touching a card edge
+// is treated as free.
+export function cellHitsAnyCard(
+	col: number,
+	row: number,
+	cardAABBs: CardAABB[],
+	slotW: number,
+	slotH: number,
+): boolean {
+	const cx = (col + 0.5) * slotW;
+	const cy = (row + 0.5) * slotH;
+	for (const r of cardAABBs) {
+		if (cx > r.left && cx < r.right && cy > r.top && cy < r.bottom) return true;
+	}
+	return false;
+}
+
+// Chebyshev-radius spiral search for a cell that satisfies !isBlocked.
+// Starts at (col, row); if already free returns it. Expands radius by 1
+// each iteration until maxRadius (default 128). Returns the first free
+// cell found, or { found: false, ... } if the spiral exhausts.
+export function findFreeCell(
+	col: number,
+	row: number,
+	isBlocked: (c: number, r: number) => boolean,
+	maxRadius: number = 128,
+): { col: number; row: number; found: boolean } {
+	if (!isBlocked(col, row)) return { col, row, found: true };
+	for (let radius = 1; radius < maxRadius; radius++) {
+		for (let dc = -radius; dc <= radius; dc++) {
+			for (let dr = -radius; dr <= radius; dr++) {
+				if (Math.max(Math.abs(dc), Math.abs(dr)) !== radius) continue;
+				const cc = col + dc;
+				const rr = row + dr;
+				if (!isBlocked(cc, rr)) return { col: cc, row: rr, found: true };
+			}
+		}
+	}
+	return { col, row, found: false };
+}

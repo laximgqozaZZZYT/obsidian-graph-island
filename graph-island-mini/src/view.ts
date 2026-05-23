@@ -39,7 +39,9 @@ import {
 	computeParentOf,
 	computeTrulyAgg,
 	nodeFootprint,
-	type CardAABB,
+	buildCardAABBs,
+	cellHitsAnyCard,
+	findFreeCell,
 } from "./aggregate-util";
 import {
 	computeMemberSets,
@@ -1058,27 +1060,12 @@ export class MiniGraphView extends ItemView {
 			// set CAN miss footprint corners when float arithmetic puts the
 			// rounded startCol/Row off by one — a direct AABB check on the
 			// resulting badge centre catches those misses.
-			const cardAABBs: CardAABB[] = [];
-			for (const n of this.laid.nodes) {
-				if (trulyAgg.has(n.id)) continue;
-				if (hiddenSet.has(n.id)) continue;
-				cardAABBs.push({
-					left: n.x - n.width / 2,
-					right: n.x + n.width / 2,
-					top: n.y - n.height / 2,
-					bottom: n.y + n.height / 2,
-				});
-			}
-			const cellHitsCard = (col: number, row: number): boolean => {
-				const cx = (col + 0.5) * slotW;
-				const cy = (row + 0.5) * slotH;
-				for (const r of cardAABBs) {
-					if (cx > r.left && cx < r.right && cy > r.top && cy < r.bottom) {
-						return true;
-					}
-				}
-				return false;
-			};
+			const cardAABBs = buildCardAABBs(
+				this.laid.nodes,
+				(id) => trulyAgg.has(id) || hiddenSet.has(id),
+			);
+			const cellHitsCard = (col: number, row: number): boolean =>
+				cellHitsAnyCard(col, row, cardAABBs, slotW, slotH);
 			for (const cluster of sortedClusters) {
 				if (!aggSet.has(cluster.groupKey)) continue;
 				let sx = 0;
@@ -1097,27 +1084,11 @@ export class MiniGraphView extends ItemView {
 				// occupied set AND (b) its centre must not fall inside any
 				// card's AABB. Both checks together close the gap where a
 				// float-rounding mismatch let a badge land inside a card.
-				let col = Math.floor(sx / count / slotW);
-				let row = Math.floor(sy / count / slotH);
+				const initCol = Math.floor(sx / count / slotW);
+				const initRow = Math.floor(sy / count / slotH);
 				const isBlocked = (c: number, r: number): boolean =>
 					occupied.has(`${c},${r}`) || cellHitsCard(c, r);
-				if (isBlocked(col, row)) {
-					outer: for (let radius = 1; radius < 128; radius++) {
-						for (let dc = -radius; dc <= radius; dc++) {
-							for (let dr = -radius; dr <= radius; dr++) {
-								if (Math.max(Math.abs(dc), Math.abs(dr)) !== radius)
-									continue;
-								const cc = col + dc;
-								const rr = row + dr;
-								if (!isBlocked(cc, rr)) {
-									col = cc;
-									row = rr;
-									break outer;
-								}
-							}
-						}
-					}
-				}
+				let { col, row } = findFreeCell(initCol, initRow, isBlocked);
 				// Final guarantee: if spiral somehow failed (e.g. dense
 				// surround), park the badge past the right edge of every
 				// visible card. cellHitsCard MUST return false at the
@@ -1129,7 +1100,7 @@ export class MiniGraphView extends ItemView {
 						if (rc > maxRightCol) maxRightCol = rc;
 					}
 					col = maxRightCol + 2;
-					row = Math.floor(sy / count / slotH);
+					row = initRow;
 				}
 				const key = `${col},${row}`;
 				occupied.add(key);
