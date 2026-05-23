@@ -41,6 +41,16 @@ import {
 	nodeFootprint,
 	type CardAABB,
 } from "./aggregate-util";
+import {
+	computeMemberSets,
+	computeStrictSupersets,
+} from "./cluster-relations";
+import {
+	resolveNodeDisplay as resolveNodeDisplayFn,
+	resolveFromCluster as resolveFromClusterFn,
+	type NodeDisplay,
+	type NodeDisplayDeps,
+} from "./node-display";
 
 export const VIEW_TYPE_MINI = "graph-island-mini";
 
@@ -132,14 +142,7 @@ export class MiniGraphView extends ItemView {
 	private clusterSupersets: Map<string, string[]> = new Map();
 	// Per-node resolved NODE_DISPLAY snapshot. Filled once per rebuild from
 	// the override chain so cardFor / drawCard don't re-walk it per call.
-	private nodeDisplayCache: Map<
-		string,
-		{
-			nodeRows: number;
-			nodeCols: number;
-			nodeSizeMode: "fixed" | "indegree" | "outdegree";
-		}
-	> = new Map();
+	private nodeDisplayCache: Map<string, NodeDisplay> = new Map();
 	private panelEl: HTMLDivElement | null = null;
 	// Current tab in the settings panel. "__all__" = 全体. Otherwise = a
 	// cluster groupKey produced by WHERE → GROUP_BY → HAVING.
@@ -681,44 +684,8 @@ export class MiniGraphView extends ItemView {
 	// chain produces when this cluster has no override) so the per-layer
 	// panel can show it as placeholder text and the user can tell what
 	// they're overriding.
-	private resolveFromCluster(groupKey: string): {
-		nodeRows: number;
-		nodeCols: number;
-		nodeSizeMode: "fixed" | "indegree" | "outdegree";
-	} {
-		const overrides = this.settings.nodeDisplayOverrides;
-		const lookup = (
-			field: "nodeRows" | "nodeCols" | "nodeSizeMode",
-		):
-			| number
-			| "fixed"
-			| "indegree"
-			| "outdegree"
-			| undefined => {
-			const own = overrides[groupKey]?.[field];
-			if (own !== undefined) return own as never;
-			const inh = this.settings.inheritFrom[groupKey];
-			if (inh) {
-				const v = overrides[inh]?.[field];
-				if (v !== undefined) return v as never;
-			}
-			const supers = this.clusterSupersets.get(groupKey) ?? [];
-			for (const sup of supers) {
-				const v = overrides[sup]?.[field];
-				if (v !== undefined) return v as never;
-			}
-			return undefined;
-		};
-		return {
-			nodeRows: (lookup("nodeRows") as number | undefined) ?? this.settings.nodeRows,
-			nodeCols: (lookup("nodeCols") as number | undefined) ?? this.settings.nodeCols,
-			nodeSizeMode:
-				(lookup("nodeSizeMode") as
-					| "fixed"
-					| "indegree"
-					| "outdegree"
-					| undefined) ?? this.settings.nodeSizeMode,
-		};
+	private resolveFromCluster(groupKey: string): NodeDisplay {
+		return resolveFromClusterFn(groupKey, this.nodeDisplayDeps());
 	}
 
 	// ORDER_BY is a scalar (single field + direction) rather than an array of
@@ -1516,86 +1483,36 @@ export class MiniGraphView extends ItemView {
 	// keys. Called once per rebuild so the override resolver can walk the
 	// "own → inheritFrom → superset → global" chain in O(1) lookups.
 	private recomputeClusterRelations(nodes: GraphNode[]): void {
-		this.clusterMemberSets.clear();
-		this.clusterSupersets.clear();
-		const keys = new Set<string>();
-		for (const n of nodes) for (const m of n.memberships) keys.add(m);
-		for (const key of keys) {
-			const s = new Set<string>();
-			for (const n of nodes) if (n.memberships.includes(key)) s.add(n.id);
-			this.clusterMemberSets.set(key, s);
-		}
-		for (const [key, mems] of this.clusterMemberSets) {
-			const supers: string[] = [];
-			for (const [otherKey, otherMems] of this.clusterMemberSets) {
-				if (otherKey === key) continue;
-				if (otherMems.size <= mems.size) continue;
-				let isSuper = true;
-				for (const m of mems) {
-					if (!otherMems.has(m)) {
-						isSuper = false;
-						break;
-					}
-				}
-				if (isSuper) supers.push(otherKey);
-			}
-			this.clusterSupersets.set(key, supers);
-		}
+		this.clusterMemberSets = computeMemberSets(nodes);
+		this.clusterSupersets = computeStrictSupersets(this.clusterMemberSets);
 	}
 
-	// Resolve NODE_DISPLAY for a node by walking the priority chain:
-	//   1. Override on the node's group
-	//   2. Override on `inheritFrom[group]`
-	//   3. Override on any strict superset of the group
-	//   4. Global setting (= this.settings.node*)
-	// Memberships are tried in the node's declared order; the first
-	// concrete value found at any level for a given field wins.
-	private resolveNodeDisplay(n: GraphNode): {
-		nodeRows: number;
-		nodeCols: number;
-		nodeSizeMode: "fixed" | "indegree" | "outdegree";
-	} {
-		const overrides = this.settings.nodeDisplayOverrides;
-		const lookup = <K extends "nodeRows" | "nodeCols" | "nodeSizeMode">(
-			field: K,
-		): number | "fixed" | "indegree" | "outdegree" | undefined => {
-			for (const m of n.memberships) {
-				const own = overrides[m]?.[field];
-				if (own !== undefined) return own as never;
-				const inh = this.settings.inheritFrom[m];
-				if (inh) {
-					const v = overrides[inh]?.[field];
-					if (v !== undefined) return v as never;
-				}
-				const supers = this.clusterSupersets.get(m) ?? [];
-				for (const sup of supers) {
-					const v = overrides[sup]?.[field];
-					if (v !== undefined) return v as never;
-				}
-			}
-			return undefined;
+	private nodeDisplayDeps(): NodeDisplayDeps {
+		return {
+			overrides: this.settings.nodeDisplayOverrides,
+			inheritFrom: this.settings.inheritFrom,
+			supersetsOf: this.clusterSupersets,
+			defaults: {
+				nodeRows: this.settings.nodeRows,
+				nodeCols: this.settings.nodeCols,
+				nodeSizeMode: this.settings.nodeSizeMode,
+			},
 		};
-		const rows = (lookup("nodeRows") as number | undefined) ?? this.settings.nodeRows;
-		const cols = (lookup("nodeCols") as number | undefined) ?? this.settings.nodeCols;
-		const mode =
-			(lookup("nodeSizeMode") as
-				| "fixed"
-				| "indegree"
-				| "outdegree"
-				| undefined) ?? this.settings.nodeSizeMode;
-		return { nodeRows: rows, nodeCols: cols, nodeSizeMode: mode };
+	}
+
+	private resolveNodeDisplay(n: GraphNode): NodeDisplay {
+		return resolveNodeDisplayFn(n, this.nodeDisplayDeps());
 	}
 
 	private recomputeNodeDisplayCache(nodes: GraphNode[]): void {
 		this.nodeDisplayCache.clear();
-		for (const n of nodes) this.nodeDisplayCache.set(n.id, this.resolveNodeDisplay(n));
+		const deps = this.nodeDisplayDeps();
+		for (const n of nodes) {
+			this.nodeDisplayCache.set(n.id, resolveNodeDisplayFn(n, deps));
+		}
 	}
 
-	private getNodeDisplay(nodeId: string): {
-		nodeRows: number;
-		nodeCols: number;
-		nodeSizeMode: "fixed" | "indegree" | "outdegree";
-	} {
+	private getNodeDisplay(nodeId: string): NodeDisplay {
 		return (
 			this.nodeDisplayCache.get(nodeId) ?? {
 				nodeRows: this.settings.nodeRows,
