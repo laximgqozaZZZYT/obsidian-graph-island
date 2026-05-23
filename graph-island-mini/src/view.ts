@@ -7,7 +7,7 @@ import {
 	type SizedNode,
 	type ClusterRect,
 } from "./layout";
-import type { MiniSettings, GraphNode, GraphData } from "./types";
+import type { MiniSettings, GraphNode } from "./types";
 import { NONE_BUCKET } from "./types";
 import {
 	CARD_TITLE_FONT_PX,
@@ -22,6 +22,19 @@ import {
 	CARD_CELL_W,
 	CARD_CELL_H,
 } from "./types";
+import {
+	type LimitRule,
+	parseLimitRow,
+	applyLimitRules,
+} from "./limit";
+import { filterMemberships, filterLabels, parseHaving } from "./query-filters";
+import {
+	colLetters,
+	clusterHue,
+	roundedRectPath,
+	wrapText,
+	truncateToWidth,
+} from "./canvas-utils";
 
 export const VIEW_TYPE_MINI = "graph-island-mini";
 
@@ -2741,243 +2754,3 @@ function sameTarget(a: HoverTarget, b: HoverTarget): boolean {
 	return false;
 }
 
-// Strip dropped clusters from each node's memberships. Nodes whose entire
-// membership set was dropped are removed from the result entirely (SQL HAVING
-// semantics: a row whose group is filtered out shouldn't reappear in a
-// fallback bucket). Edges referencing removed nodes are also dropped.
-function filterMemberships(data: GraphData, dropped: Set<string>): GraphData {
-	const nodes = data.nodes
-		.map((n) => ({
-			...n,
-			memberships: n.memberships.filter((m) => !dropped.has(m)),
-		}))
-		.filter((n) => n.memberships.length > 0);
-	const aliveIds = new Set(nodes.map((n) => n.id));
-	const edges = data.edges.filter(
-		(e) => aliveIds.has(e.source) && aliveIds.has(e.target),
-	);
-	return { nodes, edges };
-}
-
-function filterLabels(
-	labels: Map<string, string>,
-	dropped: Set<string>,
-): Map<string, string> {
-	const out = new Map(labels);
-	for (const k of dropped) out.delete(k);
-	return out;
-}
-
-// ---- LIMIT section: per-cluster node display rules ----
-
-type LimitRule = { kind: "limit"; n: number } | { kind: "brief"; n: number };
-
-function parseLimitRow(s: string): LimitRule {
-	const t = s.trim();
-	const limitM = t.match(/^limit\s+(\d+)$/i);
-	if (limitM) return { kind: "limit", n: parseInt(limitM[1], 10) };
-	const briefM = t.match(/^brief\s+(\d+)$/i);
-	if (briefM) return { kind: "brief", n: parseInt(briefM[1], 10) };
-	throw new Error(`LIMIT row: expected "limit N" or "brief N", got: "${s}"`);
-}
-
-// Apply tier rules per cluster. Each cluster sorts its members by the order
-// rule (default: name asc), then `limit` / `brief` rows consume successive
-// rank ranges. Anything past the last tier is implicitly hidden.
-//
-// Multi-membership nodes pick the BEST mode they earned across their clusters
-// (full > brief > hidden) so an "important in cluster A" node isn't suppressed
-// just because it's a low rank in cluster B.
-function applyLimitRules(
-	nodes: GraphNode[],
-	tiers: LimitRule[],
-	field: string,
-	dir: "asc" | "desc",
-	getSortKey: (id: string, field: string) => string | number,
-): { visibleNodes: GraphNode[]; modes: Map<string, "full" | "brief"> } {
-	// No tier rules (or every tier resolves to "zero items") → everything
-	// visible at full mode. This safety check stops a bad LIMIT setting
-	// (like "limit 0") from wiping the entire canvas.
-	const effectiveTiers = tiers.filter((t) => t.n > 0);
-	if (effectiveTiers.length === 0) {
-		const modes = new Map<string, "full" | "brief">();
-		for (const n of nodes) modes.set(n.id, "full");
-		return { visibleNodes: nodes, modes };
-	}
-	tiers = effectiveTiers;
-
-	const byCluster = new Map<string, GraphNode[]>();
-	for (const n of nodes) {
-		for (const m of n.memberships) {
-			const arr = byCluster.get(m);
-			if (arr) arr.push(n);
-			else byCluster.set(m, [n]);
-		}
-	}
-
-	const modes = new Map<string, "full" | "brief">();
-	const rank = (m: "full" | "brief") => (m === "full" ? 2 : 1);
-
-	for (const members of byCluster.values()) {
-		const sorted = [...members].sort((a, b) => {
-			const ka = getSortKey(a.id, field);
-			const kb = getSortKey(b.id, field);
-			let cmp: number;
-			if (typeof ka === "number" && typeof kb === "number") cmp = ka - kb;
-			else cmp = String(ka).localeCompare(String(kb));
-			return dir === "asc" ? cmp : -cmp;
-		});
-		let cursor = 0;
-		for (const tier of tiers) {
-			const target = Math.min(tier.n, sorted.length);
-			const mode = tier.kind === "limit" ? "full" : "brief";
-			for (let i = cursor; i < target; i++) {
-				const id = sorted[i].id;
-				const existing = modes.get(id);
-				if (!existing || rank(mode) > rank(existing)) modes.set(id, mode);
-			}
-			cursor = target;
-		}
-	}
-
-	const visibleNodes = nodes.filter((n) => modes.has(n.id));
-	return { visibleNodes, modes };
-}
-
-// Parse a single HAVING row into a predicate on cluster member count. Grammar:
-//   <aggregate> <op> <number>
-// where <aggregate> is `count` (only supported aggregate today) and <op> is
-// one of >= <= == != > <.
-function parseHaving(s: string): (count: number) => boolean {
-	const m = s.match(/^\s*([A-Za-z_]+)\s*(>=|<=|==|!=|>|<)\s*(-?\d+(?:\.\d+)?)\s*$/);
-	if (!m) throw new Error(`expected "count <op> <number>", got: "${s}"`);
-	const agg = m[1].toLowerCase();
-	if (agg !== "count") throw new Error(`unknown aggregate "${agg}" (only "count" supported)`);
-	const op = m[2];
-	const n = Number(m[3]);
-	switch (op) {
-		case ">=": return (c) => c >= n;
-		case "<=": return (c) => c <= n;
-		case ">": return (c) => c > n;
-		case "<": return (c) => c < n;
-		case "==": return (c) => c === n;
-		case "!=": return (c) => c !== n;
-	}
-	throw new Error(`unknown operator: ${op}`);
-}
-
-// Stable hue (0-359) derived from a cluster's groupKey. Uses a tiny string
-// hash multiplied by the golden-angle constant so neighbouring clusters end up
-// far apart on the colour wheel even when their keys are similar.
-// Excel-style column header letters: 0 → "A", 25 → "Z", 26 → "AA", 27 → "AB"…
-function colLetters(c: number): string {
-	if (c < 0) return "";
-	let n = c + 1;
-	let s = "";
-	while (n > 0) {
-		const rem = (n - 1) % 26;
-		s = String.fromCharCode(65 + rem) + s;
-		n = Math.floor((n - 1) / 26);
-	}
-	return s;
-}
-
-function clusterHue(key: string): number {
-	let h = 2166136261;
-	for (let i = 0; i < key.length; i++) {
-		h ^= key.charCodeAt(i);
-		h = Math.imul(h, 16777619);
-	}
-	const u = (h >>> 0) / 0xffffffff;
-	return (u * 360 * 1.61803398875) % 360;
-}
-
-function roundedRectPath(
-	ctx: CanvasRenderingContext2D,
-	x: number,
-	y: number,
-	w: number,
-	h: number,
-	r: number,
-): void {
-	const rr = Math.max(0, Math.min(r, w / 2, h / 2));
-	ctx.moveTo(x + rr, y);
-	ctx.lineTo(x + w - rr, y);
-	ctx.quadraticCurveTo(x + w, y, x + w, y + rr);
-	ctx.lineTo(x + w, y + h - rr);
-	ctx.quadraticCurveTo(x + w, y + h, x + w - rr, y + h);
-	ctx.lineTo(x + rr, y + h);
-	ctx.quadraticCurveTo(x, y + h, x, y + h - rr);
-	ctx.lineTo(x, y + rr);
-	ctx.quadraticCurveTo(x, y, x + rr, y);
-}
-
-// Word-aware wrapping with character-break fallback for over-long tokens
-// (covers Japanese where there are no whitespace separators).
-function wrapText(
-	ctx: CanvasRenderingContext2D,
-	text: string,
-	maxWidth: number,
-	maxLines: number = 8,
-): string[] {
-	if (maxWidth <= 0 || maxLines <= 0) return [];
-	const lines: string[] = [];
-	const paragraphs = text.split(/\n+/);
-	outer: for (const para of paragraphs) {
-		const tokens = para.match(/\S+|\s+/g) ?? [];
-		let cur = "";
-		for (const tok of tokens) {
-			const candidate = cur + tok;
-			if (ctx.measureText(candidate).width <= maxWidth) {
-				cur = candidate;
-				continue;
-			}
-			if (cur.trim()) {
-				lines.push(cur.trimEnd());
-				if (lines.length >= maxLines) break outer;
-			}
-			if (ctx.measureText(tok).width > maxWidth) {
-				let chunk = "";
-				for (const ch of tok) {
-					const t = chunk + ch;
-					if (ctx.measureText(t).width <= maxWidth) {
-						chunk = t;
-					} else {
-						if (chunk) lines.push(chunk);
-						if (lines.length >= maxLines) break outer;
-						chunk = ch;
-					}
-				}
-				cur = chunk;
-			} else {
-				cur = tok.trimStart();
-			}
-		}
-		if (cur.trim() && lines.length < maxLines) lines.push(cur.trimEnd());
-		if (lines.length >= maxLines) break;
-	}
-	if (lines.length > maxLines) lines.length = maxLines;
-	// Add ellipsis on last line if text exceeded our line budget.
-	if (lines.length === maxLines) {
-		const last = lines[maxLines - 1];
-		const withEll = last.replace(/\s+$/, "") + "…";
-		if (ctx.measureText(withEll).width <= maxWidth) {
-			lines[maxLines - 1] = withEll;
-		} else {
-			lines[maxLines - 1] = truncateToWidth(ctx, last, maxWidth);
-		}
-	}
-	return lines;
-}
-
-function truncateToWidth(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string {
-	if (ctx.measureText(text).width <= maxWidth) return text;
-	const ell = "…";
-	let lo = 0, hi = text.length;
-	while (lo < hi) {
-		const mid = (lo + hi + 1) >> 1;
-		if (ctx.measureText(text.slice(0, mid) + ell).width <= maxWidth) lo = mid;
-		else hi = mid - 1;
-	}
-	return lo === 0 ? ell : text.slice(0, lo) + ell;
-}
