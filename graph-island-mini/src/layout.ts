@@ -18,6 +18,22 @@ import {
 	type RouteObstacle,
 	type RouteRect,
 } from "./edge-routing";
+import {
+	type SubGroup,
+	groupByMembershipSet,
+	fallbackSize,
+	shelfPack,
+} from "./subgroup-packing";
+import {
+	type SubPos,
+	relaxSubgroups,
+	snapSubgroupsToGrid,
+} from "./subgroup-relax";
+import { snapCardsToGrid } from "./cell-snap";
+import {
+	computeClusterBBoxes,
+	clampClustersToB2,
+} from "./cluster-bbox";
 
 export interface SizedNode extends GraphNode {
 	width: number;
@@ -224,21 +240,10 @@ export function layout(data: GraphData, sized: SizedNode[], opts: LayoutOptions)
 	const idToRect = new Map<string, Rect>();
 	const idToSize = new Map<string, SizedNode>();
 
-	// 1) Compute initial sub-group centres from the centroid of their cluster
-	//    anchors. Multi-membership sub-groups get a tiny hash perturbation so
-	//    coincident centroids have a defined push direction during relaxation.
-	// 2) Iterate a collision-resolution loop: for every pair of overlapping
-	//    sub-group bboxes, push them apart along the shorter overlap axis.
-	//    Single-membership sub-groups are "anchored" with higher pin weight so
-	//    they barely drift; multi-membership ones absorb most of the
-	//    displacement.
-	interface SubPos {
-		cx: number;
-		cy: number;
-		halfW: number;
-		halfH: number;
-		pin: number; // higher = harder to move
-	}
+	// Phase 2: build sub-group centres from cluster-anchor centroids,
+	// then relax overlaps. Smaller relax gap (= nodeSpacing/4) keeps
+	// sub-groups in the same group touching after collision resolution
+	// so the parent enclosure stays tight.
 	const subPositions: SubPos[] = packed.map((p) => {
 		const centroid = centroidOf(p.memberships, anchors);
 		const off = clusterOff[p.memberships[0] ?? ""] ?? { dx: 0, dy: 0 };
@@ -251,55 +256,13 @@ export function layout(data: GraphData, sized: SizedNode[], opts: LayoutOptions)
 			cy: centroid.y + off.dy + tinyOff.y,
 			halfW: p.width / 2,
 			halfH: p.height / 2,
-			pin: p.memberships.length, // singles pin=1, doubles pin=2, etc.
+			pin: p.memberships.length,
 		};
 	});
-	// Smaller relax gap = sub-groups can sit closer to each other after
-	// collision resolution. Sub-groups in the same group end up touching
-	// instead of separated by a full nodeSpacing, which keeps the parent
-	// enclosure tight.
 	const RELAX_GAP = Math.max(2, Math.floor(opts.nodeSpacing / 4));
-	const MAX_ITER = 80;
-	for (let iter = 0; iter < MAX_ITER; iter++) {
-		let any = false;
-		for (let i = 0; i < subPositions.length; i++) {
-			for (let j = i + 1; j < subPositions.length; j++) {
-				const a = subPositions[i];
-				const b = subPositions[j];
-				const dx = b.cx - a.cx;
-				const dy = b.cy - a.cy;
-				const reqX = a.halfW + b.halfW + RELAX_GAP;
-				const reqY = a.halfH + b.halfH + RELAX_GAP;
-				const overlapX = reqX - Math.abs(dx);
-				const overlapY = reqY - Math.abs(dy);
-				if (overlapX <= 0 || overlapY <= 0) continue;
-				any = true;
-				// Singles barely budge; bigger membership sets absorb the push.
-				// Push fraction for `a` is proportional to `b`'s pin (and vice
-				// versa), so a single (pin=1) vs a double (pin=2) splits 2:1.
-				const totalPin = a.pin + b.pin;
-				const fracA = b.pin / totalPin;
-				const fracB = a.pin / totalPin;
-				if (overlapX < overlapY) {
-					const push = overlapX + 0.5;
-					const sign = dx >= 0 ? 1 : -1;
-					a.cx -= sign * push * fracA;
-					b.cx += sign * push * fracB;
-				} else {
-					const push = overlapY + 0.5;
-					const sign = dy >= 0 ? 1 : -1;
-					a.cy -= sign * push * fracA;
-					b.cy += sign * push * fracB;
-				}
-			}
-		}
-		if (!any) break;
-	}
+	relaxSubgroups(subPositions, RELAX_GAP, 80);
 	// Phase 3: snap sub-group centres to the global grid after relaxation.
-	for (const sp of subPositions) {
-		sp.cx = Math.round(sp.cx / gridX) * gridX;
-		sp.cy = Math.round(sp.cy / gridY) * gridY;
-	}
+	snapSubgroupsToGrid(subPositions, gridX, gridY);
 
 	for (let pi = 0; pi < packed.length; pi++) {
 		const p = packed[pi];
@@ -331,172 +294,23 @@ export function layout(data: GraphData, sized: SizedNode[], opts: LayoutOptions)
 		});
 	}
 
-	// Excel-style slot snap with FOOTPRINT awareness. Each card reserves
-	// ceil(w/slotW) × ceil(h/slotH) cells (= the full grid area it covers),
-	// not just one cell. Variable-sized cards (when nodeSizeMode != fixed
-	// scales them up) thus occupy multiple cells and never overlap their
-	// neighbours. Process big cards first so they grab the prime real
-	// estate; small ones fill in the gaps.
-	const occupied = new Set<string>();
-	const order = positionedNodes
-		.map((_, i) => i)
-		.sort((a, b) => {
-			const A = positionedNodes[a];
-			const B = positionedNodes[b];
-			return B.width * B.height - A.width * A.height;
-		});
-	for (const idx of order) {
-		const n = positionedNodes[idx];
-		const colSpan = Math.max(1, Math.ceil(n.width / slotW));
-		const rowSpan = Math.max(1, Math.ceil(n.height / slotH));
-		// Snap so the FOOTPRINT is centred around the original (n.x, n.y).
-		// Card centre will be at (col + colSpan/2)·slotW.
-		let col = Math.floor(n.x / slotW - (colSpan - 1) / 2);
-		let row = Math.floor(n.y / slotH - (rowSpan - 1) / 2);
-		const isFree = (c: number, r: number): boolean => {
-			for (let dc = 0; dc < colSpan; dc++) {
-				for (let dr = 0; dr < rowSpan; dr++) {
-					if (occupied.has(`${c + dc},${r + dr}`)) return false;
-				}
-			}
-			return true;
-		};
-		if (!isFree(col, row)) {
-			outer: for (let radius = 1; radius < 256; radius++) {
-				for (let dc = -radius; dc <= radius; dc++) {
-					for (let dr = -radius; dr <= radius; dr++) {
-						if (Math.max(Math.abs(dc), Math.abs(dr)) !== radius) continue;
-						if (isFree(col + dc, row + dr)) {
-							col += dc;
-							row += dr;
-							break outer;
-						}
-					}
-				}
-			}
-		}
-		for (let dc = 0; dc < colSpan; dc++) {
-			for (let dr = 0; dr < rowSpan; dr++) {
-				occupied.add(`${col + dc},${row + dr}`);
-			}
-		}
-		n.x = (col + colSpan / 2) * slotW;
-		n.y = (row + rowSpan / 2) * slotH;
-		const r = idToRect.get(n.id);
-		if (r) {
-			r.x = n.x;
-			r.y = n.y;
-		}
-	}
+	// Phase 3.5: snap each card to a free grid cell, reserving its full
+	// multi-cell footprint so neighbours can't overlap it.
+	snapCardsToGrid(positionedNodes, slotW, slotH, idToRect);
 
-	// Build the member set for each cluster so we can detect nesting and give
-	// outer clusters extra padding. Without this, an outer cluster whose
-	// rightmost member is shared with an inner cluster would have the same
-	// right edge as the inner one, making the inner enclosure appear to lie
-	// directly on the outer's border.
-	const memberSets = new Map<string, Set<string>>();
-	for (const key of clusterKeys) {
-		const set = new Set<string>();
-		for (const n of positionedNodes) {
-			if (n.memberships.includes(key)) set.add(n.id);
-		}
-		memberSets.set(key, set);
-	}
-	const nestingDepth = new Map<string, number>();
-	for (const x of clusterKeys) {
-		const xs = memberSets.get(x)!;
-		let depth = 0;
-		for (const y of clusterKeys) {
-			if (x === y) continue;
-			const ys = memberSets.get(y)!;
-			if (ys.size < xs.size && isSubset(ys, xs)) depth++;
-		}
-		nestingDepth.set(x, depth);
-	}
-
-	// Base padding around member cards, plus per-nesting-level boost so each
-	// containing layer sits clearly outside the layers it encloses.
-	const BASE_PAD = Math.max(24, opts.clusterSpacing / 2);
-	const NEST_PAD = 18;
-	const basePadCellsX = Math.max(0, Math.ceil((BASE_PAD - channelW / 2) / slotW));
-	const basePadCellsY = Math.max(0, Math.ceil((BASE_PAD - channelH / 2) / slotH));
-	const nestPadCellsX = Math.max(1, Math.ceil(NEST_PAD / slotW));
-	const nestPadCellsY = Math.max(1, Math.ceil(NEST_PAD / slotH));
-	const clusters: ClusterRect[] = [];
-	for (const key of clusterKeys) {
-		let cellMinCol = Infinity;
-		let cellMaxCol = -Infinity;
-		let cellMinRow = Infinity;
-		let cellMaxRow = -Infinity;
-		let count = 0;
-		// Every member of this group affects the bbox — multi-tag nodes
-		// belong to all their groups' enclosures (Euler-style), so excluding
-		// them from any one group's bbox would visually orphan them.
-		for (const n of positionedNodes) {
-			if (!n.memberships.includes(key)) continue;
-			count++;
-			const colSpan = Math.max(1, Math.ceil(n.width / slotW));
-			const rowSpan = Math.max(1, Math.ceil(n.height / slotH));
-			const startCol = Math.round(n.x / slotW - colSpan / 2);
-			const startRow = Math.round(n.y / slotH - rowSpan / 2);
-			const endCol = startCol + colSpan - 1;
-			const endRow = startRow + rowSpan - 1;
-			if (startCol < cellMinCol) cellMinCol = startCol;
-			if (endCol > cellMaxCol) cellMaxCol = endCol;
-			if (startRow < cellMinRow) cellMinRow = startRow;
-			if (endRow > cellMaxRow) cellMaxRow = endRow;
-		}
-		if (count === 0) continue;
-		const nest = nestingDepth.get(key) ?? 0;
-		const padCellsX = basePadCellsX + nest * nestPadCellsX;
-		const padCellsY = basePadCellsY + nest * nestPadCellsY;
-		// Enclosure edges ride the channels between slots — left/right at
-		// (col − pad)·slotW and (col + 1 + pad)·slotW, i.e. the channel
-		// centres just outside the card cells. Same for top/bottom.
-		const left = (cellMinCol - padCellsX) * slotW;
-		const right = (cellMaxCol + 1 + padCellsX) * slotW;
-		const top = (cellMinRow - padCellsY) * slotH;
-		const bottom = (cellMaxRow + 1 + padCellsY) * slotH;
-		clusters.push({
-			groupKey: key,
-			label: labels.get(key) ?? key,
-			x: left,
-			y: top,
-			width: right - left,
-			height: bottom - top,
-			memberCount: count,
-		});
-	}
-
-	// Clamp every cluster's left/top to the CHANNEL between column A and
-	// column B (resp. row 1 and row 2). Column A and row 1 stay completely
-	// empty — no enclosure border may enter them. The leftmost card cell
-	// is at globalMinCol, so the clamp boundary is globalMinCol * slotW
-	// (the channel just to the left of card B / above row 2).
-	if (positionedNodes.length > 0 && clusters.length > 0) {
-		let globalMinCol = Infinity;
-		let globalMinRow = Infinity;
-		for (const n of positionedNodes) {
-			const colSpan = Math.max(1, Math.ceil(n.width / slotW));
-			const rowSpan = Math.max(1, Math.ceil(n.height / slotH));
-			const startCol = Math.round(n.x / slotW - colSpan / 2);
-			const startRow = Math.round(n.y / slotH - rowSpan / 2);
-			if (startCol < globalMinCol) globalMinCol = startCol;
-			if (startRow < globalMinRow) globalMinRow = startRow;
-		}
-		const gridLeft = globalMinCol * slotW;
-		const gridTop = globalMinRow * slotH;
-		for (const c of clusters) {
-			if (c.x < gridLeft) {
-				c.width = Math.max(slotW, c.width - (gridLeft - c.x));
-				c.x = gridLeft;
-			}
-			if (c.y < gridTop) {
-				c.height = Math.max(slotH, c.height - (gridTop - c.y));
-				c.y = gridTop;
-			}
-		}
-	}
+	// Phase 4: compute one bbox per cluster + clamp every left/top to the
+	// B2 channel so enclosures don't bleed into the reserved column A /
+	// row 1 header strip.
+	const { clusters } = computeClusterBBoxes(positionedNodes, {
+		clusterKeys,
+		labels,
+		slotW,
+		slotH,
+		channelW,
+		channelH,
+		clusterSpacing: opts.clusterSpacing,
+	});
+	clampClustersToB2(clusters, positionedNodes, slotW, slotH);
 
 	// Edge bundling: group inter-cluster edges by (srcCluster, tgtCluster). If
 	// a pair has multiple file-to-file links, draw ONE bundled line between the
@@ -663,6 +477,9 @@ export function layout(data: GraphData, sized: SizedNode[], opts: LayoutOptions)
 	};
 }
 
+// Re-export sub-group helpers used by callers that go via layout.ts.
+export type { SubGroup } from "./subgroup-packing";
+
 function collectClusterKeys(
 	nodes: GraphNode[],
 	labels: Map<string, string>,
@@ -680,31 +497,8 @@ function collectClusterKeys(
 	});
 }
 
-interface SubGroup {
-	memberships: string[]; // sorted
-	nodes: GraphNode[];
-}
 
-function groupByMembershipSet(nodes: GraphNode[]): SubGroup[] {
-	const m = new Map<string, SubGroup>();
-	for (const n of nodes) {
-		const sorted = [...n.memberships].sort();
-		const key = sorted.join("");
-		let sg = m.get(key);
-		if (!sg) {
-			sg = { memberships: sorted, nodes: [] };
-			m.set(key, sg);
-		}
-		sg.nodes.push(n);
-	}
-	return [...m.values()];
-}
 
-function isSubset<T>(small: Set<T>, big: Set<T>): boolean {
-	if (small.size > big.size) return false;
-	for (const v of small) if (!big.has(v)) return false;
-	return true;
-}
 
 // Compute per-node degree (= number of incident edges).
 function computeDegreeMap(edges: GraphEdge[]): Map<string, number> {
@@ -715,50 +509,3 @@ function computeDegreeMap(edges: GraphEdge[]): Map<string, number> {
 	}
 	return m;
 }
-
-// Rank clusters by aggregate degree (sum of member node degrees), tie-broken
-// by member count. NONE_BUCKET keeps its place at the end as before.
-
-function fallbackSize(n: GraphNode): SizedNode {
-	return { ...n, width: 80, height: 24 };
-}
-
-// Shelf-pack cards into rows until the row would exceed a sqrt-area target,
-// then wrap. Returned positions are top-left-relative centers.
-function shelfPack(
-	sizes: SizedNode[],
-	gap: number,
-): {
-	positions: { x: number; y: number }[];
-	width: number;
-	height: number;
-} {
-	if (sizes.length === 0) return { positions: [], width: 32, height: 24 };
-	let totalArea = 0;
-	let maxCardW = 0;
-	for (const s of sizes) {
-		totalArea += (s.width + gap) * (s.height + gap);
-		if (s.width > maxCardW) maxCardW = s.width;
-	}
-	const targetW = Math.max(maxCardW, Math.ceil(Math.sqrt(totalArea) * 1.15));
-	const positions: { x: number; y: number }[] = new Array(sizes.length);
-	let curX = 0;
-	let curY = 0;
-	let rowH = 0;
-	let maxEnd = 0;
-	for (let i = 0; i < sizes.length; i++) {
-		const s = sizes[i];
-		if (curX > 0 && curX + s.width > targetW) {
-			curY += rowH + gap;
-			curX = 0;
-			rowH = 0;
-		}
-		positions[i] = { x: curX + s.width / 2, y: curY + s.height / 2 };
-		curX += s.width + gap;
-		if (s.height > rowH) rowH = s.height;
-		if (curX - gap > maxEnd) maxEnd = curX - gap;
-	}
-	return { positions, width: maxEnd, height: curY + rowH };
-}
-
-
