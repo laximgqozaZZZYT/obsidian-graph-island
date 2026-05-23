@@ -21,6 +21,7 @@ import {
 	CARD_MAX_W,
 	CARD_CELL_W,
 	CARD_CELL_H,
+	CARD_RADIUS_PX,
 } from "./types";
 import { type LimitRule, applyLimitRules } from "./limit";
 import { filterMemberships, filterLabels } from "./query-filters";
@@ -38,6 +39,12 @@ import {
 } from "./canvas-utils";
 import { runAggregateSnap } from "./aggregate-snap";
 import {
+	drawCardGrid as drawCardGridFn,
+	drawGridHeaders as drawGridHeadersFn,
+	drawClusterLabels as drawClusterLabelsFn,
+	drawAggregateStack as drawAggregateStackFn,
+} from "./draw-helpers";
+import {
 	computeMemberSets,
 	computeStrictSupersets,
 } from "./cluster-relations";
@@ -53,7 +60,6 @@ export const VIEW_TYPE_MINI = "graph-island-mini";
 const HOVER_DELAY_MS = 350;
 const TOOLTIP_OFFSET_X = 14;
 const TOOLTIP_OFFSET_Y = -8;
-const CARD_RADIUS_PX = 4;
 
 // Internal cache: maps file path → pre-processed body preview (post-frontmatter,
 // trimmed). Persists across rebuilds so we don't re-read 2k+ files every time
@@ -1554,62 +1560,7 @@ export class MiniGraphView extends ItemView {
 	// strips of blank space. Cluster enclosures, trunks and single wires
 	// all route through those visible channels.
 	private drawCardGrid(ctx: CanvasRenderingContext2D): void {
-		if (this.laid.nodes.length === 0) return;
-		const W = this.laid.slotW;
-		const H = this.laid.slotH;
-		const channelW = this.laid.channelW;
-		const channelH = this.laid.channelH;
-		if (W <= 0 || H <= 0) return;
-
-		let cardMinCol = Infinity, cardMaxCol = -Infinity;
-		let cardMinRow = Infinity, cardMaxRow = -Infinity;
-		for (const n of this.laid.nodes) {
-			// Use card FOOTPRINT (multi-cell for scaled cards), not just the
-			// centre cell, so the visible grid range extends to every cell
-			// the largest cards actually occupy.
-			const colSpan = Math.max(1, Math.ceil(n.width / W));
-			const rowSpan = Math.max(1, Math.ceil(n.height / H));
-			const startCol = Math.round(n.x / W - colSpan / 2);
-			const startRow = Math.round(n.y / H - rowSpan / 2);
-			const endCol = startCol + colSpan - 1;
-			const endRow = startRow + rowSpan - 1;
-			if (startCol < cardMinCol) cardMinCol = startCol;
-			if (endCol > cardMaxCol) cardMaxCol = endCol;
-			if (startRow < cardMinRow) cardMinRow = startRow;
-			if (endRow > cardMaxRow) cardMaxRow = endRow;
-		}
-
-		// Column A (= cardMinCol − 1) and row 1 (= cardMinRow − 1) are
-		// reserved empty borders. The reserved cells still get a frame so
-		// the grid origin is visible.
-		const minCol = cardMinCol - 1;
-		const maxCol = cardMaxCol;
-		const minRow = cardMinRow - 1;
-		const maxRow = cardMaxRow;
-
-		const padX = channelW / 2;
-		const padY = channelH / 2;
-
-		ctx.strokeStyle = "rgba(120, 140, 160, 0.22)";
-		ctx.lineWidth = 1 / this.zoom;
-		ctx.beginPath();
-		for (let r = minRow; r <= maxRow; r++) {
-			const top = r * H + padY;
-			const bottom = (r + 1) * H - padY;
-			for (let c = minCol; c <= maxCol; c++) {
-				const left = c * W + padX;
-				const right = (c + 1) * W - padX;
-				ctx.moveTo(left, top);
-				ctx.lineTo(right, top);
-				ctx.moveTo(left, bottom);
-				ctx.lineTo(right, bottom);
-				ctx.moveTo(left, top);
-				ctx.lineTo(left, bottom);
-				ctx.moveTo(right, top);
-				ctx.lineTo(right, bottom);
-			}
-		}
-		ctx.stroke();
+		drawCardGridFn(ctx, this.laid, this.zoom);
 	}
 
 	// Frozen-pane row/column headers. Drawn in SCREEN space (identity
@@ -1618,224 +1569,13 @@ export class MiniGraphView extends ItemView {
 	// Cells inside each band still align horizontally / vertically with the
 	// world-space body cells via worldX * zoom + panX.
 	private drawGridHeaders(ctx: CanvasRenderingContext2D): void {
-		if (this.laid.nodes.length === 0) return;
-		const W = this.laid.slotW;
-		const H = this.laid.slotH;
-		if (W <= 0 || H <= 0) return;
-
-		let cardMinCol = Infinity, cardMaxCol = -Infinity;
-		let cardMinRow = Infinity, cardMaxRow = -Infinity;
-		for (const n of this.laid.nodes) {
-			const colSpan = Math.max(1, Math.ceil(n.width / W));
-			const rowSpan = Math.max(1, Math.ceil(n.height / H));
-			const startCol = Math.round(n.x / W - colSpan / 2);
-			const startRow = Math.round(n.y / H - rowSpan / 2);
-			const endCol = startCol + colSpan - 1;
-			const endRow = startRow + rowSpan - 1;
-			if (startCol < cardMinCol) cardMinCol = startCol;
-			if (endCol > cardMaxCol) cardMaxCol = endCol;
-			if (startRow < cardMinRow) cardMinRow = startRow;
-			if (endRow > cardMaxRow) cardMaxRow = endRow;
-		}
-		// Reserve column A and row 1 as always-empty borders (no card may
-		// occupy them). Labels start from this shifted origin so the first
-		// card column is labeled "B" and the first card row is "2".
-		const minCol = cardMinCol - 1;
-		const maxCol = cardMaxCol;
-		const minRow = cardMinRow - 1;
-		const maxRow = cardMaxRow;
-
-		const dpr = window.devicePixelRatio || 1;
-		const visW = this.canvas.width / dpr;
-		const visH = this.canvas.height / dpr;
-
-		const cellScreenW = W * this.zoom;
-		const cellScreenH = H * this.zoom;
-
-		// Header band sizes (screen px). Clamped so they read at any zoom
-		// level but never balloon larger than ~36×56 screen px.
-		const headerH = Math.max(22, Math.min(36, cellScreenH * 0.9));
-		const headerW = Math.max(32, Math.min(56, cellScreenW * 0.7));
-
-		// Solid background bands flush with the viewport edges (no gap).
-		ctx.fillStyle = "rgba(58, 78, 108, 0.98)";
-		ctx.fillRect(0, 0, visW, headerH);
-		ctx.fillRect(0, 0, headerW, visH);
-
-		// Internal lines within bands (one per cell boundary, screen space).
-		ctx.strokeStyle = "rgba(120, 140, 160, 0.45)";
-		ctx.lineWidth = 1;
-		ctx.beginPath();
-		for (let c = minCol; c <= maxCol + 1; c++) {
-			const x = c * W * this.zoom + this.panX;
-			if (x < headerW - 0.5 || x > visW + 0.5) continue;
-			ctx.moveTo(x, 0);
-			ctx.lineTo(x, headerH);
-		}
-		for (let r = minRow; r <= maxRow + 1; r++) {
-			const y = r * H * this.zoom + this.panY;
-			if (y < headerH - 0.5 || y > visH + 0.5) continue;
-			ctx.moveTo(0, y);
-			ctx.lineTo(headerW, y);
-		}
-		ctx.stroke();
-
-		// Strong outer separators where headers meet the body.
-		ctx.strokeStyle = "rgba(180, 200, 230, 0.9)";
-		ctx.lineWidth = 1.6;
-		ctx.beginPath();
-		ctx.moveTo(0, headerH);
-		ctx.lineTo(visW, headerH);
-		ctx.moveTo(headerW, 0);
-		ctx.lineTo(headerW, visH);
-		ctx.stroke();
-
-		// Header text. Always drawn — at low zoom the labels would overlap so
-		// we use a STRIDE that skips every Nth column/row label, keeping the
-		// remaining ones readable. Stride = ceil(min-label-px / cellScreenPx).
-		const minColPxW = 18;
-		const minRowPxH = 14;
-		const colStride = Math.max(1, Math.ceil(minColPxW / Math.max(1, cellScreenW)));
-		const rowStride = Math.max(1, Math.ceil(minRowPxH / Math.max(1, cellScreenH)));
-		const fontPx = Math.min(headerH * 0.7, headerW * 0.7, 16);
-		ctx.font = `700 ${fontPx}px sans-serif`;
-		ctx.fillStyle = "rgba(245, 250, 255, 1)";
-		ctx.textAlign = "center";
-		ctx.textBaseline = "middle";
-
-		for (let c = minCol; c <= maxCol; c += colStride) {
-			const xC = c * W * this.zoom + this.panX + cellScreenW / 2;
-			if (xC < headerW || xC > visW) continue;
-			ctx.fillText(colLetters(c - minCol), xC, headerH / 2);
-		}
-		for (let r = minRow; r <= maxRow; r += rowStride) {
-			const yC = r * H * this.zoom + this.panY + cellScreenH / 2;
-			if (yC < headerH || yC > visH) continue;
-			ctx.fillText(String(r - minRow + 1), headerW / 2, yC);
-		}
-		ctx.textAlign = "start";
-		ctx.textBaseline = "alphabetic";
-
-		// Corner block (overlap of top and left bands) — slightly darker to
-		// anchor the header origin visually.
-		ctx.fillStyle = "rgba(40, 55, 80, 1)";
-		ctx.fillRect(0, 0, headerW, headerH);
-		ctx.strokeStyle = "rgba(180, 200, 230, 0.9)";
-		ctx.lineWidth = 1.6;
-		ctx.beginPath();
-		ctx.moveTo(0, headerH);
-		ctx.lineTo(headerW, headerH);
-		ctx.moveTo(headerW, 0);
-		ctx.lineTo(headerW, headerH);
-		ctx.stroke();
+		drawGridHeadersFn(ctx, this.laid, this.canvas, this.zoom, this.panX, this.panY);
 	}
 
 	private drawClusterLabels(ctx: CanvasRenderingContext2D): void {
-		const groupFontPx = 12 / this.zoom;
-		ctx.font = `${groupFontPx}px sans-serif`;
-		ctx.textBaseline = "alphabetic";
-		ctx.textAlign = "start";
-		const lineH = groupFontPx * 1.4;
-		const padX = 4 / this.zoom;
-		const insetY = 4 / this.zoom;
-
-		// Phase 5: map-style top-left anchoring. Each label hugs the upper-left
-		// corner of its cluster, like a country/region name placed in the
-		// corner of its boundary. Collisions push upward (away from the
-		// content) and a leader line links the displaced label back to its
-		// anchor when displacement is significant.
-		interface LabelP {
-			c: ClusterRect;
-			text: string;
-			w: number;
-			cx: number;
-			cy: number;
-			anchorX: number;
-			anchorY: number;
-			pushed: number;
-		}
-		const labels: LabelP[] = this.laid.clusters.map((c) => {
-			const text = truncateToWidth(ctx, `${c.label} (${c.memberCount})`, c.width);
-			const w = ctx.measureText(text).width;
-			const anchorX = c.x + padX;
-			const anchorY = c.y - insetY;
-			return {
-				c,
-				text,
-				w,
-				cx: anchorX,
-				cy: anchorY,
-				anchorX,
-				anchorY,
-				pushed: 0,
-			};
-		});
-
-		// Largest clusters keep their natural position so smaller ones do the
-		// moving — same priority rule as before.
-		const order = labels.map((_, i) => i);
-		order.sort(
-			(a, b) =>
-				labels[b].c.width * labels[b].c.height -
-				labels[a].c.width * labels[a].c.height,
-		);
-
-		// AABB overlap with left-aligned, baseline-anchored text rectangles.
-		// Text occupies roughly [cy - lineH*0.8, cy + lineH*0.2] vertically.
-		const overlap = (a: LabelP, b: LabelP): boolean => {
-			const ay0 = a.cy - lineH * 0.8;
-			const ay1 = a.cy + lineH * 0.2;
-			const by0 = b.cy - lineH * 0.8;
-			const by1 = b.cy + lineH * 0.2;
-			return (
-				a.cx < b.cx + b.w &&
-				b.cx < a.cx + a.w &&
-				ay0 < by1 &&
-				by0 < ay1
-			);
-		};
-
-		for (let idx = 0; idx < order.length; idx++) {
-			const me = labels[order[idx]];
-			let attempts = 0;
-			while (attempts < 16) {
-				let hit = false;
-				for (let jdx = 0; jdx < idx; jdx++) {
-					if (overlap(me, labels[order[jdx]])) {
-						me.cy -= lineH;
-						me.pushed++;
-						hit = true;
-						break;
-					}
-				}
-				if (!hit) break;
-				attempts++;
-			}
-		}
-
-		for (const lab of labels) {
-			const hue = clusterHue(lab.c.groupKey);
-			// Leader line links displaced labels back to their anchor.
-			if (lab.pushed >= 2) {
-				ctx.strokeStyle = `hsla(${hue}, 65%, 70%, 0.55)`;
-				ctx.lineWidth = 0.7 / this.zoom;
-				ctx.beginPath();
-				ctx.moveTo(lab.cx, lab.cy);
-				ctx.lineTo(lab.anchorX, lab.anchorY);
-				ctx.stroke();
-			}
-			ctx.fillStyle = `hsla(${hue}, 65%, 70%, 1)`;
-			ctx.fillText(lab.text, lab.cx, lab.cy);
-		}
+		drawClusterLabelsFn(ctx, this.laid, this.zoom);
 	}
 
-	// 3-card diagonal stack confined to a SINGLE cell with a small inset
-	// so the stack never touches the cell boundary, the cluster enclosure,
-	// or neighbouring cards' strokes. The stack spans (cardW × innerScale)
-	// horizontally and (cardH × innerScale) vertically, with each sub-card
-	// taking subScale × inner of that area. Z order is reversed: i = 0 is
-	// the back sheet (bottom-right) and i = 2 is the front (top-left, draws
-	// last and carries the label).
 	private drawAggregateStack(
 		ctx: CanvasRenderingContext2D,
 		cluster: ClusterRect,
@@ -1844,66 +1584,7 @@ export class MiniGraphView extends ItemView {
 		count: number,
 		highlighted = false,
 	): void {
-		const cx = cluster.x + cluster.width / 2;
-		const cy = cluster.y + cluster.height / 2;
-		const STACK_INSET = 0.07; // % of cell pulled in from each edge
-		const SUB_SCALE = 0.78; // sub-card size within the inset area
-		const innerW = cardW * (1 - 2 * STACK_INSET);
-		const innerH = cardH * (1 - 2 * STACK_INSET);
-		const subW = innerW * SUB_SCALE;
-		const subH = innerH * SUB_SCALE;
-		const stepX = (innerW - subW) / 2;
-		const stepY = (innerH - subH) / 2;
-		const r = Math.min(CARD_RADIUS_PX, subW / 2, subH / 2);
-		for (let i = 0; i <= 2; i++) {
-			const isFront = i === 2;
-			// i = 0 (back) shifted bottom-right; i = 2 (front) shifted
-			// top-left. Sub-card centre = cluster centre + (1 − i) · step.
-			const centerX = cx + (1 - i) * stepX;
-			const centerY = cy + (1 - i) * stepY;
-			const x = centerX - subW / 2;
-			const y = centerY - subH / 2;
-			ctx.beginPath();
-			roundedRectPath(ctx, x, y, subW, subH, r);
-			ctx.fillStyle = highlighted
-				? isFront
-					? "#ffe7a8"
-					: "#f0d188"
-				: isFront
-					? "#1d2230"
-					: "#1a1f2a";
-			ctx.fill();
-			ctx.lineWidth = (isFront ? (highlighted ? 1.8 : 1.2) : 0.8) / this.zoom;
-			ctx.strokeStyle = highlighted
-				? isFront
-					? "#ff9d3f"
-					: "#c97e2c"
-				: isFront
-					? "#5a7ba8"
-					: "#3e567a";
-			ctx.beginPath();
-			roundedRectPath(ctx, x, y, subW, subH, r);
-			ctx.stroke();
-			if (isFront) {
-				ctx.textAlign = "start";
-				ctx.textBaseline = "top";
-				ctx.font = `600 ${CARD_TITLE_FONT_PX}px sans-serif`;
-				ctx.fillStyle = highlighted ? "#1d1100" : "#e6edf3";
-				const title = truncateToWidth(
-					ctx,
-					cluster.label,
-					subW - 2 * CARD_PAD_X,
-				);
-				ctx.fillText(title, x + CARD_PAD_X, y + CARD_PAD_Y);
-				ctx.font = `${CARD_BODY_FONT_PX}px sans-serif`;
-				ctx.fillStyle = highlighted ? "#3a2400" : "#9eb0c4";
-				ctx.fillText(
-					`${count} cards`,
-					x + CARD_PAD_X,
-					y + CARD_PAD_Y + CARD_LINE_HEIGHT_PX + CARD_TITLE_BODY_GAP,
-				);
-			}
-		}
+		drawAggregateStackFn(ctx, cluster, cardW, cardH, count, this.zoom, highlighted);
 	}
 
 	private drawCard(

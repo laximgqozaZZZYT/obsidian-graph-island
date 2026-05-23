@@ -133,6 +133,7 @@ export const DEFAULT_SETTINGS: MiniSettings = {
 export const NONE_BUCKET = "(none)";
 
 // Card text geometry. Title and body lines use different sizes/weights.
+export const CARD_RADIUS_PX = 4;
 export const CARD_TITLE_FONT_PX = 12;
 export const CARD_BODY_FONT_PX = 10;
 export const CARD_LINE_HEIGHT_PX = 14;
