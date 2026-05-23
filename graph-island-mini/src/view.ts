@@ -36,14 +36,7 @@ import {
 	wrapText,
 	truncateToWidth,
 } from "./canvas-utils";
-import {
-	computeParentOf,
-	computeTrulyAgg,
-	nodeFootprint,
-	buildCardAABBs,
-	cellHitsAnyCard,
-	findFreeCell,
-} from "./aggregate-util";
+import { runAggregateSnap } from "./aggregate-snap";
 import {
 	computeMemberSets,
 	computeStrictSupersets,
@@ -1002,207 +995,17 @@ export class MiniGraphView extends ItemView {
 			const ta = this.adjacency.get(e.target);
 			if (ta) ta.push(i); else this.adjacency.set(e.target, [i]);
 		});
-		// Aggregated layers: collapse only the members whose ENTIRE
-		// membership set is aggregated. A node that also belongs to any
-		// non-aggregated cluster keeps its individual card and is excluded
-		// from both the centroid and the stack count. Each stack is sized
-		// to exactly ONE cell on the W × H lattice and snaps to a free cell
-		// — visible cards and earlier stacks reserve their cells so the
-		// stacks never sit on top of anything.
-		const aggSet = new Set(this.settings.aggregatedLayers);
-		this.aggregateCount.clear();
-		// Reset BEFORE the conditional so the draw layer doesn't carry over
-		// a stale trulyAgg set from a previous rebuild when aggregation gets
-		// turned off mid-session.
-		this.trulyAggSet = new Set();
-		if (aggSet.size > 0 && this.laid.nodes.length > 0) {
-			const cardW = this.laid.nodes[0].width;
-			const cardH = this.laid.nodes[0].height;
-			const slotW = this.laid.slotW;
-			const slotH = this.laid.slotH;
-			const parentOf = computeParentOf(
-				this.laid.clusters.map((c) => c.groupKey),
-				this.laid.nodes,
-				this.settings.inheritFrom ?? {},
-			);
-			const trulyAgg = computeTrulyAgg(this.laid.nodes, aggSet, parentOf);
-			// Snapshot the trulyAgg set so the draw layer can use the SAME
-			// definition for "hidden because aggregated". If draw recomputes
-			// aggHidden with a different rule, a card the rebuild treats as
-			// hidden (and therefore doesn't reserve in `occupied`) could
-			// still get drawn — and the aggregate badge would land inside
-			// it. Single source of truth here.
-			this.trulyAggSet = trulyAgg;
-			// Reserve every cell currently holding a visible card — including
-			// the FULL footprint of multi-cell (scaled) cards so an aggregate
-			// stack never lands inside a giant card like a hub at scale 5×.
-			// A truly-aggregated node is hidden, so its cells are free for
-			// reuse. User-hidden nodes also free their cells.
-			const hiddenSet = new Set(this.settings.hiddenNodes);
-			const occupied = new Set<string>();
-			for (const n of this.laid.nodes) {
-				if (trulyAgg.has(n.id)) continue;
-				if (hiddenSet.has(n.id)) continue;
-				const fp = nodeFootprint(n, slotW, slotH);
-				for (let c = fp.startCol; c <= fp.endCol; c++) {
-					for (let r = fp.startRow; r <= fp.endRow; r++) {
-						occupied.add(`${c},${r}`);
-					}
-				}
-			}
-			// Process clusters in a deterministic order so the spiral search
-			// is stable across rebuilds.
-			const aggCenter = new Map<string, { x: number; y: number }>();
-			const sortedClusters = [...this.laid.clusters].sort((a, b) =>
-				a.groupKey.localeCompare(b.groupKey),
-			);
-			// AABB rectangles of every visible card, used as a second-line
-			// verification after the cell-snap spiral. The cell occupied
-			// set CAN miss footprint corners when float arithmetic puts the
-			// rounded startCol/Row off by one — a direct AABB check on the
-			// resulting badge centre catches those misses.
-			const cardAABBs = buildCardAABBs(
-				this.laid.nodes,
-				(id) => trulyAgg.has(id) || hiddenSet.has(id),
-			);
-			const cellHitsCard = (col: number, row: number): boolean =>
-				cellHitsAnyCard(col, row, cardAABBs, slotW, slotH);
-			for (const cluster of sortedClusters) {
-				if (!aggSet.has(cluster.groupKey)) continue;
-				let sx = 0;
-				let sy = 0;
-				let count = 0;
-				for (const node of this.laid.nodes) {
-					if (!trulyAgg.has(node.id)) continue;
-					if (!node.memberships.includes(cluster.groupKey)) continue;
-					sx += node.x;
-					sy += node.y;
-					count++;
-				}
-				if (count === 0) continue;
-				// Snap stack centroid to the nearest free slot on the global
-				// lattice. The cell must (a) not collide with the cell-snap
-				// occupied set AND (b) its centre must not fall inside any
-				// card's AABB. Both checks together close the gap where a
-				// float-rounding mismatch let a badge land inside a card.
-				const initCol = Math.floor(sx / count / slotW);
-				const initRow = Math.floor(sy / count / slotH);
-				const isBlocked = (c: number, r: number): boolean =>
-					occupied.has(`${c},${r}`) || cellHitsCard(c, r);
-				let { col, row } = findFreeCell(initCol, initRow, isBlocked);
-				// Final guarantee: if spiral somehow failed (e.g. dense
-				// surround), park the badge past the right edge of every
-				// visible card. cellHitsCard MUST return false at the
-				// chosen cell — otherwise the badge would visibly overlap.
-				if (isBlocked(col, row)) {
-					let maxRightCol = col;
-					for (const r of cardAABBs) {
-						const rc = Math.ceil(r.right / slotW);
-						if (rc > maxRightCol) maxRightCol = rc;
-					}
-					col = maxRightCol + 2;
-					row = initRow;
-				}
-				const key = `${col},${row}`;
-				occupied.add(key);
-				const snapCx = (col + 0.5) * slotW;
-				const snapCy = (row + 0.5) * slotH;
-				aggCenter.set(cluster.groupKey, { x: snapCx, y: snapCy });
-				this.aggregateCount.set(cluster.groupKey, count);
-				// Cluster bbox = full slot around the stack (channel margin
-				// included). The stack itself stays within the inner card
-				// area thanks to STACK_INSET in drawAggregateStack().
-				cluster.x = snapCx - slotW / 2;
-				cluster.y = snapCy - slotH / 2;
-				cluster.width = slotW;
-				cluster.height = slotH;
-			}
-			const idToNode = new Map<string, PositionedNode>();
-			for (const n of this.laid.nodes) idToNode.set(n.id, n);
-			const aggForNode = (id: string): { x: number; y: number } | null => {
-				if (!trulyAgg.has(id)) return null;
-				const node = idToNode.get(id);
-				if (!node) return null;
-				// Use the first membership that actually has a stack (= count
-				// > 0); some clusters may have been skipped above.
-				for (const m of node.memberships) {
-					const c = aggCenter.get(m);
-					if (c) return c;
-				}
-				return null;
-			};
-			// Channel-routed Manhattan path between two points anywhere on
-			// the grid: vertical channel adjacent to start → horizontal
-			// channel between rows → vertical channel adjacent to end. Used
-			// to splice aggregated stacks back into the wire graph without
-			// rerunning routeZ.
-			const channelRoute = (
-				start: { x: number; y: number },
-				end: { x: number; y: number },
-			): { x: number; y: number }[] => {
-				if (
-					Math.abs(start.x - end.x) < 0.5 &&
-					Math.abs(start.y - end.y) < 0.5
-				) {
-					return [start];
-				}
-				const sCol = Math.floor(start.x / slotW);
-				const eCol = Math.floor(end.x / slotW);
-				const sRow = Math.floor(start.y / slotH);
-				const eRow = Math.floor(end.y / slotH);
-				let aSide: number;
-				let bSide: number;
-				if (eCol > sCol) {
-					aSide = (sCol + 1) * slotW;
-					bSide = eCol * slotW;
-				} else if (eCol < sCol) {
-					aSide = sCol * slotW;
-					bSide = (eCol + 1) * slotW;
-				} else {
-					aSide = (sCol + 1) * slotW;
-					bSide = (sCol + 1) * slotW;
-				}
-				let hIdx: number;
-				if (sRow === eRow) {
-					hIdx = sRow + 1;
-				} else {
-					hIdx = Math.round((start.y + end.y) / 2 / slotH);
-				}
-				const laneY = hIdx * slotH;
-				const pts: { x: number; y: number }[] = [];
-				const pushPt = (p: { x: number; y: number }) => {
-					const last = pts[pts.length - 1];
-					if (
-						last &&
-						Math.abs(last.x - p.x) < 0.5 &&
-						Math.abs(last.y - p.y) < 0.5
-					)
-						return;
-					pts.push(p);
-				};
-				pushPt(start);
-				pushPt({ x: aSide, y: start.y });
-				pushPt({ x: aSide, y: laneY });
-				pushPt({ x: bSide, y: laneY });
-				pushPt({ x: bSide, y: end.y });
-				pushPt(end);
-				return pts;
-			};
-			const keptEdges: typeof this.laid.edges = [];
-			for (const e of this.laid.edges) {
-				const sAgg = aggForNode(e.source);
-				const tAgg = aggForNode(e.target);
-				if (sAgg && tAgg && sAgg.x === tAgg.x && sAgg.y === tAgg.y) continue;
-				if (sAgg || tAgg) {
-					const start = sAgg ?? e.path[0];
-					const end = tAgg ?? e.path[e.path.length - 1];
-					e.path = channelRoute(start, end);
-				}
-				keptEdges.push(e);
-			}
-			this.laid.edges = keptEdges;
-			// Trunks retired — nothing to process for the trunk array.
-		}
+		// Aggregate-snap: trulyAgg detection, badge cell selection, edge
+		// re-routing through stack centres. Mutates this.laid.clusters
+		// (sets each aggregated cluster's bbox to its 1-slot badge box)
+		// and this.laid.edges (rewrites paths through aggregate centres).
+		const aggResult = runAggregateSnap(this.laid, {
+			aggregatedLayers: this.settings.aggregatedLayers,
+			hiddenNodes: this.settings.hiddenNodes,
+			inheritFrom: this.settings.inheritFrom ?? {},
+		});
+		this.trulyAggSet = aggResult.trulyAgg;
+		this.aggregateCount = aggResult.aggregateCount;
 
 		// Inheritance: each child cluster picks a parent (継承元) explicitly
 		// via the panel. The child's bbox grows to engulf the parent's bbox

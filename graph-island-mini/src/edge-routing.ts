@@ -56,6 +56,56 @@ export function laneShiftSpread(lane: number): number {
 	return lane % 2 === 1 ? Math.ceil(lane / 2) : -Math.ceil(lane / 2);
 }
 
+// Simpler obstacle-free Z-route between two arbitrary points (NOT cards
+// — used when re-routing edges through aggregated stack centres). Goes
+// vertical channel → horizontal channel → vertical channel, choosing
+// channels just outside the endpoint cells.
+export function simpleChannelRoute(
+	start: { x: number; y: number },
+	end: { x: number; y: number },
+	slotW: number,
+	slotH: number,
+): { x: number; y: number }[] {
+	if (Math.abs(start.x - end.x) < 0.5 && Math.abs(start.y - end.y) < 0.5) {
+		return [start];
+	}
+	const sCol = Math.floor(start.x / slotW);
+	const eCol = Math.floor(end.x / slotW);
+	const sRow = Math.floor(start.y / slotH);
+	const eRow = Math.floor(end.y / slotH);
+	let aSide: number;
+	let bSide: number;
+	if (eCol > sCol) {
+		aSide = (sCol + 1) * slotW;
+		bSide = eCol * slotW;
+	} else if (eCol < sCol) {
+		aSide = sCol * slotW;
+		bSide = (eCol + 1) * slotW;
+	} else {
+		aSide = (sCol + 1) * slotW;
+		bSide = (sCol + 1) * slotW;
+	}
+	const hIdx =
+		sRow === eRow
+			? sRow + 1
+			: Math.round((start.y + end.y) / 2 / slotH);
+	const laneY = hIdx * slotH;
+	const pts: { x: number; y: number }[] = [];
+	const pushPt = (p: { x: number; y: number }) => {
+		const last = pts[pts.length - 1];
+		if (last && Math.abs(last.x - p.x) < 0.5 && Math.abs(last.y - p.y) < 0.5)
+			return;
+		pts.push(p);
+	};
+	pushPt(start);
+	pushPt({ x: aSide, y: start.y });
+	pushPt({ x: aSide, y: laneY });
+	pushPt({ x: bSide, y: laneY });
+	pushPt({ x: bSide, y: end.y });
+	pushPt(end);
+	return pts;
+}
+
 // A positioned card's footprint in cell coordinates. routeZ skips
 // obstacles whose id matches `sourceId` / `targetId` so the wire can
 // reach its own endpoints.
