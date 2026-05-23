@@ -47,7 +47,7 @@ const data = {
 };
 
 const sized = data.nodes.map((n) => ({ ...n, width: 100, height: 40 }));
-const laid = layout(data, sized, { clusterSpacing: 48, nodeSpacing: 16 });
+const laid = layout(data, sized, { clusterSpacing: 48, nodeSpacing: 16, cellW: 100, cellH: 40 });
 
 console.log(`Nodes positioned: ${laid.nodes.length}`);
 console.log(`Clusters: ${laid.clusters.map((c) => c.groupKey).join(", ")}`);

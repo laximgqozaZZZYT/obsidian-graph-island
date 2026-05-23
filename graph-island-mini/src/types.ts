@@ -56,6 +56,13 @@ export interface MiniSettings {
 	anchorPlacement: "concentric" | "flow";
 	// Per-view display toggles.
 	showBody: boolean;
+	// Card span in grid units. nodeRows = m (height in cells), nodeCols = n
+	// (width in cells). Default 1 × 1 (= a single cell). When nodeSizeMode
+	// != "fixed" the (m, n) pair is multiplied by a shared scale factor so
+	// the m : n aspect ratio survives.
+	nodeRows: number;
+	nodeCols: number;
+	nodeSizeMode: "fixed" | "indegree" | "outdegree";
 	showEnclosures: boolean;
 	showEdges: boolean;
 	// Excel-style row/column lattice underlay. Cell size = unified card W × H;
@@ -93,6 +100,9 @@ export const DEFAULT_SETTINGS: MiniSettings = {
 	limitAuto: true,
 	anchorPlacement: "concentric",
 	showBody: true,
+	nodeRows: 1,
+	nodeCols: 1,
+	nodeSizeMode: "fixed",
 	showEnclosures: true,
 	showEdges: true,
 	showGrid: true,
@@ -118,3 +128,9 @@ export const CARD_MIN_W = 80;
 export const CARD_MAX_W = 240;
 export const CARD_BODY_CHARS_MIN = 0;
 export const CARD_BODY_CHARS_MAX = 400;
+
+// Single-cell pixel dimensions for the global grid. A card with nodeRows = 1
+// and nodeCols = 1 occupies exactly one cell at this size; multi-cell cards
+// scale these uniformly by (rows, cols).
+export const CARD_CELL_W = 120;
+export const CARD_CELL_H = 32;

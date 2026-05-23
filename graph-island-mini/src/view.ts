@@ -19,6 +19,8 @@ import {
 	CARD_TITLE_BODY_GAP,
 	CARD_MIN_W,
 	CARD_MAX_W,
+	CARD_CELL_W,
+	CARD_CELL_H,
 } from "./types";
 
 export const VIEW_TYPE_MINI = "graph-island-mini";
@@ -69,6 +71,15 @@ export class MiniGraphView extends ItemView {
 	private marqueeArmed = false;
 	private highlightedNodes: Set<string> = new Set();
 	private highlightedEdgeIdx: Set<number> = new Set();
+	// Clusters to render with accent stroke on hover. Populated from the
+	// hovered node's memberships PLUS every connected node's memberships,
+	// so aggregate stacks for connected-but-collapsed cards light up too.
+	private highlightedClusters: Set<string> = new Set();
+	// The primary hovered node id (NOT the set of connected ones). Used to
+	// pick outgoing vs incoming edge colours: edge.source === hoveredNodeId
+	// is an OUTGOING link (out from this node), edge.target === hoveredNodeId
+	// is an INCOMING backlink (into this node).
+	private hoveredNodeId: string | null = null;
 	private adjacency: Map<string, number[]> = new Map();
 	// Drag-to-move (nodes/clusters) was removed; pan/marquee/click-to-open
 	// are the only pointer interactions now.
@@ -82,6 +93,10 @@ export class MiniGraphView extends ItemView {
 	private limitError = "";
 	private displayMode: Map<string, "full" | "brief"> = new Map();
 	private degreeMap: Map<string, number> = new Map();
+	// Per-direction degree counters used by nodeSizeMode = indegree / outdegree.
+	// Refreshed every rebuild from data.edges.
+	private inDegreeMap: Map<string, number> = new Map();
+	private outDegreeMap: Map<string, number> = new Map();
 	private panelEl: HTMLDivElement | null = null;
 	// Current tab in the settings panel. "__all__" = 全体. Otherwise = a
 	// cluster groupKey produced by WHERE → GROUP_BY → HAVING.
@@ -327,9 +342,7 @@ export class MiniGraphView extends ItemView {
 			placeholder: "limit 10 / brief 30",
 			autoKey: "limitAuto",
 		});
-		this.renderToggleSection(el, "Node display", [
-			{ key: "showBody", label: "Show body preview" },
-		]);
+		this.renderNodeDisplaySection(el);
 		this.renderLayoutSection(el);
 		this.renderToggleSection(el, "Graph display", [
 			{ key: "showEnclosures", label: "Show enclosures" },
@@ -479,6 +492,64 @@ export class MiniGraphView extends ItemView {
 
 	// LAYOUT section: per-cluster anchor placement strategy (concentric ring
 	// around the focus cluster vs. flow direction from focus to the right).
+	// "Node display" section: body preview toggle + base card size + the
+	// size-by-link mode. Changing any size knob triggers a full rebuild
+	// because the cell pitch is derived from the base size and the layout
+	// has to redo cell snap.
+	private renderNodeDisplaySection(parent: HTMLElement): void {
+		const section = parent.createDiv({ cls: "gim-panel-section" });
+		section.createEl("h4", { text: "Node display" });
+
+		// "Size (m × n)" = how many rows and columns of the global grid the
+		// card spans. m = rows (height), n = columns (width). Default 1, 1
+		// (= one cell). Pixel size of one cell is the canonical CARD_CELL_W
+		// × CARD_CELL_H constant.
+		const sizeRow = section.createDiv({ cls: "gim-order-row" });
+		sizeRow.createSpan({ text: "Size (m × n)", cls: "gim-order-field" });
+		const mIn = sizeRow.createEl("input", { type: "number" }) as HTMLInputElement;
+		mIn.value = String(this.settings.nodeRows);
+		mIn.min = "1";
+		mIn.max = "8";
+		mIn.step = "1";
+		mIn.style.width = "50px";
+		sizeRow.createSpan({ text: "×" });
+		const nIn = sizeRow.createEl("input", { type: "number" }) as HTMLInputElement;
+		nIn.value = String(this.settings.nodeCols);
+		nIn.min = "1";
+		nIn.max = "8";
+		nIn.step = "1";
+		nIn.style.width = "50px";
+		const applySize = (): void => {
+			const m = parseInt(mIn.value, 10);
+			const n = parseInt(nIn.value, 10);
+			if (Number.isFinite(m) && m >= 1 && m <= 12) this.settings.nodeRows = m;
+			if (Number.isFinite(n) && n >= 1 && n <= 12) this.settings.nodeCols = n;
+			this.cardCache.clear();
+			void this.save();
+			void this.rebuild();
+		};
+		mIn.addEventListener("change", applySize);
+		nIn.addEventListener("change", applySize);
+
+		const modeRow = section.createDiv({ cls: "gim-order-row" });
+		modeRow.createSpan({ text: "Size by", cls: "gim-order-field" });
+		const sel = modeRow.createEl("select", { cls: "gim-order-dir" }) as HTMLSelectElement;
+		for (const opt of [
+			{ v: "fixed", t: "Fixed" },
+			{ v: "indegree", t: "Incoming links" },
+			{ v: "outdegree", t: "Outgoing links" },
+		]) {
+			sel.createEl("option", { value: opt.v, text: opt.t });
+		}
+		sel.value = this.settings.nodeSizeMode;
+		sel.addEventListener("change", () => {
+			this.settings.nodeSizeMode = sel.value as MiniSettings["nodeSizeMode"];
+			this.cardCache.clear();
+			void this.save();
+			void this.rebuild();
+		});
+	}
+
 	private renderLayoutSection(parent: HTMLElement): void {
 		const section = parent.createDiv({ cls: "gim-panel-section" });
 		section.createEl("h4", { text: "Layout" });
@@ -742,11 +813,16 @@ export class MiniGraphView extends ItemView {
 		this.clusterLabels = clusterLabels;
 
 		// Pre-compute degree (number of incident edges) per node so the
-		// "degree" sort field can be resolved in O(1) during ORDER_BY.
+		// "degree" sort field can be resolved in O(1) during ORDER_BY. Also
+		// compute directional in/out degree counters used by nodeSizeMode.
 		this.degreeMap.clear();
+		this.inDegreeMap.clear();
+		this.outDegreeMap.clear();
 		for (const e of data.edges) {
 			this.degreeMap.set(e.source, (this.degreeMap.get(e.source) ?? 0) + 1);
 			this.degreeMap.set(e.target, (this.degreeMap.get(e.target) ?? 0) + 1);
+			this.outDegreeMap.set(e.source, (this.outDegreeMap.get(e.source) ?? 0) + 1);
+			this.inDegreeMap.set(e.target, (this.inDegreeMap.get(e.target) ?? 0) + 1);
 		}
 		// LIMIT: filter visible nodes per cluster + assign display modes,
 		// using the standalone ORDER_BY field/direction as sort criterion.
@@ -771,26 +847,21 @@ export class MiniGraphView extends ItemView {
 		await this.ensureBodies(data.nodes);
 		if (gen !== this.rebuildGen) return;
 
+		// Card sizes are determined by the user-configured base node size
+		// (m × n in settings) plus an optional scale factor when sizeMode
+		// varies by link count. The lattice pitch is the BASE size, so
+		// fixed-mode cards fit exactly while link-scaled cards may stick
+		// out beyond their cell.
+		// Card sizes derive from the user-configured row × column span
+		// times the canonical CARD_CELL_W × CARD_CELL_H lattice step, with
+		// an optional degree-driven scale that preserves the m : n aspect.
 		const sized = data.nodes.map((n) => this.cardFor(n));
-		// Phase 3: unify card geometry so the entire layout snaps to a single
-		// grid. We use the largest measured size across all visible cards as
-		// the standard (smaller cards just gain extra blank space).
-		if (sized.length > 0) {
-			let uW = 0;
-			let uH = 0;
-			for (const s of sized) {
-				if (s.width > uW) uW = s.width;
-				if (s.height > uH) uH = s.height;
-			}
-			for (const s of sized) {
-				s.width = uW;
-				s.height = uH;
-			}
-		}
 		const wasEmpty = this.laid.clusters.length === 0;
 		this.laid = layout(data, sized, {
 			clusterSpacing: this.settings.clusterSpacing,
 			nodeSpacing: this.settings.nodeSpacing,
+			cellW: CARD_CELL_W,
+			cellH: CARD_CELL_H,
 			clusterLabels,
 			anchorPlacement: this.settings.anchorPlacement,
 		});
@@ -1220,13 +1291,45 @@ export class MiniGraphView extends ItemView {
 		const mode = this.displayMode.get(n.id) ?? "full";
 		const cacheKey = `${n.id}:${mode}`;
 		const cached = this.cardCache.get(cacheKey);
-		if (cached && cached.title === n.label) {
-			return { ...n, width: cached.width, height: cached.height };
+		if (!cached || cached.title !== n.label) {
+			const body = (this.bodyCache.get(n.id) ?? "").slice(
+				0,
+				this.settings.cardMaxChars,
+			);
+			this.cardCache.set(cacheKey, this.measureCard(n.label, body, mode));
 		}
-		const body = (this.bodyCache.get(n.id) ?? "").slice(0, this.settings.cardMaxChars);
-		const card = this.measureCard(n.label, body, mode);
-		this.cardCache.set(cacheKey, card);
-		return { ...n, width: card.width, height: card.height };
+		// Card pixel size SPANS its full grid footprint (= effC slots wide,
+		// effR slots tall) and fills the inner channels. Aspect ratio is
+		// preserved because slotW/slotH = cardW/cardH and the formula
+		// width = effC × slotW − channelW, height = effR × slotH − channelH
+		// gives constant w/h for any (effC, effR) with effC : effR locked.
+		const rows = Math.max(1, this.settings.nodeRows);
+		const cols = Math.max(1, this.settings.nodeCols);
+		const scale = this.computeSizeScale(n.id);
+		const channelW = Math.max(8, this.settings.nodeSpacing);
+		const channelH = Math.max(1, (channelW * CARD_CELL_H) / CARD_CELL_W);
+		const slotW = CARD_CELL_W + channelW;
+		const slotH = CARD_CELL_H + channelH;
+		const effC = cols * scale;
+		const effR = rows * scale;
+		return {
+			...n,
+			width: effC * slotW - channelW,
+			height: effR * slotH - channelH,
+		};
+	}
+
+	private computeSizeScale(nodeId: string): number {
+		if (this.settings.nodeSizeMode === "fixed") return 1;
+		const map =
+			this.settings.nodeSizeMode === "indegree"
+				? this.inDegreeMap
+				: this.outDegreeMap;
+		const deg = map.get(nodeId) ?? 0;
+		// (linkCount + 1) × base. 0 links ⇒ initial size; each additional
+		// link adds another full multiple. Aspect ratio is preserved
+		// because both axes multiply by the same scale.
+		return deg + 1;
 	}
 
 	private measureCard(
@@ -1237,34 +1340,41 @@ export class MiniGraphView extends ItemView {
 		const ctx = this.ctx;
 		const padX = CARD_PAD_X;
 		const padY = CARD_PAD_Y;
-		const innerMax = CARD_MAX_W - 2 * padX;
-		// Honour the showBody toggle AND the per-node display mode at
-		// measurement time. Brief mode = title-only regardless of showBody.
+		// Wrap and truncate against the BASE card geometry (= nodeCols ×
+		// CARD_CELL_W, nodeRows × CARD_CELL_H). Variable-scale cards keep the
+		// same number of lines and the same proportional inner width — the
+		// font is bigger but the line count and per-line character budget
+		// are unchanged, so the body never overflows the card.
+		const cols = Math.max(1, this.settings.nodeCols);
+		const rows = Math.max(1, this.settings.nodeRows);
+		const cardBaseW = cols * CARD_CELL_W;
+		const cardBaseH = rows * CARD_CELL_H;
+		const innerW = Math.max(8, cardBaseW - 2 * padX);
+		const innerH = Math.max(8, cardBaseH - 2 * padY);
 		const effectiveBody = mode === "brief" || !this.settings.showBody ? "" : body;
 
-		// Title: single line. Width is the natural width capped at innerMax.
 		ctx.font = `600 ${CARD_TITLE_FONT_PX}px sans-serif`;
-		const titleW = Math.min(innerMax, Math.ceil(ctx.measureText(title).width));
+		const titleW = Math.min(innerW, Math.ceil(ctx.measureText(title).width));
 
-		// Body: wrap to the maximum allowable inner width, then trim card width to
-		// the actual longest line.
 		ctx.font = `${CARD_BODY_FONT_PX}px sans-serif`;
-		const bodyLines = effectiveBody ? wrapText(ctx, effectiveBody, innerMax) : [];
-		let bodyMaxW = 0;
-		for (const line of bodyLines) {
-			const w = Math.ceil(ctx.measureText(line).width);
-			if (w > bodyMaxW) bodyMaxW = w;
-		}
-
-		const innerW = Math.max(titleW, bodyMaxW);
-		const width = Math.max(CARD_MIN_W, Math.min(CARD_MAX_W, innerW + 2 * padX));
+		const allLines = effectiveBody ? wrapText(ctx, effectiveBody, innerW) : [];
+		// Drop body lines that don't fit vertically inside the card.
 		const titleH = CARD_LINE_HEIGHT_PX;
-		const bodyH =
-			bodyLines.length > 0
-				? bodyLines.length * CARD_BODY_LINE_HEIGHT_PX + CARD_TITLE_BODY_GAP
-				: 0;
-		const height = padY + titleH + bodyH + padY;
-		return { title, body, bodyLines, width, height };
+		const gap = CARD_TITLE_BODY_GAP;
+		const availableBodyH = innerH - titleH - gap;
+		const maxLines = Math.max(
+			0,
+			Math.floor(availableBodyH / CARD_BODY_LINE_HEIGHT_PX),
+		);
+		const bodyLines = allLines.slice(0, maxLines);
+		void titleW;
+		return {
+			title,
+			body,
+			bodyLines,
+			width: cardBaseW,
+			height: cardBaseH,
+		};
 	}
 
 	private resize(): void {
@@ -1362,8 +1472,12 @@ export class MiniGraphView extends ItemView {
 		let cardMinCol = Infinity;
 		let cardMinRow = Infinity;
 		for (const n of this.laid.nodes) {
-			const col = Math.floor(n.x / W);
-			const row = Math.floor(n.y / H);
+			// Use card FOOTPRINT (multi-cell for scaled cards), not just the
+			// centre cell, so the pan clamp accounts for the full extent.
+			const colSpan = Math.max(1, Math.ceil(n.width / W));
+			const rowSpan = Math.max(1, Math.ceil(n.height / H));
+			const col = Math.round(n.x / W - colSpan / 2);
+			const row = Math.round(n.y / H - rowSpan / 2);
 			if (col < cardMinCol) cardMinCol = col;
 			if (row < cardMinRow) cardMinRow = row;
 		}
@@ -1415,10 +1529,14 @@ export class MiniGraphView extends ItemView {
 				(a, b) => b.width * b.height - a.width * a.height,
 			);
 			const strokeW = 1.6 / this.zoom;
+			const accentStrokeW = 3.2 / this.zoom;
 			for (const c of sortedClusters) {
 				const hue = clusterHue(c.groupKey);
-				ctx.strokeStyle = `hsla(${hue}, 70%, 62%, 0.9)`;
-				ctx.lineWidth = strokeW;
+				const isHigh = this.highlightedClusters.has(c.groupKey);
+				ctx.strokeStyle = isHigh
+					? "#ff9d3f"
+					: `hsla(${hue}, 70%, 62%, 0.9)`;
+				ctx.lineWidth = isHigh ? accentStrokeW : strokeW;
 				ctx.strokeRect(c.x, c.y, c.width, c.height);
 			}
 		}
@@ -1428,8 +1546,13 @@ export class MiniGraphView extends ItemView {
 		const hasHighlight = this.highlightedEdgeIdx.size > 0;
 		const dim = "rgba(180,200,220,0.10)";
 		const line = "rgba(180,200,220,0.55)";
-		const accent = "#ff9d3f";
-		const glow = "rgba(255,157,63,0.35)";
+		// Forward (outgoing link) = warm orange. Backlink (incoming) = cool
+		// cyan-blue. Same node connected by both gets coloured per edge,
+		// not per pair, so the user can tell which direction is which.
+		const accentOut = "#ff9d3f";
+		const glowOut = "rgba(255,157,63,0.35)";
+		const accentIn = "#3fbfff";
+		const glowIn = "rgba(63,191,255,0.35)";
 
 		// Per-layer card visibility / aggregation. Hidden node IDs come from
 		// the layer tabs' card-list checkboxes. Aggregated clusters replace
@@ -1488,7 +1611,8 @@ export class MiniGraphView extends ItemView {
 			for (const cluster of this.laid.clusters) {
 				const count = this.aggregateCount.get(cluster.groupKey);
 				if (!count) continue;
-				this.drawAggregateStack(ctx, cluster, cardW, cardH, count);
+				const isHigh = this.highlightedClusters.has(cluster.groupKey);
+				this.drawAggregateStack(ctx, cluster, cardW, cardH, count, isHigh);
 			}
 		}
 
@@ -1503,14 +1627,23 @@ export class MiniGraphView extends ItemView {
 				if (skipNode(e.source) || skipNode(e.target)) return;
 				const path = e.path;
 				if (!path || path.length < 2) return;
-				// Glow halo
+				// Direction-aware colouring. source === hoveredNode → outgoing
+				// (this node links out to the target). target === hoveredNode
+				// → incoming backlink (something else links into this node).
+				// If hoveredNodeId is null (e.g. cluster hover), fall back to
+				// outgoing colour.
+				const isOutgoing =
+					this.hoveredNodeId !== null
+						? e.source === this.hoveredNodeId
+						: true;
+				const accent = isOutgoing ? accentOut : accentIn;
+				const glow = isOutgoing ? glowOut : glowIn;
 				ctx.strokeStyle = glow;
 				ctx.lineWidth = accentGlowW;
 				ctx.beginPath();
 				ctx.moveTo(path[0].x, path[0].y);
 				for (let i2 = 1; i2 < path.length; i2++) ctx.lineTo(path[i2].x, path[i2].y);
 				ctx.stroke();
-				// Solid accent
 				ctx.strokeStyle = accent;
 				ctx.lineWidth = accentSolidW;
 				ctx.beginPath();
@@ -1559,12 +1692,19 @@ export class MiniGraphView extends ItemView {
 		let cardMinCol = Infinity, cardMaxCol = -Infinity;
 		let cardMinRow = Infinity, cardMaxRow = -Infinity;
 		for (const n of this.laid.nodes) {
-			const col = Math.floor(n.x / W);
-			const row = Math.floor(n.y / H);
-			if (col < cardMinCol) cardMinCol = col;
-			if (col > cardMaxCol) cardMaxCol = col;
-			if (row < cardMinRow) cardMinRow = row;
-			if (row > cardMaxRow) cardMaxRow = row;
+			// Use card FOOTPRINT (multi-cell for scaled cards), not just the
+			// centre cell, so the visible grid range extends to every cell
+			// the largest cards actually occupy.
+			const colSpan = Math.max(1, Math.ceil(n.width / W));
+			const rowSpan = Math.max(1, Math.ceil(n.height / H));
+			const startCol = Math.round(n.x / W - colSpan / 2);
+			const startRow = Math.round(n.y / H - rowSpan / 2);
+			const endCol = startCol + colSpan - 1;
+			const endRow = startRow + rowSpan - 1;
+			if (startCol < cardMinCol) cardMinCol = startCol;
+			if (endCol > cardMaxCol) cardMaxCol = endCol;
+			if (startRow < cardMinRow) cardMinRow = startRow;
+			if (endRow > cardMaxRow) cardMaxRow = endRow;
 		}
 
 		// Column A (= cardMinCol − 1) and row 1 (= cardMinRow − 1) are
@@ -1614,12 +1754,16 @@ export class MiniGraphView extends ItemView {
 		let cardMinCol = Infinity, cardMaxCol = -Infinity;
 		let cardMinRow = Infinity, cardMaxRow = -Infinity;
 		for (const n of this.laid.nodes) {
-			const col = Math.floor(n.x / W);
-			const row = Math.floor(n.y / H);
-			if (col < cardMinCol) cardMinCol = col;
-			if (col > cardMaxCol) cardMaxCol = col;
-			if (row < cardMinRow) cardMinRow = row;
-			if (row > cardMaxRow) cardMaxRow = row;
+			const colSpan = Math.max(1, Math.ceil(n.width / W));
+			const rowSpan = Math.max(1, Math.ceil(n.height / H));
+			const startCol = Math.round(n.x / W - colSpan / 2);
+			const startRow = Math.round(n.y / H - rowSpan / 2);
+			const endCol = startCol + colSpan - 1;
+			const endRow = startRow + rowSpan - 1;
+			if (startCol < cardMinCol) cardMinCol = startCol;
+			if (endCol > cardMaxCol) cardMaxCol = endCol;
+			if (startRow < cardMinRow) cardMinRow = startRow;
+			if (endRow > cardMaxRow) cardMaxRow = endRow;
 		}
 		// Reserve column A and row 1 as always-empty borders (no card may
 		// occupy them). Labels start from this shifted origin so the first
@@ -1826,6 +1970,7 @@ export class MiniGraphView extends ItemView {
 		cardW: number,
 		cardH: number,
 		count: number,
+		highlighted = false,
 	): void {
 		const cx = cluster.x + cluster.width / 2;
 		const cy = cluster.y + cluster.height / 2;
@@ -1848,10 +1993,22 @@ export class MiniGraphView extends ItemView {
 			const y = centerY - subH / 2;
 			ctx.beginPath();
 			roundedRectPath(ctx, x, y, subW, subH, r);
-			ctx.fillStyle = isFront ? "#1d2230" : "#1a1f2a";
+			ctx.fillStyle = highlighted
+				? isFront
+					? "#ffe7a8"
+					: "#f0d188"
+				: isFront
+					? "#1d2230"
+					: "#1a1f2a";
 			ctx.fill();
-			ctx.lineWidth = (isFront ? 1.2 : 0.8) / this.zoom;
-			ctx.strokeStyle = isFront ? "#5a7ba8" : "#3e567a";
+			ctx.lineWidth = (isFront ? (highlighted ? 1.8 : 1.2) : 0.8) / this.zoom;
+			ctx.strokeStyle = highlighted
+				? isFront
+					? "#ff9d3f"
+					: "#c97e2c"
+				: isFront
+					? "#5a7ba8"
+					: "#3e567a";
 			ctx.beginPath();
 			roundedRectPath(ctx, x, y, subW, subH, r);
 			ctx.stroke();
@@ -1859,7 +2016,7 @@ export class MiniGraphView extends ItemView {
 				ctx.textAlign = "start";
 				ctx.textBaseline = "top";
 				ctx.font = `600 ${CARD_TITLE_FONT_PX}px sans-serif`;
-				ctx.fillStyle = "#e6edf3";
+				ctx.fillStyle = highlighted ? "#1d1100" : "#e6edf3";
 				const title = truncateToWidth(
 					ctx,
 					cluster.label,
@@ -1867,7 +2024,7 @@ export class MiniGraphView extends ItemView {
 				);
 				ctx.fillText(title, x + CARD_PAD_X, y + CARD_PAD_Y);
 				ctx.font = `${CARD_BODY_FONT_PX}px sans-serif`;
-				ctx.fillStyle = "#9eb0c4";
+				ctx.fillStyle = highlighted ? "#3a2400" : "#9eb0c4";
 				ctx.fillText(
 					`${count} cards`,
 					x + CARD_PAD_X,
@@ -1886,6 +2043,13 @@ export class MiniGraphView extends ItemView {
 		const y = n.y - n.height / 2;
 		const w = n.width;
 		const h = n.height;
+		// Card-internal scale drives padding, font sizes, line heights and
+		// gaps only — the corner radius and border stroke stay FIXED so the
+		// outline geometry reads identically regardless of card size. The
+		// base is the 1×1-cell card pixel size (= CARD_CELL_W for default
+		// cols=1 / scale=1) and `scale = w / (cols × CARD_CELL_W)`.
+		const baseW = Math.max(1, this.settings.nodeCols * CARD_CELL_W);
+		const scale = w / baseW;
 		const r = Math.min(CARD_RADIUS_PX, w / 2, h / 2);
 
 		ctx.beginPath();
@@ -1899,28 +2063,36 @@ export class MiniGraphView extends ItemView {
 		roundedRectPath(ctx, x, y, w, h, r);
 		ctx.stroke();
 
+		const padX = CARD_PAD_X * scale;
+		const padY = CARD_PAD_Y * scale;
+		const titleFontPx = CARD_TITLE_FONT_PX * scale;
+		const bodyFontPx = CARD_BODY_FONT_PX * scale;
+		const titleLineH = CARD_LINE_HEIGHT_PX * scale;
+		const bodyLineH = CARD_BODY_LINE_HEIGHT_PX * scale;
+		const titleBodyGap = CARD_TITLE_BODY_GAP * scale;
+
 		const mode = this.displayMode.get(n.id) ?? "full";
 		const card = this.cardCache.get(`${n.id}:${mode}`);
 		const bodyLines = card?.bodyLines ?? [];
-		const innerLeft = x + CARD_PAD_X;
-		const innerTop = y + CARD_PAD_Y;
-		const innerRight = x + w - CARD_PAD_X;
+		const innerLeft = x + padX;
+		const innerTop = y + padY;
+		const innerRight = x + w - padX;
 
 		ctx.textAlign = "start";
 		ctx.textBaseline = "top";
 
-		ctx.font = `600 ${CARD_TITLE_FONT_PX}px sans-serif`;
+		ctx.font = `600 ${titleFontPx}px sans-serif`;
 		ctx.fillStyle = highlighted ? "#1d1100" : "#e6edf3";
 		const titleFitted = truncateToWidth(ctx, n.label, innerRight - innerLeft);
 		ctx.fillText(titleFitted, innerLeft, innerTop);
 
 		if (bodyLines.length > 0 && this.settings.showBody) {
-			ctx.font = `${CARD_BODY_FONT_PX}px sans-serif`;
+			ctx.font = `${bodyFontPx}px sans-serif`;
 			ctx.fillStyle = highlighted ? "#3a2400" : "#9eb0c4";
-			let ly = innerTop + CARD_LINE_HEIGHT_PX + CARD_TITLE_BODY_GAP;
+			let ly = innerTop + titleLineH + titleBodyGap;
 			for (const line of bodyLines) {
 				ctx.fillText(line, innerLeft, ly);
-				ly += CARD_BODY_LINE_HEIGHT_PX;
+				ly += bodyLineH;
 			}
 		}
 	}
@@ -1983,14 +2155,38 @@ export class MiniGraphView extends ItemView {
 	private applyHighlight(target: HoverTarget): void {
 		this.highlightedEdgeIdx.clear();
 		this.highlightedNodes.clear();
+		this.highlightedClusters.clear();
+		this.hoveredNodeId = null;
 		if (!target || target.kind !== "node") {
 			this.requestDraw();
 			return;
 		}
 		const id = target.nodeId;
+		this.hoveredNodeId = id;
 		this.highlightedNodes.add(id);
+		const idIndex = new Map<string, PositionedNode>();
+		for (const n of this.laid.nodes) idIndex.set(n.id, n);
+		const targetNode = idIndex.get(id);
+		if (targetNode) {
+			for (const m of targetNode.memberships) {
+				this.highlightedClusters.add(m);
+			}
+		}
 		const adj = this.adjacency.get(id);
-		if (adj) for (const i of adj) this.highlightedEdgeIdx.add(i);
+		if (adj) {
+			for (const i of adj) {
+				this.highlightedEdgeIdx.add(i);
+				const edge = this.laid.edges[i];
+				if (!edge) continue;
+				const otherId = edge.source === id ? edge.target : edge.source;
+				this.highlightedNodes.add(otherId);
+				const otherNode = idIndex.get(otherId);
+				if (!otherNode) continue;
+				for (const m of otherNode.memberships) {
+					this.highlightedClusters.add(m);
+				}
+			}
+		}
 		this.requestDraw();
 	}
 
@@ -2013,9 +2209,16 @@ export class MiniGraphView extends ItemView {
 			this.tipEl = null;
 		}
 		this.hoverTarget = null;
-		if (this.highlightedEdgeIdx.size > 0 || this.highlightedNodes.size > 0) {
+		if (
+			this.highlightedEdgeIdx.size > 0 ||
+			this.highlightedNodes.size > 0 ||
+			this.highlightedClusters.size > 0 ||
+			this.hoveredNodeId !== null
+		) {
 			this.highlightedEdgeIdx.clear();
 			this.highlightedNodes.clear();
+			this.highlightedClusters.clear();
+			this.hoveredNodeId = null;
 			this.requestDraw();
 		}
 	}

@@ -59,6 +59,8 @@ const sized = data.nodes.map((n, i) => ({ ...n, ...sizeProfiles[i % sizeProfiles
 const laid = layout(data, sized, {
 	clusterSpacing: 48,
 	nodeSpacing: 16,
+	cellW: 120,
+	cellH: 44,
 });
 
 const idToPos = new Map(laid.nodes.map((n) => [n.id, { x: n.x, y: n.y }]));

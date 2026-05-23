@@ -67,6 +67,12 @@ export interface LaidOut {
 export interface LayoutOptions {
 	clusterSpacing: number;
 	nodeSpacing: number;
+	// Canonical card dimensions for the W × H lattice. Individual cards in
+	// `sized` may be larger or smaller (when nodeSizeMode varies size by
+	// degree), but the cell pitch always derives from these base values so
+	// the grid stays uniform.
+	cellW: number;
+	cellH: number;
 	clusterOffsets?: Record<string, { dx: number; dy: number }>;
 	nodeOffsets?: Record<string, { dx: number; dy: number }>;
 	clusterLabels?: Map<string, string>;
@@ -106,16 +112,17 @@ export function layout(data: GraphData, sized: SizedNode[], opts: LayoutOptions)
 	const clusterKeys = collectClusterKeys(data.nodes, labels);
 	const subgroups = groupByMembershipSet(data.nodes);
 
-	// Phase 3: derive a single grid step from the unified card size. View.ts
-	// has already normalised every sized[].width/height to the same maximum,
-	// so any element gives us the canonical card dimensions.
-	const cardW = sized[0]?.width ?? 80;
-	const cardH = sized[0]?.height ?? 24;
+	// Cell pitch comes from opts.cellW / opts.cellH (set by the view from
+	// the user-configured base node size). Individual sized[] entries may
+	// be larger or smaller, but the slot lattice stays uniform.
+	const cardW = opts.cellW > 0 ? opts.cellW : sized[0]?.width ?? 80;
+	const cardH = opts.cellH > 0 ? opts.cellH : sized[0]?.height ?? 24;
 	// Channels (隘路): narrow gaps between slots reserved for wires, trunks
-	// and cluster borders. slotW = card area + channel, so each slot holds
-	// one card centred within it with a half-channel margin on each side.
+	// and cluster borders. channelH is derived from channelW so the slot
+	// aspect ratio EQUALS the card aspect ratio — that way a card scaled
+	// to span N × N slots keeps the same w / h ratio as a 1 × 1 card.
 	const channelW = Math.max(8, opts.nodeSpacing);
-	const channelH = Math.max(6, Math.min(opts.nodeSpacing, Math.floor(cardH * 0.4)));
+	const channelH = Math.max(1, (channelW * cardH) / cardW);
 	const slotW = cardW + channelW;
 	const slotH = cardH + channelH;
 	const gridX = slotW;
@@ -295,34 +302,57 @@ export function layout(data: GraphData, sized: SizedNode[], opts: LayoutOptions)
 		});
 	}
 
-	// Excel-style slot snap. Slot pitch = (cardW + channelW) × (cardH +
-	// channelH); each slot holds ONE card centred with a half-channel
-	// margin on every side. The empty channel rim between slots is what
-	// trunks, single wires, and cluster borders route through.
+	// Excel-style slot snap with FOOTPRINT awareness. Each card reserves
+	// ceil(w/slotW) × ceil(h/slotH) cells (= the full grid area it covers),
+	// not just one cell. Variable-sized cards (when nodeSizeMode != fixed
+	// scales them up) thus occupy multiple cells and never overlap their
+	// neighbours. Process big cards first so they grab the prime real
+	// estate; small ones fill in the gaps.
 	const occupied = new Set<string>();
-	for (const n of positionedNodes) {
-		let col = Math.floor(n.x / slotW);
-		let row = Math.floor(n.y / slotH);
-		let key = `${col},${row}`;
-		if (occupied.has(key)) {
-			outer: for (let radius = 1; radius < 128; radius++) {
+	const order = positionedNodes
+		.map((_, i) => i)
+		.sort((a, b) => {
+			const A = positionedNodes[a];
+			const B = positionedNodes[b];
+			return B.width * B.height - A.width * A.height;
+		});
+	for (const idx of order) {
+		const n = positionedNodes[idx];
+		const colSpan = Math.max(1, Math.ceil(n.width / slotW));
+		const rowSpan = Math.max(1, Math.ceil(n.height / slotH));
+		// Snap so the FOOTPRINT is centred around the original (n.x, n.y).
+		// Card centre will be at (col + colSpan/2)·slotW.
+		let col = Math.floor(n.x / slotW - (colSpan - 1) / 2);
+		let row = Math.floor(n.y / slotH - (rowSpan - 1) / 2);
+		const isFree = (c: number, r: number): boolean => {
+			for (let dc = 0; dc < colSpan; dc++) {
+				for (let dr = 0; dr < rowSpan; dr++) {
+					if (occupied.has(`${c + dc},${r + dr}`)) return false;
+				}
+			}
+			return true;
+		};
+		if (!isFree(col, row)) {
+			outer: for (let radius = 1; radius < 256; radius++) {
 				for (let dc = -radius; dc <= radius; dc++) {
 					for (let dr = -radius; dr <= radius; dr++) {
 						if (Math.max(Math.abs(dc), Math.abs(dr)) !== radius) continue;
-						const k2 = `${col + dc},${row + dr}`;
-						if (!occupied.has(k2)) {
+						if (isFree(col + dc, row + dr)) {
 							col += dc;
 							row += dr;
-							key = k2;
 							break outer;
 						}
 					}
 				}
 			}
 		}
-		occupied.add(key);
-		n.x = (col + 0.5) * slotW;
-		n.y = (row + 0.5) * slotH;
+		for (let dc = 0; dc < colSpan; dc++) {
+			for (let dr = 0; dr < rowSpan; dr++) {
+				occupied.add(`${col + dc},${row + dr}`);
+			}
+		}
+		n.x = (col + colSpan / 2) * slotW;
+		n.y = (row + rowSpan / 2) * slotH;
 		const r = idToRect.get(n.id);
 		if (r) {
 			r.x = n.x;
@@ -373,12 +403,19 @@ export function layout(data: GraphData, sized: SizedNode[], opts: LayoutOptions)
 		for (const n of positionedNodes) {
 			if (!n.memberships.includes(key)) continue;
 			count++;
-			const col = Math.floor(n.x / slotW);
-			const row = Math.floor(n.y / slotH);
-			if (col < cellMinCol) cellMinCol = col;
-			if (col > cellMaxCol) cellMaxCol = col;
-			if (row < cellMinRow) cellMinRow = row;
-			if (row > cellMaxRow) cellMaxRow = row;
+			// Use the card's FOOTPRINT, not just its centre cell — a
+			// variable-scale card spans multiple cells and the cluster
+			// bounding box must engulf the full extent of every member.
+			const colSpan = Math.max(1, Math.ceil(n.width / slotW));
+			const rowSpan = Math.max(1, Math.ceil(n.height / slotH));
+			const startCol = Math.round(n.x / slotW - colSpan / 2);
+			const startRow = Math.round(n.y / slotH - rowSpan / 2);
+			const endCol = startCol + colSpan - 1;
+			const endRow = startRow + rowSpan - 1;
+			if (startCol < cellMinCol) cellMinCol = startCol;
+			if (endCol > cellMaxCol) cellMaxCol = endCol;
+			if (startRow < cellMinRow) cellMinRow = startRow;
+			if (endRow > cellMaxRow) cellMaxRow = endRow;
 		}
 		if (count === 0) continue;
 		const nest = nestingDepth.get(key) ?? 0;
@@ -400,6 +437,36 @@ export function layout(data: GraphData, sized: SizedNode[], opts: LayoutOptions)
 			height: bottom - top,
 			memberCount: count,
 		});
+	}
+
+	// Clamp every cluster's left/top to the CHANNEL between column A and
+	// column B (resp. row 1 and row 2). Column A and row 1 stay completely
+	// empty — no enclosure border may enter them. The leftmost card cell
+	// is at globalMinCol, so the clamp boundary is globalMinCol * slotW
+	// (the channel just to the left of card B / above row 2).
+	if (positionedNodes.length > 0 && clusters.length > 0) {
+		let globalMinCol = Infinity;
+		let globalMinRow = Infinity;
+		for (const n of positionedNodes) {
+			const colSpan = Math.max(1, Math.ceil(n.width / slotW));
+			const rowSpan = Math.max(1, Math.ceil(n.height / slotH));
+			const startCol = Math.round(n.x / slotW - colSpan / 2);
+			const startRow = Math.round(n.y / slotH - rowSpan / 2);
+			if (startCol < globalMinCol) globalMinCol = startCol;
+			if (startRow < globalMinRow) globalMinRow = startRow;
+		}
+		const gridLeft = globalMinCol * slotW;
+		const gridTop = globalMinRow * slotH;
+		for (const c of clusters) {
+			if (c.x < gridLeft) {
+				c.width = Math.max(slotW, c.width - (gridLeft - c.x));
+				c.x = gridLeft;
+			}
+			if (c.y < gridTop) {
+				c.height = Math.max(slotH, c.height - (gridTop - c.y));
+				c.y = gridTop;
+			}
+		}
 	}
 
 	// Edge bundling: group inter-cluster edges by (srcCluster, tgtCluster). If

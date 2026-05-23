@@ -81,6 +81,34 @@ export default class GraphIslandMiniPlugin extends Plugin {
 		}
 		if (typeof merged.panelVisible !== "boolean") merged.panelVisible = false;
 		if (typeof merged.showBody !== "boolean") merged.showBody = true;
+		// Retired pixel-sized fields (now superseded by nodeRows / nodeCols).
+		delete merged.nodeWidth;
+		delete merged.nodeHeight;
+		if (
+			typeof merged.nodeRows !== "number" ||
+			!Number.isFinite(merged.nodeRows) ||
+			merged.nodeRows < 1
+		) {
+			merged.nodeRows = 1;
+		} else {
+			merged.nodeRows = Math.max(1, Math.floor(merged.nodeRows));
+		}
+		if (
+			typeof merged.nodeCols !== "number" ||
+			!Number.isFinite(merged.nodeCols) ||
+			merged.nodeCols < 1
+		) {
+			merged.nodeCols = 1;
+		} else {
+			merged.nodeCols = Math.max(1, Math.floor(merged.nodeCols));
+		}
+		if (
+			merged.nodeSizeMode !== "fixed" &&
+			merged.nodeSizeMode !== "indegree" &&
+			merged.nodeSizeMode !== "outdegree"
+		) {
+			merged.nodeSizeMode = "fixed";
+		}
 		if (typeof merged.showEnclosures !== "boolean") merged.showEnclosures = true;
 		if (typeof merged.showEdges !== "boolean") merged.showEdges = true;
 		if (typeof merged.showGrid !== "boolean") merged.showGrid = true;
