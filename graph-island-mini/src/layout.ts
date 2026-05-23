@@ -1,4 +1,15 @@
 import { GraphData, GraphEdge, GraphNode, NONE_BUCKET } from "./types";
+import {
+	type ClusterRankInfo,
+	rankClustersByDegree,
+	chooseFocusCluster,
+	reorderBySharing,
+	moveToFront,
+	placeAnchorsConcentric,
+	placeAnchorsFlow,
+	subgroupHashOffset,
+	centroidOf,
+} from "./anchor-placement";
 
 export interface SizedNode extends GraphNode {
 	width: number;
@@ -80,12 +91,6 @@ export interface LayoutOptions {
 	// square rings outward. "flow" places focus top-left and fills columns
 	// rightward (main flow direction = toward the focus). Default: concentric.
 	anchorPlacement?: "concentric" | "flow";
-}
-
-interface ClusterRankInfo {
-	groupKey: string;
-	totalDegree: number;
-	memberCount: number;
 }
 
 interface Rect {
@@ -707,201 +712,6 @@ function computeDegreeMap(edges: GraphEdge[]): Map<string, number> {
 
 // Rank clusters by aggregate degree (sum of member node degrees), tie-broken
 // by member count. NONE_BUCKET keeps its place at the end as before.
-function rankClustersByDegree(
-	clusterKeys: string[],
-	nodes: GraphNode[],
-	degree: Map<string, number>,
-): ClusterRankInfo[] {
-	const byKey = new Map<string, { totalDegree: number; memberCount: number }>();
-	for (const k of clusterKeys) byKey.set(k, { totalDegree: 0, memberCount: 0 });
-	for (const n of nodes) {
-		const d = degree.get(n.id) ?? 0;
-		for (const m of n.memberships) {
-			const rec = byKey.get(m);
-			if (rec) {
-				rec.totalDegree += d;
-				rec.memberCount++;
-			}
-		}
-	}
-	const ranks: ClusterRankInfo[] = clusterKeys.map((k) => ({
-		groupKey: k,
-		totalDegree: byKey.get(k)?.totalDegree ?? 0,
-		memberCount: byKey.get(k)?.memberCount ?? 0,
-	}));
-	ranks.sort((a, b) => {
-		if (a.groupKey === NONE_BUCKET && b.groupKey !== NONE_BUCKET) return 1;
-		if (b.groupKey === NONE_BUCKET && a.groupKey !== NONE_BUCKET) return -1;
-		if (b.totalDegree !== a.totalDegree) return b.totalDegree - a.totalDegree;
-		return b.memberCount - a.memberCount;
-	});
-	return ranks;
-}
-
-// Pick the "stage" cluster: the one that contains the GLOBAL max-degree node.
-// (Per spec: 焦点 = グローバル最大次数ノードの所属クラスタ.)
-function chooseFocusCluster(
-	nodes: GraphNode[],
-	degree: Map<string, number>,
-	ranks: ClusterRankInfo[],
-): string {
-	if (degree.size === 0) return ranks[0]?.groupKey ?? "";
-	let bestId = "";
-	let bestDeg = -1;
-	for (const [id, d] of degree) {
-		if (d > bestDeg) {
-			bestDeg = d;
-			bestId = id;
-		}
-	}
-	const node = nodes.find((n) => n.id === bestId);
-	const primary = node?.memberships[0];
-	if (primary && primary !== NONE_BUCKET) return primary;
-	return ranks[0]?.groupKey ?? "";
-}
-
-// Reorder ranks so that adjacent entries share the maximum number of
-// members. The first entry (= focus) is treated as a fixed seed; every
-// subsequent entry is the unplaced cluster that shares the most members
-// with any cluster already in the new ordering. The result is a
-// permutation that puts heavily-overlapping groups next to each other on
-// the concentric / flow lattice, so multi-tag sub-groups land at short
-// inter-anchor centroids and parent enclosures stay tight.
-function reorderBySharing(ranks: ClusterRankInfo[], nodes: GraphNode[]): void {
-	if (ranks.length <= 2) return;
-	// Build cluster_key → Set<node_id> from raw memberships.
-	const members = new Map<string, Set<string>>();
-	for (const r of ranks) members.set(r.groupKey, new Set());
-	for (const n of nodes) {
-		for (const m of n.memberships) {
-			const s = members.get(m);
-			if (s) s.add(n.id);
-		}
-	}
-	const sharedCount = (a: string, b: string): number => {
-		const A = members.get(a);
-		const B = members.get(b);
-		if (!A || !B) return 0;
-		const [small, large] = A.size <= B.size ? [A, B] : [B, A];
-		let n = 0;
-		for (const id of small) if (large.has(id)) n++;
-		return n;
-	};
-	const reordered: ClusterRankInfo[] = [];
-	const remaining = new Set(ranks.map((r) => r.groupKey));
-	// Seed: keep the original first rank (= focus) so the focus stays at
-	// the lattice centre.
-	reordered.push(ranks[0]);
-	remaining.delete(ranks[0].groupKey);
-	const placedKeys: string[] = [ranks[0].groupKey];
-	while (remaining.size > 0) {
-		let best: ClusterRankInfo | null = null;
-		let bestScore = -1;
-		for (const r of ranks) {
-			if (!remaining.has(r.groupKey)) continue;
-			let score = 0;
-			for (const placed of placedKeys) score += sharedCount(r.groupKey, placed);
-			if (score > bestScore) {
-				bestScore = score;
-				best = r;
-			}
-		}
-		if (!best) {
-			// Fall back to original order for any cluster with zero sharing.
-			for (const r of ranks) {
-				if (remaining.has(r.groupKey)) {
-					best = r;
-					break;
-				}
-			}
-		}
-		if (!best) break;
-		reordered.push(best);
-		remaining.delete(best.groupKey);
-		placedKeys.push(best.groupKey);
-	}
-	ranks.length = 0;
-	for (const r of reordered) ranks.push(r);
-}
-
-function moveToFront(ranks: ClusterRankInfo[], key: string): void {
-	const idx = ranks.findIndex((r) => r.groupKey === key);
-	if (idx <= 0) return;
-	const [r] = ranks.splice(idx, 1);
-	ranks.unshift(r);
-}
-
-// Concentric: focus at (0,0), then expanding square rings (8, 16, 24 ... cells).
-// Within each ring, fill clockwise starting from the top.
-function placeAnchorsConcentric(
-	anchors: Map<string, { x: number; y: number }>,
-	ranks: ClusterRankInfo[],
-	strideX: number,
-	strideY: number,
-): void {
-	if (ranks.length === 0) return;
-	anchors.set(ranks[0].groupKey, { x: 0, y: 0 });
-	const cells: { x: number; y: number }[] = [];
-	for (let r = 1; cells.length < ranks.length - 1 && r <= 32; r++) {
-		// Walk the perimeter of the rxr ring clockwise starting at top-left.
-		for (let dx = -r; dx <= r; dx++) cells.push({ x: dx * strideX, y: -r * strideY });
-		for (let dy = -r + 1; dy <= r; dy++) cells.push({ x: r * strideX, y: dy * strideY });
-		for (let dx = r - 1; dx >= -r; dx--) cells.push({ x: dx * strideX, y: r * strideY });
-		for (let dy = r - 1; dy >= -r + 1; dy--) cells.push({ x: -r * strideX, y: dy * strideY });
-	}
-	for (let i = 1; i < ranks.length && i - 1 < cells.length; i++) {
-		anchors.set(ranks[i].groupKey, cells[i - 1]);
-	}
-}
-
-// Flow: focus at top-left, columns growing rightward. Within each column,
-// ranks descend (rank 1 directly below focus). Column height ≈ sqrt(N).
-function placeAnchorsFlow(
-	anchors: Map<string, { x: number; y: number }>,
-	ranks: ClusterRankInfo[],
-	strideX: number,
-	strideY: number,
-): void {
-	if (ranks.length === 0) return;
-	const total = ranks.length;
-	const colHeight = Math.max(1, Math.ceil(Math.sqrt(total)));
-	for (let i = 0; i < total; i++) {
-		const col = Math.floor(i / colHeight);
-		const row = i % colHeight;
-		anchors.set(ranks[i].groupKey, { x: col * strideX, y: row * strideY });
-	}
-}
-
-// Deterministic radial offset from a sub-group's membership signature. The
-// angle is derived from an FNV-1a hash so different membership sets are
-// pushed in different directions even when their grid centroid coincides.
-function subgroupHashOffset(key: string, magnitude: number): { x: number; y: number } {
-	if (magnitude <= 0) return { x: 0, y: 0 };
-	let h = 2166136261;
-	for (let i = 0; i < key.length; i++) {
-		h ^= key.charCodeAt(i);
-		h = Math.imul(h, 16777619);
-	}
-	const u = (h >>> 0) / 0xffffffff;
-	const angle = u * Math.PI * 2;
-	return { x: Math.cos(angle) * magnitude, y: Math.sin(angle) * magnitude };
-}
-
-function centroidOf(
-	memberships: string[],
-	anchors: Map<string, { x: number; y: number }>,
-): { x: number; y: number } {
-	let x = 0, y = 0, n = 0;
-	for (const m of memberships) {
-		const a = anchors.get(m);
-		if (!a) continue;
-		x += a.x;
-		y += a.y;
-		n++;
-	}
-	if (n === 0) return { x: 0, y: 0 };
-	return { x: x / n, y: y / n };
-}
 
 function fallbackSize(n: GraphNode): SizedNode {
 	return { ...n, width: 80, height: 24 };
