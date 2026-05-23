@@ -97,6 +97,22 @@ export class MiniGraphView extends ItemView {
 	// Refreshed every rebuild from data.edges.
 	private inDegreeMap: Map<string, number> = new Map();
 	private outDegreeMap: Map<string, number> = new Map();
+	// Cluster-relations cache populated post-layout: each cluster's member
+	// id set, plus the list of clusters that are STRICT supersets of it.
+	// Used by the per-cluster NODE_DISPLAY resolver to walk the fallback
+	// chain (own → inheritFrom → superset → global).
+	private clusterMemberSets: Map<string, Set<string>> = new Map();
+	private clusterSupersets: Map<string, string[]> = new Map();
+	// Per-node resolved NODE_DISPLAY snapshot. Filled once per rebuild from
+	// the override chain so cardFor / drawCard don't re-walk it per call.
+	private nodeDisplayCache: Map<
+		string,
+		{
+			nodeRows: number;
+			nodeCols: number;
+			nodeSizeMode: "fixed" | "indegree" | "outdegree";
+		}
+	> = new Map();
 	private panelEl: HTMLDivElement | null = null;
 	// Current tab in the settings panel. "__all__" = 全体. Otherwise = a
 	// cluster groupKey produced by WHERE → GROUP_BY → HAVING.
@@ -343,7 +359,6 @@ export class MiniGraphView extends ItemView {
 			autoKey: "limitAuto",
 		});
 		this.renderNodeDisplaySection(el);
-		this.renderLayoutSection(el);
 		this.renderToggleSection(el, "Graph display", [
 			{ key: "showEnclosures", label: "Show enclosures" },
 			{ key: "showEdges", label: "Show edges" },
@@ -413,6 +428,10 @@ export class MiniGraphView extends ItemView {
 			void this.save();
 			void this.rebuild();
 		});
+
+		// Per-cluster NODE_DISPLAY override. Falls back to inheritFrom →
+		// strict superset → global when fields are left empty.
+		this.renderNodeDisplaySection(el, { groupKey });
 
 		// Per-card visibility list. The user toggles each card individually;
 		// bulk Show/Hide buttons at the top operate on the whole layer.
@@ -496,34 +515,83 @@ export class MiniGraphView extends ItemView {
 	// size-by-link mode. Changing any size knob triggers a full rebuild
 	// because the cell pitch is derived from the base size and the layout
 	// has to redo cell snap.
-	private renderNodeDisplaySection(parent: HTMLElement): void {
+	// Render NODE_DISPLAY controls. With no scope it edits the GLOBAL
+	// settings (used in the 全体 tab). With `scope = { groupKey }` it edits
+	// `nodeDisplayOverrides[groupKey]` instead, and unset fields fall back
+	// through `inheritFrom` source → strict supersets → global, in that
+	// priority order.
+	private renderNodeDisplaySection(
+		parent: HTMLElement,
+		scope?: { groupKey: string },
+	): void {
 		const section = parent.createDiv({ cls: "gim-panel-section" });
 		section.createEl("h4", { text: "Node display" });
 
-		// "Size (m × n)" = how many rows and columns of the global grid the
-		// card spans. m = rows (height), n = columns (width). Default 1, 1
-		// (= one cell). Pixel size of one cell is the canonical CARD_CELL_W
-		// × CARD_CELL_H constant.
+		const overrideFor = (): {
+			nodeRows?: number;
+			nodeCols?: number;
+			nodeSizeMode?: "fixed" | "indegree" | "outdegree";
+		} => {
+			if (!scope) return {};
+			let ov = this.settings.nodeDisplayOverrides[scope.groupKey];
+			if (!ov) {
+				ov = {};
+				this.settings.nodeDisplayOverrides[scope.groupKey] = ov;
+			}
+			return ov;
+		};
+		// In layer scope, look up resolved value (= what the renderer uses)
+		// to display as placeholder so the user can see what they'll override.
+		const resolvedFor = scope
+			? this.resolveFromCluster(scope.groupKey)
+			: {
+					nodeRows: this.settings.nodeRows,
+					nodeCols: this.settings.nodeCols,
+					nodeSizeMode: this.settings.nodeSizeMode,
+				};
+
+		// "Size (m × n)". For layer scope, empty value means "use inherited".
 		const sizeRow = section.createDiv({ cls: "gim-order-row" });
 		sizeRow.createSpan({ text: "Size (m × n)", cls: "gim-order-field" });
 		const mIn = sizeRow.createEl("input", { type: "number" }) as HTMLInputElement;
-		mIn.value = String(this.settings.nodeRows);
-		mIn.min = "1";
-		mIn.max = "8";
-		mIn.step = "1";
-		mIn.style.width = "50px";
-		sizeRow.createSpan({ text: "×" });
-		const nIn = sizeRow.createEl("input", { type: "number" }) as HTMLInputElement;
-		nIn.value = String(this.settings.nodeCols);
-		nIn.min = "1";
-		nIn.max = "8";
-		nIn.step = "1";
-		nIn.style.width = "50px";
+		const nIn = (() => {
+			sizeRow.createSpan({ text: "×" });
+			return sizeRow.createEl("input", { type: "number" }) as HTMLInputElement;
+		})();
+		mIn.min = nIn.min = "1";
+		mIn.max = nIn.max = "8";
+		mIn.step = nIn.step = "1";
+		mIn.style.width = nIn.style.width = "50px";
+		if (scope) {
+			const ov = this.settings.nodeDisplayOverrides[scope.groupKey];
+			mIn.value = ov?.nodeRows !== undefined ? String(ov.nodeRows) : "";
+			nIn.value = ov?.nodeCols !== undefined ? String(ov.nodeCols) : "";
+			mIn.placeholder = String(resolvedFor.nodeRows);
+			nIn.placeholder = String(resolvedFor.nodeCols);
+		} else {
+			mIn.value = String(this.settings.nodeRows);
+			nIn.value = String(this.settings.nodeCols);
+		}
 		const applySize = (): void => {
 			const m = parseInt(mIn.value, 10);
 			const n = parseInt(nIn.value, 10);
-			if (Number.isFinite(m) && m >= 1 && m <= 12) this.settings.nodeRows = m;
-			if (Number.isFinite(n) && n >= 1 && n <= 12) this.settings.nodeCols = n;
+			if (scope) {
+				const ov = overrideFor();
+				if (Number.isFinite(m) && m >= 1 && m <= 8) ov.nodeRows = m;
+				else delete ov.nodeRows;
+				if (Number.isFinite(n) && n >= 1 && n <= 8) ov.nodeCols = n;
+				else delete ov.nodeCols;
+				if (
+					ov.nodeRows === undefined &&
+					ov.nodeCols === undefined &&
+					ov.nodeSizeMode === undefined
+				) {
+					delete this.settings.nodeDisplayOverrides[scope.groupKey];
+				}
+			} else {
+				if (Number.isFinite(m) && m >= 1 && m <= 12) this.settings.nodeRows = m;
+				if (Number.isFinite(n) && n >= 1 && n <= 12) this.settings.nodeCols = n;
+			}
 			this.cardCache.clear();
 			void this.save();
 			void this.rebuild();
@@ -534,6 +602,12 @@ export class MiniGraphView extends ItemView {
 		const modeRow = section.createDiv({ cls: "gim-order-row" });
 		modeRow.createSpan({ text: "Size by", cls: "gim-order-field" });
 		const sel = modeRow.createEl("select", { cls: "gim-order-dir" }) as HTMLSelectElement;
+		if (scope) {
+			sel.createEl("option", {
+				value: "",
+				text: `Inherited (${this.formatSizeMode(resolvedFor.nodeSizeMode)})`,
+			});
+		}
 		for (const opt of [
 			{ v: "fixed", t: "Fixed" },
 			{ v: "indegree", t: "Incoming links" },
@@ -541,33 +615,83 @@ export class MiniGraphView extends ItemView {
 		]) {
 			sel.createEl("option", { value: opt.v, text: opt.t });
 		}
-		sel.value = this.settings.nodeSizeMode;
+		if (scope) {
+			const ov = this.settings.nodeDisplayOverrides[scope.groupKey];
+			sel.value = ov?.nodeSizeMode ?? "";
+		} else {
+			sel.value = this.settings.nodeSizeMode;
+		}
 		sel.addEventListener("change", () => {
-			this.settings.nodeSizeMode = sel.value as MiniSettings["nodeSizeMode"];
+			if (scope) {
+				const ov = overrideFor();
+				if (sel.value === "") delete ov.nodeSizeMode;
+				else
+					ov.nodeSizeMode = sel.value as
+						| "fixed"
+						| "indegree"
+						| "outdegree";
+				if (
+					ov.nodeRows === undefined &&
+					ov.nodeCols === undefined &&
+					ov.nodeSizeMode === undefined
+				) {
+					delete this.settings.nodeDisplayOverrides[scope.groupKey];
+				}
+			} else {
+				this.settings.nodeSizeMode = sel.value as MiniSettings["nodeSizeMode"];
+			}
 			this.cardCache.clear();
 			void this.save();
 			void this.rebuild();
 		});
 	}
 
-	private renderLayoutSection(parent: HTMLElement): void {
-		const section = parent.createDiv({ cls: "gim-panel-section" });
-		section.createEl("h4", { text: "Layout" });
-		const row = section.createDiv({ cls: "gim-order-row" });
-		row.createSpan({ text: "Anchor", cls: "gim-order-field" });
-		const sel = row.createEl("select", { cls: "gim-order-dir" });
-		const opts = [
-			{ value: "concentric", text: "concentric" },
-			{ value: "flow", text: "flow" },
-		];
-		for (const o of opts) {
-			const opt = sel.createEl("option", { value: o.value, text: o.text });
-			if (this.settings.anchorPlacement === o.value) opt.selected = true;
-		}
-		sel.addEventListener("change", () => {
-			this.settings.anchorPlacement = sel.value as "concentric" | "flow";
-			void this.save();
-		});
+	private formatSizeMode(m: "fixed" | "indegree" | "outdegree"): string {
+		return m === "fixed" ? "Fixed" : m === "indegree" ? "Incoming" : "Outgoing";
+	}
+
+	// Resolve a cluster's "rendered" NODE_DISPLAY (= what the inheritance
+	// chain produces when this cluster has no override) so the per-layer
+	// panel can show it as placeholder text and the user can tell what
+	// they're overriding.
+	private resolveFromCluster(groupKey: string): {
+		nodeRows: number;
+		nodeCols: number;
+		nodeSizeMode: "fixed" | "indegree" | "outdegree";
+	} {
+		const overrides = this.settings.nodeDisplayOverrides;
+		const lookup = (
+			field: "nodeRows" | "nodeCols" | "nodeSizeMode",
+		):
+			| number
+			| "fixed"
+			| "indegree"
+			| "outdegree"
+			| undefined => {
+			const own = overrides[groupKey]?.[field];
+			if (own !== undefined) return own as never;
+			const inh = this.settings.inheritFrom[groupKey];
+			if (inh) {
+				const v = overrides[inh]?.[field];
+				if (v !== undefined) return v as never;
+			}
+			const supers = this.clusterSupersets.get(groupKey) ?? [];
+			for (const sup of supers) {
+				const v = overrides[sup]?.[field];
+				if (v !== undefined) return v as never;
+			}
+			return undefined;
+		};
+		return {
+			nodeRows: (lookup("nodeRows") as number | undefined) ?? this.settings.nodeRows,
+			nodeCols: (lookup("nodeCols") as number | undefined) ?? this.settings.nodeCols,
+			nodeSizeMode:
+				(lookup("nodeSizeMode") as
+					| "fixed"
+					| "indegree"
+					| "outdegree"
+					| undefined) ?? this.settings.nodeSizeMode,
+		};
 	}
 
 	// ORDER_BY is a scalar (single field + direction) rather than an array of
@@ -852,6 +976,13 @@ export class MiniGraphView extends ItemView {
 		// varies by link count. The lattice pitch is the BASE size, so
 		// fixed-mode cards fit exactly while link-scaled cards may stick
 		// out beyond their cell.
+		// Cluster relations needed by the per-cluster NODE_DISPLAY resolver:
+		// build each cluster's member id set + each cluster's strict-superset
+		// list against the *current* (post-LIMIT) data so cardFor can walk
+		// the override chain.
+		this.recomputeClusterRelations(data.nodes);
+		this.recomputeNodeDisplayCache(data.nodes);
+
 		// Card sizes derive from the user-configured row × column span
 		// times the canonical CARD_CELL_W × CARD_CELL_H lattice step, with
 		// an optional degree-driven scale that preserves the m : n aspect.
@@ -1292,24 +1423,28 @@ export class MiniGraphView extends ItemView {
 	}
 
 	private cardFor(n: GraphNode): SizedNode {
+		const display = this.getNodeDisplay(n.id);
 		const mode = this.displayMode.get(n.id) ?? "full";
-		const cacheKey = `${n.id}:${mode}`;
+		const cacheKey = `${n.id}:${mode}:${display.nodeRows}x${display.nodeCols}`;
 		const cached = this.cardCache.get(cacheKey);
 		if (!cached || cached.title !== n.label) {
 			const body = (this.bodyCache.get(n.id) ?? "").slice(
 				0,
 				this.settings.cardMaxChars,
 			);
-			this.cardCache.set(cacheKey, this.measureCard(n.label, body, mode));
+			this.cardCache.set(
+				cacheKey,
+				this.measureCard(n.label, body, mode, display.nodeRows, display.nodeCols),
+			);
 		}
 		// Card pixel size SPANS its full grid footprint (= effC slots wide,
 		// effR slots tall) and fills the inner channels. Aspect ratio is
 		// preserved because slotW/slotH = cardW/cardH and the formula
 		// width = effC × slotW − channelW, height = effR × slotH − channelH
 		// gives constant w/h for any (effC, effR) with effC : effR locked.
-		const rows = Math.max(1, this.settings.nodeRows);
-		const cols = Math.max(1, this.settings.nodeCols);
-		const scale = this.computeSizeScale(n.id);
+		const rows = Math.max(1, display.nodeRows);
+		const cols = Math.max(1, display.nodeCols);
+		const scale = this.computeSizeScale(n.id, display.nodeSizeMode);
 		const channelW = Math.max(8, this.settings.nodeSpacing);
 		const channelH = Math.max(1, (channelW * CARD_CELL_H) / CARD_CELL_W);
 		const slotW = CARD_CELL_W + channelW;
@@ -1323,12 +1458,13 @@ export class MiniGraphView extends ItemView {
 		};
 	}
 
-	private computeSizeScale(nodeId: string): number {
-		if (this.settings.nodeSizeMode === "fixed") return 1;
-		const map =
-			this.settings.nodeSizeMode === "indegree"
-				? this.inDegreeMap
-				: this.outDegreeMap;
+	private computeSizeScale(
+		nodeId: string,
+		mode?: "fixed" | "indegree" | "outdegree",
+	): number {
+		const m = mode ?? this.settings.nodeSizeMode;
+		if (m === "fixed") return 1;
+		const map = m === "indegree" ? this.inDegreeMap : this.outDegreeMap;
 		const deg = map.get(nodeId) ?? 0;
 		// (linkCount + 1) × base. 0 links ⇒ initial size; each additional
 		// link adds another full multiple. Aspect ratio is preserved
@@ -1339,10 +1475,105 @@ export class MiniGraphView extends ItemView {
 		return Math.min(8, deg + 1);
 	}
 
+	// Build cluster_key → member_id_set and cluster_key → strict_superset
+	// keys. Called once per rebuild so the override resolver can walk the
+	// "own → inheritFrom → superset → global" chain in O(1) lookups.
+	private recomputeClusterRelations(nodes: GraphNode[]): void {
+		this.clusterMemberSets.clear();
+		this.clusterSupersets.clear();
+		const keys = new Set<string>();
+		for (const n of nodes) for (const m of n.memberships) keys.add(m);
+		for (const key of keys) {
+			const s = new Set<string>();
+			for (const n of nodes) if (n.memberships.includes(key)) s.add(n.id);
+			this.clusterMemberSets.set(key, s);
+		}
+		for (const [key, mems] of this.clusterMemberSets) {
+			const supers: string[] = [];
+			for (const [otherKey, otherMems] of this.clusterMemberSets) {
+				if (otherKey === key) continue;
+				if (otherMems.size <= mems.size) continue;
+				let isSuper = true;
+				for (const m of mems) {
+					if (!otherMems.has(m)) {
+						isSuper = false;
+						break;
+					}
+				}
+				if (isSuper) supers.push(otherKey);
+			}
+			this.clusterSupersets.set(key, supers);
+		}
+	}
+
+	// Resolve NODE_DISPLAY for a node by walking the priority chain:
+	//   1. Override on the node's group
+	//   2. Override on `inheritFrom[group]`
+	//   3. Override on any strict superset of the group
+	//   4. Global setting (= this.settings.node*)
+	// Memberships are tried in the node's declared order; the first
+	// concrete value found at any level for a given field wins.
+	private resolveNodeDisplay(n: GraphNode): {
+		nodeRows: number;
+		nodeCols: number;
+		nodeSizeMode: "fixed" | "indegree" | "outdegree";
+	} {
+		const overrides = this.settings.nodeDisplayOverrides;
+		const lookup = <K extends "nodeRows" | "nodeCols" | "nodeSizeMode">(
+			field: K,
+		): number | "fixed" | "indegree" | "outdegree" | undefined => {
+			for (const m of n.memberships) {
+				const own = overrides[m]?.[field];
+				if (own !== undefined) return own as never;
+				const inh = this.settings.inheritFrom[m];
+				if (inh) {
+					const v = overrides[inh]?.[field];
+					if (v !== undefined) return v as never;
+				}
+				const supers = this.clusterSupersets.get(m) ?? [];
+				for (const sup of supers) {
+					const v = overrides[sup]?.[field];
+					if (v !== undefined) return v as never;
+				}
+			}
+			return undefined;
+		};
+		const rows = (lookup("nodeRows") as number | undefined) ?? this.settings.nodeRows;
+		const cols = (lookup("nodeCols") as number | undefined) ?? this.settings.nodeCols;
+		const mode =
+			(lookup("nodeSizeMode") as
+				| "fixed"
+				| "indegree"
+				| "outdegree"
+				| undefined) ?? this.settings.nodeSizeMode;
+		return { nodeRows: rows, nodeCols: cols, nodeSizeMode: mode };
+	}
+
+	private recomputeNodeDisplayCache(nodes: GraphNode[]): void {
+		this.nodeDisplayCache.clear();
+		for (const n of nodes) this.nodeDisplayCache.set(n.id, this.resolveNodeDisplay(n));
+	}
+
+	private getNodeDisplay(nodeId: string): {
+		nodeRows: number;
+		nodeCols: number;
+		nodeSizeMode: "fixed" | "indegree" | "outdegree";
+	} {
+		return (
+			this.nodeDisplayCache.get(nodeId) ?? {
+				nodeRows: this.settings.nodeRows,
+				nodeCols: this.settings.nodeCols,
+				nodeSizeMode: this.settings.nodeSizeMode,
+			}
+		);
+	}
+
 	private measureCard(
 		title: string,
 		body: string,
 		mode: "full" | "brief" = "full",
+		nodeRows?: number,
+		nodeCols?: number,
 	): CardContent {
 		const ctx = this.ctx;
 		const padX = CARD_PAD_X;
@@ -1352,8 +1583,8 @@ export class MiniGraphView extends ItemView {
 		// same number of lines and the same proportional inner width — the
 		// font is bigger but the line count and per-line character budget
 		// are unchanged, so the body never overflows the card.
-		const cols = Math.max(1, this.settings.nodeCols);
-		const rows = Math.max(1, this.settings.nodeRows);
+		const cols = Math.max(1, nodeCols ?? this.settings.nodeCols);
+		const rows = Math.max(1, nodeRows ?? this.settings.nodeRows);
 		const cardBaseW = cols * CARD_CELL_W;
 		const cardBaseH = rows * CARD_CELL_H;
 		const innerW = Math.max(8, cardBaseW - 2 * padX);
@@ -2068,9 +2299,11 @@ export class MiniGraphView extends ItemView {
 		// Card-internal scale drives padding, font sizes, line heights and
 		// gaps only — the corner radius and border stroke stay FIXED so the
 		// outline geometry reads identically regardless of card size. The
-		// base is the 1×1-cell card pixel size (= CARD_CELL_W for default
-		// cols=1 / scale=1) and `scale = w / (cols × CARD_CELL_W)`.
-		const baseW = Math.max(1, this.settings.nodeCols * CARD_CELL_W);
+		// base is the 1-cell × nodeCols card pixel size (post-resolution of
+		// the NODE_DISPLAY override chain) so per-cluster size overrides
+		// also adjust the internal text proportions correctly.
+		const display = this.getNodeDisplay(n.id);
+		const baseW = Math.max(1, display.nodeCols * CARD_CELL_W);
 		const scale = w / baseW;
 		const r = Math.min(CARD_RADIUS_PX, w / 2, h / 2);
 

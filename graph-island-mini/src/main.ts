@@ -122,6 +122,13 @@ export default class GraphIslandMiniPlugin extends Plugin {
 		) {
 			merged.inheritFrom = {};
 		}
+		if (
+			merged.nodeDisplayOverrides === null ||
+			typeof merged.nodeDisplayOverrides !== "object" ||
+			Array.isArray(merged.nodeDisplayOverrides)
+		) {
+			merged.nodeDisplayOverrides = {};
+		}
 		// Strip retired LOD fields so they don't leak back into data.json.
 		delete merged.lodMode;
 		delete merged.lodCoreMembershipMin;

@@ -79,6 +79,21 @@ export interface MiniSettings {
 	// set, the child cluster's bbox grows to engulf the parent's bbox so
 	// the parent visually "joins" the child territory.
 	inheritFrom: Record<string, string>;
+	// Per-cluster NODE_DISPLAY overrides. Resolution order for a node:
+	//   1. Override on the node's own group
+	//   2. Override on `inheritFrom[group]`
+	//   3. Override on any cluster that's a strict superset of the group
+	//   4. Global setting (= this.nodeRows / nodeCols / nodeSizeMode)
+	// Each field is optional — a partial override only replaces what it
+	// defines; unset fields fall through to the next priority level.
+	nodeDisplayOverrides: Record<
+		string,
+		{
+			nodeRows?: number;
+			nodeCols?: number;
+			nodeSizeMode?: "fixed" | "indegree" | "outdegree";
+		}
+	>;
 	panelVisible: boolean;
 	clusterOffsets: Record<string, Offset>;
 	nodeOffsets: Record<string, Offset>;
@@ -109,6 +124,7 @@ export const DEFAULT_SETTINGS: MiniSettings = {
 	hiddenNodes: [],
 	aggregatedLayers: [],
 	inheritFrom: {},
+	nodeDisplayOverrides: {},
 	panelVisible: false,
 	clusterOffsets: {},
 	nodeOffsets: {},
