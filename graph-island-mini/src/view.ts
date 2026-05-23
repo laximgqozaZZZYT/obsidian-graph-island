@@ -97,6 +97,14 @@ export class MiniGraphView extends ItemView {
 	// Refreshed every rebuild from data.edges.
 	private inDegreeMap: Map<string, number> = new Map();
 	private outDegreeMap: Map<string, number> = new Map();
+	// trulyAgg from the rebuild's aggregate processing. The draw layer reads
+	// this — NOT a recomputed "every membership in aggSet" — so that a node
+	// the rebuild considers "effectively aggregated" (e.g. via the parent-
+	// cluster skip rule) is also the same set the draw layer hides. Without
+	// this single source of truth, draw would still render a node whose
+	// footprint the rebuild marked as free, and the aggregate badge would
+	// happily land inside it.
+	private trulyAggSet: Set<string> = new Set();
 	// Cluster-relations cache populated post-layout: each cluster's member
 	// id set, plus the list of clusters that are STRICT supersets of it.
 	// Used by the per-cluster NODE_DISPLAY resolver to walk the fallback
@@ -1014,6 +1022,10 @@ export class MiniGraphView extends ItemView {
 		// stacks never sit on top of anything.
 		const aggSet = new Set(this.settings.aggregatedLayers);
 		this.aggregateCount.clear();
+		// Reset BEFORE the conditional so the draw layer doesn't carry over
+		// a stale trulyAgg set from a previous rebuild when aggregation gets
+		// turned off mid-session.
+		this.trulyAggSet = new Set();
 		if (aggSet.size > 0 && this.laid.nodes.length > 0) {
 			const cardW = this.laid.nodes[0].width;
 			const cardH = this.laid.nodes[0].height;
@@ -1076,6 +1088,13 @@ export class MiniGraphView extends ItemView {
 				}
 				if (hasEffective && allEffectiveAgg) trulyAgg.add(n.id);
 			}
+			// Snapshot the trulyAgg set so the draw layer can use the SAME
+			// definition for "hidden because aggregated". If draw recomputes
+			// aggHidden with a different rule, a card the rebuild treats as
+			// hidden (and therefore doesn't reserve in `occupied`) could
+			// still get drawn — and the aggregate badge would land inside
+			// it. Single source of truth here.
+			this.trulyAggSet = trulyAgg;
 			// Reserve every cell currently holding a visible card — including
 			// the FULL footprint of multi-cell (scaled) cards so an aggregate
 			// stack never lands inside a giant card like a hub at scale 5×.
@@ -1873,18 +1892,14 @@ export class MiniGraphView extends ItemView {
 		// of its memberships are aggregated layers — otherwise it still
 		// belongs to a non-aggregated cluster and must remain visible there.
 		const hiddenSet = new Set(this.settings.hiddenNodes);
-		const aggSet = new Set(this.settings.aggregatedLayers);
-		const aggHidden = new Set<string>();
-		if (aggSet.size > 0) {
-			for (const n of this.laid.nodes) {
-				if (n.memberships.length === 0) continue;
-				if (n.memberships.every((m) => aggSet.has(m))) {
-					aggHidden.add(n.id);
-				}
-			}
-		}
+		// Reuse the trulyAgg set computed during rebuild — the same set the
+		// aggregate-snap loop uses for reserving footprints. Recomputing a
+		// looser "every membership in aggSet" check here would create an
+		// inconsistency: a node the rebuild treats as aggregated (= no
+		// footprint in occupied) might still be drawn here, and the
+		// aggregate badge would land inside it.
 		const skipNode = (id: string): boolean =>
-			hiddenSet.has(id) || aggHidden.has(id);
+			hiddenSet.has(id) || this.trulyAggSet.has(id);
 
 		// Layer 1: all edges as thin LINEs. Every node-touching connection
 		// uses this uniform single-line style regardless of bundling.
