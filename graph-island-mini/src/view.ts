@@ -1781,82 +1781,24 @@ export class MiniGraphView extends ItemView {
 			this.drawCardGrid(ctx);
 		}
 
-		// Cell-tight enclosures: instead of drawing a single rectangle
-		// (which engulfs the entire convex hull of every member, and that's
-		// huge when a cluster's members are scattered across many
-		// multi-membership sub-groups), trace the OUTLINE of the actual
-		// cells each cluster's members occupy. Adjacent cells share edges
-		// that we DON'T draw; only edges with one side outside the cluster
-		// become part of the outline. This collapses the giant empty
-		// rectangles into tight rope-like outlines around the real cards.
+		// Outline-only enclosures: stroke colours are hue-distinct so the
+		// boundaries stay readable when clusters overlap or nest. ONE
+		// rectangle per cluster (= no splitting into per-cell outlines)
+		// because users expect a single contiguous enclosure.
 		if (this.settings.showEnclosures) {
-			const slotW = this.laid.slotW;
-			const slotH = this.laid.slotH;
-			// Pre-compute each cluster's footprint cells (= union of member
-			// card cells via Math.round centre formula).
-			const clusterCells = new Map<string, Set<string>>();
-			for (const cluster of this.laid.clusters) {
-				const cells = new Set<string>();
-				for (const n of this.laid.nodes) {
-					if (!n.memberships.includes(cluster.groupKey)) continue;
-					const colSpan = Math.max(1, Math.ceil(n.width / slotW));
-					const rowSpan = Math.max(1, Math.ceil(n.height / slotH));
-					const startCol = Math.round(n.x / slotW - colSpan / 2);
-					const startRow = Math.round(n.y / slotH - rowSpan / 2);
-					for (let dc = 0; dc < colSpan; dc++) {
-						for (let dr = 0; dr < rowSpan; dr++) {
-							cells.add(`${startCol + dc},${startRow + dr}`);
-						}
-					}
-				}
-				clusterCells.set(cluster.groupKey, cells);
-			}
-			// Largest enclosures drawn first so smaller (nested) ones stay
-			// on top — matches the prior strokeRect z-ordering.
 			const sortedClusters = [...this.laid.clusters].sort(
 				(a, b) => b.width * b.height - a.width * a.height,
 			);
 			const strokeW = 1.6 / this.zoom;
 			const accentStrokeW = 3.2 / this.zoom;
 			for (const c of sortedClusters) {
-				const cells = clusterCells.get(c.groupKey);
 				const hue = clusterHue(c.groupKey);
 				const isHigh = this.highlightedClusters.has(c.groupKey);
 				ctx.strokeStyle = isHigh
 					? "#ff9d3f"
 					: `hsla(${hue}, 70%, 62%, 0.9)`;
 				ctx.lineWidth = isHigh ? accentStrokeW : strokeW;
-				if (!cells || cells.size === 0) {
-					ctx.strokeRect(c.x, c.y, c.width, c.height);
-					continue;
-				}
-				ctx.beginPath();
-				for (const key of cells) {
-					const [colStr, rowStr] = key.split(",");
-					const col = Number(colStr);
-					const row = Number(rowStr);
-					const x0 = col * slotW;
-					const x1 = (col + 1) * slotW;
-					const y0 = row * slotH;
-					const y1 = (row + 1) * slotH;
-					if (!cells.has(`${col},${row - 1}`)) {
-						ctx.moveTo(x0, y0);
-						ctx.lineTo(x1, y0);
-					}
-					if (!cells.has(`${col},${row + 1}`)) {
-						ctx.moveTo(x0, y1);
-						ctx.lineTo(x1, y1);
-					}
-					if (!cells.has(`${col - 1},${row}`)) {
-						ctx.moveTo(x0, y0);
-						ctx.lineTo(x0, y1);
-					}
-					if (!cells.has(`${col + 1},${row}`)) {
-						ctx.moveTo(x1, y0);
-						ctx.lineTo(x1, y1);
-					}
-				}
-				ctx.stroke();
+				ctx.strokeRect(c.x, c.y, c.width, c.height);
 			}
 		}
 

@@ -159,16 +159,19 @@ export function layout(data: GraphData, sized: SizedNode[], opts: LayoutOptions)
 		};
 	});
 
-	// Anchor stride: derived from largest sub-group so neighbors don't collide.
+	// Anchor stride: keep anchors as close as possible — just enough that a
+	// sub-group placed at one anchor doesn't immediately collide with one
+	// placed at the neighbouring anchor. Multi-membership sub-groups land
+	// at the centroid of multiple anchors; with the OLD stride (= maxSub +
+	// 5 × clusterSpacing) those centroids sat far enough from each
+	// individual anchor that the cluster bbox engulfed huge swaths of
+	// empty space. With stride = maxSub + clusterSpacing the centroids
+	// land within roughly maxSub/2 of each anchor — tight enough that
+	// cluster bboxes stay packed.
 	const maxSubW = packed.reduce((m, p) => Math.max(m, p.width), 0);
 	const maxSubH = packed.reduce((m, p) => Math.max(m, p.height), 0);
-	// Stride is the anchor-to-anchor distance. We want it >= 2 × maxSub so
-	// that a sub-group placed at the midpoint of two adjacent anchors has
-	// room on both sides; the extra clusterSpacing * 2 adds breathing room
-	// between clusters so their bbox overlaps stay small relative to the
-	// overall layout.
-	const strideX = maxSubW + opts.clusterSpacing * 5;
-	const strideY = maxSubH + opts.clusterSpacing * 5;
+	const strideX = maxSubW + opts.clusterSpacing;
+	const strideY = maxSubH + opts.clusterSpacing;
 
 	// Phase 1: rank clusters by aggregate degree, pick a focus cluster
 	// containing the global max-degree node, and place anchors per the chosen
