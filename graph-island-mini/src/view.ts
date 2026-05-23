@@ -1153,7 +1153,11 @@ export class MiniGraphView extends ItemView {
 		const manual: LimitRule[] = [];
 		for (const r of manualRows) {
 			const p = parse(r);
-			if (p) manual.push(p);
+			// Skip non-positive tiers (= "limit 0" / "brief 0"). Those
+			// resolve to "show zero items" which would otherwise wipe the
+			// canvas. Treat them as no-op so the user can disable a rule by
+			// setting it to 0 without losing the whole view.
+			if (p && p.n > 0) manual.push(p);
 		}
 		if (this.settings.limitAuto) {
 			const hasLimit = manual.some((r) => r.kind === "limit");
@@ -1328,8 +1332,11 @@ export class MiniGraphView extends ItemView {
 		const deg = map.get(nodeId) ?? 0;
 		// (linkCount + 1) × base. 0 links ⇒ initial size; each additional
 		// link adds another full multiple. Aspect ratio is preserved
-		// because both axes multiply by the same scale.
-		return deg + 1;
+		// because both axes multiply by the same scale. Cap at 8× so that a
+		// few extreme hubs (e.g. 50+ incoming links) can't blow up the
+		// layout footprint into thousands of cells, which makes cell snap
+		// (footprint-aware spiral search) impossibly slow on large vaults.
+		return Math.min(8, deg + 1);
 	}
 
 	private measureCard(
@@ -1511,6 +1518,21 @@ export class MiniGraphView extends ItemView {
 		ctx.setTransform(1, 0, 0, 1, 0, 0);
 		ctx.fillStyle = "#0f1116";
 		ctx.fillRect(0, 0, cw, ch);
+		// If the filter pipeline (WHERE / HAVING / LIMIT) eliminated every
+		// node, draw a hint instead of an empty canvas. This makes the cause
+		// of the blank view discoverable instead of mysterious.
+		if (this.laid.nodes.length === 0) {
+			ctx.fillStyle = "#7a8aa0";
+			ctx.font = `${14 * dpr}px sans-serif`;
+			ctx.textAlign = "center";
+			ctx.textBaseline = "middle";
+			ctx.fillText(
+				"No nodes match current filters — relax WHERE / HAVING / LIMIT or check the GROUP_BY expression.",
+				cw / 2,
+				ch / 2,
+			);
+			return;
+		}
 		ctx.setTransform(dpr * this.zoom, 0, 0, dpr * this.zoom, dpr * this.panX, dpr * this.panY);
 
 		// Excel-style row/column underlay. Drawn first so enclosures, edges,
@@ -2466,12 +2488,16 @@ function applyLimitRules(
 	dir: "asc" | "desc",
 	getSortKey: (id: string, field: string) => string | number,
 ): { visibleNodes: GraphNode[]; modes: Map<string, "full" | "brief"> } {
-	// No tier rules → everything visible at full mode.
-	if (tiers.length === 0) {
+	// No tier rules (or every tier resolves to "zero items") → everything
+	// visible at full mode. This safety check stops a bad LIMIT setting
+	// (like "limit 0") from wiping the entire canvas.
+	const effectiveTiers = tiers.filter((t) => t.n > 0);
+	if (effectiveTiers.length === 0) {
 		const modes = new Map<string, "full" | "brief">();
 		for (const n of nodes) modes.set(n.id, "full");
 		return { visibleNodes: nodes, modes };
 	}
+	tiers = effectiveTiers;
 
 	const byCluster = new Map<string, GraphNode[]>();
 	for (const n of nodes) {
