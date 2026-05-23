@@ -110,44 +110,7 @@ export function layout(data: GraphData, sized: SizedNode[], opts: LayoutOptions)
 	const nodeOff = opts.nodeOffsets ?? {};
 
 	const clusterKeys = collectClusterKeys(data.nodes, labels);
-	// Pack each node into ONE cluster — its "primary" = the largest cluster
-	// the node belongs to. Multi-membership sub-groups are no longer
-	// scattered across centroids; each cluster has a single tight pack of
-	// its primary members. Non-primary memberships still count toward the
-	// cluster's member total but don't push it into another cluster's
-	// physical pack. This is the only way to keep every cluster's bbox
-	// genuinely packed when multi-tag overlap is heavy.
-	const clusterSizes = new Map<string, number>();
-	for (const n of data.nodes) {
-		for (const m of n.memberships) {
-			clusterSizes.set(m, (clusterSizes.get(m) ?? 0) + 1);
-		}
-	}
-	const primaryOf = new Map<string, string>();
-	for (const n of data.nodes) {
-		let best = n.memberships[0] ?? "";
-		let bestSize = clusterSizes.get(best) ?? 0;
-		for (const m of n.memberships) {
-			const s = clusterSizes.get(m) ?? 0;
-			// Ties broken by string order so the result is deterministic.
-			if (s > bestSize || (s === bestSize && m < best)) {
-				bestSize = s;
-				best = m;
-			}
-		}
-		primaryOf.set(n.id, best);
-	}
-	const byPrimary = new Map<string, GraphNode[]>();
-	for (const n of data.nodes) {
-		const p = primaryOf.get(n.id) ?? "";
-		const arr = byPrimary.get(p);
-		if (arr) arr.push(n);
-		else byPrimary.set(p, [n]);
-	}
-	const subgroups: { memberships: string[]; nodes: GraphNode[] }[] = [];
-	for (const [primary, nodes] of byPrimary) {
-		subgroups.push({ memberships: [primary], nodes });
-	}
+	const subgroups = groupByMembershipSet(data.nodes);
 
 	// Cell pitch comes from opts.cellW / opts.cellH (set by the view from
 	// the user-configured base node size). Individual sized[] entries may
@@ -207,8 +170,8 @@ export function layout(data: GraphData, sized: SizedNode[], opts: LayoutOptions)
 	// cluster bboxes stay packed.
 	const maxSubW = packed.reduce((m, p) => Math.max(m, p.width), 0);
 	const maxSubH = packed.reduce((m, p) => Math.max(m, p.height), 0);
-	const strideX = maxSubW + opts.clusterSpacing;
-	const strideY = maxSubH + opts.clusterSpacing;
+	const strideX = maxSubW + Math.floor(opts.clusterSpacing / 2);
+	const strideY = maxSubH + Math.floor(opts.clusterSpacing / 2);
 
 	// Phase 1: rank clusters by aggregate degree, pick a focus cluster
 	// containing the global max-degree node, and place anchors per the chosen
@@ -218,6 +181,17 @@ export function layout(data: GraphData, sized: SizedNode[], opts: LayoutOptions)
 	const clusterRanks = rankClustersByDegree(clusterKeys, data.nodes, degreeMap);
 	const focusKey = chooseFocusCluster(data.nodes, degreeMap, clusterRanks);
 	if (focusKey) moveToFront(clusterRanks, focusKey);
+	// Sharing-aware ordering: reorder ranks so that clusters sharing many
+	// members are placed at ADJACENT lattice positions. With the default
+	// degree-based ordering, two groups that share most of their members
+	// (e.g. scene & talk) could end up on opposite sides of the lattice,
+	// putting any multi-tag sub-group {scene, talk} at the centroid (=
+	// middle of the lattice). That midpoint position would stretch BOTH
+	// scene's and talk's enclosures across the gap. Walking the ranks
+	// greedily by "most-shared with anything already placed" packs related
+	// groups next to each other, so the multi-tag centroid sits between
+	// adjacent anchors — short distance, tight enclosures.
+	reorderBySharing(clusterRanks, data.nodes);
 
 	const mainRanks = clusterRanks.filter((r) => r.groupKey !== NONE_BUCKET);
 	const hasNone = mainRanks.length !== clusterRanks.length;
@@ -269,7 +243,11 @@ export function layout(data: GraphData, sized: SizedNode[], opts: LayoutOptions)
 			pin: p.memberships.length, // singles pin=1, doubles pin=2, etc.
 		};
 	});
-	const RELAX_GAP = opts.nodeSpacing;
+	// Smaller relax gap = sub-groups can sit closer to each other after
+	// collision resolution. Sub-groups in the same group end up touching
+	// instead of separated by a full nodeSpacing, which keeps the parent
+	// enclosure tight.
+	const RELAX_GAP = Math.max(2, Math.floor(opts.nodeSpacing / 4));
 	const MAX_ITER = 80;
 	for (let iter = 0; iter < MAX_ITER; iter++) {
 		let any = false;
@@ -440,19 +418,12 @@ export function layout(data: GraphData, sized: SizedNode[], opts: LayoutOptions)
 		let cellMinRow = Infinity;
 		let cellMaxRow = -Infinity;
 		let count = 0;
-		// First pass: bbox from PRIMARY members only (= nodes packed into
-		// this cluster's pack, i.e. primaryOf[n] === key). Multi-tag nodes
-		// whose primary is another cluster live in that cluster's pack and
-		// are NOT engulfed by this cluster's bbox, so "unrelated" nodes
-		// don't appear inside this cluster's outline. The total member
-		// count still includes every node that lists this cluster anywhere
-		// in its memberships — only the geometric bbox is tight.
-		let primaryFootprintCount = 0;
+		// Every member of this group affects the bbox — multi-tag nodes
+		// belong to all their groups' enclosures (Euler-style), so excluding
+		// them from any one group's bbox would visually orphan them.
 		for (const n of positionedNodes) {
 			if (!n.memberships.includes(key)) continue;
 			count++;
-			if (primaryOf.get(n.id) !== key) continue;
-			primaryFootprintCount++;
 			const colSpan = Math.max(1, Math.ceil(n.width / slotW));
 			const rowSpan = Math.max(1, Math.ceil(n.height / slotH));
 			const startCol = Math.round(n.x / slotW - colSpan / 2);
@@ -463,24 +434,6 @@ export function layout(data: GraphData, sized: SizedNode[], opts: LayoutOptions)
 			if (endCol > cellMaxCol) cellMaxCol = endCol;
 			if (startRow < cellMinRow) cellMinRow = startRow;
 			if (endRow > cellMaxRow) cellMaxRow = endRow;
-		}
-		// Fallback: if no primary member exists for this cluster (= every
-		// member lists some OTHER cluster first), use every member's
-		// footprint so the cluster still gets a sensible bbox.
-		if (primaryFootprintCount === 0 && count > 0) {
-			for (const n of positionedNodes) {
-				if (!n.memberships.includes(key)) continue;
-				const colSpan = Math.max(1, Math.ceil(n.width / slotW));
-				const rowSpan = Math.max(1, Math.ceil(n.height / slotH));
-				const startCol = Math.round(n.x / slotW - colSpan / 2);
-				const startRow = Math.round(n.y / slotH - rowSpan / 2);
-				const endCol = startCol + colSpan - 1;
-				const endRow = startRow + rowSpan - 1;
-				if (startCol < cellMinCol) cellMinCol = startCol;
-				if (endCol > cellMaxCol) cellMaxCol = endCol;
-				if (startRow < cellMinRow) cellMinRow = startRow;
-				if (endRow > cellMaxRow) cellMaxRow = endRow;
-			}
 		}
 		if (count === 0) continue;
 		const nest = nestingDepth.get(key) ?? 0;
@@ -807,6 +760,70 @@ function chooseFocusCluster(
 	return ranks[0]?.groupKey ?? "";
 }
 
+// Reorder ranks so that adjacent entries share the maximum number of
+// members. The first entry (= focus) is treated as a fixed seed; every
+// subsequent entry is the unplaced cluster that shares the most members
+// with any cluster already in the new ordering. The result is a
+// permutation that puts heavily-overlapping groups next to each other on
+// the concentric / flow lattice, so multi-tag sub-groups land at short
+// inter-anchor centroids and parent enclosures stay tight.
+function reorderBySharing(ranks: ClusterRankInfo[], nodes: GraphNode[]): void {
+	if (ranks.length <= 2) return;
+	// Build cluster_key → Set<node_id> from raw memberships.
+	const members = new Map<string, Set<string>>();
+	for (const r of ranks) members.set(r.groupKey, new Set());
+	for (const n of nodes) {
+		for (const m of n.memberships) {
+			const s = members.get(m);
+			if (s) s.add(n.id);
+		}
+	}
+	const sharedCount = (a: string, b: string): number => {
+		const A = members.get(a);
+		const B = members.get(b);
+		if (!A || !B) return 0;
+		const [small, large] = A.size <= B.size ? [A, B] : [B, A];
+		let n = 0;
+		for (const id of small) if (large.has(id)) n++;
+		return n;
+	};
+	const reordered: ClusterRankInfo[] = [];
+	const remaining = new Set(ranks.map((r) => r.groupKey));
+	// Seed: keep the original first rank (= focus) so the focus stays at
+	// the lattice centre.
+	reordered.push(ranks[0]);
+	remaining.delete(ranks[0].groupKey);
+	const placedKeys: string[] = [ranks[0].groupKey];
+	while (remaining.size > 0) {
+		let best: ClusterRankInfo | null = null;
+		let bestScore = -1;
+		for (const r of ranks) {
+			if (!remaining.has(r.groupKey)) continue;
+			let score = 0;
+			for (const placed of placedKeys) score += sharedCount(r.groupKey, placed);
+			if (score > bestScore) {
+				bestScore = score;
+				best = r;
+			}
+		}
+		if (!best) {
+			// Fall back to original order for any cluster with zero sharing.
+			for (const r of ranks) {
+				if (remaining.has(r.groupKey)) {
+					best = r;
+					break;
+				}
+			}
+		}
+		if (!best) break;
+		reordered.push(best);
+		remaining.delete(best.groupKey);
+		placedKeys.push(best.groupKey);
+	}
+	ranks.length = 0;
+	for (const r of reordered) ranks.push(r);
+}
+
 function moveToFront(ranks: ClusterRankInfo[], key: string): void {
 	const idx = ranks.findIndex((r) => r.groupKey === key);
 	if (idx <= 0) return;
@@ -874,27 +891,16 @@ function centroidOf(
 	memberships: string[],
 	anchors: Map<string, { x: number; y: number }>,
 ): { x: number; y: number } {
-	// Weighted centroid biased TOWARD the primary (= first) membership.
-	// The plain unweighted centroid put a {scene, talk} sub-group at the
-	// exact midpoint between scene and talk anchors, which scattered
-	// scene's sub-groups across the lattice and inflated scene's cluster
-	// bbox into a sparse rectangle full of empty space. Giving the primary
-	// a higher weight (5×) pulls every multi-membership sub-group close to
-	// its primary cluster's anchor while still nudging it slightly toward
-	// the secondary anchor(s), so the cluster bbox stays packed.
-	const W_PRIMARY = 5;
-	const W_OTHER = 1;
-	let x = 0, y = 0, totalW = 0;
-	for (let i = 0; i < memberships.length; i++) {
-		const a = anchors.get(memberships[i]);
+	let x = 0, y = 0, n = 0;
+	for (const m of memberships) {
+		const a = anchors.get(m);
 		if (!a) continue;
-		const w = i === 0 ? W_PRIMARY : W_OTHER;
-		x += a.x * w;
-		y += a.y * w;
-		totalW += w;
+		x += a.x;
+		y += a.y;
+		n++;
 	}
-	if (totalW === 0) return { x: 0, y: 0 };
-	return { x: x / totalW, y: y / totalW };
+	if (n === 0) return { x: 0, y: 0 };
+	return { x: x / n, y: y / n };
 }
 
 function fallbackSize(n: GraphNode): SizedNode {
