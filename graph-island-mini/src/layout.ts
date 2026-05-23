@@ -992,8 +992,6 @@ function routeZ(
 		aSideCol = endColA + 1;
 		bSideCol = aSideCol;
 	}
-	const aSide = aSideCol * slotW;
-	const bSide = bSideCol * slotW;
 
 	// Horizontal channel for the middle segment. The wire sits at row
 	// boundary hIdx (= y = hIdx * slotH) which is the gap between row
@@ -1003,12 +1001,15 @@ function routeZ(
 	// through. Pick the row boundary closest to (a.y + b.y) / 2 that's
 	// clear under that obstacle test.
 	const midRow = Math.round((a.y + b.y) / 2 / slotH);
-	const colTraverseMin = Math.min(aSideCol, bSideCol);
-	const colTraverseMax = Math.max(aSideCol, bSideCol) - 1;
+	const exempt = new Set<string>();
+	if (sourceId) exempt.add(sourceId);
+	if (targetId) exempt.add(targetId);
+	let colTraverseMin = Math.min(aSideCol, bSideCol);
+	let colTraverseMax = Math.max(aSideCol, bSideCol) - 1;
 	const isHClear = (h: number): boolean => {
 		if (!obstacles || obstacles.length === 0) return true;
 		for (const o of obstacles) {
-			if (o.id === sourceId || o.id === targetId) continue;
+			if (exempt.has(o.id)) continue;
 			if (!(o.startRow < h && o.endRow >= h)) continue;
 			if (o.endCol < colTraverseMin || o.startCol > colTraverseMax) continue;
 			return false;
@@ -1032,10 +1033,64 @@ function routeZ(
 		}
 		if (!found) hIdx = midRow;
 	}
-	// Vertical-segment guards: aLaneX and bLaneX sit on column boundaries.
-	// If the boundary cuts through some OTHER card's column span across
-	// the vertical traversal range, shift the lane outward (toward A/B's
-	// own side) until it clears.
+	// Vertical-segment guards: aLaneX (and bLaneX) sit on column boundaries.
+	// If a multi-cell obstacle straddles that column boundary AND its row
+	// span overlaps the vertical traversal range (= rows between A's row
+	// and hIdx for aLaneX, hIdx and B's row for bLaneX), the vertical leg
+	// would pass through it. Shift the column outward (away from A's own
+	// footprint when possible) until a clear boundary is found.
+	const centerRowA = Math.round(a.y / slotH);
+	const centerRowB = Math.round(b.y / slotH);
+	const isVColClear = (col: number, rFrom: number, rTo: number): boolean => {
+		if (!obstacles || obstacles.length === 0) return true;
+		const rMin = Math.min(rFrom, rTo);
+		const rMax = Math.max(rFrom, rTo);
+		for (const o of obstacles) {
+			if (exempt.has(o.id)) continue;
+			if (!(o.startCol < col && o.endCol >= col)) continue;
+			if (o.endRow < rMin || o.startRow > rMax) continue;
+			return false;
+		}
+		return true;
+	};
+	const adjustVCol = (
+		initial: number,
+		rFrom: number,
+		rTo: number,
+	): number => {
+		if (isVColClear(initial, rFrom, rTo)) return initial;
+		for (let d = 1; d < 64; d++) {
+			if (isVColClear(initial + d, rFrom, rTo)) return initial + d;
+			if (isVColClear(initial - d, rFrom, rTo)) return initial - d;
+		}
+		return initial;
+	};
+	// Use hIdx-1 as the upper bound on A's vertical leg since the leg ends
+	// AT row boundary hIdx (= top edge of row hIdx). Same idea for B.
+	aSideCol = adjustVCol(aSideCol, centerRowA, hIdx - 1);
+	bSideCol = adjustVCol(bSideCol, hIdx, centerRowB);
+	// Recompute horizontal traversal columns after vertical adjustment.
+	colTraverseMin = Math.min(aSideCol, bSideCol);
+	colTraverseMax = Math.max(aSideCol, bSideCol) - 1;
+	if (!isHClear(hIdx)) {
+		// Vertical shifts widened the horizontal traversal — re-pick hIdx.
+		let found = false;
+		for (let d = 1; d < 128; d++) {
+			if (isHClear(midRow + d)) {
+				hIdx = midRow + d;
+				found = true;
+				break;
+			}
+			if (isHClear(midRow - d)) {
+				hIdx = midRow - d;
+				found = true;
+				break;
+			}
+		}
+		if (!found) hIdx = midRow;
+	}
+	const aSide = aSideCol * slotW;
+	const bSide = bSideCol * slotW;
 	void startRowA;
 	void endRowA;
 	void startRowB;
