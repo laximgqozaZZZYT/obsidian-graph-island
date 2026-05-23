@@ -39,6 +39,10 @@ import {
 } from "./canvas-utils";
 import { runAggregateSnap } from "./aggregate-snap";
 import {
+	computeParentOf,
+	computeTrulyAgg,
+} from "./aggregate-util";
+import {
 	drawCardGrid as drawCardGridFn,
 	drawGridHeaders as drawGridHeadersFn,
 	drawClusterLabels as drawClusterLabelsFn,
@@ -980,12 +984,38 @@ export class MiniGraphView extends ItemView {
 		this.recomputeClusterRelations(data.nodes);
 		this.recomputeNodeDisplayCache(data.nodes);
 
+		// Pre-compute aggregation BEFORE layout so trulyAgg + hidden nodes
+		// don't take physical space in the cluster pack. Otherwise every
+		// graph-settings change that flips aggregation / visibility would
+		// leave the surrounding nodes pinned at their initial positions
+		// — exactly the bug the user is reporting.
+		const preAggSet = new Set(this.settings.aggregatedLayers);
+		const preParentOf = computeParentOf(
+			[
+				...new Set(
+					data.nodes.flatMap((n) => n.memberships),
+				),
+			],
+			data.nodes,
+			this.settings.inheritFrom ?? {},
+		);
+		const preTrulyAgg = computeTrulyAgg(data.nodes, preAggSet, preParentOf);
+		const hiddenSet = new Set(this.settings.hiddenNodes);
+		const layoutNodes = data.nodes.filter(
+			(n) => !preTrulyAgg.has(n.id) && !hiddenSet.has(n.id),
+		);
+		const layoutAlive = new Set(layoutNodes.map((n) => n.id));
+		const layoutEdges = data.edges.filter(
+			(e) => layoutAlive.has(e.source) && layoutAlive.has(e.target),
+		);
+		const layoutData = { nodes: layoutNodes, edges: layoutEdges };
+
 		// Card sizes derive from the user-configured row × column span
 		// times the canonical CARD_CELL_W × CARD_CELL_H lattice step, with
 		// an optional degree-driven scale that preserves the m : n aspect.
-		const sized = data.nodes.map((n) => this.cardFor(n));
+		const sized = layoutNodes.map((n) => this.cardFor(n));
 		const wasEmpty = this.laid.clusters.length === 0;
-		this.laid = layout(data, sized, {
+		this.laid = layout(layoutData, sized, {
 			clusterSpacing: this.settings.clusterSpacing,
 			nodeSpacing: this.settings.nodeSpacing,
 			cellW: CARD_CELL_W,
@@ -1002,14 +1032,20 @@ export class MiniGraphView extends ItemView {
 			const ta = this.adjacency.get(e.target);
 			if (ta) ta.push(i); else this.adjacency.set(e.target, [i]);
 		});
-		// Aggregate-snap: trulyAgg detection, badge cell selection, edge
-		// re-routing through stack centres. Mutates this.laid.clusters
-		// (sets each aggregated cluster's bbox to its 1-slot badge box)
-		// and this.laid.edges (rewrites paths through aggregate centres).
+		// Aggregate-snap: badge cell selection + edge stitching back into
+		// the aggregate stack. trulyAgg + hidden were already excluded
+		// from the layout pass, so the layout above ran on visible nodes
+		// only and the surrounding cards have already taken their space.
+		// Here we just drop the badges in free cells and add the
+		// previously-omitted edges back as routes through the badges.
 		const aggResult = runAggregateSnap(this.laid, {
 			aggregatedLayers: this.settings.aggregatedLayers,
 			hiddenNodes: this.settings.hiddenNodes,
 			inheritFrom: this.settings.inheritFrom ?? {},
+			trulyAgg: preTrulyAgg,
+			allNodes: data.nodes,
+			allEdges: data.edges,
+			clusterLabels: this.clusterLabels,
 		});
 		this.trulyAggSet = aggResult.trulyAgg;
 		this.aggregateCount = aggResult.aggregateCount;
