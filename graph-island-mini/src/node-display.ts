@@ -74,6 +74,28 @@ export function resolveNodeDisplay(
 	};
 }
 
+// Visual scale factor that drives every per-card metric the renderer
+// touches: font size, padding, stroke width, text wrap width, body line
+// count. Computed from the SAME resolved NODE_DISPLAY values the layout
+// uses for the card's pixel size, so size and font always change
+// together. The base unit is the GLOBAL node size (= 1 × 1 cell at the
+// global setting); a cluster that overrides to 2 × 2 ends up with
+// scale = 2 — proportional to how many global units fit in the new
+// card. Picks the larger of the width and height ratios so any
+// non-default override visibly scales the font, even when only one of
+// rows / cols is overridden.
+export function visualScale(
+	display: NodeDisplay,
+	scaleFactor: number,
+	globalDefaults: NodeDisplayDefaults,
+): number {
+	const effC = display.nodeCols * scaleFactor;
+	const effR = display.nodeRows * scaleFactor;
+	const gC = Math.max(1, globalDefaults.nodeCols);
+	const gR = Math.max(1, globalDefaults.nodeRows);
+	return Math.max(effC / gC, effR / gR);
+}
+
 // Resolve what a cluster's NODE_DISPLAY WOULD be when it has no override
 // of its own. Used by the panel to show placeholder values that reflect
 // the effective resolution from inheritFrom / supersets / global.

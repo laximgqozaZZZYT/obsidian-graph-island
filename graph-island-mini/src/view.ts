@@ -51,6 +51,7 @@ import {
 import {
 	resolveNodeDisplay as resolveNodeDisplayFn,
 	resolveFromCluster as resolveFromClusterFn,
+	visualScale,
 	type NodeDisplay,
 	type NodeDisplayDeps,
 } from "./node-display";
@@ -1099,10 +1100,36 @@ export class MiniGraphView extends ItemView {
 		);
 	}
 
+	// Shared visual scale factor. ALL per-card metrics — pixel size,
+	// font size, padding, stroke, text wrap width, body line count —
+	// derive from this single value so cluster overrides change them
+	// together instead of size scaling while font stays at 12 px.
+	private getCardScale(nodeId: string): number {
+		const display = this.getNodeDisplay(nodeId);
+		const scaleFactor = this.computeSizeScale(nodeId, display.nodeSizeMode);
+		return visualScale(display, scaleFactor, {
+			nodeRows: this.settings.nodeRows,
+			nodeCols: this.settings.nodeCols,
+			nodeSizeMode: this.settings.nodeSizeMode,
+		});
+	}
+
 	private cardFor(n: GraphNode): SizedNode {
 		const display = this.getNodeDisplay(n.id);
+		const scaleFactor = this.computeSizeScale(n.id, display.nodeSizeMode);
+		const rows = Math.max(1, display.nodeRows);
+		const cols = Math.max(1, display.nodeCols);
+		const channelW = Math.max(8, this.settings.nodeSpacing);
+		const channelH = Math.max(1, (channelW * CARD_CELL_H) / CARD_CELL_W);
+		const slotW = CARD_CELL_W + channelW;
+		const slotH = CARD_CELL_H + channelH;
+		const effC = cols * scaleFactor;
+		const effR = rows * scaleFactor;
+		const width = effC * slotW - channelW;
+		const height = effR * slotH - channelH;
+		const scale = this.getCardScale(n.id);
 		const mode = this.displayMode.get(n.id) ?? "full";
-		const cacheKey = `${n.id}:${mode}:${display.nodeRows}x${display.nodeCols}`;
+		const cacheKey = `${n.id}:${mode}:${scale.toFixed(4)}`;
 		const cached = this.cardCache.get(cacheKey);
 		if (!cached || cached.title !== n.label) {
 			const body = (this.bodyCache.get(n.id) ?? "").slice(
@@ -1111,28 +1138,10 @@ export class MiniGraphView extends ItemView {
 			);
 			this.cardCache.set(
 				cacheKey,
-				this.measureCard(n.label, body, mode, display.nodeRows, display.nodeCols),
+				this.measureCard(n.label, body, mode, width, height, scale),
 			);
 		}
-		// Card pixel size SPANS its full grid footprint (= effC slots wide,
-		// effR slots tall) and fills the inner channels. Aspect ratio is
-		// preserved because slotW/slotH = cardW/cardH and the formula
-		// width = effC × slotW − channelW, height = effR × slotH − channelH
-		// gives constant w/h for any (effC, effR) with effC : effR locked.
-		const rows = Math.max(1, display.nodeRows);
-		const cols = Math.max(1, display.nodeCols);
-		const scale = this.computeSizeScale(n.id, display.nodeSizeMode);
-		const channelW = Math.max(8, this.settings.nodeSpacing);
-		const channelH = Math.max(1, (channelW * CARD_CELL_H) / CARD_CELL_W);
-		const slotW = CARD_CELL_W + channelW;
-		const slotH = CARD_CELL_H + channelH;
-		const effC = cols * scale;
-		const effR = rows * scale;
-		return {
-			...n,
-			width: effC * slotW - channelW,
-			height: effR * slotH - channelH,
-		};
+		return { ...n, width, height };
 	}
 
 	private computeSizeScale(
@@ -1201,46 +1210,34 @@ export class MiniGraphView extends ItemView {
 		title: string,
 		body: string,
 		mode: "full" | "brief" = "full",
-		nodeRows?: number,
-		nodeCols?: number,
+		cardW: number = CARD_CELL_W,
+		cardH: number = CARD_CELL_H,
+		scale: number = 1,
 	): CardContent {
 		const ctx = this.ctx;
-		const padX = CARD_PAD_X;
-		const padY = CARD_PAD_Y;
-		// Wrap and truncate against the BASE card geometry (= nodeCols ×
-		// CARD_CELL_W, nodeRows × CARD_CELL_H). Variable-scale cards keep the
-		// same number of lines and the same proportional inner width — the
-		// font is bigger but the line count and per-line character budget
-		// are unchanged, so the body never overflows the card.
-		const cols = Math.max(1, nodeCols ?? this.settings.nodeCols);
-		const rows = Math.max(1, nodeRows ?? this.settings.nodeRows);
-		const cardBaseW = cols * CARD_CELL_W;
-		const cardBaseH = rows * CARD_CELL_H;
-		const innerW = Math.max(8, cardBaseW - 2 * padX);
-		const innerH = Math.max(8, cardBaseH - 2 * padY);
-		const effectiveBody = mode === "brief" || !this.settings.showBody ? "" : body;
-
-		ctx.font = `600 ${CARD_TITLE_FONT_PX}px sans-serif`;
-		const titleW = Math.min(innerW, Math.ceil(ctx.measureText(title).width));
-
-		ctx.font = `${CARD_BODY_FONT_PX}px sans-serif`;
-		const allLines = effectiveBody ? wrapText(ctx, effectiveBody, innerW) : [];
-		// Drop body lines that don't fit vertically inside the card.
-		const titleH = CARD_LINE_HEIGHT_PX;
-		const gap = CARD_TITLE_BODY_GAP;
-		const availableBodyH = innerH - titleH - gap;
+		// Wrap text at the BASE font (= 10 px). At render time everything
+		// scales by `scale`, so wrap_width × scale must fit card_inner_w
+		// (= cardW − 2·padX·scale). Solve for wrap_width:
+		//   wrap_width = cardW/scale − 2·padX
+		// Same idea for the vertical body budget — convert the card's
+		// scaled space back into base-font units before counting lines.
+		const wrapWidth = Math.max(8, cardW / scale - 2 * CARD_PAD_X);
+		const innerHBase = cardH / scale - 2 * CARD_PAD_Y;
+		const availBodyBase = innerHBase - CARD_LINE_HEIGHT_PX - CARD_TITLE_BODY_GAP;
 		const maxLines = Math.max(
 			0,
-			Math.floor(availableBodyH / CARD_BODY_LINE_HEIGHT_PX),
+			Math.floor(availBodyBase / CARD_BODY_LINE_HEIGHT_PX),
 		);
+		const effectiveBody = mode === "brief" || !this.settings.showBody ? "" : body;
+		ctx.font = `${CARD_BODY_FONT_PX}px sans-serif`;
+		const allLines = effectiveBody ? wrapText(ctx, effectiveBody, wrapWidth) : [];
 		const bodyLines = allLines.slice(0, maxLines);
-		void titleW;
 		return {
 			title,
 			body,
 			bodyLines,
-			width: cardBaseW,
-			height: cardBaseH,
+			width: cardW,
+			height: cardH,
 		};
 	}
 
@@ -1597,14 +1594,13 @@ export class MiniGraphView extends ItemView {
 		const w = n.width;
 		const h = n.height;
 		// Card-internal scale drives padding, font sizes, line heights and
-		// gaps only — the corner radius and border stroke stay FIXED so the
-		// outline geometry reads identically regardless of card size. The
-		// base is the 1-cell × nodeCols card pixel size (post-resolution of
-		// the NODE_DISPLAY override chain) so per-cluster size overrides
-		// also adjust the internal text proportions correctly.
-		const display = this.getNodeDisplay(n.id);
-		const baseW = Math.max(1, display.nodeCols * CARD_CELL_W);
-		const scale = w / baseW;
+		// gaps only — the corner radius and border stroke stay FIXED so
+		// the outline geometry reads identically regardless of card size.
+		// `scale` here is the SAME visualScale that cardFor and measureCard
+		// use, so per-cluster overrides (and degree-driven size factors)
+		// change pixel size + font + line count together instead of size
+		// alone.
+		const scale = this.getCardScale(n.id);
 		const r = Math.min(CARD_RADIUS_PX, w / 2, h / 2);
 
 		ctx.beginPath();
@@ -1627,7 +1623,7 @@ export class MiniGraphView extends ItemView {
 		const titleBodyGap = CARD_TITLE_BODY_GAP * scale;
 
 		const mode = this.displayMode.get(n.id) ?? "full";
-		const card = this.cardCache.get(`${n.id}:${mode}`);
+		const card = this.cardCache.get(`${n.id}:${mode}:${scale.toFixed(4)}`);
 		const bodyLines = card?.bodyLines ?? [];
 		const innerLeft = x + padX;
 		const innerTop = y + padY;
