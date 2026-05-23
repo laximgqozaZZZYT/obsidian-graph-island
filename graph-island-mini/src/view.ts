@@ -35,6 +35,12 @@ import {
 	wrapText,
 	truncateToWidth,
 } from "./canvas-utils";
+import {
+	computeParentOf,
+	computeTrulyAgg,
+	nodeFootprint,
+	type CardAABB,
+} from "./aggregate-util";
 
 export const VIEW_TYPE_MINI = "graph-island-mini";
 
@@ -1044,63 +1050,12 @@ export class MiniGraphView extends ItemView {
 			const cardH = this.laid.nodes[0].height;
 			const slotW = this.laid.slotW;
 			const slotH = this.laid.slotH;
-			// Compute per-cluster parent set. A cluster P is the "parent" of
-			// cluster C when (a) inheritFrom[C] === P, or (b) P's member set
-			// strictly contains C's. Parents are excluded from the
-			// aggregation check (per the user's spec): the child's
-			// aggregation already accounts for the parent's containment.
-			const memberSets = new Map<string, Set<string>>();
-			for (const c of this.laid.clusters) {
-				const s = new Set<string>();
-				for (const n of this.laid.nodes) {
-					if (n.memberships.includes(c.groupKey)) s.add(n.id);
-				}
-				memberSets.set(c.groupKey, s);
-			}
-			const inhFrom = this.settings.inheritFrom ?? {};
-			const parentOf = new Map<string, Set<string>>();
-			for (const [key, mems] of memberSets) {
-				const parents = new Set<string>();
-				const inhSource = inhFrom[key];
-				if (inhSource && inhSource !== key) parents.add(inhSource);
-				for (const [otherKey, otherMems] of memberSets) {
-					if (otherKey === key) continue;
-					if (otherMems.size <= mems.size) continue; // strict superset only
-					let isSuper = true;
-					for (const m of mems) {
-						if (!otherMems.has(m)) { isSuper = false; break; }
-					}
-					if (isSuper) parents.add(otherKey);
-				}
-				parentOf.set(key, parents);
-			}
-			// A node is truly aggregated when every "effective" membership
-			// (= memberships that are NOT a parent of another membership in
-			// the same node) is in aggregatedLayers.
-			const trulyAgg = new Set<string>();
-			for (const n of this.laid.nodes) {
-				if (n.memberships.length === 0) continue;
-				let allEffectiveAgg = true;
-				let hasEffective = false;
-				for (const m of n.memberships) {
-					let isParentOfOther = false;
-					for (const o of n.memberships) {
-						if (o === m) continue;
-						const oParents = parentOf.get(o);
-						if (oParents && oParents.has(m)) {
-							isParentOfOther = true;
-							break;
-						}
-					}
-					if (isParentOfOther) continue;
-					hasEffective = true;
-					if (!aggSet.has(m)) {
-						allEffectiveAgg = false;
-						break;
-					}
-				}
-				if (hasEffective && allEffectiveAgg) trulyAgg.add(n.id);
-			}
+			const parentOf = computeParentOf(
+				this.laid.clusters.map((c) => c.groupKey),
+				this.laid.nodes,
+				this.settings.inheritFrom ?? {},
+			);
+			const trulyAgg = computeTrulyAgg(this.laid.nodes, aggSet, parentOf);
 			// Snapshot the trulyAgg set so the draw layer can use the SAME
 			// definition for "hidden because aggregated". If draw recomputes
 			// aggHidden with a different rule, a card the rebuild treats as
@@ -1118,13 +1073,10 @@ export class MiniGraphView extends ItemView {
 			for (const n of this.laid.nodes) {
 				if (trulyAgg.has(n.id)) continue;
 				if (hiddenSet.has(n.id)) continue;
-				const colSpan = Math.max(1, Math.ceil(n.width / slotW));
-				const rowSpan = Math.max(1, Math.ceil(n.height / slotH));
-				const startCol = Math.round(n.x / slotW - colSpan / 2);
-				const startRow = Math.round(n.y / slotH - rowSpan / 2);
-				for (let dc = 0; dc < colSpan; dc++) {
-					for (let dr = 0; dr < rowSpan; dr++) {
-						occupied.add(`${startCol + dc},${startRow + dr}`);
+				const fp = nodeFootprint(n, slotW, slotH);
+				for (let c = fp.startCol; c <= fp.endCol; c++) {
+					for (let r = fp.startRow; r <= fp.endRow; r++) {
+						occupied.add(`${c},${r}`);
 					}
 				}
 			}
@@ -1139,12 +1091,6 @@ export class MiniGraphView extends ItemView {
 			// set CAN miss footprint corners when float arithmetic puts the
 			// rounded startCol/Row off by one — a direct AABB check on the
 			// resulting badge centre catches those misses.
-			interface CardAABB {
-				left: number;
-				right: number;
-				top: number;
-				bottom: number;
-			}
 			const cardAABBs: CardAABB[] = [];
 			for (const n of this.laid.nodes) {
 				if (trulyAgg.has(n.id)) continue;
