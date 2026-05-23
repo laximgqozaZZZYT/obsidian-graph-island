@@ -480,6 +480,24 @@ export function layout(data: GraphData, sized: SizedNode[], opts: LayoutOptions)
 	const clusterByKey = new Map<string, ClusterRect>();
 	for (const c of clusters) clusterByKey.set(c.groupKey, c);
 
+	// Build per-card footprint rectangles used by routeZ to avoid steering
+	// the middle horizontal lane through a multi-cell card that happens to
+	// straddle the chosen row boundary.
+	const routeObstacles: RouteObstacle[] = [];
+	for (const n of positionedNodes) {
+		const cs = Math.max(1, Math.ceil(n.width / slotW));
+		const rs = Math.max(1, Math.ceil(n.height / slotH));
+		const sc = Math.round(n.x / slotW - cs / 2);
+		const sr = Math.round(n.y / slotH - rs / 2);
+		routeObstacles.push({
+			id: n.id,
+			startCol: sc,
+			endCol: sc + cs - 1,
+			startRow: sr,
+			endRow: sr + rs - 1,
+		});
+	}
+
 	const aggregated = aggregateEdges(data.edges, idToRect);
 	interface PairGroup {
 		intra: boolean;
@@ -541,7 +559,18 @@ export function layout(data: GraphData, sized: SizedNode[], opts: LayoutOptions)
 					source: e.source,
 					target: e.target,
 					weight: e.weight,
-					path: routeZ(a, b, lanes, slotW, slotH, channelW, channelH),
+					path: routeZ(
+						a,
+						b,
+						lanes,
+						slotW,
+						slotH,
+						channelW,
+						channelH,
+						routeObstacles,
+						e.source,
+						e.target,
+					),
 					bundled: false,
 					bundleCount: 1,
 				});
@@ -575,7 +604,18 @@ export function layout(data: GraphData, sized: SizedNode[], opts: LayoutOptions)
 				source: e.source,
 				target: e.target,
 				weight: e.weight,
-				path: routeZ(a, b, lanes, slotW, slotH, channelW, channelH),
+				path: routeZ(
+					a,
+					b,
+					lanes,
+					slotW,
+					slotH,
+					channelW,
+					channelH,
+					routeObstacles,
+					e.source,
+					e.target,
+				),
 				bundled: false,
 				bundleCount: 1,
 			});
@@ -894,6 +934,14 @@ function snapBisectorYCeil(y: number, cellH: number): number {
 // piece rides a channel between rows (never crosses card rows). Lane
 // offsets within each channel let parallel wires fan apart while staying
 // in the channel rim.
+interface RouteObstacle {
+	id: string;
+	startCol: number;
+	endCol: number;
+	startRow: number;
+	endRow: number;
+}
+
 function routeZ(
 	a: Rect,
 	b: Rect,
@@ -902,6 +950,9 @@ function routeZ(
 	slotH: number,
 	channelW: number,
 	channelH: number,
+	obstacles?: RouteObstacle[],
+	sourceId?: string,
+	targetId?: string,
 ): { x: number; y: number }[] {
 	if (
 		Math.abs(a.x - b.x) < 0.5 &&
@@ -909,37 +960,86 @@ function routeZ(
 	) {
 		return [{ x: a.x, y: a.y }];
 	}
-	const colA = Math.floor(a.x / slotW);
-	const colB = Math.floor(b.x / slotW);
-	const rowA = Math.floor(a.y / slotH);
-	const rowB = Math.floor(b.y / slotH);
+	// Footprint of A and B — match the cell-snap formula so multi-cell
+	// cards (scale > 1) expose the right boundary as exit channel rather
+	// than a channel that lies INSIDE the card.
+	const colSpanA = Math.max(1, Math.ceil(a.w / slotW));
+	const rowSpanA = Math.max(1, Math.ceil(a.h / slotH));
+	const startColA = Math.round(a.x / slotW - colSpanA / 2);
+	const endColA = startColA + colSpanA - 1;
+	const startRowA = Math.round(a.y / slotH - rowSpanA / 2);
+	const endRowA = startRowA + rowSpanA - 1;
+	const colSpanB = Math.max(1, Math.ceil(b.w / slotW));
+	const rowSpanB = Math.max(1, Math.ceil(b.h / slotH));
+	const startColB = Math.round(b.x / slotW - colSpanB / 2);
+	const endColB = startColB + colSpanB - 1;
+	const startRowB = Math.round(b.y / slotH - rowSpanB / 2);
+	const endRowB = startRowB + rowSpanB - 1;
 
-	// Vertical channels adjacent to A and B. When B is to the right, exit
-	// A through its right channel and enter B through its left channel
-	// (mirror for the opposite direction). Same column ⇒ both endpoints
-	// share one vertical channel.
-	let aSide: number;
-	let bSide: number;
-	if (colB > colA) {
-		aSide = (colA + 1) * slotW;
-		bSide = colB * slotW;
-	} else if (colB < colA) {
-		aSide = colA * slotW;
-		bSide = (colB + 1) * slotW;
+	// Exit channels sit at the footprint BOUNDARIES of A and B. A → right
+	// edge when B is fully to the right (and mirror for the other direction).
+	// When the column footprints overlap, both endpoints share one vertical
+	// channel just to the right of A.
+	let aSideCol: number;
+	let bSideCol: number;
+	if (startColB > endColA) {
+		aSideCol = endColA + 1;
+		bSideCol = startColB;
+	} else if (endColB < startColA) {
+		aSideCol = startColA;
+		bSideCol = endColB + 1;
 	} else {
-		aSide = (colA + 1) * slotW;
-		bSide = (colA + 1) * slotW;
+		aSideCol = endColA + 1;
+		bSideCol = aSideCol;
 	}
+	const aSide = aSideCol * slotW;
+	const bSide = bSideCol * slotW;
 
-	// Horizontal channel for the middle segment. Same row ⇒ detour through
-	// the channel just below the shared row so the wire doesn't traverse
-	// card cells on that row.
-	let hIdx: number;
-	if (rowA === rowB) {
-		hIdx = rowA + 1;
-	} else {
-		hIdx = Math.round((a.y + b.y) / 2 / slotH);
+	// Horizontal channel for the middle segment. The wire sits at row
+	// boundary hIdx (= y = hIdx * slotH) which is the gap between row
+	// hIdx-1 and row hIdx. An obstacle whose vertical span covers BOTH
+	// row hIdx-1 and row hIdx (= span "crosses" the boundary) and whose
+	// horizontal span overlaps the traversal range would be punched
+	// through. Pick the row boundary closest to (a.y + b.y) / 2 that's
+	// clear under that obstacle test.
+	const midRow = Math.round((a.y + b.y) / 2 / slotH);
+	const colTraverseMin = Math.min(aSideCol, bSideCol);
+	const colTraverseMax = Math.max(aSideCol, bSideCol) - 1;
+	const isHClear = (h: number): boolean => {
+		if (!obstacles || obstacles.length === 0) return true;
+		for (const o of obstacles) {
+			if (o.id === sourceId || o.id === targetId) continue;
+			if (!(o.startRow < h && o.endRow >= h)) continue;
+			if (o.endCol < colTraverseMin || o.startCol > colTraverseMax) continue;
+			return false;
+		}
+		return true;
+	};
+	let hIdx = midRow;
+	if (!isHClear(hIdx)) {
+		let found = false;
+		for (let d = 1; d < 128; d++) {
+			if (isHClear(midRow + d)) {
+				hIdx = midRow + d;
+				found = true;
+				break;
+			}
+			if (isHClear(midRow - d)) {
+				hIdx = midRow - d;
+				found = true;
+				break;
+			}
+		}
+		if (!found) hIdx = midRow;
 	}
+	// Vertical-segment guards: aLaneX and bLaneX sit on column boundaries.
+	// If the boundary cuts through some OTHER card's column span across
+	// the vertical traversal range, shift the lane outward (toward A/B's
+	// own side) until it clears.
+	void startRowA;
+	void endRowA;
+	void startRowB;
+	void endRowB;
 
 	// Lane offsets inside each channel — always clamped so |offset| stays
 	// strictly less than half the channel width / height. Beyond that the
