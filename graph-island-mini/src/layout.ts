@@ -110,7 +110,44 @@ export function layout(data: GraphData, sized: SizedNode[], opts: LayoutOptions)
 	const nodeOff = opts.nodeOffsets ?? {};
 
 	const clusterKeys = collectClusterKeys(data.nodes, labels);
-	const subgroups = groupByMembershipSet(data.nodes);
+	// Pack each node into ONE cluster — its "primary" = the largest cluster
+	// the node belongs to. Multi-membership sub-groups are no longer
+	// scattered across centroids; each cluster has a single tight pack of
+	// its primary members. Non-primary memberships still count toward the
+	// cluster's member total but don't push it into another cluster's
+	// physical pack. This is the only way to keep every cluster's bbox
+	// genuinely packed when multi-tag overlap is heavy.
+	const clusterSizes = new Map<string, number>();
+	for (const n of data.nodes) {
+		for (const m of n.memberships) {
+			clusterSizes.set(m, (clusterSizes.get(m) ?? 0) + 1);
+		}
+	}
+	const primaryOf = new Map<string, string>();
+	for (const n of data.nodes) {
+		let best = n.memberships[0] ?? "";
+		let bestSize = clusterSizes.get(best) ?? 0;
+		for (const m of n.memberships) {
+			const s = clusterSizes.get(m) ?? 0;
+			// Ties broken by string order so the result is deterministic.
+			if (s > bestSize || (s === bestSize && m < best)) {
+				bestSize = s;
+				best = m;
+			}
+		}
+		primaryOf.set(n.id, best);
+	}
+	const byPrimary = new Map<string, GraphNode[]>();
+	for (const n of data.nodes) {
+		const p = primaryOf.get(n.id) ?? "";
+		const arr = byPrimary.get(p);
+		if (arr) arr.push(n);
+		else byPrimary.set(p, [n]);
+	}
+	const subgroups: { memberships: string[]; nodes: GraphNode[] }[] = [];
+	for (const [primary, nodes] of byPrimary) {
+		subgroups.push({ memberships: [primary], nodes });
+	}
 
 	// Cell pitch comes from opts.cellW / opts.cellH (set by the view from
 	// the user-configured base node size). Individual sized[] entries may
@@ -403,17 +440,18 @@ export function layout(data: GraphData, sized: SizedNode[], opts: LayoutOptions)
 		let cellMinRow = Infinity;
 		let cellMaxRow = -Infinity;
 		let count = 0;
-		// First pass: bbox from PRIMARY members only (= cluster appears as
-		// memberships[0]). Multi-tag nodes positioned in another cluster's
-		// territory are NOT engulfed by this cluster's bbox, so "unrelated"
-		// nodes don't appear inside this cluster's outline. The total
-		// member count still includes every node that lists this cluster
-		// anywhere in its memberships — only the geometric bbox is tight.
+		// First pass: bbox from PRIMARY members only (= nodes packed into
+		// this cluster's pack, i.e. primaryOf[n] === key). Multi-tag nodes
+		// whose primary is another cluster live in that cluster's pack and
+		// are NOT engulfed by this cluster's bbox, so "unrelated" nodes
+		// don't appear inside this cluster's outline. The total member
+		// count still includes every node that lists this cluster anywhere
+		// in its memberships — only the geometric bbox is tight.
 		let primaryFootprintCount = 0;
 		for (const n of positionedNodes) {
 			if (!n.memberships.includes(key)) continue;
 			count++;
-			if (n.memberships[0] !== key) continue;
+			if (primaryOf.get(n.id) !== key) continue;
 			primaryFootprintCount++;
 			const colSpan = Math.max(1, Math.ceil(n.width / slotW));
 			const rowSpan = Math.max(1, Math.ceil(n.height / slotH));
