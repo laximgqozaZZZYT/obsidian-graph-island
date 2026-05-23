@@ -83,10 +83,33 @@ export default class GraphIslandMiniPlugin extends Plugin {
 		if (typeof merged.showBody !== "boolean") merged.showBody = true;
 		if (typeof merged.showEnclosures !== "boolean") merged.showEnclosures = true;
 		if (typeof merged.showEdges !== "boolean") merged.showEdges = true;
+		if (typeof merged.showGrid !== "boolean") merged.showGrid = true;
+		if (!Array.isArray(merged.hiddenNodes)) merged.hiddenNodes = [];
+		if (!Array.isArray(merged.aggregatedLayers)) merged.aggregatedLayers = [];
+		delete merged.inheritedLayers; // retired
+		if (
+			merged.inheritFrom === null ||
+			typeof merged.inheritFrom !== "object" ||
+			Array.isArray(merged.inheritFrom)
+		) {
+			merged.inheritFrom = {};
+		}
+		// Strip retired LOD fields so they don't leak back into data.json.
+		delete merged.lodMode;
+		delete merged.lodCoreMembershipMin;
+		delete merged.lodHubTopK;
+		delete merged.lodAggregateBadge;
+		delete merged.lodAuto;
 		if (typeof merged.whereAuto !== "boolean") merged.whereAuto = true;
 		if (typeof merged.groupByAuto !== "boolean") merged.groupByAuto = true;
 		if (typeof merged.havingAuto !== "boolean") merged.havingAuto = true;
 		if (typeof merged.limitAuto !== "boolean") merged.limitAuto = true;
+		if (
+			merged.anchorPlacement !== "concentric" &&
+			merged.anchorPlacement !== "flow"
+		) {
+			merged.anchorPlacement = "concentric";
+		}
 		this.settings = merged as unknown as MiniSettings;
 	}
 

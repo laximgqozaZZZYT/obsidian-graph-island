@@ -1,6 +1,12 @@
 import { ItemView, WorkspaceLeaf, TFile } from "obsidian";
 import { buildGraph } from "./parser";
-import { layout, type LaidOut, type PositionedNode, type SizedNode } from "./layout";
+import {
+	layout,
+	type LaidOut,
+	type PositionedNode,
+	type SizedNode,
+	type ClusterRect,
+} from "./layout";
 import type { MiniSettings, GraphNode, GraphData } from "./types";
 import { NONE_BUCKET } from "./types";
 import {
@@ -55,11 +61,8 @@ export class MiniGraphView extends ItemView {
 	private highlightedNodes: Set<string> = new Set();
 	private highlightedEdgeIdx: Set<number> = new Set();
 	private adjacency: Map<string, number[]> = new Map();
-	private moveTarget:
-		| { kind: "node"; id: string; startWX: number; startWY: number; baseDx: number; baseDy: number }
-		| { kind: "cluster"; group: string; startWX: number; startWY: number; baseDx: number; baseDy: number }
-		| null = null;
-	private moveHappened = false;
+	// Drag-to-move (nodes/clusters) was removed; pan/marquee/click-to-open
+	// are the only pointer interactions now.
 	private bodyCache: Map<string, string> = new Map();
 	private cardCache: Map<string, CardContent> = new Map();
 	private rebuildGen = 0;
@@ -71,6 +74,18 @@ export class MiniGraphView extends ItemView {
 	private displayMode: Map<string, "full" | "brief"> = new Map();
 	private degreeMap: Map<string, number> = new Map();
 	private panelEl: HTMLDivElement | null = null;
+	// Current tab in the settings panel. "__all__" = 全体. Otherwise = a
+	// cluster groupKey produced by WHERE → GROUP_BY → HAVING.
+	private activeTab: string = "__all__";
+	// Per-cluster "truly-aggregated" member count. Populated during
+	// rebuild() for clusters in aggregatedLayers — the count excludes
+	// members that also belong to a non-aggregated cluster (since those
+	// stay visible as individual cards). 0 / missing ⇒ no stack drawn.
+	private aggregateCount: Map<string, number> = new Map();
+	// Substring filter applied to the layer tabs (case-insensitive). Empty
+	// string = no filter. Filtering is done via CSS display toggles so the
+	// search input never loses focus.
+	private tabFilter: string = "";
 
 	constructor(
 		leaf: WorkspaceLeaf,
@@ -191,6 +206,103 @@ export class MiniGraphView extends ItemView {
 		closeBtn.setAttr("aria-label", "Close settings");
 		closeBtn.addEventListener("click", () => this.togglePanel());
 
+		// Tab bar: 全体 + one tab per cluster produced by WHERE → GROUP_BY →
+		// HAVING. If the previously active tab has been filtered out (e.g.
+		// the user tightened HAVING and its cluster disappeared), fall back
+		// to 全体 silently.
+		const validTabs = new Set<string>(["__all__"]);
+		for (const c of this.laid.clusters) validTabs.add(c.groupKey);
+		if (!validTabs.has(this.activeTab)) this.activeTab = "__all__";
+
+		const tabBar = el.createDiv({ cls: "gim-panel-tabs" });
+
+		// Search filter for layer tabs — only needed when there is at least
+		// one cluster tab to filter against. The 全体 tab is always pinned
+		// and never hidden by the filter.
+		if (this.laid.clusters.length > 0) {
+			const filterInput = tabBar.createEl("input", {
+				cls: "gim-panel-tab-filter",
+				type: "search",
+			}) as HTMLInputElement;
+			filterInput.setAttribute("placeholder", "Filter layers… (type to search)");
+			filterInput.value = this.tabFilter;
+			filterInput.addEventListener("input", () => {
+				this.tabFilter = filterInput.value;
+				this.applyTabFilter();
+			});
+			// Esc clears the filter without exiting the input.
+			filterInput.addEventListener("keydown", (e) => {
+				if (e.key === "Escape" && this.tabFilter !== "") {
+					e.preventDefault();
+					this.tabFilter = "";
+					filterInput.value = "";
+					this.applyTabFilter();
+				}
+			});
+		}
+
+		const chipsEl = tabBar.createDiv({ cls: "gim-panel-tabs-chips" });
+		this.renderTabButton(chipsEl, "__all__", "全体", null, null);
+		for (const c of this.laid.clusters) {
+			const labelText = `${c.label} (${c.memberCount})`;
+			this.renderTabButton(chipsEl, c.groupKey, labelText, clusterHue(c.groupKey), c.label);
+		}
+		this.applyTabFilter();
+
+		const content = el.createDiv({ cls: "gim-panel-content" });
+		if (this.activeTab === "__all__") {
+			this.renderAllTab(content);
+		} else {
+			this.renderLayerTab(content, this.activeTab);
+		}
+	}
+
+	private renderTabButton(
+		bar: HTMLElement,
+		key: string,
+		label: string,
+		hue: number | null,
+		filterText: string | null,
+	): void {
+		const btn = bar.createEl("button", { cls: "gim-panel-tab" });
+		if (this.activeTab === key) btn.addClass("active");
+		if (hue !== null) {
+			const sw = btn.createSpan({ cls: "gim-panel-tab-swatch" });
+			sw.style.background = `hsl(${hue}, 70%, 62%)`;
+		}
+		btn.createSpan({ text: label });
+		// filterText = null ⇒ pinned (never filtered, e.g. the 全体 tab).
+		if (filterText === null) {
+			btn.dataset.alwaysVisible = "1";
+		} else {
+			btn.dataset.filterText = filterText.toLowerCase();
+		}
+		btn.addEventListener("click", () => {
+			this.activeTab = key;
+			this.renderPanel();
+		});
+	}
+
+	// Hide / show chip buttons via CSS display so the focused filter input
+	// stays focused. Substring match (case-insensitive) against the cluster
+	// label. The 全体 tab carries data-always-visible=1 and is never hidden.
+	// Also reveals the currently-active tab even if it doesn't match the
+	// filter, so the user can always see "where they are".
+	private applyTabFilter(): void {
+		if (!this.panelEl) return;
+		const q = this.tabFilter.trim().toLowerCase();
+		const chips = this.panelEl.querySelectorAll<HTMLElement>(".gim-panel-tab");
+		chips.forEach((btn) => {
+			if (btn.dataset.alwaysVisible === "1" || btn.classList.contains("active")) {
+				btn.style.display = "";
+				return;
+			}
+			const text = btn.dataset.filterText ?? "";
+			btn.style.display = q === "" || text.includes(q) ? "" : "none";
+		});
+	}
+
+	private renderAllTab(el: HTMLElement): void {
 		this.renderExprSection(el, "WHERE", this.settings.where, this.whereError, {
 			autoKey: "whereAuto",
 		});
@@ -209,10 +321,173 @@ export class MiniGraphView extends ItemView {
 		this.renderToggleSection(el, "Node display", [
 			{ key: "showBody", label: "Show body preview" },
 		]);
+		this.renderLayoutSection(el);
 		this.renderToggleSection(el, "Graph display", [
 			{ key: "showEnclosures", label: "Show enclosures" },
 			{ key: "showEdges", label: "Show edges" },
+			{ key: "showGrid", label: "Show grid" },
 		]);
+	}
+
+	private renderLayerTab(el: HTMLElement, groupKey: string): void {
+		const cluster = this.laid.clusters.find((c) => c.groupKey === groupKey);
+		if (!cluster) {
+			const hint = el.createDiv({ cls: "gim-panel-hint" });
+			hint.setText("This layer no longer exists.");
+			return;
+		}
+
+		// Header — name, colour, count.
+		const head = el.createDiv({ cls: "gim-panel-section" });
+		head.createEl("h4", { text: cluster.label });
+		const meta = head.createDiv({ cls: "gim-layer-meta" });
+		const swatch = meta.createSpan({ cls: "gim-layer-swatch" });
+		const hue = clusterHue(cluster.groupKey);
+		swatch.style.background = `hsl(${hue}, 70%, 62%)`;
+		meta.createSpan({ text: cluster.label });
+		meta.createSpan({
+			cls: "gim-layer-count",
+			text: `${cluster.memberCount} nodes`,
+		});
+
+		// Layer-level toggles: aggregate display + inheritance.
+		const togs = el.createDiv({ cls: "gim-panel-section" });
+		togs.createEl("h4", { text: "Display" });
+		this.renderLayerToggle(
+			togs,
+			"aggregatedLayers",
+			groupKey,
+			"Aggregate (3-card stack)",
+			() => {
+				// Aggregation shrinks the cluster bbox down to the stack and
+				// reroutes edges/trunks into the stack centre, so a rebuild
+				// pass is needed to keep enclosures and wiring in sync.
+				void this.rebuild();
+			},
+		);
+		// Inheritance source picker — choose another cluster as the parent.
+		// The child cluster's bbox will grow to engulf the parent's bbox so
+		// the two visually merge into one nested region.
+		const inhRow = togs.createDiv({ cls: "gim-order-row" });
+		inhRow.createSpan({ text: "Inherit from", cls: "gim-order-field" });
+		const inhSel = inhRow.createEl("select", { cls: "gim-order-dir" }) as HTMLSelectElement;
+		const noneOpt = inhSel.createEl("option", { value: "", text: "(none)" });
+		const current = this.settings.inheritFrom[groupKey] ?? "";
+		if (current === "") noneOpt.selected = true;
+		for (const other of this.laid.clusters) {
+			if (other.groupKey === groupKey) continue;
+			const opt = inhSel.createEl("option", {
+				value: other.groupKey,
+				text: other.label,
+			});
+			if (other.groupKey === current) opt.selected = true;
+		}
+		inhSel.addEventListener("change", () => {
+			if (inhSel.value === "") {
+				delete this.settings.inheritFrom[groupKey];
+			} else {
+				this.settings.inheritFrom[groupKey] = inhSel.value;
+			}
+			void this.save();
+			void this.rebuild();
+		});
+
+		// Per-card visibility list. The user toggles each card individually;
+		// bulk Show/Hide buttons at the top operate on the whole layer.
+		const cardsSec = el.createDiv({ cls: "gim-panel-section" });
+		cardsSec.createEl("h4", { text: "Cards" });
+
+		const layerNodes = this.laid.nodes
+			.filter((n) => n.memberships.includes(groupKey))
+			.sort((a, b) => a.label.localeCompare(b.label));
+
+		const controls = cardsSec.createDiv({ cls: "gim-layer-cards-controls" });
+		const showAllBtn = controls.createEl("button", { text: "Show all" });
+		showAllBtn.addEventListener("click", () => {
+			for (const n of layerNodes) {
+				const i = this.settings.hiddenNodes.indexOf(n.id);
+				if (i >= 0) this.settings.hiddenNodes.splice(i, 1);
+			}
+			void this.save();
+			this.renderPanel();
+			this.requestDraw();
+		});
+		const hideAllBtn = controls.createEl("button", { text: "Hide all" });
+		hideAllBtn.addEventListener("click", () => {
+			for (const n of layerNodes) {
+				if (!this.settings.hiddenNodes.includes(n.id)) {
+					this.settings.hiddenNodes.push(n.id);
+				}
+			}
+			void this.save();
+			this.renderPanel();
+			this.requestDraw();
+		});
+
+		const list = cardsSec.createDiv({ cls: "gim-layer-cards" });
+		for (const n of layerNodes) {
+			const row = list.createEl("label", { cls: "gim-toggle-row" });
+			const cb = row.createEl("input", { type: "checkbox" }) as HTMLInputElement;
+			cb.checked = !this.settings.hiddenNodes.includes(n.id);
+			cb.addEventListener("change", () => {
+				this.toggleArrayMember("hiddenNodes", n.id, !cb.checked);
+				void this.save();
+				this.requestDraw();
+			});
+			row.createSpan({ text: n.label });
+		}
+	}
+
+	// Helper: a labelled checkbox bound to an array-typed MiniSettings field.
+	private renderLayerToggle(
+		parent: HTMLElement,
+		field: "aggregatedLayers",
+		groupKey: string,
+		label: string,
+		onChange: () => void,
+	): void {
+		const row = parent.createEl("label", { cls: "gim-toggle-row" });
+		const cb = row.createEl("input", { type: "checkbox" }) as HTMLInputElement;
+		cb.checked = this.settings[field].includes(groupKey);
+		cb.addEventListener("change", () => {
+			this.toggleArrayMember(field, groupKey, cb.checked);
+			void this.save();
+			onChange();
+		});
+		row.createSpan({ text: label });
+	}
+
+	private toggleArrayMember(
+		field: "hiddenNodes" | "aggregatedLayers",
+		value: string,
+		present: boolean,
+	): void {
+		const arr = this.settings[field];
+		const i = arr.indexOf(value);
+		if (present && i === -1) arr.push(value);
+		if (!present && i >= 0) arr.splice(i, 1);
+	}
+
+	// LAYOUT section: per-cluster anchor placement strategy (concentric ring
+	// around the focus cluster vs. flow direction from focus to the right).
+	private renderLayoutSection(parent: HTMLElement): void {
+		const section = parent.createDiv({ cls: "gim-panel-section" });
+		section.createEl("h4", { text: "Layout" });
+		const row = section.createDiv({ cls: "gim-order-row" });
+		row.createSpan({ text: "Anchor", cls: "gim-order-field" });
+		const sel = row.createEl("select", { cls: "gim-order-dir" });
+		const opts = [
+			{ value: "concentric", text: "concentric" },
+			{ value: "flow", text: "flow" },
+		];
+		for (const o of opts) {
+			const opt = sel.createEl("option", { value: o.value, text: o.text });
+			if (this.settings.anchorPlacement === o.value) opt.selected = true;
+		}
+		sel.addEventListener("change", () => {
+			this.settings.anchorPlacement = sel.value as "concentric" | "flow";
+			void this.save();
+		});
 	}
 
 	// ORDER_BY is a scalar (single field + direction) rather than an array of
@@ -306,7 +581,10 @@ export class MiniGraphView extends ItemView {
 	private renderToggleSection(
 		parent: HTMLElement,
 		heading: string,
-		toggles: { key: "showBody" | "showEnclosures" | "showEdges"; label: string }[],
+		toggles: {
+			key: "showBody" | "showEnclosures" | "showEdges" | "showGrid";
+			label: string;
+		}[],
 	): void {
 		const section = parent.createDiv({ cls: "gim-panel-section" });
 		section.createEl("h4", { text: heading });
@@ -485,13 +763,27 @@ export class MiniGraphView extends ItemView {
 		if (gen !== this.rebuildGen) return;
 
 		const sized = data.nodes.map((n) => this.cardFor(n));
+		// Phase 3: unify card geometry so the entire layout snaps to a single
+		// grid. We use the largest measured size across all visible cards as
+		// the standard (smaller cards just gain extra blank space).
+		if (sized.length > 0) {
+			let uW = 0;
+			let uH = 0;
+			for (const s of sized) {
+				if (s.width > uW) uW = s.width;
+				if (s.height > uH) uH = s.height;
+			}
+			for (const s of sized) {
+				s.width = uW;
+				s.height = uH;
+			}
+		}
 		const wasEmpty = this.laid.clusters.length === 0;
 		this.laid = layout(data, sized, {
 			clusterSpacing: this.settings.clusterSpacing,
 			nodeSpacing: this.settings.nodeSpacing,
-			clusterOffsets: this.settings.clusterOffsets,
-			nodeOffsets: this.settings.nodeOffsets,
 			clusterLabels,
+			anchorPlacement: this.settings.anchorPlacement,
 		});
 		this.adjacency = new Map();
 		this.laid.edges.forEach((e, i) => {
@@ -502,6 +794,217 @@ export class MiniGraphView extends ItemView {
 			const ta = this.adjacency.get(e.target);
 			if (ta) ta.push(i); else this.adjacency.set(e.target, [i]);
 		});
+		// Aggregated layers: collapse only the members whose ENTIRE
+		// membership set is aggregated. A node that also belongs to any
+		// non-aggregated cluster keeps its individual card and is excluded
+		// from both the centroid and the stack count. Each stack is sized
+		// to exactly ONE cell on the W × H lattice and snaps to a free cell
+		// — visible cards and earlier stacks reserve their cells so the
+		// stacks never sit on top of anything.
+		const aggSet = new Set(this.settings.aggregatedLayers);
+		this.aggregateCount.clear();
+		if (aggSet.size > 0 && this.laid.nodes.length > 0) {
+			const cardW = this.laid.nodes[0].width;
+			const cardH = this.laid.nodes[0].height;
+			// Compute per-cluster parent set. A cluster P is the "parent" of
+			// cluster C when (a) inheritFrom[C] === P, or (b) P's member set
+			// strictly contains C's. Parents are excluded from the
+			// aggregation check (per the user's spec): the child's
+			// aggregation already accounts for the parent's containment.
+			const memberSets = new Map<string, Set<string>>();
+			for (const c of this.laid.clusters) {
+				const s = new Set<string>();
+				for (const n of this.laid.nodes) {
+					if (n.memberships.includes(c.groupKey)) s.add(n.id);
+				}
+				memberSets.set(c.groupKey, s);
+			}
+			const inhFrom = this.settings.inheritFrom ?? {};
+			const parentOf = new Map<string, Set<string>>();
+			for (const [key, mems] of memberSets) {
+				const parents = new Set<string>();
+				const inhSource = inhFrom[key];
+				if (inhSource && inhSource !== key) parents.add(inhSource);
+				for (const [otherKey, otherMems] of memberSets) {
+					if (otherKey === key) continue;
+					if (otherMems.size <= mems.size) continue; // strict superset only
+					let isSuper = true;
+					for (const m of mems) {
+						if (!otherMems.has(m)) { isSuper = false; break; }
+					}
+					if (isSuper) parents.add(otherKey);
+				}
+				parentOf.set(key, parents);
+			}
+			// A node is truly aggregated when every "effective" membership
+			// (= memberships that are NOT a parent of another membership in
+			// the same node) is in aggregatedLayers.
+			const trulyAgg = new Set<string>();
+			for (const n of this.laid.nodes) {
+				if (n.memberships.length === 0) continue;
+				let allEffectiveAgg = true;
+				let hasEffective = false;
+				for (const m of n.memberships) {
+					let isParentOfOther = false;
+					for (const o of n.memberships) {
+						if (o === m) continue;
+						const oParents = parentOf.get(o);
+						if (oParents && oParents.has(m)) {
+							isParentOfOther = true;
+							break;
+						}
+					}
+					if (isParentOfOther) continue;
+					hasEffective = true;
+					if (!aggSet.has(m)) {
+						allEffectiveAgg = false;
+						break;
+					}
+				}
+				if (hasEffective && allEffectiveAgg) trulyAgg.add(n.id);
+			}
+			// Reserve every cell currently holding a visible card. A truly-
+			// aggregated node will be hidden so its cell is free for reuse.
+			// User-hidden nodes also free their cell.
+			const hiddenSet = new Set(this.settings.hiddenNodes);
+			const occupied = new Set<string>();
+			for (const n of this.laid.nodes) {
+				if (trulyAgg.has(n.id)) continue;
+				if (hiddenSet.has(n.id)) continue;
+				const col = Math.floor(n.x / cardW);
+				const row = Math.floor(n.y / cardH);
+				occupied.add(`${col},${row}`);
+			}
+			// Process clusters in a deterministic order so the spiral search
+			// is stable across rebuilds.
+			const aggCenter = new Map<string, { x: number; y: number }>();
+			const sortedClusters = [...this.laid.clusters].sort((a, b) =>
+				a.groupKey.localeCompare(b.groupKey),
+			);
+			for (const cluster of sortedClusters) {
+				if (!aggSet.has(cluster.groupKey)) continue;
+				let sx = 0;
+				let sy = 0;
+				let count = 0;
+				for (const node of this.laid.nodes) {
+					if (!trulyAgg.has(node.id)) continue;
+					if (!node.memberships.includes(cluster.groupKey)) continue;
+					sx += node.x;
+					sy += node.y;
+					count++;
+				}
+				if (count === 0) continue;
+				// Snap stack centroid to the nearest free cell on the global
+				// lattice. If the cell is taken by a visible card or an
+				// earlier stack, spiral outward.
+				let col = Math.floor(sx / count / cardW);
+				let row = Math.floor(sy / count / cardH);
+				let key = `${col},${row}`;
+				if (occupied.has(key)) {
+					outer: for (let radius = 1; radius < 128; radius++) {
+						for (let dc = -radius; dc <= radius; dc++) {
+							for (let dr = -radius; dr <= radius; dr++) {
+								if (Math.max(Math.abs(dc), Math.abs(dr)) !== radius)
+									continue;
+								const k2 = `${col + dc},${row + dr}`;
+								if (!occupied.has(k2)) {
+									col += dc;
+									row += dr;
+									key = k2;
+									break outer;
+								}
+							}
+						}
+					}
+				}
+				occupied.add(key);
+				const snapCx = (col + 0.5) * cardW;
+				const snapCy = (row + 0.5) * cardH;
+				aggCenter.set(cluster.groupKey, { x: snapCx, y: snapCy });
+				this.aggregateCount.set(cluster.groupKey, count);
+				// Cluster bbox = exactly one cell around the stack.
+				cluster.x = snapCx - cardW / 2;
+				cluster.y = snapCy - cardH / 2;
+				cluster.width = cardW;
+				cluster.height = cardH;
+			}
+			const idToNode = new Map<string, PositionedNode>();
+			for (const n of this.laid.nodes) idToNode.set(n.id, n);
+			const aggForNode = (id: string): { x: number; y: number } | null => {
+				if (!trulyAgg.has(id)) return null;
+				const node = idToNode.get(id);
+				if (!node) return null;
+				// Use the first membership that actually has a stack (= count
+				// > 0); some clusters may have been skipped above.
+				for (const m of node.memberships) {
+					const c = aggCenter.get(m);
+					if (c) return c;
+				}
+				return null;
+			};
+			const simpleL = (
+				a: { x: number; y: number },
+				b: { x: number; y: number },
+			): { x: number; y: number }[] => {
+				if (Math.abs(a.x - b.x) < 0.5) return [a, b];
+				if (Math.abs(a.y - b.y) < 0.5) return [a, b];
+				return [a, { x: b.x, y: a.y }, b];
+			};
+			const keptEdges: typeof this.laid.edges = [];
+			for (const e of this.laid.edges) {
+				const sAgg = aggForNode(e.source);
+				const tAgg = aggForNode(e.target);
+				if (sAgg && tAgg && sAgg.x === tAgg.x && sAgg.y === tAgg.y) continue;
+				if (sAgg || tAgg) {
+					const start = sAgg ?? e.path[0];
+					const end = tAgg ?? e.path[e.path.length - 1];
+					e.path = simpleL(start, end);
+				}
+				keptEdges.push(e);
+			}
+			this.laid.edges = keptEdges;
+			const keptTrunks: typeof this.laid.trunks = [];
+			for (const t of this.laid.trunks) {
+				const sAgg = aggCenter.get(t.srcCluster);
+				const tAgg = aggCenter.get(t.tgtCluster);
+				if (sAgg && tAgg && t.srcCluster === t.tgtCluster) continue;
+				if (sAgg || tAgg) {
+					const start = sAgg ?? t.path[0];
+					const end = tAgg ?? t.path[t.path.length - 1];
+					t.path = simpleL(start, end);
+				}
+				keptTrunks.push(t);
+			}
+			this.laid.trunks = keptTrunks;
+		}
+
+		// Inheritance: each child cluster picks a parent (継承元) explicitly
+		// via the panel. The child's bbox grows to engulf the parent's bbox
+		// so the parent visually "joins" the child territory. Pre-snapshot
+		// the original bboxes so a chain (A → B → C) all references its
+		// pre-merge sibling, never the already-expanded version.
+		const inhMap = this.settings.inheritFrom ?? {};
+		const inhKeys = Object.keys(inhMap);
+		if (inhKeys.length > 0) {
+			const original = new Map<string, { x: number; y: number; w: number; h: number }>();
+			for (const c of this.laid.clusters) {
+				original.set(c.groupKey, { x: c.x, y: c.y, w: c.width, h: c.height });
+			}
+			for (const child of this.laid.clusters) {
+				const parentKey = inhMap[child.groupKey];
+				if (!parentKey || parentKey === child.groupKey) continue;
+				const p = original.get(parentKey);
+				if (!p) continue;
+				const minX = Math.min(child.x, p.x);
+				const minY = Math.min(child.y, p.y);
+				const maxX = Math.max(child.x + child.width, p.x + p.w);
+				const maxY = Math.max(child.y + child.height, p.y + p.h);
+				child.x = minX;
+				child.y = minY;
+				child.width = maxX - minX;
+				child.height = maxY - minY;
+			}
+		}
 		this.highlightedNodes.clear();
 		this.highlightedEdgeIdx.clear();
 		if (wasEmpty) this.fitToView();
@@ -794,7 +1297,44 @@ export class MiniGraphView extends ItemView {
 		this.requestDraw();
 	}
 
+	// Clamp panX/panY so the area to the LEFT of column A or ABOVE row 1 can
+	// never be revealed. The header band occupies the first headerW × headerH
+	// screen pixels; the body must start at exactly worldX = minCol*W (the
+	// left edge of column A) at screen x = headerW. That gives the upper-
+	// bound constraint panX ≤ headerW − minCol*W*zoom. Same logic for Y.
+	private clampPan(): void {
+		if (!this.settings.showGrid) return;
+		if (this.laid.nodes.length === 0) return;
+		const W = this.laid.nodes[0].width;
+		const H = this.laid.nodes[0].height;
+		if (W <= 0 || H <= 0) return;
+
+		let cardMinCol = Infinity;
+		let cardMinRow = Infinity;
+		for (const n of this.laid.nodes) {
+			const col = Math.floor(n.x / W);
+			const row = Math.floor(n.y / H);
+			if (col < cardMinCol) cardMinCol = col;
+			if (row < cardMinRow) cardMinRow = row;
+		}
+		// Grid origin sits ONE cell to the left/above the leftmost / topmost
+		// card so column A and row 1 stay reserved-empty.
+		const minColIdx = cardMinCol - 1;
+		const minRowIdx = cardMinRow - 1;
+
+		const cellScreenW = W * this.zoom;
+		const cellScreenH = H * this.zoom;
+		const headerH = Math.max(22, Math.min(36, cellScreenH * 0.9));
+		const headerW = Math.max(32, Math.min(56, cellScreenW * 0.7));
+
+		const maxPanX = headerW - minColIdx * W * this.zoom;
+		const maxPanY = headerH - minRowIdx * H * this.zoom;
+		if (this.panX > maxPanX) this.panX = maxPanX;
+		if (this.panY > maxPanY) this.panY = maxPanY;
+	}
+
 	private requestDraw(): void {
+		this.clampPan();
 		cancelAnimationFrame(this.rafId);
 		this.rafId = requestAnimationFrame(() => this.draw());
 	}
@@ -808,6 +1348,13 @@ export class MiniGraphView extends ItemView {
 		ctx.fillStyle = "#0f1116";
 		ctx.fillRect(0, 0, cw, ch);
 		ctx.setTransform(dpr * this.zoom, 0, 0, dpr * this.zoom, dpr * this.panX, dpr * this.panY);
+
+		// Excel-style row/column underlay. Drawn first so enclosures, edges,
+		// trunks, and cards all sit on top. Cells follow card geometry and
+		// ignore the cluster bounding boxes by design.
+		if (this.settings.showGrid) {
+			this.drawCardGrid(ctx);
+		}
 
 		// Outline-only enclosures: stroke colours are hue-distinct so the
 		// boundaries stay readable when clusters overlap or nest. Fills are
@@ -835,6 +1382,26 @@ export class MiniGraphView extends ItemView {
 		const accent = "#ff9d3f";
 		const glow = "rgba(255,157,63,0.35)";
 
+		// Per-layer card visibility / aggregation. Hidden node IDs come from
+		// the layer tabs' card-list checkboxes. Aggregated clusters replace
+		// their member cards with a single 3-card diagonal stack at the
+		// cluster centre. A node only becomes "aggregated-hidden" when ALL
+		// of its memberships are aggregated layers — otherwise it still
+		// belongs to a non-aggregated cluster and must remain visible there.
+		const hiddenSet = new Set(this.settings.hiddenNodes);
+		const aggSet = new Set(this.settings.aggregatedLayers);
+		const aggHidden = new Set<string>();
+		if (aggSet.size > 0) {
+			for (const n of this.laid.nodes) {
+				if (n.memberships.length === 0) continue;
+				if (n.memberships.every((m) => aggSet.has(m))) {
+					aggHidden.add(n.id);
+				}
+			}
+		}
+		const skipNode = (id: string): boolean =>
+			hiddenSet.has(id) || aggHidden.has(id);
+
 		// Layer 1: all edges as thin LINEs. Every node-touching connection
 		// uses this uniform single-line style regardless of bundling.
 		if (this.settings.showEdges) {
@@ -842,6 +1409,7 @@ export class MiniGraphView extends ItemView {
 			ctx.lineWidth = lineW;
 			this.laid.edges.forEach((e, i) => {
 				if (hasHighlight && this.highlightedEdgeIdx.has(i)) return;
+				if (skipNode(e.source) || skipNode(e.target)) return;
 				const path = e.path;
 				if (!path || path.length < 2) return;
 				ctx.strokeStyle = hasHighlight ? dim : line;
@@ -867,7 +1435,22 @@ export class MiniGraphView extends ItemView {
 		// Layer 2: base cards (covers the "stub" segment from edge port → card center)
 		for (const n of this.laid.nodes) {
 			if (this.highlightedNodes.has(n.id)) continue;
+			if (skipNode(n.id)) continue;
 			this.drawCard(ctx, n, false);
+		}
+
+		// Aggregated cluster stacks. Only clusters with a truly-aggregated
+		// subset (= count > 0 in aggregateCount) render a stack — others
+		// keep their normal cluster appearance because none of their
+		// members were actually folded in.
+		if (this.aggregateCount.size > 0 && this.laid.nodes.length > 0) {
+			const cardW = this.laid.nodes[0].width;
+			const cardH = this.laid.nodes[0].height;
+			for (const cluster of this.laid.clusters) {
+				const count = this.aggregateCount.get(cluster.groupKey);
+				if (!count) continue;
+				this.drawAggregateStack(ctx, cluster, cardW, cardH, count);
+			}
 		}
 
 		// Layer 3: accent edges. Always drawn at LINE thickness (not TRUNK)
@@ -878,6 +1461,7 @@ export class MiniGraphView extends ItemView {
 			const accentGlowW = 5 / this.zoom;
 			this.laid.edges.forEach((e, i) => {
 				if (!this.highlightedEdgeIdx.has(i)) return;
+				if (skipNode(e.source) || skipNode(e.target)) return;
 				const path = e.path;
 				if (!path || path.length < 2) return;
 				// Glow halo
@@ -900,24 +1484,349 @@ export class MiniGraphView extends ItemView {
 		// Layer 4: accent cards on top
 		for (const n of this.laid.nodes) {
 			if (!this.highlightedNodes.has(n.id)) continue;
+			if (skipNode(n.id)) continue;
 			this.drawCard(ctx, n, true);
 		}
 
-		// Cluster labels above each enclosure, tinted with the cluster's hue
-		// so they tie back visually to the matching enclosure.
+		// Cluster labels with collision-aware placement: larger clusters keep
+		// their natural position above the enclosure; smaller ones whose label
+		// would collide are pushed up by full line-heights, and labels pushed
+		// 2+ levels gain a thin leader line back to the enclosure top.
 		if (this.settings.showEnclosures) {
-			const groupFontPx = 12 / this.zoom;
-			ctx.font = `${groupFontPx}px sans-serif`;
-			ctx.textBaseline = "middle";
-			ctx.textAlign = "center";
-			for (const c of this.laid.clusters) {
-				const hue = clusterHue(c.groupKey);
-				ctx.fillStyle = `hsla(${hue}, 65%, 70%, 1)`;
-				const display = `${c.label} (${c.memberCount})`;
-				const label = truncateToWidth(ctx, display, c.width);
-				ctx.fillText(label, c.x + c.width / 2, c.y - 8 / this.zoom);
+			this.drawClusterLabels(ctx);
+		}
+
+		// Frozen-pane headers: drawn LAST in screen space so they overlay
+		// everything and stick to the viewport edges regardless of pan/zoom.
+		if (this.settings.showGrid) {
+			ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+			this.drawGridHeaders(ctx);
+		}
+	}
+
+	// Excel-style strict W × H lattice (body only, world space). Cards have
+	// been snapped to cell centres in layout, so each card occupies exactly
+	// one cell. Cell pitch = cardW × cardH — no internal spacing, cells share
+	// borders. Headers are drawn separately by drawGridHeaders() in screen
+	// space (frozen panes) so they stay glued to the viewport edges.
+	private drawCardGrid(ctx: CanvasRenderingContext2D): void {
+		if (this.laid.nodes.length === 0) return;
+		const W = this.laid.nodes[0].width;
+		const H = this.laid.nodes[0].height;
+		if (W <= 0 || H <= 0) return;
+
+		let cardMinCol = Infinity, cardMaxCol = -Infinity;
+		let cardMinRow = Infinity, cardMaxRow = -Infinity;
+		for (const n of this.laid.nodes) {
+			const col = Math.floor(n.x / W);
+			const row = Math.floor(n.y / H);
+			if (col < cardMinCol) cardMinCol = col;
+			if (col > cardMaxCol) cardMaxCol = col;
+			if (row < cardMinRow) cardMinRow = row;
+			if (row > cardMaxRow) cardMaxRow = row;
+		}
+
+		// Column A (= cardMinCol − 1) and row 1 (= cardMinRow − 1) are
+		// reserved empty borders — no node ever lives there. Cards start at
+		// column B / row 2.
+		const minCol = cardMinCol - 1;
+		const maxCol = cardMaxCol;
+		const minRow = cardMinRow - 1;
+		const maxRow = cardMaxRow;
+		const colMin = minCol;
+		const colMax = maxCol;
+		const rowMin = minRow;
+		const rowMax = maxRow;
+		const gridLeft = colMin * W;
+		const gridRight = (colMax + 1) * W;
+		const gridTop = rowMin * H;
+		const gridBottom = (rowMax + 1) * H;
+
+		ctx.strokeStyle = "rgba(120, 140, 160, 0.20)";
+		ctx.lineWidth = 1 / this.zoom;
+		ctx.beginPath();
+		for (let c = colMin; c <= colMax + 1; c++) {
+			const x = c * W;
+			ctx.moveTo(x, gridTop);
+			ctx.lineTo(x, gridBottom);
+		}
+		for (let r = rowMin; r <= rowMax + 1; r++) {
+			const y = r * H;
+			ctx.moveTo(gridLeft, y);
+			ctx.lineTo(gridRight, y);
+		}
+		ctx.stroke();
+	}
+
+	// Frozen-pane row/column headers. Drawn in SCREEN space (identity
+	// transform with DPR applied) so they stay glued to the canvas edges
+	// regardless of pan/zoom — like Excel's frozen header rows/columns.
+	// Cells inside each band still align horizontally / vertically with the
+	// world-space body cells via worldX * zoom + panX.
+	private drawGridHeaders(ctx: CanvasRenderingContext2D): void {
+		if (this.laid.nodes.length === 0) return;
+		const W = this.laid.nodes[0].width;
+		const H = this.laid.nodes[0].height;
+		if (W <= 0 || H <= 0) return;
+
+		let cardMinCol = Infinity, cardMaxCol = -Infinity;
+		let cardMinRow = Infinity, cardMaxRow = -Infinity;
+		for (const n of this.laid.nodes) {
+			const col = Math.floor(n.x / W);
+			const row = Math.floor(n.y / H);
+			if (col < cardMinCol) cardMinCol = col;
+			if (col > cardMaxCol) cardMaxCol = col;
+			if (row < cardMinRow) cardMinRow = row;
+			if (row > cardMaxRow) cardMaxRow = row;
+		}
+		// Reserve column A and row 1 as always-empty borders (no card may
+		// occupy them). Labels start from this shifted origin so the first
+		// card column is labeled "B" and the first card row is "2".
+		const minCol = cardMinCol - 1;
+		const maxCol = cardMaxCol;
+		const minRow = cardMinRow - 1;
+		const maxRow = cardMaxRow;
+
+		const dpr = window.devicePixelRatio || 1;
+		const visW = this.canvas.width / dpr;
+		const visH = this.canvas.height / dpr;
+
+		const cellScreenW = W * this.zoom;
+		const cellScreenH = H * this.zoom;
+
+		// Header band sizes (screen px). Clamped so they read at any zoom
+		// level but never balloon larger than ~36×56 screen px.
+		const headerH = Math.max(22, Math.min(36, cellScreenH * 0.9));
+		const headerW = Math.max(32, Math.min(56, cellScreenW * 0.7));
+
+		// Solid background bands flush with the viewport edges (no gap).
+		ctx.fillStyle = "rgba(58, 78, 108, 0.98)";
+		ctx.fillRect(0, 0, visW, headerH);
+		ctx.fillRect(0, 0, headerW, visH);
+
+		// Internal lines within bands (one per cell boundary, screen space).
+		ctx.strokeStyle = "rgba(120, 140, 160, 0.45)";
+		ctx.lineWidth = 1;
+		ctx.beginPath();
+		for (let c = minCol; c <= maxCol + 1; c++) {
+			const x = c * W * this.zoom + this.panX;
+			if (x < headerW - 0.5 || x > visW + 0.5) continue;
+			ctx.moveTo(x, 0);
+			ctx.lineTo(x, headerH);
+		}
+		for (let r = minRow; r <= maxRow + 1; r++) {
+			const y = r * H * this.zoom + this.panY;
+			if (y < headerH - 0.5 || y > visH + 0.5) continue;
+			ctx.moveTo(0, y);
+			ctx.lineTo(headerW, y);
+		}
+		ctx.stroke();
+
+		// Strong outer separators where headers meet the body.
+		ctx.strokeStyle = "rgba(180, 200, 230, 0.9)";
+		ctx.lineWidth = 1.6;
+		ctx.beginPath();
+		ctx.moveTo(0, headerH);
+		ctx.lineTo(visW, headerH);
+		ctx.moveTo(headerW, 0);
+		ctx.lineTo(headerW, visH);
+		ctx.stroke();
+
+		// Header text. Always drawn — at low zoom the labels would overlap so
+		// we use a STRIDE that skips every Nth column/row label, keeping the
+		// remaining ones readable. Stride = ceil(min-label-px / cellScreenPx).
+		const minColPxW = 18;
+		const minRowPxH = 14;
+		const colStride = Math.max(1, Math.ceil(minColPxW / Math.max(1, cellScreenW)));
+		const rowStride = Math.max(1, Math.ceil(minRowPxH / Math.max(1, cellScreenH)));
+		const fontPx = Math.min(headerH * 0.7, headerW * 0.7, 16);
+		ctx.font = `700 ${fontPx}px sans-serif`;
+		ctx.fillStyle = "rgba(245, 250, 255, 1)";
+		ctx.textAlign = "center";
+		ctx.textBaseline = "middle";
+
+		for (let c = minCol; c <= maxCol; c += colStride) {
+			const xC = c * W * this.zoom + this.panX + cellScreenW / 2;
+			if (xC < headerW || xC > visW) continue;
+			ctx.fillText(colLetters(c - minCol), xC, headerH / 2);
+		}
+		for (let r = minRow; r <= maxRow; r += rowStride) {
+			const yC = r * H * this.zoom + this.panY + cellScreenH / 2;
+			if (yC < headerH || yC > visH) continue;
+			ctx.fillText(String(r - minRow + 1), headerW / 2, yC);
+		}
+		ctx.textAlign = "start";
+		ctx.textBaseline = "alphabetic";
+
+		// Corner block (overlap of top and left bands) — slightly darker to
+		// anchor the header origin visually.
+		ctx.fillStyle = "rgba(40, 55, 80, 1)";
+		ctx.fillRect(0, 0, headerW, headerH);
+		ctx.strokeStyle = "rgba(180, 200, 230, 0.9)";
+		ctx.lineWidth = 1.6;
+		ctx.beginPath();
+		ctx.moveTo(0, headerH);
+		ctx.lineTo(headerW, headerH);
+		ctx.moveTo(headerW, 0);
+		ctx.lineTo(headerW, headerH);
+		ctx.stroke();
+	}
+
+	private drawClusterLabels(ctx: CanvasRenderingContext2D): void {
+		const groupFontPx = 12 / this.zoom;
+		ctx.font = `${groupFontPx}px sans-serif`;
+		ctx.textBaseline = "alphabetic";
+		ctx.textAlign = "start";
+		const lineH = groupFontPx * 1.4;
+		const padX = 4 / this.zoom;
+		const insetY = 4 / this.zoom;
+
+		// Phase 5: map-style top-left anchoring. Each label hugs the upper-left
+		// corner of its cluster, like a country/region name placed in the
+		// corner of its boundary. Collisions push upward (away from the
+		// content) and a leader line links the displaced label back to its
+		// anchor when displacement is significant.
+		interface LabelP {
+			c: ClusterRect;
+			text: string;
+			w: number;
+			cx: number;
+			cy: number;
+			anchorX: number;
+			anchorY: number;
+			pushed: number;
+		}
+		const labels: LabelP[] = this.laid.clusters.map((c) => {
+			const text = truncateToWidth(ctx, `${c.label} (${c.memberCount})`, c.width);
+			const w = ctx.measureText(text).width;
+			const anchorX = c.x + padX;
+			const anchorY = c.y - insetY;
+			return {
+				c,
+				text,
+				w,
+				cx: anchorX,
+				cy: anchorY,
+				anchorX,
+				anchorY,
+				pushed: 0,
+			};
+		});
+
+		// Largest clusters keep their natural position so smaller ones do the
+		// moving — same priority rule as before.
+		const order = labels.map((_, i) => i);
+		order.sort(
+			(a, b) =>
+				labels[b].c.width * labels[b].c.height -
+				labels[a].c.width * labels[a].c.height,
+		);
+
+		// AABB overlap with left-aligned, baseline-anchored text rectangles.
+		// Text occupies roughly [cy - lineH*0.8, cy + lineH*0.2] vertically.
+		const overlap = (a: LabelP, b: LabelP): boolean => {
+			const ay0 = a.cy - lineH * 0.8;
+			const ay1 = a.cy + lineH * 0.2;
+			const by0 = b.cy - lineH * 0.8;
+			const by1 = b.cy + lineH * 0.2;
+			return (
+				a.cx < b.cx + b.w &&
+				b.cx < a.cx + a.w &&
+				ay0 < by1 &&
+				by0 < ay1
+			);
+		};
+
+		for (let idx = 0; idx < order.length; idx++) {
+			const me = labels[order[idx]];
+			let attempts = 0;
+			while (attempts < 16) {
+				let hit = false;
+				for (let jdx = 0; jdx < idx; jdx++) {
+					if (overlap(me, labels[order[jdx]])) {
+						me.cy -= lineH;
+						me.pushed++;
+						hit = true;
+						break;
+					}
+				}
+				if (!hit) break;
+				attempts++;
 			}
-			ctx.textAlign = "start";
+		}
+
+		for (const lab of labels) {
+			const hue = clusterHue(lab.c.groupKey);
+			// Leader line links displaced labels back to their anchor.
+			if (lab.pushed >= 2) {
+				ctx.strokeStyle = `hsla(${hue}, 65%, 70%, 0.55)`;
+				ctx.lineWidth = 0.7 / this.zoom;
+				ctx.beginPath();
+				ctx.moveTo(lab.cx, lab.cy);
+				ctx.lineTo(lab.anchorX, lab.anchorY);
+				ctx.stroke();
+			}
+			ctx.fillStyle = `hsla(${hue}, 65%, 70%, 1)`;
+			ctx.fillText(lab.text, lab.cx, lab.cy);
+		}
+	}
+
+	// 3-card diagonal stack confined to a SINGLE cell. Each sub-card is
+	// (cardW × scale, cardH × scale) and the diagonal span equals
+	// (cardW − subW, cardH − subH) so the three sheets span the entire cell
+	// from upper-left (front, drawn last) to lower-right (back, drawn
+	// first). Z order is reversed: i = 0 is the back, i = 2 is the front.
+	private drawAggregateStack(
+		ctx: CanvasRenderingContext2D,
+		cluster: ClusterRect,
+		cardW: number,
+		cardH: number,
+		count: number,
+	): void {
+		const cx = cluster.x + cluster.width / 2;
+		const cy = cluster.y + cluster.height / 2;
+		const scale = 0.72;
+		const subW = cardW * scale;
+		const subH = cardH * scale;
+		const stepX = (cardW - subW) / 2;
+		const stepY = (cardH - subH) / 2;
+		const r = Math.min(CARD_RADIUS_PX, subW / 2, subH / 2);
+		for (let i = 0; i <= 2; i++) {
+			const isFront = i === 2;
+			// i = 0 (back) shifted bottom-right; i = 2 (front) shifted
+			// top-left. Sub-card centre = cluster centre + (1 − i) · step.
+			const centerX = cx + (1 - i) * stepX;
+			const centerY = cy + (1 - i) * stepY;
+			const x = centerX - subW / 2;
+			const y = centerY - subH / 2;
+			ctx.beginPath();
+			roundedRectPath(ctx, x, y, subW, subH, r);
+			ctx.fillStyle = isFront ? "#1d2230" : "#1a1f2a";
+			ctx.fill();
+			ctx.lineWidth = (isFront ? 1.2 : 0.8) / this.zoom;
+			ctx.strokeStyle = isFront ? "#5a7ba8" : "#3e567a";
+			ctx.beginPath();
+			roundedRectPath(ctx, x, y, subW, subH, r);
+			ctx.stroke();
+			if (isFront) {
+				ctx.textAlign = "start";
+				ctx.textBaseline = "top";
+				ctx.font = `600 ${CARD_TITLE_FONT_PX}px sans-serif`;
+				ctx.fillStyle = "#e6edf3";
+				const title = truncateToWidth(
+					ctx,
+					cluster.label,
+					subW - 2 * CARD_PAD_X,
+				);
+				ctx.fillText(title, x + CARD_PAD_X, y + CARD_PAD_Y);
+				ctx.font = `${CARD_BODY_FONT_PX}px sans-serif`;
+				ctx.fillStyle = "#9eb0c4";
+				ctx.fillText(
+					`${count} cards`,
+					x + CARD_PAD_X,
+					y + CARD_PAD_Y + CARD_LINE_HEIGHT_PX + CARD_TITLE_BODY_GAP,
+				);
+			}
 		}
 	}
 
@@ -1004,40 +1913,6 @@ export class MiniGraphView extends ItemView {
 
 	private openFile(id: string): void {
 		this.app.workspace.openLinkText(id, "", false);
-	}
-
-	private clampClusterOffset(dx: number, dy: number): { dx: number; dy: number } {
-		const max = Math.max(0, this.settings.clusterSpacing / 2 - 4);
-		return {
-			dx: Math.max(-max, Math.min(max, dx)),
-			dy: Math.max(-max, Math.min(max, dy)),
-		};
-	}
-
-	private clampNodeOffset(nodeId: string, dx: number, dy: number): { dx: number; dy: number } {
-		const node = this.laid.nodes.find((n) => n.id === nodeId);
-		// Multi-membership nodes have multiple enclosing rects; use the first as
-		// the "home" cluster for drag clamping.
-		const primary = node?.memberships[0];
-		const cluster = primary
-			? this.laid.clusters.find((c) => c.groupKey === primary)
-			: null;
-		if (!node || !cluster) return { dx, dy };
-		// rel is the card-center position relative to the (un-offset) cluster origin.
-		const rel = {
-			x: node.x - cluster.x - (this.settings.nodeOffsets[nodeId]?.dx ?? 0),
-			y: node.y - cluster.y - (this.settings.nodeOffsets[nodeId]?.dy ?? 0),
-		};
-		const halfW = node.width / 2;
-		const halfH = node.height / 2;
-		const minDx = halfW - rel.x;
-		const maxDx = cluster.width - halfW - rel.x;
-		const minDy = halfH - rel.y;
-		const maxDy = cluster.height - halfH - rel.y;
-		return {
-			dx: Math.max(minDx, Math.min(maxDx, dx)),
-			dy: Math.max(minDy, Math.min(maxDy, dy)),
-		};
 	}
 
 	private onPointerMove(e: MouseEvent): void {
@@ -1207,7 +2082,6 @@ export class MiniGraphView extends ItemView {
 		const c = this.canvas;
 		c.addEventListener("mousedown", (e) => {
 			if (e.button !== 0) return;
-			this.moveHappened = false;
 			const rect = c.getBoundingClientRect();
 			const sx = e.clientX - rect.left;
 			const sy = e.clientY - rect.top;
@@ -1216,38 +2090,7 @@ export class MiniGraphView extends ItemView {
 				e.preventDefault();
 				return;
 			}
-			const w = this.screenToWorld(sx, sy);
-			const hit = this.hitTest(w.x, w.y);
-			if (hit?.kind === "node") {
-				const cur = this.settings.nodeOffsets[hit.nodeId] ?? { dx: 0, dy: 0 };
-				this.moveTarget = {
-					kind: "node",
-					id: hit.nodeId,
-					startWX: w.x,
-					startWY: w.y,
-					baseDx: cur.dx,
-					baseDy: cur.dy,
-				};
-				this.moveHappened = false;
-				c.style.cursor = "move";
-				this.cancelHover();
-				return;
-			}
-			if (hit?.kind === "cluster") {
-				const cur = this.settings.clusterOffsets[hit.group] ?? { dx: 0, dy: 0 };
-				this.moveTarget = {
-					kind: "cluster",
-					group: hit.group,
-					startWX: w.x,
-					startWY: w.y,
-					baseDx: cur.dx,
-					baseDy: cur.dy,
-				};
-				this.moveHappened = false;
-				c.style.cursor = "move";
-				this.cancelHover();
-				return;
-			}
+			// Empty drag = pan. Nodes/clusters can no longer be dragged.
 			this.dragging = true;
 			this.lastX = e.clientX;
 			this.lastY = e.clientY;
@@ -1257,22 +2100,6 @@ export class MiniGraphView extends ItemView {
 		window.addEventListener("mousemove", (e) => {
 			if (this.marqueeStart) {
 				this.updateMarquee(e.clientX, e.clientY);
-				return;
-			}
-			if (this.moveTarget) {
-				const rect = c.getBoundingClientRect();
-				const w = this.screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
-				const rawDx = this.moveTarget.baseDx + (w.x - this.moveTarget.startWX);
-				const rawDy = this.moveTarget.baseDy + (w.y - this.moveTarget.startWY);
-				if (this.moveTarget.kind === "node") {
-					const { dx, dy } = this.clampNodeOffset(this.moveTarget.id, rawDx, rawDy);
-					this.settings.nodeOffsets[this.moveTarget.id] = { dx, dy };
-				} else {
-					const { dx, dy } = this.clampClusterOffset(rawDx, rawDy);
-					this.settings.clusterOffsets[this.moveTarget.group] = { dx, dy };
-				}
-				this.moveHappened = true;
-				this.rebuild();
 				return;
 			}
 			if (!this.dragging) return;
@@ -1285,14 +2112,6 @@ export class MiniGraphView extends ItemView {
 		window.addEventListener("mouseup", (e) => {
 			if (this.marqueeStart) {
 				this.finishMarquee(e.clientX, e.clientY);
-				return;
-			}
-			if (this.moveTarget) {
-				const moved = this.moveHappened;
-				this.moveTarget = null;
-				c.style.cursor = "grab";
-				if (moved) void this.save();
-				// keep moveHappened set; click handler will consume + clear it
 				return;
 			}
 			this.dragging = false;
@@ -1309,10 +2128,6 @@ export class MiniGraphView extends ItemView {
 		});
 		c.addEventListener("click", (e) => {
 			if (e.shiftKey || this.marqueeStart || this.marqueeEl) return;
-			if (this.moveHappened) {
-				this.moveHappened = false;
-				return;
-			}
 			const rect = c.getBoundingClientRect();
 			const w = this.screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
 			const hit = this.hitTest(w.x, w.y);
@@ -1471,6 +2286,19 @@ function parseHaving(s: string): (count: number) => boolean {
 // Stable hue (0-359) derived from a cluster's groupKey. Uses a tiny string
 // hash multiplied by the golden-angle constant so neighbouring clusters end up
 // far apart on the colour wheel even when their keys are similar.
+// Excel-style column header letters: 0 → "A", 25 → "Z", 26 → "AA", 27 → "AB"…
+function colLetters(c: number): string {
+	if (c < 0) return "";
+	let n = c + 1;
+	let s = "";
+	while (n > 0) {
+		const rem = (n - 1) % 26;
+		s = String.fromCharCode(65 + rem) + s;
+		n = Math.floor((n - 1) / 26);
+	}
+	return s;
+}
+
 function clusterHue(key: string): number {
 	let h = 2166136261;
 	for (let i = 0; i < key.length; i++) {

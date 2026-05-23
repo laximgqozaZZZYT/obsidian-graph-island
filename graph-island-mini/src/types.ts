@@ -50,17 +50,35 @@ export interface MiniSettings {
 	groupByAuto: boolean;
 	havingAuto: boolean;
 	limitAuto: boolean;
+	// "concentric": focus at centre, others fill expanding rings around it.
+	// "flow": focus at top-left, others fill columns to the right (main flow
+	// direction = toward the focus / "stage").
+	anchorPlacement: "concentric" | "flow";
 	// Per-view display toggles.
 	showBody: boolean;
 	showEnclosures: boolean;
 	showEdges: boolean;
+	// Excel-style row/column lattice underlay. Cell size = unified card W × H;
+	// rows/columns are inferred from actual card centres, not from cluster
+	// bounding boxes (so clusters can overlap the grid freely).
+	showGrid: boolean;
+	// Per-card visibility. List of node IDs explicitly hidden globally.
+	// Managed via per-layer card toggles in the settings panel.
+	hiddenNodes: string[];
+	// Cluster keys whose members are replaced on the canvas by a single
+	// 3-card diagonal stack (aggregate display).
+	aggregatedLayers: string[];
+	// Inheritance map: child layer key → parent (source) layer key. When
+	// set, the child cluster's bbox grows to engulf the parent's bbox so
+	// the parent visually "joins" the child territory.
+	inheritFrom: Record<string, string>;
 	panelVisible: boolean;
 	clusterOffsets: Record<string, Offset>;
 	nodeOffsets: Record<string, Offset>;
 }
 
 export const DEFAULT_SETTINGS: MiniSettings = {
-	clusterSpacing: 48,
+	clusterSpacing: 80,
 	nodeSpacing: 16,
 	cardMaxChars: 160,
 	where: [],
@@ -73,9 +91,14 @@ export const DEFAULT_SETTINGS: MiniSettings = {
 	groupByAuto: true,
 	havingAuto: true,
 	limitAuto: true,
+	anchorPlacement: "concentric",
 	showBody: true,
 	showEnclosures: true,
 	showEdges: true,
+	showGrid: true,
+	hiddenNodes: [],
+	aggregatedLayers: [],
+	inheritFrom: {},
 	panelVisible: false,
 	clusterOffsets: {},
 	nodeOffsets: {},

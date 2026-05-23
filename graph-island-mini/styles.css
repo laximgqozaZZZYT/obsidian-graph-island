@@ -95,6 +95,137 @@
 	color: var(--text-normal);
 }
 
+.gim-panel-tabs {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	margin-bottom: 12px;
+	padding-bottom: 8px;
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.gim-panel-tab-filter {
+	width: 100%;
+	padding: 5px 10px;
+	background: var(--background-primary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 4px;
+	color: var(--text-normal);
+	font-size: 12px;
+	box-sizing: border-box;
+}
+
+.gim-panel-tab-filter:focus {
+	outline: none;
+	border-color: var(--interactive-accent);
+}
+
+.gim-panel-tabs-chips {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+	max-height: 180px;
+	overflow-y: auto;
+	scrollbar-width: thin;
+}
+
+.gim-panel-tab {
+	background: transparent;
+	border: 1px solid var(--background-modifier-border);
+	color: var(--text-muted);
+	font-size: 11px;
+	font-weight: 500;
+	padding: 4px 9px;
+	border-radius: 999px;
+	cursor: pointer;
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	max-width: 100%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.gim-panel-tab:hover {
+	color: var(--text-normal);
+	background: var(--background-modifier-hover);
+}
+
+.gim-panel-tab.active {
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+	border-color: var(--interactive-accent);
+}
+
+.gim-panel-tab-swatch {
+	width: 9px;
+	height: 9px;
+	border-radius: 50%;
+	display: inline-block;
+	flex-shrink: 0;
+}
+
+.gim-layer-meta {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin-bottom: 8px;
+	font-size: 12px;
+	color: var(--text-normal);
+}
+
+.gim-layer-meta .gim-layer-swatch {
+	width: 14px;
+	height: 14px;
+	border-radius: 4px;
+	display: inline-block;
+}
+
+.gim-layer-count {
+	color: var(--text-muted);
+	font-size: 11px;
+}
+
+.gim-layer-cards {
+	max-height: 260px;
+	overflow-y: auto;
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 4px;
+	padding: 4px;
+	background: var(--background-primary);
+	scrollbar-width: thin;
+}
+
+.gim-layer-cards .gim-toggle-row {
+	font-size: 11px;
+	padding: 2px 4px;
+}
+
+.gim-layer-cards-controls {
+	display: flex;
+	gap: 6px;
+	margin-bottom: 4px;
+}
+
+.gim-layer-cards-controls button {
+	font-size: 10px;
+	padding: 2px 8px;
+	background: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 999px;
+	cursor: pointer;
+	color: var(--text-muted);
+}
+
+.gim-layer-cards-controls button:hover {
+	color: var(--text-normal);
+	background: var(--background-modifier-hover);
+}
+
 .gim-panel-section {
 	margin-bottom: 12px;
 }

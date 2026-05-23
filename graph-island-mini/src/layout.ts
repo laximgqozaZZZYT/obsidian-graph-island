@@ -61,6 +61,16 @@ export interface LayoutOptions {
 	clusterOffsets?: Record<string, { dx: number; dy: number }>;
 	nodeOffsets?: Record<string, { dx: number; dy: number }>;
 	clusterLabels?: Map<string, string>;
+	// "concentric" places the focus cluster at origin and fills expanding
+	// square rings outward. "flow" places focus top-left and fills columns
+	// rightward (main flow direction = toward the focus). Default: concentric.
+	anchorPlacement?: "concentric" | "flow";
+}
+
+interface ClusterRankInfo {
+	groupKey: string;
+	totalDegree: number;
+	memberCount: number;
 }
 
 interface Rect {
@@ -87,51 +97,96 @@ export function layout(data: GraphData, sized: SizedNode[], opts: LayoutOptions)
 	const clusterKeys = collectClusterKeys(data.nodes, labels);
 	const subgroups = groupByMembershipSet(data.nodes);
 
-	// Pack each sub-group locally so we know how much room each centroid needs.
+	// Phase 3: derive a single grid step from the unified card size. View.ts
+	// has already normalised every sized[].width/height to the same maximum,
+	// so any element gives us the canonical card dimensions.
+	const cardW = sized[0]?.width ?? 80;
+	const cardH = sized[0]?.height ?? 24;
+	const gridX = cardW + opts.nodeSpacing;
+	const gridY = cardH + opts.nodeSpacing;
+
+	// Phase 2: strategy dispatch per sub-group. Large sub-groups (≥
+	// GYM_NODE_THRESHOLD) use 体育館型 (shelfPack — tight grid). Small ones use
+	// 校庭型 (radialPack — sunflower around the highest-degree member).
+	const degreeMap = computeDegreeMap(data.edges);
+	const GYM_NODE_THRESHOLD = 12;
+
 	interface PackedSubgroup {
 		memberships: string[];
 		nodes: GraphNode[];
 		positions: { x: number; y: number }[]; // relative to centroid (already centered)
 		width: number;
 		height: number;
+		strategy: "gymnasium" | "schoolyard";
 	}
 	const packed: PackedSubgroup[] = subgroups.map((sg) => {
 		const sizes = sg.nodes.map((n) => sizedById.get(n.id) ?? fallbackSize(n));
-		const pp = shelfPack(sizes, opts.nodeSpacing);
+		const strategy: "gymnasium" | "schoolyard" =
+			sg.nodes.length >= GYM_NODE_THRESHOLD ? "gymnasium" : "schoolyard";
+		let pp: { positions: { x: number; y: number }[]; width: number; height: number };
+		if (strategy === "gymnasium") {
+			pp = shelfPack(sizes, opts.nodeSpacing);
+		} else {
+			// Anchor = highest-degree member ("壇上 within this sub-group")
+			let anchorIdx = 0;
+			let topDeg = -1;
+			for (let i = 0; i < sg.nodes.length; i++) {
+				const d = degreeMap.get(sg.nodes[i].id) ?? 0;
+				if (d > topDeg) {
+					topDeg = d;
+					anchorIdx = i;
+				}
+			}
+			pp = radialPack(sizes, anchorIdx, opts.nodeSpacing, gridX, gridY);
+		}
 		const positions = pp.positions.map((p) => ({
 			x: p.x - pp.width / 2,
 			y: p.y - pp.height / 2,
 		}));
-		return { memberships: sg.memberships, nodes: sg.nodes, positions, width: pp.width, height: pp.height };
+		return {
+			memberships: sg.memberships,
+			nodes: sg.nodes,
+			positions,
+			width: pp.width,
+			height: pp.height,
+			strategy,
+		};
 	});
 
 	// Anchor stride: derived from largest sub-group so neighbors don't collide.
 	const maxSubW = packed.reduce((m, p) => Math.max(m, p.width), 0);
 	const maxSubH = packed.reduce((m, p) => Math.max(m, p.height), 0);
-	// Wider stride so the corridor between adjacent anchors is visible enough
-	// for edge routing to pass through without grazing enclosure borders.
-	const strideX = maxSubW + opts.clusterSpacing * 3;
-	const strideY = maxSubH + opts.clusterSpacing * 3;
+	// Stride is the anchor-to-anchor distance. We want it >= 2 × maxSub so
+	// that a sub-group placed at the midpoint of two adjacent anchors has
+	// room on both sides; the extra clusterSpacing * 2 adds breathing room
+	// between clusters so their bbox overlaps stay small relative to the
+	// overall layout.
+	const strideX = maxSubW + opts.clusterSpacing * 5;
+	const strideY = maxSubH + opts.clusterSpacing * 5;
 
-	// NONE_BUCKET is exclusive (never appears in a multi-membership sub-group)
-	// so it doesn't belong on the main anchor grid: when placed there, other
-	// clusters' multi-membership centroids can land at NONE's position and
-	// those clusters' bboxes end up engulfing NONE. We put NONE_BUCKET into a
-	// dedicated row below the main grid instead.
-	const mainKeys = clusterKeys.filter((k) => k !== NONE_BUCKET);
-	const hasNone = mainKeys.length !== clusterKeys.length;
-	const cols = Math.max(1, Math.ceil(Math.sqrt(mainKeys.length || 1)));
+	// Phase 1: rank clusters by aggregate degree, pick a focus cluster
+	// containing the global max-degree node, and place anchors per the chosen
+	// strategy. NONE_BUCKET still sits on its own dedicated row to avoid
+	// engulfment by other clusters' multi-membership bboxes. (degreeMap was
+	// computed earlier for sub-group strategy dispatch — reuse.)
+	const clusterRanks = rankClustersByDegree(clusterKeys, data.nodes, degreeMap);
+	const focusKey = chooseFocusCluster(data.nodes, degreeMap, clusterRanks);
+	if (focusKey) moveToFront(clusterRanks, focusKey);
+
+	const mainRanks = clusterRanks.filter((r) => r.groupKey !== NONE_BUCKET);
+	const hasNone = mainRanks.length !== clusterRanks.length;
 	const anchors = new Map<string, { x: number; y: number }>();
-	mainKeys.forEach((k, i) => {
-		const col = i % cols;
-		const row = Math.floor(i / cols);
-		anchors.set(k, { x: col * strideX, y: row * strideY });
-	});
+	const placement = opts.anchorPlacement ?? "concentric";
+	if (placement === "concentric") {
+		placeAnchorsConcentric(anchors, mainRanks, strideX, strideY);
+	} else {
+		placeAnchorsFlow(anchors, mainRanks, strideX, strideY);
+	}
 	if (hasNone) {
-		const mainRows = Math.max(1, Math.ceil(mainKeys.length / cols));
-		const noneCol = Math.floor((cols - 1) / 2); // centred under the main grid
-		// +1 gives a full extra row of empty space between the grid and NONE.
-		anchors.set(NONE_BUCKET, { x: noneCol * strideX, y: (mainRows + 1) * strideY });
+		// Place NONE far away from any other anchor (below all of them).
+		let maxY = 0;
+		for (const a of anchors.values()) if (a.y > maxY) maxY = a.y;
+		anchors.set(NONE_BUCKET, { x: 0, y: maxY + strideY * 2 });
 	}
 
 	const positionedNodes: PositionedNode[] = [];
@@ -205,6 +260,11 @@ export function layout(data: GraphData, sized: SizedNode[], opts: LayoutOptions)
 		}
 		if (!any) break;
 	}
+	// Phase 3: snap sub-group centres to the global grid after relaxation.
+	for (const sp of subPositions) {
+		sp.cx = Math.round(sp.cx / gridX) * gridX;
+		sp.cy = Math.round(sp.cy / gridY) * gridY;
+	}
 
 	for (let pi = 0; pi < packed.length; pi++) {
 		const p = packed[pi];
@@ -234,6 +294,44 @@ export function layout(data: GraphData, sized: SizedNode[], opts: LayoutOptions)
 			idToRect.set(n.id, { x, y, w: sz.width, h: sz.height });
 			idToSize.set(n.id, sz);
 		});
+	}
+
+	// Strict Excel-style cell snap: every card lands at the centre of one
+	// cell on a W × H lattice (cell pitch = cardW × cardH, cells touch with
+	// no internal gaps). The grid origin is world (0, 0); cell (col, row)
+	// spans [col*cardW, (col+1)*cardW] × [row*cardH, (row+1)*cardH] with
+	// centre at ((col + 0.5) * cardW, (row + 0.5) * cardH). When the natural
+	// cell is occupied, spiral outward to the nearest free cell so each card
+	// gets a unique slot (matches the user's "穴に納める" requirement).
+	const occupied = new Set<string>();
+	for (const n of positionedNodes) {
+		let col = Math.floor(n.x / cardW);
+		let row = Math.floor(n.y / cardH);
+		let key = `${col},${row}`;
+		if (occupied.has(key)) {
+			outer: for (let radius = 1; radius < 128; radius++) {
+				for (let dc = -radius; dc <= radius; dc++) {
+					for (let dr = -radius; dr <= radius; dr++) {
+						if (Math.max(Math.abs(dc), Math.abs(dr)) !== radius) continue;
+						const k2 = `${col + dc},${row + dr}`;
+						if (!occupied.has(k2)) {
+							col += dc;
+							row += dr;
+							key = k2;
+							break outer;
+						}
+					}
+				}
+			}
+		}
+		occupied.add(key);
+		n.x = (col + 0.5) * cardW;
+		n.y = (row + 0.5) * cardH;
+		const r = idToRect.get(n.id);
+		if (r) {
+			r.x = n.x;
+			r.y = n.y;
+		}
 	}
 
 	// Build the member set for each cluster so we can detect nesting and give
@@ -279,13 +377,21 @@ export function layout(data: GraphData, sized: SizedNode[], opts: LayoutOptions)
 		}
 		if (count === 0) continue;
 		const PAD = BASE_PAD + (nestingDepth.get(key) ?? 0) * NEST_PAD;
+		// Bisector snap: each enclosure edge is rounded outward to the
+		// nearest cell-centre bisector. Borders then ride the invisible
+		// guidelines that pass through column / row centres, lining up with
+		// the cards inside and the trunk / single-wire routing outside.
+		const left = snapBisectorXFloor(minX - PAD, cardW);
+		const right = snapBisectorXCeil(maxX + PAD, cardW);
+		const top = snapBisectorYFloor(minY - PAD, cardH);
+		const bottom = snapBisectorYCeil(maxY + PAD, cardH);
 		clusters.push({
 			groupKey: key,
 			label: labels.get(key) ?? key,
-			x: minX - PAD,
-			y: minY - PAD,
-			width: maxX - minX + 2 * PAD,
-			height: maxY - minY + 2 * PAD,
+			x: left,
+			y: top,
+			width: right - left,
+			height: bottom - top,
 			memberCount: count,
 		});
 	}
@@ -327,10 +433,14 @@ export function layout(data: GraphData, sized: SizedNode[], opts: LayoutOptions)
 
 	const edges: PositionedEdge[] = [];
 	const trunks: TrunkLine[] = [];
+	// Phase 4: lane registry shared across all intra-cluster + fallback
+	// L-routes so edges in the same horizontal gutter spread apart.
+	const lanes = new LaneRegistry();
 	for (const pg of pairGroups.values()) {
-		// Intra-cluster edges stay as a simple L between card centres (the
-		// path is entirely inside one cluster, where there's no risk of
-		// crossing another cluster's border).
+		// Intra-cluster edges use a Z-route via a lane line between the two
+		// cards' rows. The path is entirely inside one cluster, so crossing
+		// borders is not a concern; lane separation keeps parallel edges
+		// readable as distinct wires.
 		if (pg.intra) {
 			for (const e of pg.items) {
 				const a = idToRect.get(e.source)!;
@@ -339,7 +449,7 @@ export function layout(data: GraphData, sized: SizedNode[], opts: LayoutOptions)
 					source: e.source,
 					target: e.target,
 					weight: e.weight,
-					path: lShape(a, b),
+					path: routeZ(a, b, lanes, cardH),
 					bundled: false,
 					bundleCount: 1,
 				});
@@ -365,7 +475,7 @@ export function layout(data: GraphData, sized: SizedNode[], opts: LayoutOptions)
 					source: e.source,
 					target: e.target,
 					weight: e.weight,
-					path: lShape(a, b),
+					path: routeZ(a, b, lanes, cardH),
 					bundled: false,
 					bundleCount: 1,
 				});
@@ -377,8 +487,8 @@ export function layout(data: GraphData, sized: SizedNode[], opts: LayoutOptions)
 		const showTrunk = pg.items.length >= 2 && !aSingleton && !bSingleton;
 		const sideA = sideTowards(ra, rb);
 		const sideB = sideTowards(rb, ra);
-		const trunkA = sidePoint(ra, sideA);
-		const trunkB = sidePoint(rb, sideB);
+		const trunkA = sidePoint(ra, sideA, cardW, cardH);
+		const trunkB = sidePoint(rb, sideB, cardW, cardH);
 		const bundleCount = pg.items.length;
 		if (showTrunk) {
 			trunks.push({
@@ -437,9 +547,16 @@ function sideTowards(self: ClusterRect, other: ClusterRect): Side {
 	return dy >= 0 ? "bottom" : "top";
 }
 
-function sidePoint(c: ClusterRect, side: Side): { x: number; y: number } {
-	const cx = c.x + c.width / 2;
-	const cy = c.y + c.height / 2;
+function sidePoint(
+	c: ClusterRect,
+	side: Side,
+	cellW: number,
+	cellH: number,
+): { x: number; y: number } {
+	// Boundary midpoints get snapped to cell-centre bisectors so every trunk
+	// endpoint and the L-bend between two trunks sit on an integer bisector.
+	const cx = snapBisectorX(c.x + c.width / 2, cellW);
+	const cy = snapBisectorY(c.y + c.height / 2, cellH);
 	if (side === "top") return { x: cx, y: c.y };
 	if (side === "bottom") return { x: cx, y: c.y + c.height };
 	if (side === "left") return { x: c.x, y: cy };
@@ -535,6 +652,119 @@ function isSubset<T>(small: Set<T>, big: Set<T>): boolean {
 	return true;
 }
 
+// Compute per-node degree (= number of incident edges).
+function computeDegreeMap(edges: GraphEdge[]): Map<string, number> {
+	const m = new Map<string, number>();
+	for (const e of edges) {
+		m.set(e.source, (m.get(e.source) ?? 0) + 1);
+		m.set(e.target, (m.get(e.target) ?? 0) + 1);
+	}
+	return m;
+}
+
+// Rank clusters by aggregate degree (sum of member node degrees), tie-broken
+// by member count. NONE_BUCKET keeps its place at the end as before.
+function rankClustersByDegree(
+	clusterKeys: string[],
+	nodes: GraphNode[],
+	degree: Map<string, number>,
+): ClusterRankInfo[] {
+	const byKey = new Map<string, { totalDegree: number; memberCount: number }>();
+	for (const k of clusterKeys) byKey.set(k, { totalDegree: 0, memberCount: 0 });
+	for (const n of nodes) {
+		const d = degree.get(n.id) ?? 0;
+		for (const m of n.memberships) {
+			const rec = byKey.get(m);
+			if (rec) {
+				rec.totalDegree += d;
+				rec.memberCount++;
+			}
+		}
+	}
+	const ranks: ClusterRankInfo[] = clusterKeys.map((k) => ({
+		groupKey: k,
+		totalDegree: byKey.get(k)?.totalDegree ?? 0,
+		memberCount: byKey.get(k)?.memberCount ?? 0,
+	}));
+	ranks.sort((a, b) => {
+		if (a.groupKey === NONE_BUCKET && b.groupKey !== NONE_BUCKET) return 1;
+		if (b.groupKey === NONE_BUCKET && a.groupKey !== NONE_BUCKET) return -1;
+		if (b.totalDegree !== a.totalDegree) return b.totalDegree - a.totalDegree;
+		return b.memberCount - a.memberCount;
+	});
+	return ranks;
+}
+
+// Pick the "stage" cluster: the one that contains the GLOBAL max-degree node.
+// (Per spec: 焦点 = グローバル最大次数ノードの所属クラスタ.)
+function chooseFocusCluster(
+	nodes: GraphNode[],
+	degree: Map<string, number>,
+	ranks: ClusterRankInfo[],
+): string {
+	if (degree.size === 0) return ranks[0]?.groupKey ?? "";
+	let bestId = "";
+	let bestDeg = -1;
+	for (const [id, d] of degree) {
+		if (d > bestDeg) {
+			bestDeg = d;
+			bestId = id;
+		}
+	}
+	const node = nodes.find((n) => n.id === bestId);
+	const primary = node?.memberships[0];
+	if (primary && primary !== NONE_BUCKET) return primary;
+	return ranks[0]?.groupKey ?? "";
+}
+
+function moveToFront(ranks: ClusterRankInfo[], key: string): void {
+	const idx = ranks.findIndex((r) => r.groupKey === key);
+	if (idx <= 0) return;
+	const [r] = ranks.splice(idx, 1);
+	ranks.unshift(r);
+}
+
+// Concentric: focus at (0,0), then expanding square rings (8, 16, 24 ... cells).
+// Within each ring, fill clockwise starting from the top.
+function placeAnchorsConcentric(
+	anchors: Map<string, { x: number; y: number }>,
+	ranks: ClusterRankInfo[],
+	strideX: number,
+	strideY: number,
+): void {
+	if (ranks.length === 0) return;
+	anchors.set(ranks[0].groupKey, { x: 0, y: 0 });
+	const cells: { x: number; y: number }[] = [];
+	for (let r = 1; cells.length < ranks.length - 1 && r <= 32; r++) {
+		// Walk the perimeter of the rxr ring clockwise starting at top-left.
+		for (let dx = -r; dx <= r; dx++) cells.push({ x: dx * strideX, y: -r * strideY });
+		for (let dy = -r + 1; dy <= r; dy++) cells.push({ x: r * strideX, y: dy * strideY });
+		for (let dx = r - 1; dx >= -r; dx--) cells.push({ x: dx * strideX, y: r * strideY });
+		for (let dy = r - 1; dy >= -r + 1; dy--) cells.push({ x: -r * strideX, y: dy * strideY });
+	}
+	for (let i = 1; i < ranks.length && i - 1 < cells.length; i++) {
+		anchors.set(ranks[i].groupKey, cells[i - 1]);
+	}
+}
+
+// Flow: focus at top-left, columns growing rightward. Within each column,
+// ranks descend (rank 1 directly below focus). Column height ≈ sqrt(N).
+function placeAnchorsFlow(
+	anchors: Map<string, { x: number; y: number }>,
+	ranks: ClusterRankInfo[],
+	strideX: number,
+	strideY: number,
+): void {
+	if (ranks.length === 0) return;
+	const total = ranks.length;
+	const colHeight = Math.max(1, Math.ceil(Math.sqrt(total)));
+	for (let i = 0; i < total; i++) {
+		const col = Math.floor(i / colHeight);
+		const row = i % colHeight;
+		anchors.set(ranks[i].groupKey, { x: col * strideX, y: row * strideY });
+	}
+}
+
 // Deterministic radial offset from a sub-group's membership signature. The
 // angle is derived from an FNV-1a hash so different membership sets are
 // pushed in different directions even when their grid centroid coincides.
@@ -568,6 +798,92 @@ function centroidOf(
 
 function fallbackSize(n: GraphNode): SizedNode {
 	return { ...n, width: 80, height: 24 };
+}
+
+// Sunflower-style radial packing (校庭型) with grid-cell snap. The
+// highest-degree member sits at the centre cell ("壇上"); the rest are placed
+// at the Vogel sequence
+//   r = c√i,  θ = i · φ   (φ = golden angle ≈ 137.508°)
+// and each ideal point is snapped to the nearest FREE grid cell via spiral
+// search (no concentric rings).
+function radialPack(
+	sizes: SizedNode[],
+	anchorIdx: number,
+	gap: number,
+	gridX: number,
+	gridY: number,
+): {
+	positions: { x: number; y: number }[];
+	width: number;
+	height: number;
+} {
+	const n = sizes.length;
+	if (n === 0) return { positions: [], width: 32, height: 24 };
+	const positions: { x: number; y: number }[] = new Array(n);
+	if (n === 1) {
+		positions[0] = { x: sizes[0].width / 2, y: sizes[0].height / 2 };
+		return { positions, width: sizes[0].width, height: sizes[0].height };
+	}
+	const occupied = new Set<string>();
+	const claim = (col: number, row: number): { col: number; row: number } => {
+		const ideal = `${col},${row}`;
+		if (!occupied.has(ideal)) {
+			occupied.add(ideal);
+			return { col, row };
+		}
+		for (let d = 1; d < 64; d++) {
+			for (let dr = -d; dr <= d; dr++) {
+				for (let dc = -d; dc <= d; dc++) {
+					if (Math.max(Math.abs(dc), Math.abs(dr)) !== d) continue;
+					const k = `${col + dc},${row + dr}`;
+					if (!occupied.has(k)) {
+						occupied.add(k);
+						return { col: col + dc, row: row + dr };
+					}
+				}
+			}
+		}
+		// Should never reach here for reasonable n
+		const key = `${col},${row}.${Math.random()}`;
+		occupied.add(key);
+		return { col, row };
+	};
+
+	// Anchor occupies (0, 0).
+	claim(0, 0);
+	positions[anchorIdx] = { x: 0, y: 0 };
+
+	const spacing = Math.max(gridX, gridY);
+	const golden = Math.PI * (3 - Math.sqrt(5));
+	let step = 1;
+	for (let i = 0; i < n; i++) {
+		if (i === anchorIdx) continue;
+		const r = spacing * Math.sqrt(step);
+		const theta = step * golden;
+		const idealCol = Math.round((r * Math.cos(theta)) / gridX);
+		const idealRow = Math.round((r * Math.sin(theta)) / gridY);
+		const cell = claim(idealCol, idealRow);
+		positions[i] = { x: cell.col * gridX, y: cell.row * gridY };
+		step++;
+	}
+
+	// Shift so the tightest bbox's top-left is (0, 0).
+	let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+	for (let i = 0; i < n; i++) {
+		const s = sizes[i];
+		const l = positions[i].x - s.width / 2;
+		const right = positions[i].x + s.width / 2;
+		const t = positions[i].y - s.height / 2;
+		const b = positions[i].y + s.height / 2;
+		if (l < minX) minX = l;
+		if (right > maxX) maxX = right;
+		if (t < minY) minY = t;
+		if (b > maxY) maxY = b;
+	}
+	for (let i = 0; i < n; i++) {
+		positions[i] = { x: positions[i].x - minX, y: positions[i].y - minY };
+	}
+	return { positions, width: maxX - minX, height: maxY - minY };
 }
 
 // Shelf-pack cards into rows until the row would exceed a sqrt-area target,
@@ -631,19 +947,72 @@ function aggregateEdges(
 	return [...counts.values()];
 }
 
-// Simple orthogonal L-shape: go horizontal first, then vertical. The card
-// renderer draws on top of these segments so the inside-card portions are
-// hidden visually.
-function lShape(a: Rect, b: Rect): { x: number; y: number }[] {
+// Phase 4: lane registry — assigns successive integer indices per "gutter"
+// bucket so parallel orthogonal wires can fan apart instead of overlapping
+// on the same y/x line.
+class LaneRegistry {
+	private counters = new Map<string, number>();
+	next(key: string): number {
+		const c = this.counters.get(key) ?? 0;
+		this.counters.set(key, c + 1);
+		return c;
+	}
+}
+
+// Cell-centre bisector snap. Bisectors run through column/row centres at
+// x = (col + 0.5) * W (vertical) and y = (row + 0.5) * H (horizontal). These
+// are the "invisible guidelines" the user wants every enclosure edge, single
+// wire, and trunk cable to ride.
+function snapBisectorX(x: number, cellW: number): number {
+	return (Math.round(x / cellW - 0.5) + 0.5) * cellW;
+}
+function snapBisectorY(y: number, cellH: number): number {
+	return (Math.round(y / cellH - 0.5) + 0.5) * cellH;
+}
+function snapBisectorXFloor(x: number, cellW: number): number {
+	return (Math.floor(x / cellW - 0.5) + 0.5) * cellW;
+}
+function snapBisectorXCeil(x: number, cellW: number): number {
+	return (Math.ceil(x / cellW - 0.5) + 0.5) * cellW;
+}
+function snapBisectorYFloor(y: number, cellH: number): number {
+	return (Math.floor(y / cellH - 0.5) + 0.5) * cellH;
+}
+function snapBisectorYCeil(y: number, cellH: number): number {
+	return (Math.ceil(y / cellH - 0.5) + 0.5) * cellH;
+}
+
+// Phase 4 + bisector: orthogonal Z-route. The horizontal middle segment runs
+// along a row-centre bisector (= (row + 0.5) * cellH). Parallel edges in the
+// same row bucket spread across ADJACENT bisector rows instead of using
+// fractional pixel offsets, so every wire still lies on an integer bisector.
+function routeZ(
+	a: Rect,
+	b: Rect,
+	lanes: LaneRegistry,
+	cellH: number,
+): { x: number; y: number }[] {
 	if (Math.abs(a.x - b.x) < 0.5) {
 		return [{ x: a.x, y: a.y }, { x: a.x, y: b.y }];
 	}
 	if (Math.abs(a.y - b.y) < 0.5) {
 		return [{ x: a.x, y: a.y }, { x: b.x, y: a.y }];
 	}
+	const midY = (a.y + b.y) / 2;
+	const baseRow = Math.round(midY / cellH - 0.5);
+	const lane = lanes.next(`h:${baseRow}`);
+	// Lane 0 → baseRow, 1 → +1, 2 → −1, 3 → +2, 4 → −2 …
+	const laneShift =
+		lane === 0
+			? 0
+			: lane % 2 === 1
+				? Math.ceil(lane / 2)
+				: -Math.ceil(lane / 2);
+	const laneY = (baseRow + laneShift + 0.5) * cellH;
 	return [
 		{ x: a.x, y: a.y },
-		{ x: b.x, y: a.y },
+		{ x: a.x, y: laneY },
+		{ x: b.x, y: laneY },
 		{ x: b.x, y: b.y },
 	];
 }
