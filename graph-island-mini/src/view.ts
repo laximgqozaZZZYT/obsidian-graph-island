@@ -1102,6 +1102,38 @@ export class MiniGraphView extends ItemView {
 			const sortedClusters = [...this.laid.clusters].sort((a, b) =>
 				a.groupKey.localeCompare(b.groupKey),
 			);
+			// AABB rectangles of every visible card, used as a second-line
+			// verification after the cell-snap spiral. The cell occupied
+			// set CAN miss footprint corners when float arithmetic puts the
+			// rounded startCol/Row off by one — a direct AABB check on the
+			// resulting badge centre catches those misses.
+			interface CardAABB {
+				left: number;
+				right: number;
+				top: number;
+				bottom: number;
+			}
+			const cardAABBs: CardAABB[] = [];
+			for (const n of this.laid.nodes) {
+				if (trulyAgg.has(n.id)) continue;
+				if (hiddenSet.has(n.id)) continue;
+				cardAABBs.push({
+					left: n.x - n.width / 2,
+					right: n.x + n.width / 2,
+					top: n.y - n.height / 2,
+					bottom: n.y + n.height / 2,
+				});
+			}
+			const cellHitsCard = (col: number, row: number): boolean => {
+				const cx = (col + 0.5) * slotW;
+				const cy = (row + 0.5) * slotH;
+				for (const r of cardAABBs) {
+					if (cx > r.left && cx < r.right && cy > r.top && cy < r.bottom) {
+						return true;
+					}
+				}
+				return false;
+			};
 			for (const cluster of sortedClusters) {
 				if (!aggSet.has(cluster.groupKey)) continue;
 				let sx = 0;
@@ -1116,28 +1148,32 @@ export class MiniGraphView extends ItemView {
 				}
 				if (count === 0) continue;
 				// Snap stack centroid to the nearest free slot on the global
-				// lattice. If the slot is taken by a visible card or an
-				// earlier stack, spiral outward.
+				// lattice. The cell must (a) not collide with the cell-snap
+				// occupied set AND (b) its centre must not fall inside any
+				// card's AABB. Both checks together close the gap where a
+				// float-rounding mismatch let a badge land inside a card.
 				let col = Math.floor(sx / count / slotW);
 				let row = Math.floor(sy / count / slotH);
-				let key = `${col},${row}`;
-				if (occupied.has(key)) {
+				const isBlocked = (c: number, r: number): boolean =>
+					occupied.has(`${c},${r}`) || cellHitsCard(c, r);
+				if (isBlocked(col, row)) {
 					outer: for (let radius = 1; radius < 128; radius++) {
 						for (let dc = -radius; dc <= radius; dc++) {
 							for (let dr = -radius; dr <= radius; dr++) {
 								if (Math.max(Math.abs(dc), Math.abs(dr)) !== radius)
 									continue;
-								const k2 = `${col + dc},${row + dr}`;
-								if (!occupied.has(k2)) {
-									col += dc;
-									row += dr;
-									key = k2;
+								const cc = col + dc;
+								const rr = row + dr;
+								if (!isBlocked(cc, rr)) {
+									col = cc;
+									row = rr;
 									break outer;
 								}
 							}
 						}
 					}
 				}
+				const key = `${col},${row}`;
 				occupied.add(key);
 				const snapCx = (col + 0.5) * slotW;
 				const snapCy = (row + 0.5) * slotH;
@@ -1476,11 +1512,13 @@ export class MiniGraphView extends ItemView {
 		const deg = map.get(nodeId) ?? 0;
 		// (linkCount + 1) × base. 0 links ⇒ initial size; each additional
 		// link adds another full multiple. Aspect ratio is preserved
-		// because both axes multiply by the same scale. Cap at 8× so that a
-		// few extreme hubs (e.g. 50+ incoming links) can't blow up the
-		// layout footprint into thousands of cells, which makes cell snap
-		// (footprint-aware spiral search) impossibly slow on large vaults.
-		return Math.min(8, deg + 1);
+		// because both axes multiply by the same scale. Cap at 4× because
+		// (a) larger caps blow up the cell-snap spiral on huge vaults and
+		// (b) the bigger a hub card grows the wider its sub-group becomes,
+		// which inflates the global stride and forces every other cluster
+		// further apart, leaving large empty regions inside multi-membership
+		// cluster bboxes.
+		return Math.min(4, deg + 1);
 	}
 
 	// Build cluster_key → member_id_set and cluster_key → strict_superset
