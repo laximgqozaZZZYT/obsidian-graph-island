@@ -53,6 +53,13 @@ export interface LaidOut {
 	edges: PositionedEdge[];
 	clusters: ClusterRect[];
 	trunks: TrunkLine[];
+	// Slot pitch = card area + channel. Exposed so the view can render the
+	// grid, headers, pan clamp and aggregation snap on the same lattice the
+	// layout uses internally.
+	slotW: number;
+	slotH: number;
+	channelW: number;
+	channelH: number;
 }
 
 export interface LayoutOptions {
@@ -102,8 +109,15 @@ export function layout(data: GraphData, sized: SizedNode[], opts: LayoutOptions)
 	// so any element gives us the canonical card dimensions.
 	const cardW = sized[0]?.width ?? 80;
 	const cardH = sized[0]?.height ?? 24;
-	const gridX = cardW + opts.nodeSpacing;
-	const gridY = cardH + opts.nodeSpacing;
+	// Channels (隘路): narrow gaps between slots reserved for wires, trunks
+	// and cluster borders. slotW = card area + channel, so each slot holds
+	// one card centred within it with a half-channel margin on each side.
+	const channelW = Math.max(8, opts.nodeSpacing);
+	const channelH = Math.max(6, Math.min(opts.nodeSpacing, Math.floor(cardH * 0.4)));
+	const slotW = cardW + channelW;
+	const slotH = cardH + channelH;
+	const gridX = slotW;
+	const gridY = slotH;
 
 	// Phase 2: strategy dispatch per sub-group. Large sub-groups (≥
 	// GYM_NODE_THRESHOLD) use 体育館型 (shelfPack — tight grid). Small ones use
@@ -296,17 +310,14 @@ export function layout(data: GraphData, sized: SizedNode[], opts: LayoutOptions)
 		});
 	}
 
-	// Strict Excel-style cell snap: every card lands at the centre of one
-	// cell on a W × H lattice (cell pitch = cardW × cardH, cells touch with
-	// no internal gaps). The grid origin is world (0, 0); cell (col, row)
-	// spans [col*cardW, (col+1)*cardW] × [row*cardH, (row+1)*cardH] with
-	// centre at ((col + 0.5) * cardW, (row + 0.5) * cardH). When the natural
-	// cell is occupied, spiral outward to the nearest free cell so each card
-	// gets a unique slot (matches the user's "穴に納める" requirement).
+	// Excel-style slot snap. Slot pitch = (cardW + channelW) × (cardH +
+	// channelH); each slot holds ONE card centred with a half-channel
+	// margin on every side. The empty channel rim between slots is what
+	// trunks, single wires, and cluster borders route through.
 	const occupied = new Set<string>();
 	for (const n of positionedNodes) {
-		let col = Math.floor(n.x / cardW);
-		let row = Math.floor(n.y / cardH);
+		let col = Math.floor(n.x / slotW);
+		let row = Math.floor(n.y / slotH);
 		let key = `${col},${row}`;
 		if (occupied.has(key)) {
 			outer: for (let radius = 1; radius < 128; radius++) {
@@ -325,8 +336,8 @@ export function layout(data: GraphData, sized: SizedNode[], opts: LayoutOptions)
 			}
 		}
 		occupied.add(key);
-		n.x = (col + 0.5) * cardW;
-		n.y = (row + 0.5) * cardH;
+		n.x = (col + 0.5) * slotW;
+		n.y = (row + 0.5) * slotH;
 		const r = idToRect.get(n.id);
 		if (r) {
 			r.x = n.x;
@@ -363,28 +374,38 @@ export function layout(data: GraphData, sized: SizedNode[], opts: LayoutOptions)
 	// containing layer sits clearly outside the layers it encloses.
 	const BASE_PAD = Math.max(24, opts.clusterSpacing / 2);
 	const NEST_PAD = 18;
+	const basePadCellsX = Math.max(0, Math.ceil((BASE_PAD - channelW / 2) / slotW));
+	const basePadCellsY = Math.max(0, Math.ceil((BASE_PAD - channelH / 2) / slotH));
+	const nestPadCellsX = Math.max(1, Math.ceil(NEST_PAD / slotW));
+	const nestPadCellsY = Math.max(1, Math.ceil(NEST_PAD / slotH));
 	const clusters: ClusterRect[] = [];
 	for (const key of clusterKeys) {
-		let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+		let cellMinCol = Infinity;
+		let cellMaxCol = -Infinity;
+		let cellMinRow = Infinity;
+		let cellMaxRow = -Infinity;
 		let count = 0;
 		for (const n of positionedNodes) {
 			if (!n.memberships.includes(key)) continue;
 			count++;
-			minX = Math.min(minX, n.x - n.width / 2);
-			maxX = Math.max(maxX, n.x + n.width / 2);
-			minY = Math.min(minY, n.y - n.height / 2);
-			maxY = Math.max(maxY, n.y + n.height / 2);
+			const col = Math.floor(n.x / slotW);
+			const row = Math.floor(n.y / slotH);
+			if (col < cellMinCol) cellMinCol = col;
+			if (col > cellMaxCol) cellMaxCol = col;
+			if (row < cellMinRow) cellMinRow = row;
+			if (row > cellMaxRow) cellMaxRow = row;
 		}
 		if (count === 0) continue;
-		const PAD = BASE_PAD + (nestingDepth.get(key) ?? 0) * NEST_PAD;
-		// Bisector snap: each enclosure edge is rounded outward to the
-		// nearest cell-centre bisector. Borders then ride the invisible
-		// guidelines that pass through column / row centres, lining up with
-		// the cards inside and the trunk / single-wire routing outside.
-		const left = snapBisectorXFloor(minX - PAD, cardW);
-		const right = snapBisectorXCeil(maxX + PAD, cardW);
-		const top = snapBisectorYFloor(minY - PAD, cardH);
-		const bottom = snapBisectorYCeil(maxY + PAD, cardH);
+		const nest = nestingDepth.get(key) ?? 0;
+		const padCellsX = basePadCellsX + nest * nestPadCellsX;
+		const padCellsY = basePadCellsY + nest * nestPadCellsY;
+		// Enclosure edges ride the channels between slots — left/right at
+		// (col − pad)·slotW and (col + 1 + pad)·slotW, i.e. the channel
+		// centres just outside the card cells. Same for top/bottom.
+		const left = (cellMinCol - padCellsX) * slotW;
+		const right = (cellMaxCol + 1 + padCellsX) * slotW;
+		const top = (cellMinRow - padCellsY) * slotH;
+		const bottom = (cellMaxRow + 1 + padCellsY) * slotH;
 		clusters.push({
 			groupKey: key,
 			label: labels.get(key) ?? key,
@@ -436,6 +457,25 @@ export function layout(data: GraphData, sized: SizedNode[], opts: LayoutOptions)
 	// Phase 4: lane registry shared across all intra-cluster + fallback
 	// L-routes so edges in the same horizontal gutter spread apart.
 	const lanes = new LaneRegistry();
+	// Cluster overlap detection: A and B overlap iff some node has BOTH in
+	// its memberships. When clusters overlap, the shared members are
+	// themselves the visual connection — adding a trunk / cable on top is
+	// redundant noise, so we suppress inter-cluster wiring between any
+	// overlapping pair.
+	const overlappingPairs = new Set<string>();
+	const overlapKey = (a: string, b: string): string =>
+		a < b ? `${a}|${b}` : `${b}|${a}`;
+	for (const n of positionedNodes) {
+		const mems = n.memberships;
+		if (mems.length < 2) continue;
+		for (let i = 0; i < mems.length; i++) {
+			for (let j = i + 1; j < mems.length; j++) {
+				overlappingPairs.add(overlapKey(mems[i], mems[j]));
+			}
+		}
+	}
+	const clustersOverlap = (a: string, b: string): boolean =>
+		a !== "" && b !== "" && overlappingPairs.has(overlapKey(a, b));
 	for (const pg of pairGroups.values()) {
 		// Intra-cluster edges use a Z-route via a lane line between the two
 		// cards' rows. The path is entirely inside one cluster, so crossing
@@ -449,7 +489,7 @@ export function layout(data: GraphData, sized: SizedNode[], opts: LayoutOptions)
 					source: e.source,
 					target: e.target,
 					weight: e.weight,
-					path: routeZ(a, b, lanes, cardH),
+					path: routeZ(a, b, lanes, slotW, slotH, channelW, channelH),
 					bundled: false,
 					bundleCount: 1,
 				});
@@ -465,6 +505,10 @@ export function layout(data: GraphData, sized: SizedNode[], opts: LayoutOptions)
 		const repE = pg.items[0];
 		const caKey = nodeToCluster.get(repE.source) ?? "";
 		const cbKey = nodeToCluster.get(repE.target) ?? "";
+		// Suppress wiring entirely when the two clusters already share at
+		// least one member — the overlap region is the connection. Both
+		// trunks and per-edge cables drop here.
+		if (clustersOverlap(caKey, cbKey)) continue;
 		const ra = clusterByKey.get(caKey);
 		const rb = clusterByKey.get(cbKey);
 		if (!ra || !rb) {
@@ -475,7 +519,7 @@ export function layout(data: GraphData, sized: SizedNode[], opts: LayoutOptions)
 					source: e.source,
 					target: e.target,
 					weight: e.weight,
-					path: routeZ(a, b, lanes, cardH),
+					path: routeZ(a, b, lanes, slotW, slotH, channelW, channelH),
 					bundled: false,
 					bundleCount: 1,
 				});
@@ -487,8 +531,8 @@ export function layout(data: GraphData, sized: SizedNode[], opts: LayoutOptions)
 		const showTrunk = pg.items.length >= 2 && !aSingleton && !bSingleton;
 		const sideA = sideTowards(ra, rb);
 		const sideB = sideTowards(rb, ra);
-		const trunkA = sidePoint(ra, sideA, cardW, cardH);
-		const trunkB = sidePoint(rb, sideB, cardW, cardH);
+		const trunkA = sidePoint(ra, sideA, slotW, slotH);
+		const trunkB = sidePoint(rb, sideB, slotW, slotH);
 		const bundleCount = pg.items.length;
 		if (showTrunk) {
 			trunks.push({
@@ -506,7 +550,7 @@ export function layout(data: GraphData, sized: SizedNode[], opts: LayoutOptions)
 			// (singletons / single-member clusters) the same polyline is drawn
 			// without the heavy trunk overlay, so it reads as a thin line that
 			// happens to detour through the cluster gap.
-			const path = bundledPath(a, b, trunkA, sideA, trunkB, sideB);
+			const path = bundledPath(a, b, trunkA, sideA, trunkB, sideB, slotW, slotH);
 			edges.push({
 				source: e.source,
 				target: e.target,
@@ -518,7 +562,16 @@ export function layout(data: GraphData, sized: SizedNode[], opts: LayoutOptions)
 		}
 	}
 
-	return { nodes: positionedNodes, edges, clusters, trunks };
+	return {
+		nodes: positionedNodes,
+		edges,
+		clusters,
+		trunks,
+		slotW,
+		slotH,
+		channelW,
+		channelH,
+	};
 }
 
 // L-shape polyline between two trunk boundary points. Used by the trunk
@@ -550,55 +603,59 @@ function sideTowards(self: ClusterRect, other: ClusterRect): Side {
 function sidePoint(
 	c: ClusterRect,
 	side: Side,
-	cellW: number,
-	cellH: number,
+	slotW: number,
+	slotH: number,
 ): { x: number; y: number } {
-	// Boundary midpoints get snapped to cell-centre bisectors so every trunk
-	// endpoint and the L-bend between two trunks sit on an integer bisector.
-	const cx = snapBisectorX(c.x + c.width / 2, cellW);
-	const cy = snapBisectorY(c.y + c.height / 2, cellH);
+	// Boundary midpoints snap to channel centres (= slot boundaries) so the
+	// trunk segment leaving the enclosure runs cleanly along a channel.
+	const cx = Math.round((c.x + c.width / 2) / slotW) * slotW;
+	const cy = Math.round((c.y + c.height / 2) / slotH) * slotH;
 	if (side === "top") return { x: cx, y: c.y };
 	if (side === "bottom") return { x: cx, y: c.y + c.height };
 	if (side === "left") return { x: c.x, y: cy };
 	return { x: c.x + c.width, y: cy };
 }
 
-// Orthogonal polyline: card center → bend_a → trunkA → trunkB → bend_b → card.
-// The bend point on each side is chosen so the last segment touching the trunk
-// is PERPENDICULAR to the cluster boundary (otherwise the stub would run along
-// the enclosure border and visually merge with its stroke).
+// Bundled per-edge polyline: card center → vertical channel adjacent to A →
+// trunkA's horizontal channel → trunkA → (trunkA → trunkB L-bend) → trunkB →
+// trunkB's horizontal channel → vertical channel adjacent to B → card B
+// center. Every orthogonal segment lies in a channel; nothing runs through
+// a card column.
 function bundledPath(
 	a: Rect,
 	b: Rect,
 	trunkA: { x: number; y: number },
-	sideA: Side,
+	_sideA: Side,
 	trunkB: { x: number; y: number },
-	sideB: Side,
+	_sideB: Side,
+	slotW: number,
+	slotH: number,
 ): { x: number; y: number }[] {
 	const pts: { x: number; y: number }[] = [];
 	push(pts, { x: a.x, y: a.y });
-	push(pts, bendPoint({ x: a.x, y: a.y }, trunkA, sideA));
-	push(pts, trunkA);
-	// trunk segment between boundary points; L-bend if they're not axis-aligned.
+
+	// Pick the vertical channel adjacent to card A on the side facing trunkA.
+	const colA = Math.floor(a.x / slotW);
+	const exitXA =
+		trunkA.x >= a.x ? (colA + 1) * slotW : colA * slotW;
+	push(pts, { x: exitXA, y: a.y });           // exit card → channel
+	push(pts, { x: exitXA, y: trunkA.y });      // vertical in channel
+	push(pts, { x: trunkA.x, y: trunkA.y });    // horizontal in trunk's row channel
+
+	// Trunk-to-trunk L-bend (both endpoints already on slot boundaries).
 	if (Math.abs(trunkA.x - trunkB.x) > 0.5 && Math.abs(trunkA.y - trunkB.y) > 0.5) {
 		push(pts, { x: trunkB.x, y: trunkA.y });
 	}
-	push(pts, trunkB);
-	push(pts, bendPoint({ x: b.x, y: b.y }, trunkB, sideB));
+	push(pts, { x: trunkB.x, y: trunkB.y });
+
+	// Card B entry: mirror of the A side.
+	const colB = Math.floor(b.x / slotW);
+	const exitXB =
+		trunkB.x >= b.x ? (colB + 1) * slotW : colB * slotW;
+	push(pts, { x: exitXB, y: trunkB.y });
+	push(pts, { x: exitXB, y: b.y });
 	push(pts, { x: b.x, y: b.y });
 	return pts;
-}
-
-// Bend at (cardX, trunkY) for left/right sides so the segment ending at the
-// trunk runs HORIZONTALLY (perpendicular to a vertical boundary). Mirrored
-// for top/bottom sides.
-function bendPoint(
-	card: { x: number; y: number },
-	trunk: { x: number; y: number },
-	side: Side,
-): { x: number; y: number } {
-	if (side === "left" || side === "right") return { x: card.x, y: trunk.y };
-	return { x: trunk.x, y: card.y };
 }
 
 // Append `next` if it differs from the last point already in the list (keeps
@@ -959,6 +1016,13 @@ class LaneRegistry {
 	}
 }
 
+// Symmetric lane spreader: 0, +1, −1, +2, −2 … Used to fan parallel wires
+// out within a channel without leaving the channel rim.
+function laneShiftSpread(lane: number): number {
+	if (lane === 0) return 0;
+	return lane % 2 === 1 ? Math.ceil(lane / 2) : -Math.ceil(lane / 2);
+}
+
 // Cell-centre bisector snap. Bisectors run through column/row centres at
 // x = (col + 0.5) * W (vertical) and y = (row + 0.5) * H (horizontal). These
 // are the "invisible guidelines" the user wants every enclosure edge, single
@@ -982,37 +1046,101 @@ function snapBisectorYCeil(y: number, cellH: number): number {
 	return (Math.ceil(y / cellH - 0.5) + 0.5) * cellH;
 }
 
-// Phase 4 + bisector: orthogonal Z-route. The horizontal middle segment runs
-// along a row-centre bisector (= (row + 0.5) * cellH). Parallel edges in the
-// same row bucket spread across ADJACENT bisector rows instead of using
-// fractional pixel offsets, so every wire still lies on an integer bisector.
+// Full-Manhattan channel routing. Every orthogonal segment lies inside a
+// channel (= slot boundary): the vertical pieces ride the channel adjacent
+// to A and B (so they never traverse card columns), and the horizontal
+// piece rides a channel between rows (never crosses card rows). Lane
+// offsets within each channel let parallel wires fan apart while staying
+// in the channel rim.
 function routeZ(
 	a: Rect,
 	b: Rect,
 	lanes: LaneRegistry,
-	cellH: number,
+	slotW: number,
+	slotH: number,
+	channelW: number,
+	channelH: number,
 ): { x: number; y: number }[] {
-	if (Math.abs(a.x - b.x) < 0.5) {
-		return [{ x: a.x, y: a.y }, { x: a.x, y: b.y }];
+	if (
+		Math.abs(a.x - b.x) < 0.5 &&
+		Math.abs(a.y - b.y) < 0.5
+	) {
+		return [{ x: a.x, y: a.y }];
 	}
-	if (Math.abs(a.y - b.y) < 0.5) {
-		return [{ x: a.x, y: a.y }, { x: b.x, y: a.y }];
+	const colA = Math.floor(a.x / slotW);
+	const colB = Math.floor(b.x / slotW);
+	const rowA = Math.floor(a.y / slotH);
+	const rowB = Math.floor(b.y / slotH);
+
+	// Vertical channels adjacent to A and B. When B is to the right, exit
+	// A through its right channel and enter B through its left channel
+	// (mirror for the opposite direction). Same column ⇒ both endpoints
+	// share one vertical channel.
+	let aSide: number;
+	let bSide: number;
+	if (colB > colA) {
+		aSide = (colA + 1) * slotW;
+		bSide = colB * slotW;
+	} else if (colB < colA) {
+		aSide = colA * slotW;
+		bSide = (colB + 1) * slotW;
+	} else {
+		aSide = (colA + 1) * slotW;
+		bSide = (colA + 1) * slotW;
 	}
-	const midY = (a.y + b.y) / 2;
-	const baseRow = Math.round(midY / cellH - 0.5);
-	const lane = lanes.next(`h:${baseRow}`);
-	// Lane 0 → baseRow, 1 → +1, 2 → −1, 3 → +2, 4 → −2 …
-	const laneShift =
-		lane === 0
-			? 0
-			: lane % 2 === 1
-				? Math.ceil(lane / 2)
-				: -Math.ceil(lane / 2);
-	const laneY = (baseRow + laneShift + 0.5) * cellH;
-	return [
-		{ x: a.x, y: a.y },
-		{ x: a.x, y: laneY },
-		{ x: b.x, y: laneY },
-		{ x: b.x, y: b.y },
-	];
+
+	// Horizontal channel for the middle segment. Same row ⇒ detour through
+	// the channel just below the shared row so the wire doesn't traverse
+	// card cells on that row.
+	let hIdx: number;
+	if (rowA === rowB) {
+		hIdx = rowA + 1;
+	} else {
+		hIdx = Math.round((a.y + b.y) / 2 / slotH);
+	}
+
+	// Lane offsets inside each channel — always clamped so |offset| stays
+	// strictly less than half the channel width / height. Beyond that the
+	// wire would leak out of the channel and into an adjacent card cell.
+	const hStep = Math.max(0.5, channelH / 12);
+	const hMaxShift = Math.max(1, Math.floor((channelH / 2 - 1) / hStep));
+	const hLane = lanes.next(`h:${hIdx}`);
+	const hShift = Math.max(-hMaxShift, Math.min(hMaxShift, laneShiftSpread(hLane)));
+	const laneY = hIdx * slotH + hShift * hStep;
+
+	const vStep = Math.max(0.5, channelW / 12);
+	const vMaxShift = Math.max(1, Math.floor((channelW / 2 - 1) / vStep));
+	const aIdx = Math.round(aSide / slotW);
+	const aLane = lanes.next(`v:${aIdx}`);
+	const aShift = Math.max(-vMaxShift, Math.min(vMaxShift, laneShiftSpread(aLane)));
+	const aLaneX = aSide + aShift * vStep;
+
+	const bIdx = Math.round(bSide / slotW);
+	let bLaneX: number;
+	if (aIdx === bIdx) {
+		bLaneX = aLaneX;
+	} else {
+		const bLane = lanes.next(`v:${bIdx}`);
+		const bShift = Math.max(-vMaxShift, Math.min(vMaxShift, laneShiftSpread(bLane)));
+		bLaneX = bSide + bShift * vStep;
+	}
+
+	const pts: { x: number; y: number }[] = [];
+	const pushPt = (p: { x: number; y: number }) => {
+		const last = pts[pts.length - 1];
+		if (
+			last &&
+			Math.abs(last.x - p.x) < 0.5 &&
+			Math.abs(last.y - p.y) < 0.5
+		)
+			return;
+		pts.push(p);
+	};
+	pushPt({ x: a.x, y: a.y });
+	pushPt({ x: aLaneX, y: a.y });
+	pushPt({ x: aLaneX, y: laneY });
+	pushPt({ x: bLaneX, y: laneY });
+	pushPt({ x: bLaneX, y: b.y });
+	pushPt({ x: b.x, y: b.y });
+	return pts;
 }

@@ -42,7 +42,16 @@ export class MiniGraphView extends ItemView {
 	private canvas!: HTMLCanvasElement;
 	private ctx!: CanvasRenderingContext2D;
 	private root!: HTMLElement;
-	private laid: LaidOut = { nodes: [], edges: [], clusters: [], trunks: [] };
+	private laid: LaidOut = {
+		nodes: [],
+		edges: [],
+		clusters: [],
+		trunks: [],
+		slotW: 0,
+		slotH: 0,
+		channelW: 0,
+		channelH: 0,
+	};
 	private panX = 0;
 	private panY = 0;
 	private zoom = 1;
@@ -806,6 +815,8 @@ export class MiniGraphView extends ItemView {
 		if (aggSet.size > 0 && this.laid.nodes.length > 0) {
 			const cardW = this.laid.nodes[0].width;
 			const cardH = this.laid.nodes[0].height;
+			const slotW = this.laid.slotW;
+			const slotH = this.laid.slotH;
 			// Compute per-cluster parent set. A cluster P is the "parent" of
 			// cluster C when (a) inheritFrom[C] === P, or (b) P's member set
 			// strictly contains C's. Parents are excluded from the
@@ -871,8 +882,8 @@ export class MiniGraphView extends ItemView {
 			for (const n of this.laid.nodes) {
 				if (trulyAgg.has(n.id)) continue;
 				if (hiddenSet.has(n.id)) continue;
-				const col = Math.floor(n.x / cardW);
-				const row = Math.floor(n.y / cardH);
+				const col = Math.floor(n.x / slotW);
+				const row = Math.floor(n.y / slotH);
 				occupied.add(`${col},${row}`);
 			}
 			// Process clusters in a deterministic order so the spiral search
@@ -894,11 +905,11 @@ export class MiniGraphView extends ItemView {
 					count++;
 				}
 				if (count === 0) continue;
-				// Snap stack centroid to the nearest free cell on the global
-				// lattice. If the cell is taken by a visible card or an
+				// Snap stack centroid to the nearest free slot on the global
+				// lattice. If the slot is taken by a visible card or an
 				// earlier stack, spiral outward.
-				let col = Math.floor(sx / count / cardW);
-				let row = Math.floor(sy / count / cardH);
+				let col = Math.floor(sx / count / slotW);
+				let row = Math.floor(sy / count / slotH);
 				let key = `${col},${row}`;
 				if (occupied.has(key)) {
 					outer: for (let radius = 1; radius < 128; radius++) {
@@ -918,15 +929,17 @@ export class MiniGraphView extends ItemView {
 					}
 				}
 				occupied.add(key);
-				const snapCx = (col + 0.5) * cardW;
-				const snapCy = (row + 0.5) * cardH;
+				const snapCx = (col + 0.5) * slotW;
+				const snapCy = (row + 0.5) * slotH;
 				aggCenter.set(cluster.groupKey, { x: snapCx, y: snapCy });
 				this.aggregateCount.set(cluster.groupKey, count);
-				// Cluster bbox = exactly one cell around the stack.
-				cluster.x = snapCx - cardW / 2;
-				cluster.y = snapCy - cardH / 2;
-				cluster.width = cardW;
-				cluster.height = cardH;
+				// Cluster bbox = full slot around the stack (channel margin
+				// included). The stack itself stays within the inner card
+				// area thanks to STACK_INSET in drawAggregateStack().
+				cluster.x = snapCx - slotW / 2;
+				cluster.y = snapCy - slotH / 2;
+				cluster.width = slotW;
+				cluster.height = slotH;
 			}
 			const idToNode = new Map<string, PositionedNode>();
 			for (const n of this.laid.nodes) idToNode.set(n.id, n);
@@ -942,13 +955,62 @@ export class MiniGraphView extends ItemView {
 				}
 				return null;
 			};
-			const simpleL = (
-				a: { x: number; y: number },
-				b: { x: number; y: number },
+			// Channel-routed Manhattan path between two points anywhere on
+			// the grid: vertical channel adjacent to start → horizontal
+			// channel between rows → vertical channel adjacent to end. Used
+			// to splice aggregated stacks back into the wire graph without
+			// rerunning routeZ.
+			const channelRoute = (
+				start: { x: number; y: number },
+				end: { x: number; y: number },
 			): { x: number; y: number }[] => {
-				if (Math.abs(a.x - b.x) < 0.5) return [a, b];
-				if (Math.abs(a.y - b.y) < 0.5) return [a, b];
-				return [a, { x: b.x, y: a.y }, b];
+				if (
+					Math.abs(start.x - end.x) < 0.5 &&
+					Math.abs(start.y - end.y) < 0.5
+				) {
+					return [start];
+				}
+				const sCol = Math.floor(start.x / slotW);
+				const eCol = Math.floor(end.x / slotW);
+				const sRow = Math.floor(start.y / slotH);
+				const eRow = Math.floor(end.y / slotH);
+				let aSide: number;
+				let bSide: number;
+				if (eCol > sCol) {
+					aSide = (sCol + 1) * slotW;
+					bSide = eCol * slotW;
+				} else if (eCol < sCol) {
+					aSide = sCol * slotW;
+					bSide = (eCol + 1) * slotW;
+				} else {
+					aSide = (sCol + 1) * slotW;
+					bSide = (sCol + 1) * slotW;
+				}
+				let hIdx: number;
+				if (sRow === eRow) {
+					hIdx = sRow + 1;
+				} else {
+					hIdx = Math.round((start.y + end.y) / 2 / slotH);
+				}
+				const laneY = hIdx * slotH;
+				const pts: { x: number; y: number }[] = [];
+				const pushPt = (p: { x: number; y: number }) => {
+					const last = pts[pts.length - 1];
+					if (
+						last &&
+						Math.abs(last.x - p.x) < 0.5 &&
+						Math.abs(last.y - p.y) < 0.5
+					)
+						return;
+					pts.push(p);
+				};
+				pushPt(start);
+				pushPt({ x: aSide, y: start.y });
+				pushPt({ x: aSide, y: laneY });
+				pushPt({ x: bSide, y: laneY });
+				pushPt({ x: bSide, y: end.y });
+				pushPt(end);
+				return pts;
 			};
 			const keptEdges: typeof this.laid.edges = [];
 			for (const e of this.laid.edges) {
@@ -958,21 +1020,20 @@ export class MiniGraphView extends ItemView {
 				if (sAgg || tAgg) {
 					const start = sAgg ?? e.path[0];
 					const end = tAgg ?? e.path[e.path.length - 1];
-					e.path = simpleL(start, end);
+					e.path = channelRoute(start, end);
 				}
 				keptEdges.push(e);
 			}
 			this.laid.edges = keptEdges;
+			// Aggregated clusters drop their trunk overlay entirely — the
+			// individual per-edge wires (now rerouted to the stack centre by
+			// the loop above) remain as thin single lines, which is what
+			// the user wants for stack-only enclosures.
 			const keptTrunks: typeof this.laid.trunks = [];
 			for (const t of this.laid.trunks) {
 				const sAgg = aggCenter.get(t.srcCluster);
 				const tAgg = aggCenter.get(t.tgtCluster);
-				if (sAgg && tAgg && t.srcCluster === t.tgtCluster) continue;
-				if (sAgg || tAgg) {
-					const start = sAgg ?? t.path[0];
-					const end = tAgg ?? t.path[t.path.length - 1];
-					t.path = simpleL(start, end);
-				}
+				if (sAgg || tAgg) continue;
 				keptTrunks.push(t);
 			}
 			this.laid.trunks = keptTrunks;
@@ -1305,8 +1366,8 @@ export class MiniGraphView extends ItemView {
 	private clampPan(): void {
 		if (!this.settings.showGrid) return;
 		if (this.laid.nodes.length === 0) return;
-		const W = this.laid.nodes[0].width;
-		const H = this.laid.nodes[0].height;
+		const W = this.laid.slotW;
+		const H = this.laid.slotH;
 		if (W <= 0 || H <= 0) return;
 
 		let cardMinCol = Infinity;
@@ -1504,15 +1565,17 @@ export class MiniGraphView extends ItemView {
 		}
 	}
 
-	// Excel-style strict W × H lattice (body only, world space). Cards have
-	// been snapped to cell centres in layout, so each card occupies exactly
-	// one cell. Cell pitch = cardW × cardH — no internal spacing, cells share
-	// borders. Headers are drawn separately by drawGridHeaders() in screen
-	// space (frozen panes) so they stay glued to the viewport edges.
+	// Slot lattice with VISIBLE channels (= the user's 隘路). Each card cell
+	// is bordered by 4 line segments hugging the card area itself; between
+	// neighbouring cells the lines break, leaving channelW × channelH wide
+	// strips of blank space. Cluster enclosures, trunks and single wires
+	// all route through those visible channels.
 	private drawCardGrid(ctx: CanvasRenderingContext2D): void {
 		if (this.laid.nodes.length === 0) return;
-		const W = this.laid.nodes[0].width;
-		const H = this.laid.nodes[0].height;
+		const W = this.laid.slotW;
+		const H = this.laid.slotH;
+		const channelW = this.laid.channelW;
+		const channelH = this.laid.channelH;
 		if (W <= 0 || H <= 0) return;
 
 		let cardMinCol = Infinity, cardMaxCol = -Infinity;
@@ -1527,33 +1590,34 @@ export class MiniGraphView extends ItemView {
 		}
 
 		// Column A (= cardMinCol − 1) and row 1 (= cardMinRow − 1) are
-		// reserved empty borders — no node ever lives there. Cards start at
-		// column B / row 2.
+		// reserved empty borders. The reserved cells still get a frame so
+		// the grid origin is visible.
 		const minCol = cardMinCol - 1;
 		const maxCol = cardMaxCol;
 		const minRow = cardMinRow - 1;
 		const maxRow = cardMaxRow;
-		const colMin = minCol;
-		const colMax = maxCol;
-		const rowMin = minRow;
-		const rowMax = maxRow;
-		const gridLeft = colMin * W;
-		const gridRight = (colMax + 1) * W;
-		const gridTop = rowMin * H;
-		const gridBottom = (rowMax + 1) * H;
 
-		ctx.strokeStyle = "rgba(120, 140, 160, 0.20)";
+		const padX = channelW / 2;
+		const padY = channelH / 2;
+
+		ctx.strokeStyle = "rgba(120, 140, 160, 0.22)";
 		ctx.lineWidth = 1 / this.zoom;
 		ctx.beginPath();
-		for (let c = colMin; c <= colMax + 1; c++) {
-			const x = c * W;
-			ctx.moveTo(x, gridTop);
-			ctx.lineTo(x, gridBottom);
-		}
-		for (let r = rowMin; r <= rowMax + 1; r++) {
-			const y = r * H;
-			ctx.moveTo(gridLeft, y);
-			ctx.lineTo(gridRight, y);
+		for (let r = minRow; r <= maxRow; r++) {
+			const top = r * H + padY;
+			const bottom = (r + 1) * H - padY;
+			for (let c = minCol; c <= maxCol; c++) {
+				const left = c * W + padX;
+				const right = (c + 1) * W - padX;
+				ctx.moveTo(left, top);
+				ctx.lineTo(right, top);
+				ctx.moveTo(left, bottom);
+				ctx.lineTo(right, bottom);
+				ctx.moveTo(left, top);
+				ctx.lineTo(left, bottom);
+				ctx.moveTo(right, top);
+				ctx.lineTo(right, bottom);
+			}
 		}
 		ctx.stroke();
 	}
@@ -1565,8 +1629,8 @@ export class MiniGraphView extends ItemView {
 	// world-space body cells via worldX * zoom + panX.
 	private drawGridHeaders(ctx: CanvasRenderingContext2D): void {
 		if (this.laid.nodes.length === 0) return;
-		const W = this.laid.nodes[0].width;
-		const H = this.laid.nodes[0].height;
+		const W = this.laid.slotW;
+		const H = this.laid.slotH;
 		if (W <= 0 || H <= 0) return;
 
 		let cardMinCol = Infinity, cardMaxCol = -Infinity;
@@ -1771,11 +1835,13 @@ export class MiniGraphView extends ItemView {
 		}
 	}
 
-	// 3-card diagonal stack confined to a SINGLE cell. Each sub-card is
-	// (cardW × scale, cardH × scale) and the diagonal span equals
-	// (cardW − subW, cardH − subH) so the three sheets span the entire cell
-	// from upper-left (front, drawn last) to lower-right (back, drawn
-	// first). Z order is reversed: i = 0 is the back, i = 2 is the front.
+	// 3-card diagonal stack confined to a SINGLE cell with a small inset
+	// so the stack never touches the cell boundary, the cluster enclosure,
+	// or neighbouring cards' strokes. The stack spans (cardW × innerScale)
+	// horizontally and (cardH × innerScale) vertically, with each sub-card
+	// taking subScale × inner of that area. Z order is reversed: i = 0 is
+	// the back sheet (bottom-right) and i = 2 is the front (top-left, draws
+	// last and carries the label).
 	private drawAggregateStack(
 		ctx: CanvasRenderingContext2D,
 		cluster: ClusterRect,
@@ -1785,11 +1851,14 @@ export class MiniGraphView extends ItemView {
 	): void {
 		const cx = cluster.x + cluster.width / 2;
 		const cy = cluster.y + cluster.height / 2;
-		const scale = 0.72;
-		const subW = cardW * scale;
-		const subH = cardH * scale;
-		const stepX = (cardW - subW) / 2;
-		const stepY = (cardH - subH) / 2;
+		const STACK_INSET = 0.07; // % of cell pulled in from each edge
+		const SUB_SCALE = 0.78; // sub-card size within the inset area
+		const innerW = cardW * (1 - 2 * STACK_INSET);
+		const innerH = cardH * (1 - 2 * STACK_INSET);
+		const subW = innerW * SUB_SCALE;
+		const subH = innerH * SUB_SCALE;
+		const stepX = (innerW - subW) / 2;
+		const stepY = (innerH - subH) / 2;
 		const r = Math.min(CARD_RADIUS_PX, subW / 2, subH / 2);
 		for (let i = 0; i <= 2; i++) {
 			const isFront = i === 2;
