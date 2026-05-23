@@ -1,5 +1,6 @@
 import type { PositionedNode, ClusterRect } from "./layout";
 import { isSubset } from "./subgroup-packing";
+import { nodeFootprint } from "./aggregate-util";
 
 export interface ClusterBBoxOptions {
 	clusterKeys: string[];
@@ -11,13 +12,120 @@ export interface ClusterBBoxOptions {
 	clusterSpacing: number;
 }
 
-// Compute one bbox per cluster as the min/max of every member card's
-// FOOTPRINT cells (= ceil(w/slotW) × ceil(h/slotH) cells centred on each
-// card's snapped (x, y)). Nested clusters get a per-level padding boost
-// so a containing layer always sits clearly outside the layers it
-// encloses. Returns the resulting ClusterRect list AND the per-cluster
-// member set + nesting depth so callers (e.g. the B2 clamp) can reuse
-// them without recomputing.
+// Per-cluster member id set. Used both by the nesting-depth detector
+// (= an outer cluster contains every member of its inner cluster) and
+// by the bbox loop. Exposed so callers can re-use it without scanning
+// positionedNodes twice.
+export function computeMemberSetsForClusters(
+	positionedNodes: PositionedNode[],
+	clusterKeys: string[],
+): Map<string, Set<string>> {
+	const out = new Map<string, Set<string>>();
+	for (const key of clusterKeys) {
+		const set = new Set<string>();
+		for (const n of positionedNodes) {
+			if (n.memberships.includes(key)) set.add(n.id);
+		}
+		out.set(key, set);
+	}
+	return out;
+}
+
+// Nesting depth = # of clusters whose member set is a STRICT subset of
+// this cluster's member set. A higher depth ⇒ this cluster engulfs more
+// inner layers, so it deserves extra padding so the inner enclosures
+// sit clearly inside its border instead of riding it.
+export function computeNestingDepth(
+	memberSets: Map<string, Set<string>>,
+	clusterKeys: string[],
+): Map<string, number> {
+	const out = new Map<string, number>();
+	for (const x of clusterKeys) {
+		const xs = memberSets.get(x)!;
+		let depth = 0;
+		for (const y of clusterKeys) {
+			if (x === y) continue;
+			const ys = memberSets.get(y)!;
+			if (ys.size < xs.size && isSubset(ys, xs)) depth++;
+		}
+		out.set(x, depth);
+	}
+	return out;
+}
+
+// Footprint-aware bbox for a single cluster. Loops over every member
+// card's full N × M footprint cells (= ceil(w/slotW) × ceil(h/slotH))
+// and returns the min/max cell range — null when the cluster has no
+// members in positionedNodes.
+//
+// Bug-fix anchor: this is the function bug #3 ("unrelated nodes in
+// groups") routes through. A multi-tag node positioned at the centroid
+// between two anchors lands in a cell that BOTH clusters' bboxes will
+// engulf, even though only one of those clusters genuinely "owns" the
+// card. The fix lives in subgroup placement, NOT here — but isolating
+// this loop made the diagnosis obvious.
+export function computeClusterCellRange(
+	key: string,
+	positionedNodes: PositionedNode[],
+	slotW: number,
+	slotH: number,
+): {
+	minCol: number;
+	maxCol: number;
+	minRow: number;
+	maxRow: number;
+	count: number;
+} | null {
+	let minCol = Infinity;
+	let maxCol = -Infinity;
+	let minRow = Infinity;
+	let maxRow = -Infinity;
+	let count = 0;
+	for (const n of positionedNodes) {
+		if (!n.memberships.includes(key)) continue;
+		count++;
+		const fp = nodeFootprint(n, slotW, slotH);
+		if (fp.startCol < minCol) minCol = fp.startCol;
+		if (fp.endCol > maxCol) maxCol = fp.endCol;
+		if (fp.startRow < minRow) minRow = fp.startRow;
+		if (fp.endRow > maxRow) maxRow = fp.endRow;
+	}
+	if (count === 0) return null;
+	return { minCol, maxCol, minRow, maxRow, count };
+}
+
+// Wrap a cell range + per-side cell padding into the final pixel-space
+// ClusterRect. Enclosure edges ride the channels between slots so the
+// outer cells reserved for column A / row 1 stay visually empty.
+export function cellRangeToClusterRect(
+	groupKey: string,
+	label: string,
+	range: { minCol: number; maxCol: number; minRow: number; maxRow: number },
+	padCellsX: number,
+	padCellsY: number,
+	slotW: number,
+	slotH: number,
+	memberCount: number,
+): ClusterRect {
+	const left = (range.minCol - padCellsX) * slotW;
+	const right = (range.maxCol + 1 + padCellsX) * slotW;
+	const top = (range.minRow - padCellsY) * slotH;
+	const bottom = (range.maxRow + 1 + padCellsY) * slotH;
+	return {
+		groupKey,
+		label,
+		x: left,
+		y: top,
+		width: right - left,
+		height: bottom - top,
+		memberCount,
+	};
+}
+
+// Orchestrator: one bbox per cluster + nesting-aware padding. Returns
+// the bbox list AND the per-cluster member set + nesting depth so
+// downstream callers (e.g. the B2 clamp) can reuse them without
+// recomputing.
 export function computeClusterBBoxes(
 	positionedNodes: PositionedNode[],
 	opts: ClusterBBoxOptions,
@@ -27,30 +135,9 @@ export function computeClusterBBoxes(
 	nestingDepth: Map<string, number>;
 } {
 	const { clusterKeys, labels, slotW, slotH, channelW, channelH } = opts;
-	// Member set per cluster — used by the nesting-depth detector and
-	// returned for downstream callers (B2 clamp).
-	const memberSets = new Map<string, Set<string>>();
-	for (const key of clusterKeys) {
-		const set = new Set<string>();
-		for (const n of positionedNodes) {
-			if (n.memberships.includes(key)) set.add(n.id);
-		}
-		memberSets.set(key, set);
-	}
-	const nestingDepth = new Map<string, number>();
-	for (const x of clusterKeys) {
-		const xs = memberSets.get(x)!;
-		let depth = 0;
-		for (const y of clusterKeys) {
-			if (x === y) continue;
-			const ys = memberSets.get(y)!;
-			if (ys.size < xs.size && isSubset(ys, xs)) depth++;
-		}
-		nestingDepth.set(x, depth);
-	}
+	const memberSets = computeMemberSetsForClusters(positionedNodes, clusterKeys);
+	const nestingDepth = computeNestingDepth(memberSets, clusterKeys);
 
-	// Base padding around member cards, plus per-nesting-level boost so
-	// each containing layer sits clearly outside the layers it encloses.
 	const BASE_PAD = Math.max(24, opts.clusterSpacing / 2);
 	const NEST_PAD = 18;
 	const basePadCellsX = Math.max(0, Math.ceil((BASE_PAD - channelW / 2) / slotW));
@@ -59,55 +146,30 @@ export function computeClusterBBoxes(
 	const nestPadCellsY = Math.max(1, Math.ceil(NEST_PAD / slotH));
 	const clusters: ClusterRect[] = [];
 	for (const key of clusterKeys) {
-		let cellMinCol = Infinity;
-		let cellMaxCol = -Infinity;
-		let cellMinRow = Infinity;
-		let cellMaxRow = -Infinity;
-		let count = 0;
-		// Every member of this group affects the bbox — multi-tag nodes
-		// belong to all their groups' enclosures (Euler-style), so
-		// excluding them from any one group's bbox would visually orphan
-		// them.
-		for (const n of positionedNodes) {
-			if (!n.memberships.includes(key)) continue;
-			count++;
-			const colSpan = Math.max(1, Math.ceil(n.width / slotW));
-			const rowSpan = Math.max(1, Math.ceil(n.height / slotH));
-			const startCol = Math.round(n.x / slotW - colSpan / 2);
-			const startRow = Math.round(n.y / slotH - rowSpan / 2);
-			const endCol = startCol + colSpan - 1;
-			const endRow = startRow + rowSpan - 1;
-			if (startCol < cellMinCol) cellMinCol = startCol;
-			if (endCol > cellMaxCol) cellMaxCol = endCol;
-			if (startRow < cellMinRow) cellMinRow = startRow;
-			if (endRow > cellMaxRow) cellMaxRow = endRow;
-		}
-		if (count === 0) continue;
+		const range = computeClusterCellRange(key, positionedNodes, slotW, slotH);
+		if (!range) continue;
 		const nest = nestingDepth.get(key) ?? 0;
 		const padCellsX = basePadCellsX + nest * nestPadCellsX;
 		const padCellsY = basePadCellsY + nest * nestPadCellsY;
-		const left = (cellMinCol - padCellsX) * slotW;
-		const right = (cellMaxCol + 1 + padCellsX) * slotW;
-		const top = (cellMinRow - padCellsY) * slotH;
-		const bottom = (cellMaxRow + 1 + padCellsY) * slotH;
-		clusters.push({
-			groupKey: key,
-			label: labels.get(key) ?? key,
-			x: left,
-			y: top,
-			width: right - left,
-			height: bottom - top,
-			memberCount: count,
-		});
+		clusters.push(
+			cellRangeToClusterRect(
+				key,
+				labels.get(key) ?? key,
+				range,
+				padCellsX,
+				padCellsY,
+				slotW,
+				slotH,
+				range.count,
+			),
+		);
 	}
 	return { clusters, memberSets, nestingDepth };
 }
 
 // Clamp every cluster's left/top to the CHANNEL between column A and
 // column B (resp. row 1 and row 2). Column A and row 1 stay completely
-// empty — no enclosure border may enter them. The leftmost card cell
-// is at globalMinCol, so the clamp boundary is globalMinCol * slotW
-// (the channel just to the left of card B / above row 2).
+// empty — no enclosure border may enter them.
 export function clampClustersToB2(
 	clusters: ClusterRect[],
 	positionedNodes: PositionedNode[],
@@ -118,12 +180,9 @@ export function clampClustersToB2(
 	let globalMinCol = Infinity;
 	let globalMinRow = Infinity;
 	for (const n of positionedNodes) {
-		const colSpan = Math.max(1, Math.ceil(n.width / slotW));
-		const rowSpan = Math.max(1, Math.ceil(n.height / slotH));
-		const startCol = Math.round(n.x / slotW - colSpan / 2);
-		const startRow = Math.round(n.y / slotH - rowSpan / 2);
-		if (startCol < globalMinCol) globalMinCol = startCol;
-		if (startRow < globalMinRow) globalMinRow = startRow;
+		const fp = nodeFootprint(n, slotW, slotH);
+		if (fp.startCol < globalMinCol) globalMinCol = fp.startCol;
+		if (fp.startRow < globalMinRow) globalMinRow = fp.startRow;
 	}
 	const gridLeft = globalMinCol * slotW;
 	const gridTop = globalMinRow * slotH;
@@ -136,5 +195,39 @@ export function clampClustersToB2(
 			c.height = Math.max(slotH, c.height - (gridTop - c.y));
 			c.y = gridTop;
 		}
+	}
+}
+
+// Inheritance: each child cluster picks a parent (継承元) explicitly via
+// the panel. The child's bbox grows to engulf the parent's bbox so the
+// parent visually "joins" the child territory. Pre-snapshot the
+// original bboxes so a chain (A → B → C) all references its pre-merge
+// sibling, never the already-expanded version.
+export function expandClustersByInheritance(
+	clusters: ClusterRect[],
+	inheritFrom: Record<string, string>,
+): void {
+	const inhKeys = Object.keys(inheritFrom);
+	if (inhKeys.length === 0) return;
+	const original = new Map<
+		string,
+		{ x: number; y: number; w: number; h: number }
+	>();
+	for (const c of clusters) {
+		original.set(c.groupKey, { x: c.x, y: c.y, w: c.width, h: c.height });
+	}
+	for (const child of clusters) {
+		const parentKey = inheritFrom[child.groupKey];
+		if (!parentKey || parentKey === child.groupKey) continue;
+		const p = original.get(parentKey);
+		if (!p) continue;
+		const minX = Math.min(child.x, p.x);
+		const minY = Math.min(child.y, p.y);
+		const maxX = Math.max(child.x + child.width, p.x + p.w);
+		const maxY = Math.max(child.y + child.height, p.y + p.h);
+		child.x = minX;
+		child.y = minY;
+		child.width = maxX - minX;
+		child.height = maxY - minY;
 	}
 }

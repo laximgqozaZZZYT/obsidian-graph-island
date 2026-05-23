@@ -7,8 +7,6 @@ import {
 	moveToFront,
 	placeAnchorsConcentric,
 	placeAnchorsFlow,
-	subgroupHashOffset,
-	centroidOf,
 } from "./anchor-placement";
 import {
 	LaneRegistry,
@@ -25,7 +23,7 @@ import {
 	shelfPack,
 } from "./subgroup-packing";
 import {
-	type SubPos,
+	buildInitialSubPositions,
 	relaxSubgroups,
 	snapSubgroupsToGrid,
 } from "./subgroup-relax";
@@ -244,21 +242,7 @@ export function layout(data: GraphData, sized: SizedNode[], opts: LayoutOptions)
 	// then relax overlaps. Smaller relax gap (= nodeSpacing/4) keeps
 	// sub-groups in the same group touching after collision resolution
 	// so the parent enclosure stays tight.
-	const subPositions: SubPos[] = packed.map((p) => {
-		const centroid = centroidOf(p.memberships, anchors);
-		const off = clusterOff[p.memberships[0] ?? ""] ?? { dx: 0, dy: 0 };
-		const tinyOff =
-			p.memberships.length > 1
-				? subgroupHashOffset(p.memberships.join("|"), 4)
-				: { x: 0, y: 0 };
-		return {
-			cx: centroid.x + off.dx + tinyOff.x,
-			cy: centroid.y + off.dy + tinyOff.y,
-			halfW: p.width / 2,
-			halfH: p.height / 2,
-			pin: p.memberships.length,
-		};
-	});
+	const subPositions = buildInitialSubPositions(packed, anchors, clusterOff);
 	const RELAX_GAP = Math.max(2, Math.floor(opts.nodeSpacing / 4));
 	relaxSubgroups(subPositions, RELAX_GAP, 80);
 	// Phase 3: snap sub-group centres to the global grid after relaxation.

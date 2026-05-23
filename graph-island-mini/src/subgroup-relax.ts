@@ -1,3 +1,6 @@
+import type { Offset } from "./types";
+import { centroidOf, subgroupHashOffset } from "./anchor-placement";
+
 // Sub-group center positions during layout. Each entry tracks the
 // current centre, the half-extents (= sub-group bbox), and a "pin"
 // weight used by the relaxation step to bias displacement toward
@@ -9,6 +12,44 @@ export interface SubPos {
 	halfW: number;
 	halfH: number;
 	pin: number; // higher = harder to move
+}
+
+// Build the initial SubPos for each packed sub-group:
+//   1. Centroid of the sub-group's cluster anchors (= where each tag
+//      cluster sits on the lattice).
+//   2. + user-defined cluster offset for the primary membership.
+//   3. + tiny deterministic radial perturbation hashed from the
+//      membership signature so coincident centroids (= many sub-groups
+//      sharing the same anchors) split apart predictably.
+// Pin weight = number of memberships (= a single-tag sub-group has
+// pin 1 so it barely drifts in relaxation; a many-tag combination has
+// higher pin so it absorbs more of the push).
+//
+// Bug-fix anchor: bug #1 ("group members spread") routes through this
+// centroid + the relaxation that follows it. Many sub-groups landing on
+// nearby centroids end up pushed far apart by relaxation, scattering
+// the parent cluster's members.
+export function buildInitialSubPositions(
+	packed: { memberships: string[]; width: number; height: number }[],
+	anchors: Map<string, { x: number; y: number }>,
+	clusterOff: Record<string, Offset>,
+	hashOffsetMagnitude: number = 4,
+): SubPos[] {
+	return packed.map((p) => {
+		const centroid = centroidOf(p.memberships, anchors);
+		const off = clusterOff[p.memberships[0] ?? ""] ?? { dx: 0, dy: 0 };
+		const tinyOff =
+			p.memberships.length > 1
+				? subgroupHashOffset(p.memberships.join("|"), hashOffsetMagnitude)
+				: { x: 0, y: 0 };
+		return {
+			cx: centroid.x + off.dx + tinyOff.x,
+			cy: centroid.y + off.dy + tinyOff.y,
+			halfW: p.width / 2,
+			halfH: p.height / 2,
+			pin: p.memberships.length,
+		};
+	});
 }
 
 // AABB collision-resolution loop. For every pair of overlapping

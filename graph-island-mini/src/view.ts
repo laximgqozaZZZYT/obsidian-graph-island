@@ -59,6 +59,7 @@ import {
 	type NodeDisplay,
 	type NodeDisplayDeps,
 } from "./node-display";
+import { expandClustersByInheritance } from "./cluster-bbox";
 
 export const VIEW_TYPE_MINI = "graph-island-mini";
 
@@ -1050,33 +1051,10 @@ export class MiniGraphView extends ItemView {
 		this.trulyAggSet = aggResult.trulyAgg;
 		this.aggregateCount = aggResult.aggregateCount;
 
-		// Inheritance: each child cluster picks a parent (継承元) explicitly
-		// via the panel. The child's bbox grows to engulf the parent's bbox
-		// so the parent visually "joins" the child territory. Pre-snapshot
-		// the original bboxes so a chain (A → B → C) all references its
-		// pre-merge sibling, never the already-expanded version.
-		const inhMap = this.settings.inheritFrom ?? {};
-		const inhKeys = Object.keys(inhMap);
-		if (inhKeys.length > 0) {
-			const original = new Map<string, { x: number; y: number; w: number; h: number }>();
-			for (const c of this.laid.clusters) {
-				original.set(c.groupKey, { x: c.x, y: c.y, w: c.width, h: c.height });
-			}
-			for (const child of this.laid.clusters) {
-				const parentKey = inhMap[child.groupKey];
-				if (!parentKey || parentKey === child.groupKey) continue;
-				const p = original.get(parentKey);
-				if (!p) continue;
-				const minX = Math.min(child.x, p.x);
-				const minY = Math.min(child.y, p.y);
-				const maxX = Math.max(child.x + child.width, p.x + p.w);
-				const maxY = Math.max(child.y + child.height, p.y + p.h);
-				child.x = minX;
-				child.y = minY;
-				child.width = maxX - minX;
-				child.height = maxY - minY;
-			}
-		}
+		expandClustersByInheritance(
+			this.laid.clusters,
+			this.settings.inheritFrom ?? {},
+		);
 		this.highlightedNodes.clear();
 		this.highlightedEdgeIdx.clear();
 		if (wasEmpty) this.fitToView();
