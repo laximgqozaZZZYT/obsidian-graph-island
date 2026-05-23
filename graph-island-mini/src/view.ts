@@ -1076,17 +1076,25 @@ export class MiniGraphView extends ItemView {
 				}
 				if (hasEffective && allEffectiveAgg) trulyAgg.add(n.id);
 			}
-			// Reserve every cell currently holding a visible card. A truly-
-			// aggregated node will be hidden so its cell is free for reuse.
-			// User-hidden nodes also free their cell.
+			// Reserve every cell currently holding a visible card — including
+			// the FULL footprint of multi-cell (scaled) cards so an aggregate
+			// stack never lands inside a giant card like a hub at scale 5×.
+			// A truly-aggregated node is hidden, so its cells are free for
+			// reuse. User-hidden nodes also free their cells.
 			const hiddenSet = new Set(this.settings.hiddenNodes);
 			const occupied = new Set<string>();
 			for (const n of this.laid.nodes) {
 				if (trulyAgg.has(n.id)) continue;
 				if (hiddenSet.has(n.id)) continue;
-				const col = Math.floor(n.x / slotW);
-				const row = Math.floor(n.y / slotH);
-				occupied.add(`${col},${row}`);
+				const colSpan = Math.max(1, Math.ceil(n.width / slotW));
+				const rowSpan = Math.max(1, Math.ceil(n.height / slotH));
+				const startCol = Math.round(n.x / slotW - colSpan / 2);
+				const startRow = Math.round(n.y / slotH - rowSpan / 2);
+				for (let dc = 0; dc < colSpan; dc++) {
+					for (let dr = 0; dr < rowSpan; dr++) {
+						occupied.add(`${startCol + dc},${startRow + dr}`);
+					}
+				}
 			}
 			// Process clusters in a deterministic order so the spiral search
 			// is stable across rebuilds.
