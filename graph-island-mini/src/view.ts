@@ -1173,6 +1173,19 @@ export class MiniGraphView extends ItemView {
 						}
 					}
 				}
+				// Final guarantee: if spiral somehow failed (e.g. dense
+				// surround), park the badge past the right edge of every
+				// visible card. cellHitsCard MUST return false at the
+				// chosen cell — otherwise the badge would visibly overlap.
+				if (isBlocked(col, row)) {
+					let maxRightCol = col;
+					for (const r of cardAABBs) {
+						const rc = Math.ceil(r.right / slotW);
+						if (rc > maxRightCol) maxRightCol = rc;
+					}
+					col = maxRightCol + 2;
+					row = Math.floor(sy / count / slotH);
+				}
 				const key = `${col},${row}`;
 				occupied.add(key);
 				const snapCx = (col + 0.5) * slotW;

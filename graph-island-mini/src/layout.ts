@@ -403,12 +403,18 @@ export function layout(data: GraphData, sized: SizedNode[], opts: LayoutOptions)
 		let cellMinRow = Infinity;
 		let cellMaxRow = -Infinity;
 		let count = 0;
+		// First pass: bbox from PRIMARY members only (= cluster appears as
+		// memberships[0]). Multi-tag nodes positioned in another cluster's
+		// territory are NOT engulfed by this cluster's bbox, so "unrelated"
+		// nodes don't appear inside this cluster's outline. The total
+		// member count still includes every node that lists this cluster
+		// anywhere in its memberships — only the geometric bbox is tight.
+		let primaryFootprintCount = 0;
 		for (const n of positionedNodes) {
 			if (!n.memberships.includes(key)) continue;
 			count++;
-			// Use the card's FOOTPRINT, not just its centre cell — a
-			// variable-scale card spans multiple cells and the cluster
-			// bounding box must engulf the full extent of every member.
+			if (n.memberships[0] !== key) continue;
+			primaryFootprintCount++;
 			const colSpan = Math.max(1, Math.ceil(n.width / slotW));
 			const rowSpan = Math.max(1, Math.ceil(n.height / slotH));
 			const startCol = Math.round(n.x / slotW - colSpan / 2);
@@ -419,6 +425,24 @@ export function layout(data: GraphData, sized: SizedNode[], opts: LayoutOptions)
 			if (endCol > cellMaxCol) cellMaxCol = endCol;
 			if (startRow < cellMinRow) cellMinRow = startRow;
 			if (endRow > cellMaxRow) cellMaxRow = endRow;
+		}
+		// Fallback: if no primary member exists for this cluster (= every
+		// member lists some OTHER cluster first), use every member's
+		// footprint so the cluster still gets a sensible bbox.
+		if (primaryFootprintCount === 0 && count > 0) {
+			for (const n of positionedNodes) {
+				if (!n.memberships.includes(key)) continue;
+				const colSpan = Math.max(1, Math.ceil(n.width / slotW));
+				const rowSpan = Math.max(1, Math.ceil(n.height / slotH));
+				const startCol = Math.round(n.x / slotW - colSpan / 2);
+				const startRow = Math.round(n.y / slotH - rowSpan / 2);
+				const endCol = startCol + colSpan - 1;
+				const endRow = startRow + rowSpan - 1;
+				if (startCol < cellMinCol) cellMinCol = startCol;
+				if (endCol > cellMaxCol) cellMaxCol = endCol;
+				if (startRow < cellMinRow) cellMinRow = startRow;
+				if (endRow > cellMaxRow) cellMaxRow = endRow;
+			}
 		}
 		if (count === 0) continue;
 		const nest = nestingDepth.get(key) ?? 0;
@@ -812,16 +836,27 @@ function centroidOf(
 	memberships: string[],
 	anchors: Map<string, { x: number; y: number }>,
 ): { x: number; y: number } {
-	let x = 0, y = 0, n = 0;
-	for (const m of memberships) {
-		const a = anchors.get(m);
+	// Weighted centroid biased TOWARD the primary (= first) membership.
+	// The plain unweighted centroid put a {scene, talk} sub-group at the
+	// exact midpoint between scene and talk anchors, which scattered
+	// scene's sub-groups across the lattice and inflated scene's cluster
+	// bbox into a sparse rectangle full of empty space. Giving the primary
+	// a higher weight (5×) pulls every multi-membership sub-group close to
+	// its primary cluster's anchor while still nudging it slightly toward
+	// the secondary anchor(s), so the cluster bbox stays packed.
+	const W_PRIMARY = 5;
+	const W_OTHER = 1;
+	let x = 0, y = 0, totalW = 0;
+	for (let i = 0; i < memberships.length; i++) {
+		const a = anchors.get(memberships[i]);
 		if (!a) continue;
-		x += a.x;
-		y += a.y;
-		n++;
+		const w = i === 0 ? W_PRIMARY : W_OTHER;
+		x += a.x * w;
+		y += a.y * w;
+		totalW += w;
 	}
-	if (n === 0) return { x: 0, y: 0 };
-	return { x: x / n, y: y / n };
+	if (totalW === 0) return { x: 0, y: 0 };
+	return { x: x / totalW, y: y / totalW };
 }
 
 function fallbackSize(n: GraphNode): SizedNode {
