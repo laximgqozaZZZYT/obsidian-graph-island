@@ -1025,18 +1025,7 @@ export class MiniGraphView extends ItemView {
 				keptEdges.push(e);
 			}
 			this.laid.edges = keptEdges;
-			// Aggregated clusters drop their trunk overlay entirely — the
-			// individual per-edge wires (now rerouted to the stack centre by
-			// the loop above) remain as thin single lines, which is what
-			// the user wants for stack-only enclosures.
-			const keptTrunks: typeof this.laid.trunks = [];
-			for (const t of this.laid.trunks) {
-				const sAgg = aggCenter.get(t.srcCluster);
-				const tAgg = aggCenter.get(t.tgtCluster);
-				if (sAgg || tAgg) continue;
-				keptTrunks.push(t);
-			}
-			this.laid.trunks = keptTrunks;
+			// Trunks retired — nothing to process for the trunk array.
 		}
 
 		// Inheritance: each child cluster picks a parent (継承元) explicitly
@@ -1439,7 +1428,6 @@ export class MiniGraphView extends ItemView {
 		const hasHighlight = this.highlightedEdgeIdx.size > 0;
 		const dim = "rgba(180,200,220,0.10)";
 		const line = "rgba(180,200,220,0.55)";
-		const trunkColor = "rgba(150,200,255,0.95)";
 		const accent = "#ff9d3f";
 		const glow = "rgba(255,157,63,0.35)";
 
@@ -1479,18 +1467,8 @@ export class MiniGraphView extends ItemView {
 				for (let i2 = 1; i2 < path.length; i2++) ctx.lineTo(path[i2].x, path[i2].y);
 				ctx.stroke();
 			});
-			// Layer 1.5: TRUNKs overlay the shared trunk sections of bundled
-			// polylines. Drawn between cluster boundaries only — never reaching
-			// the cards themselves. Thickness scales with the bundle count.
-			for (const t of this.laid.trunks) {
-				const tw = (2.0 + Math.min(6, Math.log2(1 + t.count) * 1.0)) / this.zoom;
-				ctx.strokeStyle = hasHighlight ? dim : trunkColor;
-				ctx.lineWidth = tw;
-				ctx.beginPath();
-				ctx.moveTo(t.path[0].x, t.path[0].y);
-				for (let i2 = 1; i2 < t.path.length; i2++) ctx.lineTo(t.path[i2].x, t.path[i2].y);
-				ctx.stroke();
-			}
+			// Trunks retired — every wire is now a single LINE drawn by the
+			// loop above.
 		}
 
 		// Layer 2: base cards (covers the "stub" segment from edge port → card center)

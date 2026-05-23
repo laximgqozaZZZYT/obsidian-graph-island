@@ -38,13 +38,15 @@ export interface ClusterRect {
 	memberCount: number;
 }
 
-// A trunk is the heavy "cable" drawn ONLY between two cluster boundaries.
-// Nodes never touch trunks directly — they connect to the trunk via thin
-// stub LINEs (the per-edge polylines below).
+// Trunks have been retired — every wire is a thin single line routed via
+// the channel lattice. The TrunkLine interface and the laid.trunks array
+// stay (empty / unused) only to keep the rendered code paths in view.ts
+// from blowing up while the refactor settles; callers should not depend
+// on them.
 export interface TrunkLine {
 	srcCluster: string;
 	tgtCluster: string;
-	count: number; // number of underlying file-to-file links carried
+	count: number;
 	path: { x: number; y: number }[];
 }
 
@@ -52,7 +54,7 @@ export interface LaidOut {
 	nodes: PositionedNode[];
 	edges: PositionedEdge[];
 	clusters: ClusterRect[];
-	trunks: TrunkLine[];
+	trunks: TrunkLine[]; // always empty — see note above
 	// Slot pitch = card area + channel. Exposed so the view can render the
 	// grid, headers, pan clamp and aggregation snap on the same lattice the
 	// layout uses internally.
@@ -119,11 +121,11 @@ export function layout(data: GraphData, sized: SizedNode[], opts: LayoutOptions)
 	const gridX = slotW;
 	const gridY = slotH;
 
-	// Phase 2: strategy dispatch per sub-group. Large sub-groups (≥
-	// GYM_NODE_THRESHOLD) use 体育館型 (shelfPack — tight grid). Small ones use
-	// 校庭型 (radialPack — sunflower around the highest-degree member).
+	// Every sub-group — single- or multi-membership, big or small — is laid
+	// out as an m × n shelf (gymnasium style). The legacy sunflower /
+	// radialPack option produced non-grid positions that ended up scattered
+	// after the cell snap, especially for multi-membership sub-groups.
 	const degreeMap = computeDegreeMap(data.edges);
-	const GYM_NODE_THRESHOLD = 12;
 
 	interface PackedSubgroup {
 		memberships: string[];
@@ -131,28 +133,11 @@ export function layout(data: GraphData, sized: SizedNode[], opts: LayoutOptions)
 		positions: { x: number; y: number }[]; // relative to centroid (already centered)
 		width: number;
 		height: number;
-		strategy: "gymnasium" | "schoolyard";
+		strategy: "gymnasium";
 	}
 	const packed: PackedSubgroup[] = subgroups.map((sg) => {
 		const sizes = sg.nodes.map((n) => sizedById.get(n.id) ?? fallbackSize(n));
-		const strategy: "gymnasium" | "schoolyard" =
-			sg.nodes.length >= GYM_NODE_THRESHOLD ? "gymnasium" : "schoolyard";
-		let pp: { positions: { x: number; y: number }[]; width: number; height: number };
-		if (strategy === "gymnasium") {
-			pp = shelfPack(sizes, opts.nodeSpacing);
-		} else {
-			// Anchor = highest-degree member ("壇上 within this sub-group")
-			let anchorIdx = 0;
-			let topDeg = -1;
-			for (let i = 0; i < sg.nodes.length; i++) {
-				const d = degreeMap.get(sg.nodes[i].id) ?? 0;
-				if (d > topDeg) {
-					topDeg = d;
-					anchorIdx = i;
-				}
-			}
-			pp = radialPack(sizes, anchorIdx, opts.nodeSpacing, gridX, gridY);
-		}
+		const pp = shelfPack(sizes, opts.nodeSpacing);
 		const positions = pp.positions.map((p) => ({
 			x: p.x - pp.width / 2,
 			y: p.y - pp.height / 2,
@@ -163,7 +148,7 @@ export function layout(data: GraphData, sized: SizedNode[], opts: LayoutOptions)
 			positions,
 			width: pp.width,
 			height: pp.height,
-			strategy,
+			strategy: "gymnasium",
 		};
 	});
 
@@ -453,7 +438,7 @@ export function layout(data: GraphData, sized: SizedNode[], opts: LayoutOptions)
 	}
 
 	const edges: PositionedEdge[] = [];
-	const trunks: TrunkLine[] = [];
+	const trunks: TrunkLine[] = []; // retired — kept as an empty stub
 	// Phase 4: lane registry shared across all intra-cluster + fallback
 	// L-routes so edges in the same horizontal gutter spread apart.
 	const lanes = new LaneRegistry();
@@ -511,53 +496,21 @@ export function layout(data: GraphData, sized: SizedNode[], opts: LayoutOptions)
 		if (clustersOverlap(caKey, cbKey)) continue;
 		const ra = clusterByKey.get(caKey);
 		const rb = clusterByKey.get(cbKey);
-		if (!ra || !rb) {
-			for (const e of pg.items) {
-				const a = idToRect.get(e.source)!;
-				const b = idToRect.get(e.target)!;
-				edges.push({
-					source: e.source,
-					target: e.target,
-					weight: e.weight,
-					path: routeZ(a, b, lanes, slotW, slotH, channelW, channelH),
-					bundled: false,
-					bundleCount: 1,
-				});
-			}
-			continue;
-		}
-		const aSingleton = ra.memberCount <= 1;
-		const bSingleton = rb.memberCount <= 1;
-		const showTrunk = pg.items.length >= 2 && !aSingleton && !bSingleton;
-		const sideA = sideTowards(ra, rb);
-		const sideB = sideTowards(rb, ra);
-		const trunkA = sidePoint(ra, sideA, slotW, slotH);
-		const trunkB = sidePoint(rb, sideB, slotW, slotH);
-		const bundleCount = pg.items.length;
-		if (showTrunk) {
-			trunks.push({
-				srcCluster: caKey,
-				tgtCluster: cbKey,
-				count: bundleCount,
-				path: trunkPathBetween(trunkA, trunkB),
-			});
-		}
+		// Inter-cluster edges route the same way as intra: a single Z-route
+		// through the channel lattice. Trunks and bundled cables have been
+		// retired — every wire is just a thin single line.
+		void ra;
+		void rb;
 		for (const e of pg.items) {
 			const a = idToRect.get(e.source)!;
 			const b = idToRect.get(e.target)!;
-			// Always route via trunkA/trunkB so the line approaches each
-			// cluster perpendicular to its boundary. When showTrunk is false
-			// (singletons / single-member clusters) the same polyline is drawn
-			// without the heavy trunk overlay, so it reads as a thin line that
-			// happens to detour through the cluster gap.
-			const path = bundledPath(a, b, trunkA, sideA, trunkB, sideB, slotW, slotH);
 			edges.push({
 				source: e.source,
 				target: e.target,
 				weight: e.weight,
-				path,
-				bundled: showTrunk,
-				bundleCount,
+				path: routeZ(a, b, lanes, slotW, slotH, channelW, channelH),
+				bundled: false,
+				bundleCount: 1,
 			});
 		}
 	}
@@ -572,98 +525,6 @@ export function layout(data: GraphData, sized: SizedNode[], opts: LayoutOptions)
 		channelW,
 		channelH,
 	};
-}
-
-// L-shape polyline between two trunk boundary points. Used by the trunk
-// renderer; the per-edge polylines already trace the same path internally so
-// the trunk overlay sits cleanly on top of them.
-function trunkPathBetween(
-	a: { x: number; y: number },
-	b: { x: number; y: number },
-): { x: number; y: number }[] {
-	if (Math.abs(a.x - b.x) < 0.5) return [a, b];
-	if (Math.abs(a.y - b.y) < 0.5) return [a, b];
-	return [a, { x: b.x, y: a.y }, b];
-}
-
-type Side = "top" | "bottom" | "left" | "right";
-
-// Which side of `self` faces `other`?
-function sideTowards(self: ClusterRect, other: ClusterRect): Side {
-	const sx = self.x + self.width / 2;
-	const sy = self.y + self.height / 2;
-	const ox = other.x + other.width / 2;
-	const oy = other.y + other.height / 2;
-	const dx = ox - sx;
-	const dy = oy - sy;
-	if (Math.abs(dx) >= Math.abs(dy)) return dx >= 0 ? "right" : "left";
-	return dy >= 0 ? "bottom" : "top";
-}
-
-function sidePoint(
-	c: ClusterRect,
-	side: Side,
-	slotW: number,
-	slotH: number,
-): { x: number; y: number } {
-	// Boundary midpoints snap to channel centres (= slot boundaries) so the
-	// trunk segment leaving the enclosure runs cleanly along a channel.
-	const cx = Math.round((c.x + c.width / 2) / slotW) * slotW;
-	const cy = Math.round((c.y + c.height / 2) / slotH) * slotH;
-	if (side === "top") return { x: cx, y: c.y };
-	if (side === "bottom") return { x: cx, y: c.y + c.height };
-	if (side === "left") return { x: c.x, y: cy };
-	return { x: c.x + c.width, y: cy };
-}
-
-// Bundled per-edge polyline: card center → vertical channel adjacent to A →
-// trunkA's horizontal channel → trunkA → (trunkA → trunkB L-bend) → trunkB →
-// trunkB's horizontal channel → vertical channel adjacent to B → card B
-// center. Every orthogonal segment lies in a channel; nothing runs through
-// a card column.
-function bundledPath(
-	a: Rect,
-	b: Rect,
-	trunkA: { x: number; y: number },
-	_sideA: Side,
-	trunkB: { x: number; y: number },
-	_sideB: Side,
-	slotW: number,
-	slotH: number,
-): { x: number; y: number }[] {
-	const pts: { x: number; y: number }[] = [];
-	push(pts, { x: a.x, y: a.y });
-
-	// Pick the vertical channel adjacent to card A on the side facing trunkA.
-	const colA = Math.floor(a.x / slotW);
-	const exitXA =
-		trunkA.x >= a.x ? (colA + 1) * slotW : colA * slotW;
-	push(pts, { x: exitXA, y: a.y });           // exit card → channel
-	push(pts, { x: exitXA, y: trunkA.y });      // vertical in channel
-	push(pts, { x: trunkA.x, y: trunkA.y });    // horizontal in trunk's row channel
-
-	// Trunk-to-trunk L-bend (both endpoints already on slot boundaries).
-	if (Math.abs(trunkA.x - trunkB.x) > 0.5 && Math.abs(trunkA.y - trunkB.y) > 0.5) {
-		push(pts, { x: trunkB.x, y: trunkA.y });
-	}
-	push(pts, { x: trunkB.x, y: trunkB.y });
-
-	// Card B entry: mirror of the A side.
-	const colB = Math.floor(b.x / slotW);
-	const exitXB =
-		trunkB.x >= b.x ? (colB + 1) * slotW : colB * slotW;
-	push(pts, { x: exitXB, y: trunkB.y });
-	push(pts, { x: exitXB, y: b.y });
-	push(pts, { x: b.x, y: b.y });
-	return pts;
-}
-
-// Append `next` if it differs from the last point already in the list (keeps
-// polylines clean for renderers that don't like duplicate vertices).
-function push(pts: { x: number; y: number }[], next: { x: number; y: number }): void {
-	const last = pts[pts.length - 1];
-	if (last && Math.abs(last.x - next.x) < 0.5 && Math.abs(last.y - next.y) < 0.5) return;
-	pts.push(next);
 }
 
 function collectClusterKeys(
@@ -855,92 +716,6 @@ function centroidOf(
 
 function fallbackSize(n: GraphNode): SizedNode {
 	return { ...n, width: 80, height: 24 };
-}
-
-// Sunflower-style radial packing (校庭型) with grid-cell snap. The
-// highest-degree member sits at the centre cell ("壇上"); the rest are placed
-// at the Vogel sequence
-//   r = c√i,  θ = i · φ   (φ = golden angle ≈ 137.508°)
-// and each ideal point is snapped to the nearest FREE grid cell via spiral
-// search (no concentric rings).
-function radialPack(
-	sizes: SizedNode[],
-	anchorIdx: number,
-	gap: number,
-	gridX: number,
-	gridY: number,
-): {
-	positions: { x: number; y: number }[];
-	width: number;
-	height: number;
-} {
-	const n = sizes.length;
-	if (n === 0) return { positions: [], width: 32, height: 24 };
-	const positions: { x: number; y: number }[] = new Array(n);
-	if (n === 1) {
-		positions[0] = { x: sizes[0].width / 2, y: sizes[0].height / 2 };
-		return { positions, width: sizes[0].width, height: sizes[0].height };
-	}
-	const occupied = new Set<string>();
-	const claim = (col: number, row: number): { col: number; row: number } => {
-		const ideal = `${col},${row}`;
-		if (!occupied.has(ideal)) {
-			occupied.add(ideal);
-			return { col, row };
-		}
-		for (let d = 1; d < 64; d++) {
-			for (let dr = -d; dr <= d; dr++) {
-				for (let dc = -d; dc <= d; dc++) {
-					if (Math.max(Math.abs(dc), Math.abs(dr)) !== d) continue;
-					const k = `${col + dc},${row + dr}`;
-					if (!occupied.has(k)) {
-						occupied.add(k);
-						return { col: col + dc, row: row + dr };
-					}
-				}
-			}
-		}
-		// Should never reach here for reasonable n
-		const key = `${col},${row}.${Math.random()}`;
-		occupied.add(key);
-		return { col, row };
-	};
-
-	// Anchor occupies (0, 0).
-	claim(0, 0);
-	positions[anchorIdx] = { x: 0, y: 0 };
-
-	const spacing = Math.max(gridX, gridY);
-	const golden = Math.PI * (3 - Math.sqrt(5));
-	let step = 1;
-	for (let i = 0; i < n; i++) {
-		if (i === anchorIdx) continue;
-		const r = spacing * Math.sqrt(step);
-		const theta = step * golden;
-		const idealCol = Math.round((r * Math.cos(theta)) / gridX);
-		const idealRow = Math.round((r * Math.sin(theta)) / gridY);
-		const cell = claim(idealCol, idealRow);
-		positions[i] = { x: cell.col * gridX, y: cell.row * gridY };
-		step++;
-	}
-
-	// Shift so the tightest bbox's top-left is (0, 0).
-	let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-	for (let i = 0; i < n; i++) {
-		const s = sizes[i];
-		const l = positions[i].x - s.width / 2;
-		const right = positions[i].x + s.width / 2;
-		const t = positions[i].y - s.height / 2;
-		const b = positions[i].y + s.height / 2;
-		if (l < minX) minX = l;
-		if (right > maxX) maxX = right;
-		if (t < minY) minY = t;
-		if (b > maxY) maxY = b;
-	}
-	for (let i = 0; i < n; i++) {
-		positions[i] = { x: positions[i].x - minX, y: positions[i].y - minY };
-	}
-	return { positions, width: maxX - minX, height: maxY - minY };
 }
 
 // Shelf-pack cards into rows until the row would exceed a sqrt-area target,
