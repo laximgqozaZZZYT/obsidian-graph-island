@@ -10,7 +10,6 @@ import {
 import type { MiniSettings, GraphNode } from "./types";
 import { NONE_BUCKET } from "./types";
 import {
-	CARD_TITLE_FONT_PX,
 	CARD_BODY_FONT_PX,
 	CARD_LINE_HEIGHT_PX,
 	CARD_BODY_LINE_HEIGHT_PX,
@@ -21,7 +20,6 @@ import {
 	CARD_MAX_W,
 	CARD_CELL_W,
 	CARD_CELL_H,
-	CARD_RADIUS_PX,
 } from "./types";
 import { type LimitRule, applyLimitRules } from "./limit";
 import { filterMemberships, filterLabels } from "./query-filters";
@@ -30,13 +28,7 @@ import {
 	getSortKey as getSortKeyFn,
 	computeDroppedClusters as computeDroppedClustersFn,
 } from "./query-pipeline";
-import {
-	colLetters,
-	clusterHue,
-	roundedRectPath,
-	wrapText,
-	truncateToWidth,
-} from "./canvas-utils";
+import { colLetters, clusterHue, wrapText } from "./canvas-utils";
 import { runAggregateSnap } from "./aggregate-snap";
 import {
 	computeParentOf,
@@ -60,6 +52,14 @@ import {
 	type NodeDisplayDeps,
 } from "./node-display";
 import { expandClustersByInheritance } from "./cluster-bbox";
+import { drawEnclosures } from "./draw-enclosures";
+import { drawBaseEdges, drawAccentEdges } from "./draw-edges";
+import { drawCard as drawCardFn } from "./draw-card";
+import {
+	hitTest as hitTestFn,
+	screenToWorld as screenToWorldFn,
+	type HoverTarget,
+} from "./hit-test";
 
 export const VIEW_TYPE_MINI = "graph-island-mini";
 
@@ -71,11 +71,6 @@ const TOOLTIP_OFFSET_Y = -8;
 // trimmed). Persists across rebuilds so we don't re-read 2k+ files every time
 // metadataCache fires "resolved".
 type CardContent = { title: string; body: string; bodyLines: string[]; width: number; height: number };
-
-type HoverTarget =
-	| { kind: "node"; nodeId: string }
-	| { kind: "cluster"; group: string }
-	| null;
 
 export class MiniGraphView extends ItemView {
 	private canvas!: HTMLCanvasElement;
@@ -1413,39 +1408,18 @@ export class MiniGraphView extends ItemView {
 			this.drawCardGrid(ctx);
 		}
 
-		// Outline-only enclosures: stroke colours are hue-distinct so the
-		// boundaries stay readable when clusters overlap or nest. ONE
-		// rectangle per cluster (= no splitting into per-cell outlines)
-		// because users expect a single contiguous enclosure.
 		if (this.settings.showEnclosures) {
-			const sortedClusters = [...this.laid.clusters].sort(
-				(a, b) => b.width * b.height - a.width * a.height,
+			drawEnclosures(
+				ctx,
+				this.laid.clusters,
+				this.highlightedClusters,
+				this.zoom,
 			);
-			const strokeW = 1.6 / this.zoom;
-			const accentStrokeW = 3.2 / this.zoom;
-			for (const c of sortedClusters) {
-				const hue = clusterHue(c.groupKey);
-				const isHigh = this.highlightedClusters.has(c.groupKey);
-				ctx.strokeStyle = isHigh
-					? "#ff9d3f"
-					: `hsla(${hue}, 70%, 62%, 0.9)`;
-				ctx.lineWidth = isHigh ? accentStrokeW : strokeW;
-				ctx.strokeRect(c.x, c.y, c.width, c.height);
-			}
 		}
 
 		ctx.lineCap = "round";
 		ctx.lineJoin = "round";
 		const hasHighlight = this.highlightedEdgeIdx.size > 0;
-		const dim = "rgba(180,200,220,0.10)";
-		const line = "rgba(180,200,220,0.55)";
-		// Forward (outgoing link) = warm orange. Backlink (incoming) = cool
-		// cyan-blue. Same node connected by both gets coloured per edge,
-		// not per pair, so the user can tell which direction is which.
-		const accentOut = "#ff9d3f";
-		const glowOut = "rgba(255,157,63,0.35)";
-		const accentIn = "#3fbfff";
-		const glowIn = "rgba(63,191,255,0.35)";
 
 		// Per-layer card visibility / aggregation. Hidden node IDs come from
 		// the layer tabs' card-list checkboxes. Aggregated clusters replace
@@ -1463,24 +1437,14 @@ export class MiniGraphView extends ItemView {
 		const skipNode = (id: string): boolean =>
 			hiddenSet.has(id) || this.trulyAggSet.has(id);
 
-		// Layer 1: all edges as thin LINEs. Every node-touching connection
-		// uses this uniform single-line style regardless of bundling.
 		if (this.settings.showEdges) {
-			const lineW = 0.7 / this.zoom;
-			ctx.lineWidth = lineW;
-			this.laid.edges.forEach((e, i) => {
-				if (hasHighlight && this.highlightedEdgeIdx.has(i)) return;
-				if (skipNode(e.source) || skipNode(e.target)) return;
-				const path = e.path;
-				if (!path || path.length < 2) return;
-				ctx.strokeStyle = hasHighlight ? dim : line;
-				ctx.beginPath();
-				ctx.moveTo(path[0].x, path[0].y);
-				for (let i2 = 1; i2 < path.length; i2++) ctx.lineTo(path[i2].x, path[i2].y);
-				ctx.stroke();
-			});
-			// Trunks retired — every wire is now a single LINE drawn by the
-			// loop above.
+			drawBaseEdges(
+				ctx,
+				this.laid,
+				this.zoom,
+				this.highlightedEdgeIdx,
+				skipNode,
+			);
 		}
 
 		// Layer 2: base cards (covers the "stub" segment from edge port → card center)
@@ -1505,41 +1469,15 @@ export class MiniGraphView extends ItemView {
 			}
 		}
 
-		// Layer 3: accent edges. Always drawn at LINE thickness (not TRUNK)
-		// because hover should highlight individual connections, not paint over
-		// the bundled cable.
 		if (hasHighlight && this.settings.showEdges) {
-			const accentSolidW = 1.8 / this.zoom;
-			const accentGlowW = 5 / this.zoom;
-			this.laid.edges.forEach((e, i) => {
-				if (!this.highlightedEdgeIdx.has(i)) return;
-				if (skipNode(e.source) || skipNode(e.target)) return;
-				const path = e.path;
-				if (!path || path.length < 2) return;
-				// Direction-aware colouring. source === hoveredNode → outgoing
-				// (this node links out to the target). target === hoveredNode
-				// → incoming backlink (something else links into this node).
-				// If hoveredNodeId is null (e.g. cluster hover), fall back to
-				// outgoing colour.
-				const isOutgoing =
-					this.hoveredNodeId !== null
-						? e.source === this.hoveredNodeId
-						: true;
-				const accent = isOutgoing ? accentOut : accentIn;
-				const glow = isOutgoing ? glowOut : glowIn;
-				ctx.strokeStyle = glow;
-				ctx.lineWidth = accentGlowW;
-				ctx.beginPath();
-				ctx.moveTo(path[0].x, path[0].y);
-				for (let i2 = 1; i2 < path.length; i2++) ctx.lineTo(path[i2].x, path[i2].y);
-				ctx.stroke();
-				ctx.strokeStyle = accent;
-				ctx.lineWidth = accentSolidW;
-				ctx.beginPath();
-				ctx.moveTo(path[0].x, path[0].y);
-				for (let i2 = 1; i2 < path.length; i2++) ctx.lineTo(path[i2].x, path[i2].y);
-				ctx.stroke();
-			});
+			drawAccentEdges(
+				ctx,
+				this.laid,
+				this.zoom,
+				this.highlightedEdgeIdx,
+				this.hoveredNodeId,
+				skipNode,
+			);
 		}
 
 		// Layer 4: accent cards on top
@@ -1603,96 +1541,28 @@ export class MiniGraphView extends ItemView {
 		n: PositionedNode,
 		highlighted: boolean,
 	): void {
-		const x = n.x - n.width / 2;
-		const y = n.y - n.height / 2;
-		const w = n.width;
-		const h = n.height;
-		// Card-internal scale drives padding, font sizes, line heights and
-		// gaps only — the corner radius and border stroke stay FIXED so
-		// the outline geometry reads identically regardless of card size.
-		// `scale` here is the SAME visualScale that cardFor and measureCard
-		// use, so per-cluster overrides (and degree-driven size factors)
-		// change pixel size + font + line count together instead of size
-		// alone.
+		// Pre-resolve everything that's view-state-dependent so the
+		// renderer in draw-card.ts can stay pure: cache lookup via the
+		// `${id}:${mode}:${scale.toFixed(4)}` composite key (= same key
+		// `cardFor()` writes with).
 		const scale = this.getCardScale(n.id);
-		const r = Math.min(CARD_RADIUS_PX, w / 2, h / 2);
-
-		ctx.beginPath();
-		roundedRectPath(ctx, x, y, w, h, r);
-		ctx.fillStyle = highlighted ? "#ffe7a8" : "#1d2230";
-		ctx.fill();
-
-		ctx.lineWidth = (highlighted ? 1.8 : 1) / this.zoom;
-		ctx.strokeStyle = highlighted ? "#ff9d3f" : "#5a7ba8";
-		ctx.beginPath();
-		roundedRectPath(ctx, x, y, w, h, r);
-		ctx.stroke();
-
-		const padX = CARD_PAD_X * scale;
-		const padY = CARD_PAD_Y * scale;
-		const titleFontPx = CARD_TITLE_FONT_PX * scale;
-		const bodyFontPx = CARD_BODY_FONT_PX * scale;
-		const titleLineH = CARD_LINE_HEIGHT_PX * scale;
-		const bodyLineH = CARD_BODY_LINE_HEIGHT_PX * scale;
-		const titleBodyGap = CARD_TITLE_BODY_GAP * scale;
-
 		const mode = this.displayMode.get(n.id) ?? "full";
 		const card = this.cardCache.get(`${n.id}:${mode}:${scale.toFixed(4)}`);
-		const bodyLines = card?.bodyLines ?? [];
-		const innerLeft = x + padX;
-		const innerTop = y + padY;
-		const innerRight = x + w - padX;
-
-		ctx.textAlign = "start";
-		ctx.textBaseline = "top";
-
-		ctx.font = `600 ${titleFontPx}px sans-serif`;
-		ctx.fillStyle = highlighted ? "#1d1100" : "#e6edf3";
-		const titleFitted = truncateToWidth(ctx, n.label, innerRight - innerLeft);
-		ctx.fillText(titleFitted, innerLeft, innerTop);
-
-		if (bodyLines.length > 0 && this.settings.showBody) {
-			ctx.font = `${bodyFontPx}px sans-serif`;
-			ctx.fillStyle = highlighted ? "#3a2400" : "#9eb0c4";
-			let ly = innerTop + titleLineH + titleBodyGap;
-			for (const line of bodyLines) {
-				ctx.fillText(line, innerLeft, ly);
-				ly += bodyLineH;
-			}
-		}
+		drawCardFn(ctx, n, {
+			scale,
+			bodyLines: card?.bodyLines ?? [],
+			showBody: this.settings.showBody,
+			highlighted,
+			zoom: this.zoom,
+		});
 	}
 
 	private screenToWorld(sx: number, sy: number): { x: number; y: number } {
-		return { x: (sx - this.panX) / this.zoom, y: (sy - this.panY) / this.zoom };
+		return screenToWorldFn(sx, sy, this.panX, this.panY, this.zoom);
 	}
 
 	private hitTest(wx: number, wy: number): HoverTarget {
-		// Cards are rectangles; pick the smallest-distance card hit so adjacent cards
-		// don't beat each other when the cursor sits on the gap.
-		let bestId: string | null = null;
-		let bestDist2 = Infinity;
-		const slackPx = 1 / this.zoom;
-		for (const n of this.laid.nodes) {
-			const left = n.x - n.width / 2 - slackPx;
-			const right = n.x + n.width / 2 + slackPx;
-			const top = n.y - n.height / 2 - slackPx;
-			const bottom = n.y + n.height / 2 + slackPx;
-			if (wx < left || wx > right || wy < top || wy > bottom) continue;
-			const dx = wx - n.x;
-			const dy = wy - n.y;
-			const d2 = dx * dx + dy * dy;
-			if (d2 < bestDist2) {
-				bestDist2 = d2;
-				bestId = n.id;
-			}
-		}
-		if (bestId) return { kind: "node", nodeId: bestId };
-		for (const c of this.laid.clusters) {
-			if (wx >= c.x && wx <= c.x + c.width && wy >= c.y && wy <= c.y + c.height) {
-				return { kind: "cluster", group: c.groupKey };
-			}
-		}
-		return null;
+		return hitTestFn(wx, wy, this.laid.nodes, this.laid.clusters, this.zoom);
 	}
 
 	private openFile(id: string): void {
