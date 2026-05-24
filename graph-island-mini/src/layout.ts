@@ -74,17 +74,12 @@ export interface ClusterRect {
 	width: number;
 	height: number;
 	memberCount: number;
-	// Final-stage polygon outline = rectilinear boundary segments
-	// produced by walking every owned cell's edges. Tightly wraps the
-	// cluster's member cells (= ground truth for "this cell belongs to
-	// the cluster"). Disconnected owned-cell groups produce multiple
-	// closed loops; the renderer strokes all of them.
+	// Final-stage polygon outline = rectilinear boundary segments of
+	// the SIMPLY-CONNECTED closure of the cluster's owned cells
+	// (= internal cavities filled, disconnected groups bridged).
+	// Single closed loop, no exclaves (飛び地), no internal holes
+	// (空洞). Completely contains every member node.
 	outline?: Array<{ x1: number; y1: number; x2: number; y2: number }>;
-	// Holes = cells inside the AABB that DON'T contain any member of
-	// this cluster (= cells holding only foreign cards or empty cells).
-	// Drawn with a distinguishable dashed stroke so users can tell
-	// "this cell is inside the bbox but does NOT belong to the cluster".
-	holes?: Array<{ x: number; y: number; w: number; h: number }>;
 }
 
 // Trunks have been retired — every wire is a thin single line routed via

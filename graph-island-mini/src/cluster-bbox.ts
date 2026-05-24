@@ -150,17 +150,14 @@ export function computeClusterOwnedCells(
 	return out;
 }
 
-// Compute outline segments for the polygon boundary of owned cells.
-// For each owned cell, check its 4 neighbours; if a neighbour is NOT
-// in the owned set, emit a line on the shared edge. Concatenated,
-// these segments form the cluster's rectilinear boundary — possibly
-// multiple closed loops when owned cells are disconnected, and
-// possibly with internal holes when non-owned cells sit inside.
+// Compute outline segments for the polygon boundary of a cell set.
+// For each cell, check its 4 neighbours; if a neighbour is NOT in
+// the set, emit a line on the shared edge.
 //
 // Coordinate convention matches drawCardGrid (cell inner box from
 // (col*W + padX, row*H + padY) to ((col+1)*W - padX, (row+1)*H - padY)).
 export function computeOutlineSegments(
-	ownedCells: Set<string>,
+	cells: Set<string>,
 	slotW: number,
 	slotH: number,
 	channelW: number,
@@ -169,7 +166,7 @@ export function computeOutlineSegments(
 	const segments: Array<{ x1: number; y1: number; x2: number; y2: number }> = [];
 	const padX = channelW / 2;
 	const padY = channelH / 2;
-	for (const cellKey of ownedCells) {
+	for (const cellKey of cells) {
 		const [colStr, rowStr] = cellKey.split(",");
 		const col = parseInt(colStr, 10);
 		const row = parseInt(rowStr, 10);
@@ -177,54 +174,167 @@ export function computeOutlineSegments(
 		const right = (col + 1) * slotW - padX;
 		const top = row * slotH + padY;
 		const bottom = (row + 1) * slotH - padY;
-		if (!ownedCells.has(`${col - 1},${row}`))
+		if (!cells.has(`${col - 1},${row}`))
 			segments.push({ x1: left, y1: top, x2: left, y2: bottom });
-		if (!ownedCells.has(`${col + 1},${row}`))
+		if (!cells.has(`${col + 1},${row}`))
 			segments.push({ x1: right, y1: top, x2: right, y2: bottom });
-		if (!ownedCells.has(`${col},${row - 1}`))
+		if (!cells.has(`${col},${row - 1}`))
 			segments.push({ x1: left, y1: top, x2: right, y2: top });
-		if (!ownedCells.has(`${col},${row + 1}`))
+		if (!cells.has(`${col},${row + 1}`))
 			segments.push({ x1: left, y1: bottom, x2: right, y2: bottom });
 	}
 	return segments;
 }
 
-// Compute hole cells for a cluster: cells inside the cluster's AABB
-// that are NOT owned by it (= cells with only foreign-cluster cards
-// or empty cells).
-//
-// The outer enclosure is still drawn as the AABB rectangle (single
-// connected rectangle, no exclaves, no non-rectangular shapes per
-// the latest user spec). Holes are rendered with a distinguishable
-// visual (dashed stroke) so users see "this cell is inside the
-// cluster's bbox but doesn't belong to the cluster" — the foreign
-// cards inside are unambiguously NOT part of this cluster.
-//
-// Returns one pixel rectangle per hole cell. Coordinate convention
-// matches drawCardGrid (cell inner box runs from (col*W + padX, ...) to
-// ((col+1)*W - padX, ...)).
-export function computeHoleCellRects(
-	ownedCells: Set<string>,
+// Find 4-connected components of a cell set. Returns one Set per
+// component (each holds "col,row" keys).
+function connectedComponents(cells: Set<string>): Set<string>[] {
+	const components: Set<string>[] = [];
+	const visited = new Set<string>();
+	for (const start of cells) {
+		if (visited.has(start)) continue;
+		const comp = new Set<string>();
+		const queue: string[] = [start];
+		visited.add(start);
+		while (queue.length > 0) {
+			const cur = queue.shift()!;
+			comp.add(cur);
+			const [c, r] = cur.split(",").map(Number);
+			for (const [dc, dr] of [
+				[-1, 0],
+				[1, 0],
+				[0, -1],
+				[0, 1],
+			]) {
+				const k = `${c + dc},${r + dr}`;
+				if (cells.has(k) && !visited.has(k)) {
+					visited.add(k);
+					queue.push(k);
+				}
+			}
+		}
+		components.push(comp);
+	}
+	return components;
+}
+
+// Fill all interior holes (= non-cell positions inside the AABB that
+// are NOT reachable from the AABB boundary without crossing cells).
+// After filling, the result has no internal holes.
+function fillInteriorHoles(
+	cells: Set<string>,
 	range: { minCol: number; maxCol: number; minRow: number; maxRow: number },
-	slotW: number,
-	slotH: number,
-	channelW: number,
-	channelH: number,
-): Array<{ x: number; y: number; w: number; h: number }> {
-	const out: Array<{ x: number; y: number; w: number; h: number }> = [];
-	const padX = channelW / 2;
-	const padY = channelH / 2;
-	for (let col = range.minCol; col <= range.maxCol; col++) {
-		for (let row = range.minRow; row <= range.maxRow; row++) {
-			if (ownedCells.has(`${col},${row}`)) continue;
-			const x = col * slotW + padX;
-			const y = row * slotH + padY;
-			const w = slotW - 2 * padX;
-			const h = slotH - 2 * padY;
-			out.push({ x, y, w, h });
+): Set<string> {
+	// Flood-fill from a virtual one-cell ring around the AABB so any
+	// concavity touching the bbox boundary is reachable from "outside".
+	const reachable = new Set<string>();
+	const queue: [number, number][] = [];
+	const seed = (c: number, r: number): void => {
+		const k = `${c},${r}`;
+		if (cells.has(k) || reachable.has(k)) return;
+		reachable.add(k);
+		queue.push([c, r]);
+	};
+	for (let c = range.minCol - 1; c <= range.maxCol + 1; c++) {
+		seed(c, range.minRow - 1);
+		seed(c, range.maxRow + 1);
+	}
+	for (let r = range.minRow - 1; r <= range.maxRow + 1; r++) {
+		seed(range.minCol - 1, r);
+		seed(range.maxCol + 1, r);
+	}
+	while (queue.length > 0) {
+		const [c, r] = queue.shift()!;
+		for (const [dc, dr] of [
+			[-1, 0],
+			[1, 0],
+			[0, -1],
+			[0, 1],
+		]) {
+			const nc = c + dc;
+			const nr = r + dr;
+			if (nc < range.minCol - 1 || nc > range.maxCol + 1) continue;
+			if (nr < range.minRow - 1 || nr > range.maxRow + 1) continue;
+			const k = `${nc},${nr}`;
+			if (cells.has(k) || reachable.has(k)) continue;
+			reachable.add(k);
+			queue.push([nc, nr]);
+		}
+	}
+	// Any non-cell in the AABB that's NOT reachable = interior hole.
+	const closed = new Set<string>(cells);
+	for (let c = range.minCol; c <= range.maxCol; c++) {
+		for (let r = range.minRow; r <= range.maxRow; r++) {
+			const k = `${c},${r}`;
+			if (cells.has(k)) continue;
+			if (reachable.has(k)) continue;
+			closed.add(k);
+		}
+	}
+	return closed;
+}
+
+// Connect disconnected components by adding straight-line bridge cells
+// (Manhattan path: horizontal then vertical) between every non-main
+// component and the main (largest) component.
+function bridgeComponents(cells: Set<string>): Set<string> {
+	const comps = connectedComponents(cells);
+	if (comps.length <= 1) return cells;
+	comps.sort((a, b) => b.size - a.size);
+	const out = new Set<string>(cells);
+	for (let i = 1; i < comps.length; i++) {
+		const comp = comps[i];
+		let bestA = "";
+		let bestB = "";
+		let bestD = Infinity;
+		for (const a of comp) {
+			const [ac, ar] = a.split(",").map(Number);
+			for (const b of comps[0]) {
+				const [bc, br] = b.split(",").map(Number);
+				const d = Math.abs(ac - bc) + Math.abs(ar - br);
+				if (d < bestD) {
+					bestD = d;
+					bestA = a;
+					bestB = b;
+				}
+			}
+		}
+		if (!bestA) continue;
+		const [c1, r1] = bestA.split(",").map(Number);
+		const [c2, r2] = bestB.split(",").map(Number);
+		// Horizontal then vertical (L-shape).
+		const dc = c2 > c1 ? 1 : c2 < c1 ? -1 : 0;
+		const dr = r2 > r1 ? 1 : r2 < r1 ? -1 : 0;
+		let cc = c1;
+		let cr = r1;
+		out.add(`${cc},${cr}`);
+		while (cc !== c2) {
+			cc += dc;
+			out.add(`${cc},${cr}`);
+		}
+		while (cr !== r2) {
+			cr += dr;
+			out.add(`${cc},${cr}`);
 		}
 	}
 	return out;
+}
+
+// Close a cell set into a single simply-connected rectilinear region:
+// fill interior holes + bridge disconnected components. The resulting
+// outline (via computeOutlineSegments) is a single closed loop with no
+// inner loops — satisfies "no exclaves, no holes, polygon allowed".
+export function closeToSimplyConnected(
+	cells: Set<string>,
+	range: { minCol: number; maxCol: number; minRow: number; maxRow: number },
+): Set<string> {
+	if (cells.size === 0) return cells;
+	const bridged = bridgeComponents(cells);
+	// Recompute range after bridging in case bridges extended it
+	// (they shouldn't since bridge endpoints are within original cells'
+	// AABB, but the line might pass through cells just inside).
+	const filled = fillInteriorHoles(bridged, range);
+	return filled;
 }
 
 // Orchestrator: one bbox per cluster + nesting-aware padding. Returns
@@ -272,20 +382,19 @@ export function computeClusterBBoxes(
 			slotH,
 			range.count,
 		);
-		// Outline + holes:
-		//   - outline = boundary of owned cells (= rectilinear polygon,
-		//     tightly wraps the cluster's actual cells; redrawn at the
-		//     final stage so the enclosure completely contains member
-		//     nodes and never engulfs cells with foreign-only cards)
-		//   - holes = cells inside the AABB cell range that DON'T
-		//     contain any member of this cluster (= visual marker so
-		//     hollow regions stay distinguishable from solid)
+		// Outline = boundary of the SIMPLY-CONNECTED closure of owned
+		// cells. The closure:
+		//   1. bridges disconnected owned-cell groups via Manhattan
+		//      bridges (= prevents 飛び地 / exclaves)
+		//   2. fills internal cavities reachable only from inside the
+		//      bbox (= prevents 空洞 / holes)
+		// Resulting outline is a single closed loop (= one rectilinear
+		// polygon) that completely contains every member node.
 		const owned = ownedCellsMap.get(key);
 		if (owned && owned.size > 0) {
-			rect.outline = computeOutlineSegments(owned, slotW, slotH, channelW, channelH);
-			rect.holes = computeHoleCellRects(
-				owned,
-				range,
+			const closed = closeToSimplyConnected(owned, range);
+			rect.outline = computeOutlineSegments(
+				closed,
 				slotW,
 				slotH,
 				channelW,
