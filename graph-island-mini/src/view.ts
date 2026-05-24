@@ -60,6 +60,12 @@ import {
 	computeSizeScale as computeSizeScaleFn,
 	measureCard as measureCardFn,
 } from "./card-sizing";
+import {
+	renderExprSection as renderExprSectionFn,
+	renderToggleSection as renderToggleSectionFn,
+	renderOrderBySection as renderOrderBySectionFn,
+	toggleArrayMember as toggleArrayMemberFn,
+} from "./panel-sections";
 
 export const VIEW_TYPE_MINI = "graph-island-mini";
 
@@ -535,10 +541,7 @@ export class MiniGraphView extends ItemView {
 		value: string,
 		present: boolean,
 	): void {
-		const arr = this.settings[field];
-		const i = arr.indexOf(value);
-		if (present && i === -1) arr.push(value);
-		if (!present && i >= 0) arr.splice(i, 1);
+		toggleArrayMemberFn(this.settings, field, value, present);
 	}
 
 	// LAYOUT section: per-cluster anchor placement strategy (concentric ring
@@ -690,91 +693,10 @@ export class MiniGraphView extends ItemView {
 		return resolveFromClusterFn(groupKey, this.nodeDisplayDeps());
 	}
 
-	// ORDER_BY is a scalar (single field + direction) rather than an array of
-	// rows, so it gets a dedicated UI: two selects plus an optional text input
-	// that appears only when the user picks "custom..." for an arbitrary
-	// frontmatter field.
 	private renderOrderBySection(parent: HTMLElement): void {
-		const section = parent.createDiv({ cls: "gim-panel-section" });
-		const header = section.createDiv({ cls: "gim-panel-section-header" });
-		header.createEl("h4", { text: "ORDER_BY" });
-
-		const row = section.createDiv({ cls: "gim-order-row" });
-		// Built-in fields grouped by source so the dropdown reads like a menu.
-		const GROUPS: { label: string; opts: { value: string; text: string }[] }[] = [
-			{
-				label: "File",
-				opts: [
-					{ value: "name", text: "name" },
-					{ value: "path", text: "path" },
-					{ value: "extension", text: "extension" },
-					{ value: "mtime", text: "modified" },
-					{ value: "ctime", text: "created" },
-					{ value: "size", text: "size" },
-				],
-			},
-			{
-				label: "Graph",
-				opts: [
-					{ value: "degree", text: "degree (links)" },
-					{ value: "memberships", text: "memberships (cluster count)" },
-				],
-			},
-			{
-				label: "Frontmatter",
-				opts: [{ value: "title", text: "title" }],
-			},
-			{
-				label: "Other",
-				opts: [{ value: "random", text: "random" }],
-			},
-		];
-		const KNOWN = new Set<string>();
-		for (const g of GROUPS) for (const o of g.opts) KNOWN.add(o.value);
-		const isCustom = !KNOWN.has(this.settings.orderField);
-
-		const fieldSel = row.createEl("select", { cls: "gim-order-field" });
-		for (const g of GROUPS) {
-			const grp = fieldSel.createEl("optgroup");
-			grp.setAttr("label", g.label);
-			for (const o of g.opts) {
-				const opt = grp.createEl("option", { value: o.value, text: o.text });
-				if (!isCustom && this.settings.orderField === o.value) opt.selected = true;
-			}
-		}
-		const customOpt = fieldSel.createEl("option", { value: "__custom__", text: "custom frontmatter…" });
-		if (isCustom) customOpt.selected = true;
-
-		const customInput = row.createEl("input", { type: "text", cls: "gim-order-custom" });
-		customInput.value = isCustom ? this.settings.orderField : "";
-		customInput.placeholder = "frontmatter field";
-		customInput.style.display = isCustom ? "" : "none";
-
-		fieldSel.addEventListener("change", () => {
-			if (fieldSel.value === "__custom__") {
-				customInput.style.display = "";
-				customInput.focus();
-				this.settings.orderField = customInput.value.trim() || "name";
-			} else {
-				customInput.style.display = "none";
-				this.settings.orderField = fieldSel.value;
-			}
-			void this.save();
-		});
-		customInput.addEventListener("change", () => {
-			const v = customInput.value.trim();
-			this.settings.orderField = v || "name";
-			void this.save();
-		});
-
-		const dirSel = row.createEl("select", { cls: "gim-order-dir" });
-		for (const d of ["asc", "desc"] as const) {
-			const opt = dirSel.createEl("option", { value: d, text: d });
-			if (this.settings.orderDir === d) opt.selected = true;
-		}
-		dirSel.addEventListener("change", () => {
-			this.settings.orderDir = dirSel.value as "asc" | "desc";
-			void this.save();
+		renderOrderBySectionFn(parent, {
+			settings: this.settings,
+			save: () => void this.save(),
 		});
 	}
 
@@ -786,18 +708,12 @@ export class MiniGraphView extends ItemView {
 			label: string;
 		}[],
 	): void {
-		const section = parent.createDiv({ cls: "gim-panel-section" });
-		section.createEl("h4", { text: heading });
-		for (const t of toggles) {
-			const row = section.createEl("label", { cls: "gim-toggle-row" });
-			const cb = row.createEl("input", { type: "checkbox" });
-			cb.checked = this.settings[t.key];
-			cb.addEventListener("change", () => {
-				this.settings[t.key] = cb.checked;
-				void this.save();
-			});
-			row.createSpan({ text: t.label });
-		}
+		renderToggleSectionFn(
+			parent,
+			{ settings: this.settings, save: () => void this.save() },
+			heading,
+			toggles,
+		);
 	}
 
 	private renderExprSection(
@@ -810,67 +726,18 @@ export class MiniGraphView extends ItemView {
 			autoKey?: "whereAuto" | "groupByAuto" | "havingAuto" | "limitAuto";
 		} = {},
 	): void {
-		const section = parent.createDiv({ cls: "gim-panel-section" });
-		const header = section.createDiv({ cls: "gim-panel-section-header" });
-		header.createEl("h4", { text: label });
-		if (opts.autoKey) {
-			const autoLabel = header.createEl("label", { cls: "gim-auto-toggle" });
-			const cb = autoLabel.createEl("input", { type: "checkbox" });
-			const key = opts.autoKey;
-			cb.checked = this.settings[key];
-			cb.addEventListener("change", () => {
-				this.settings[key] = cb.checked;
-				void this.save();
-			});
-			autoLabel.createSpan({ text: "auto" });
-		}
-
-		// Ensure at least one editable row is shown so users can type into it.
-		const displayRows = rows.length > 0 ? rows : [""];
-		const placeholder = opts.placeholder ?? "e.g. tag:#wip AND status:draft";
-
-		displayRows.forEach((value, idx) => {
-			const row = section.createDiv({ cls: "gim-expr-row" });
-			const input = row.createEl("input", { type: "text", cls: "gim-expr" });
-			input.value = value;
-			input.placeholder = placeholder;
-			input.spellcheck = false;
-			input.addEventListener("change", () => {
-				this.updateRow(rows, idx, input.value.trim());
-			});
-			const del = row.createEl("button", { cls: "gim-expr-del", text: "×" });
-			del.setAttr("aria-label", "Remove row");
-			del.disabled = rows.length === 0;
-			del.addEventListener("click", () => this.removeRow(rows, idx));
-		});
-
-		const addBtn = section.createEl("button", { cls: "gim-expr-add", text: "+ Add row" });
-		addBtn.addEventListener("click", () => this.addRow(rows));
-
-		if (error) section.createDiv({ cls: "gim-expr-msg", text: error });
-	}
-
-	private updateRow(rows: string[], idx: number, value: string): void {
-		// Re-materialize: a blank value should disappear so empty rows don't
-		// silently pile up in the saved settings.
-		if (rows.length === 0) {
-			if (value) rows.push(value);
-		} else {
-			if (value) rows[idx] = value;
-			else rows.splice(idx, 1);
-		}
-		void this.save();
-	}
-
-	private addRow(rows: string[]): void {
-		rows.push("");
-		this.renderPanel();
-	}
-
-	private removeRow(rows: string[], idx: number): void {
-		if (rows.length === 0) return;
-		rows.splice(idx, 1);
-		void this.save();
+		renderExprSectionFn(
+			parent,
+			label,
+			rows,
+			error,
+			{
+				settings: this.settings,
+				save: () => void this.save(),
+				rerender: () => this.renderPanel(),
+			},
+			opts,
+		);
 	}
 
 	updateSettings(s: MiniSettings): void {
