@@ -588,7 +588,17 @@ export function computeClusterBBoxes(
 			// reachable carving so no interior holes are created.
 			const carveCandidates = new Set<string>(foreignOnly);
 			for (const c of emptyInOtherAabb) carveCandidates.add(c);
-			const carved = carveFromBoundary(aabbCells, carveCandidates, range);
+			let carved = carveFromBoundary(aabbCells, carveCandidates, range);
+			// Post-carve connectivity restoration. Aggressive empty-cell
+			// carving can disconnect the polygon into multiple components
+			// — typically when owned cells are scattered across the AABB
+			// and the carve removes the bridge cells. Restore minimal
+			// bridge cells (Manhattan path between disconnected
+			// components) so the polygon stays single-connected and the
+			// outline visibly encloses every member cell as one shape.
+			// This prevents the "card visible but tiny isolated outline
+			// somewhere far from main cluster body" bug.
+			carved = bridgeComponents(carved);
 			rect.outline = computeOutlineSegments(
 				carved,
 				slotW,
