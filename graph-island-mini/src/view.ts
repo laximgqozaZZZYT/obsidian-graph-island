@@ -9,18 +9,7 @@ import {
 } from "./layout";
 import type { MiniSettings, GraphNode } from "./types";
 import { NONE_BUCKET } from "./types";
-import {
-	CARD_BODY_FONT_PX,
-	CARD_LINE_HEIGHT_PX,
-	CARD_BODY_LINE_HEIGHT_PX,
-	CARD_PAD_X,
-	CARD_PAD_Y,
-	CARD_TITLE_BODY_GAP,
-	CARD_MIN_W,
-	CARD_MAX_W,
-	CARD_CELL_W,
-	CARD_CELL_H,
-} from "./types";
+import { CARD_MIN_W, CARD_MAX_W, CARD_CELL_W, CARD_CELL_H } from "./types";
 import { type LimitRule, applyLimitRules } from "./limit";
 import { filterMemberships, filterLabels } from "./query-filters";
 import {
@@ -28,7 +17,7 @@ import {
 	getSortKey as getSortKeyFn,
 	computeDroppedClusters as computeDroppedClustersFn,
 } from "./query-pipeline";
-import { colLetters, clusterHue, wrapText } from "./canvas-utils";
+import { colLetters, clusterHue } from "./canvas-utils";
 import { runAggregateSnap } from "./aggregate-snap";
 import {
 	drawCardGrid as drawCardGridFn,
@@ -64,6 +53,13 @@ import {
 	filterLayoutData,
 	buildAdjacency,
 } from "./rebuild-pipeline";
+import {
+	type CardContent,
+	computeCardSize,
+	computeChannelDims,
+	computeSizeScale as computeSizeScaleFn,
+	measureCard as measureCardFn,
+} from "./card-sizing";
 
 export const VIEW_TYPE_MINI = "graph-island-mini";
 
@@ -74,7 +70,6 @@ const TOOLTIP_OFFSET_Y = -8;
 // Internal cache: maps file path → pre-processed body preview (post-frontmatter,
 // trimmed). Persists across rebuilds so we don't re-read 2k+ files every time
 // metadataCache fires "resolved".
-type CardContent = { title: string; body: string; bodyLines: string[]; width: number; height: number };
 
 export class MiniGraphView extends ItemView {
 	private canvas!: HTMLCanvasElement;
@@ -1066,17 +1061,14 @@ export class MiniGraphView extends ItemView {
 
 	private cardFor(n: GraphNode): SizedNode {
 		const display = this.getNodeDisplay(n.id);
-		const scaleFactor = this.computeSizeScale(n.id, display.nodeSizeMode);
-		const rows = Math.max(1, display.nodeRows);
-		const cols = Math.max(1, display.nodeCols);
-		const channelW = Math.max(8, this.settings.nodeSpacing);
-		const channelH = Math.max(1, (channelW * CARD_CELL_H) / CARD_CELL_W);
-		const slotW = CARD_CELL_W + channelW;
-		const slotH = CARD_CELL_H + channelH;
-		const effC = cols * scaleFactor;
-		const effR = rows * scaleFactor;
-		const width = effC * slotW - channelW;
-		const height = effR * slotH - channelH;
+		const { channelW, channelH } = computeChannelDims(this.settings.nodeSpacing);
+		const { width, height } = computeCardSize({
+			rows: Math.max(1, display.nodeRows),
+			cols: Math.max(1, display.nodeCols),
+			channelW,
+			channelH,
+			scaleFactor: this.computeSizeScale(n.id, display.nodeSizeMode),
+		});
 		const scale = this.getCardScale(n.id);
 		const mode = this.displayMode.get(n.id) ?? "full";
 		const cacheKey = `${n.id}:${mode}:${scale.toFixed(4)}`;
@@ -1099,18 +1091,11 @@ export class MiniGraphView extends ItemView {
 		mode?: "fixed" | "indegree" | "outdegree",
 	): number {
 		const m = mode ?? this.settings.nodeSizeMode;
-		if (m === "fixed") return 1;
+		// Pick the directional degree map matching the chosen size mode.
+		// "fixed" ignores the degree entirely (computeSizeScaleFn returns 1).
 		const map = m === "indegree" ? this.inDegreeMap : this.outDegreeMap;
 		const deg = map.get(nodeId) ?? 0;
-		// (linkCount + 1) × base. 0 links ⇒ initial size; each additional
-		// link adds another full multiple. Aspect ratio is preserved
-		// because both axes multiply by the same scale. Cap at 4× because
-		// (a) larger caps blow up the cell-snap spiral on huge vaults and
-		// (b) the bigger a hub card grows the wider its sub-group becomes,
-		// which inflates the global stride and forces every other cluster
-		// further apart, leaving large empty regions inside multi-membership
-		// cluster bboxes.
-		return Math.min(4, deg + 1);
+		return computeSizeScaleFn(m, deg);
 	}
 
 	// Build cluster_key → member_id_set and cluster_key → strict_superset
@@ -1164,31 +1149,15 @@ export class MiniGraphView extends ItemView {
 		cardH: number = CARD_CELL_H,
 		scale: number = 1,
 	): CardContent {
-		const ctx = this.ctx;
-		// Wrap text at the BASE font (= 10 px). At render time everything
-		// scales by `scale`, so wrap_width × scale must fit card_inner_w
-		// (= cardW − 2·padX·scale). Solve for wrap_width:
-		//   wrap_width = cardW/scale − 2·padX
-		// Same idea for the vertical body budget — convert the card's
-		// scaled space back into base-font units before counting lines.
-		const wrapWidth = Math.max(8, cardW / scale - 2 * CARD_PAD_X);
-		const innerHBase = cardH / scale - 2 * CARD_PAD_Y;
-		const availBodyBase = innerHBase - CARD_LINE_HEIGHT_PX - CARD_TITLE_BODY_GAP;
-		const maxLines = Math.max(
-			0,
-			Math.floor(availBodyBase / CARD_BODY_LINE_HEIGHT_PX),
-		);
-		const effectiveBody = mode === "brief" || !this.settings.showBody ? "" : body;
-		ctx.font = `${CARD_BODY_FONT_PX}px sans-serif`;
-		const allLines = effectiveBody ? wrapText(ctx, effectiveBody, wrapWidth) : [];
-		const bodyLines = allLines.slice(0, maxLines);
-		return {
+		return measureCardFn(this.ctx, {
 			title,
 			body,
-			bodyLines,
-			width: cardW,
-			height: cardH,
-		};
+			mode,
+			cardW,
+			cardH,
+			scale,
+			showBody: this.settings.showBody,
+		});
 	}
 
 	private resize(): void {
