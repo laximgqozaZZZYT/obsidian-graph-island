@@ -33,6 +33,9 @@ import {
 	computeClusterBBoxes,
 	clampClustersToB2,
 } from "./cluster-bbox";
+import { regionLayout } from "./region-layout";
+import { placeNodesInRegions } from "./phase-g-place";
+import { NONE_BUCKET_KEY } from "./zone-decomp";
 
 export interface SizedNode extends GraphNode {
 	width: number;
@@ -114,6 +117,15 @@ export interface LayoutOptions {
 	// square rings outward. "flow" places focus top-left and fills columns
 	// rightward (main flow direction = toward the focus). Default: concentric.
 	anchorPlacement?: "concentric" | "flow";
+	// inheritFrom: child cluster key → parent cluster key. In the new
+	// region-layout pipeline this drives the Phase E nesting penalty
+	// (child is OUTER, parent is INNER — matching the legacy
+	// expandClustersByInheritance behaviour).
+	inheritFrom?: Record<string, string>;
+	// Base sets whose members are aggregated into a 3-card stack. In the
+	// new region-layout pipeline these become 3 virtual nodes in Phase A
+	// so the cluster reserves the right amount of grid space.
+	aggregatedSets?: Set<string>;
 }
 
 // Local alias so existing internal references continue to compile —
@@ -168,154 +180,117 @@ export function layout(data: GraphData, sized: SizedNode[], opts: LayoutOptions)
 	const gridX = slotW;
 	const gridY = slotH;
 
-	// Every sub-group — single- or multi-membership, big or small — is laid
-	// out as an m × n shelf (gymnasium style). The legacy sunflower /
-	// radialPack option produced non-grid positions that ended up scattered
-	// after the cell snap, especially for multi-membership sub-groups.
 	const degreeMap = computeDegreeMap(data.edges);
 
-	interface PackedSubgroup {
-		memberships: string[];
-		nodes: GraphNode[];
-		positions: { x: number; y: number }[]; // relative to centroid (already centered)
-		width: number;
-		height: number;
-		strategy: "gymnasium";
-	}
-	const packed: PackedSubgroup[] = subgroups.map((sg) => {
-		const sizes = sg.nodes.map((n) => sizedById.get(n.id) ?? fallbackSize(n));
-		const pp = shelfPack(sizes, opts.nodeSpacing);
-		const positions = pp.positions.map((p) => ({
-			x: p.x - pp.width / 2,
-			y: p.y - pp.height / 2,
-		}));
-		return {
-			memberships: sg.memberships,
-			nodes: sg.nodes,
-			positions,
-			width: pp.width,
-			height: pp.height,
-			strategy: "gymnasium",
-		};
+	// === Phase A-F: region layout ===
+	// 集合・積集合ダイアグラム算法 (docs/region-layout-spec.md 参照)。
+	// 1. ゾーン分解 + 件数集計 + Helly 強制ゾーン検出
+	// 2. 目標面積 = Σ node_area / ρ
+	// 3. 初期 seed (決定的 hash + force-directed)
+	// 4. 交互最適化 (座標降下 + 1D projected gradient)
+	// 5. 外側反復 (形状補正)
+	const aggregatedSets = opts.aggregatedSets ?? new Set<string>();
+	const region = regionLayout(data.nodes, sized, aggregatedSets, {
+		cardW,
+		cardH,
+		gapPx: channelW,
+		padPx: channelW * 2,
+		emptyZoneTargetMode: "minimal",
+		inheritFrom: opts.inheritFrom ?? {},
+		minIntervalLen: Math.max(slotW, slotH),
 	});
 
-	// Anchor stride: keep anchors as close as possible — just enough that a
-	// sub-group placed at one anchor doesn't immediately collide with one
-	// placed at the neighbouring anchor. Multi-membership sub-groups land
-	// at the centroid of multiple anchors; with the OLD stride (= maxSub +
-	// 5 × clusterSpacing) those centroids sat far enough from each
-	// individual anchor that the cluster bbox engulfed huge swaths of
-	// empty space. With stride = maxSub + clusterSpacing the centroids
-	// land within roughly maxSub/2 of each anchor — tight enough that
-	// cluster bboxes stay packed.
-	const maxSubW = packed.reduce((m, p) => Math.max(m, p.width), 0);
-	const maxSubH = packed.reduce((m, p) => Math.max(m, p.height), 0);
-	const strideX = maxSubW + Math.floor(opts.clusterSpacing / 2);
-	const strideY = maxSubH + Math.floor(opts.clusterSpacing / 2);
-
-	// Phase 1: rank clusters by aggregate degree, pick a focus cluster
-	// containing the global max-degree node, and place anchors per the chosen
-	// strategy. NONE_BUCKET still sits on its own dedicated row to avoid
-	// engulfment by other clusters' multi-membership bboxes. (degreeMap was
-	// computed earlier for sub-group strategy dispatch — reuse.)
-	const clusterRanks = rankClustersByDegree(clusterKeys, data.nodes, degreeMap);
-	const focusKey = chooseFocusCluster(data.nodes, degreeMap, clusterRanks);
-	if (focusKey) moveToFront(clusterRanks, focusKey);
-	// Sharing-aware ordering: reorder ranks so that clusters sharing many
-	// members are placed at ADJACENT lattice positions. With the default
-	// degree-based ordering, two groups that share most of their members
-	// (e.g. scene & talk) could end up on opposite sides of the lattice,
-	// putting any multi-tag sub-group {scene, talk} at the centroid (=
-	// middle of the lattice). That midpoint position would stretch BOTH
-	// scene's and talk's enclosures across the gap. Walking the ranks
-	// greedily by "most-shared with anything already placed" packs related
-	// groups next to each other, so the multi-tag centroid sits between
-	// adjacent anchors — short distance, tight enclosures.
-	reorderBySharing(clusterRanks, data.nodes);
-
-	const mainRanks = clusterRanks.filter((r) => r.groupKey !== NONE_BUCKET);
-	const hasNone = mainRanks.length !== clusterRanks.length;
-	const anchors = new Map<string, { x: number; y: number }>();
-	const placement = opts.anchorPlacement ?? "concentric";
-	if (placement === "concentric") {
-		placeAnchorsConcentric(anchors, mainRanks, strideX, strideY);
-	} else {
-		placeAnchorsFlow(anchors, mainRanks, strideX, strideY);
-	}
-	if (hasNone) {
-		// Place NONE far away from any other anchor (below all of them).
-		let maxY = 0;
-		for (const a of anchors.values()) if (a.y > maxY) maxY = a.y;
-		anchors.set(NONE_BUCKET, { x: 0, y: maxY + strideY * 2 });
-	}
-
-	const positionedNodes: PositionedNode[] = [];
-	const idToRect = new Map<string, Rect>();
-	const idToSize = new Map<string, SizedNode>();
-
-	// Phase 2: build sub-group centres from cluster-anchor centroids,
-	// then relax overlaps. Smaller relax gap (= nodeSpacing/4) keeps
-	// sub-groups in the same group touching after collision resolution
-	// so the parent enclosure stays tight.
-	const subPositions = buildInitialSubPositions(packed, anchors, clusterOff);
-	const RELAX_GAP = Math.max(2, Math.floor(opts.nodeSpacing / 4));
-	relaxSubgroups(subPositions, RELAX_GAP, 80);
-	// Phase 2b: compactness pass — pull each multi-tag sub-group back
-	// toward its LARGEST cluster's anchor by 40%. The largest cluster
-	// is the one that suffers most from a centroid-placed multi-tag
-	// sub-group (= its bbox stretches into empty space toward the
-	// smaller cluster's anchor), so it deserves the pull.
-	compactToLargestCluster(subPositions, anchors, clusterSizes, 0.4);
-	// Phase 3: snap sub-group centres to the global grid after relaxation.
-	snapSubgroupsToGrid(subPositions, gridX, gridY);
-
-	for (let pi = 0; pi < packed.length; pi++) {
-		const p = packed[pi];
-		const sp = subPositions[pi];
-		const cx = sp.cx;
-		const cy = sp.cy;
-
-		p.nodes.forEach((n, i) => {
-			const sz = sizedById.get(n.id) ?? fallbackSize(n);
-			// p.positions[i] is the card CENTER, already centered around the
-			// sub-group centroid. Do not add sz.width/2 here — that was a bug
-			// that pushed every card half a card-size to the right/down and
-			// distorted every cluster bbox.
-			const rel = p.positions[i];
-			const no = nodeOff[n.id] ?? { dx: 0, dy: 0 };
-			const x = cx + rel.x + no.dx;
-			const y = cy + rel.y + no.dy;
-			positionedNodes.push({
-				id: n.id,
-				label: n.label,
-				memberships: n.memberships,
-				x,
-				y,
-				width: sz.width,
-				height: sz.height,
-			});
-			idToRect.set(n.id, { x, y, w: sz.width, h: sz.height });
-			idToSize.set(n.id, sz);
-		});
-	}
-
-	// Phase 3.5: snap each card to a free grid cell, reserving its full
-	// multi-cell footprint so neighbours can't overlap it.
-	snapCardsToGrid(positionedNodes, slotW, slotH, idToRect);
-
-	// Phase 4: compute one bbox per cluster + clamp every left/top to the
-	// B2 channel so enclosures don't bleed into the reserved column A /
-	// row 1 header strip.
-	const { clusters } = computeClusterBBoxes(positionedNodes, {
-		clusterKeys,
-		labels,
+	// === Phase G: ノード配置 ===
+	// 多重所属を intersection rect の中に行優先で詰め、排他を setRect 内で
+	// spiral 探索でフリーセルへスナップ。
+	const positionedNodes = placeNodesInRegions(region.zones, region.setRects, sized, {
 		slotW,
 		slotH,
-		channelW,
-		channelH,
-		clusterSpacing: opts.clusterSpacing,
+		padPx: channelW,
+		defaultCardW: cardW,
+		defaultCardH: cardH,
 	});
-	clampClustersToB2(clusters, positionedNodes, slotW, slotH);
+
+	// 既存ヘルパとの互換性のため idToRect / idToSize を構築。
+	const idToRect = new Map<string, Rect>();
+	const idToSize = new Map<string, SizedNode>();
+	for (const n of positionedNodes) {
+		idToRect.set(n.id, { x: n.x, y: n.y, w: n.width, h: n.height });
+		const sz = sizedById.get(n.id);
+		if (sz) idToSize.set(n.id, sz);
+	}
+	// nodeOffsets を適用 (ユーザー指定の per-node 微調整)。
+	for (const n of positionedNodes) {
+		const no = nodeOff[n.id];
+		if (no) {
+			n.x += no.dx;
+			n.y += no.dy;
+			const r = idToRect.get(n.id);
+			if (r) {
+				r.x = n.x;
+				r.y = n.y;
+			}
+		}
+	}
+
+	// Phase G 後の最終調整: card 同士の重なりが残っていれば spiral で解消。
+	snapCardsToGrid(positionedNodes, slotW, slotH, idToRect);
+
+	// === Cluster bbox 構築 ===
+	// 新算法ではクラスタ矩形 = region.setRects から直接取得 (= 目標面積から
+	// 導出された矩形)。clusterOffsets を適用してから ClusterRect[] へ変換。
+	const clusters: ClusterRect[] = [];
+	for (const [key, r] of region.setRects) {
+		if (key === NONE_BUCKET_KEY) continue; // NONE_BUCKET は表示しない
+		const off = clusterOff[key] ?? { dx: 0, dy: 0 };
+		let memberCount = 0;
+		for (const z of region.zones) {
+			if (z.memberships.includes(key)) memberCount += z.count;
+		}
+		clusters.push({
+			groupKey: key,
+			label: labels.get(key) ?? key,
+			x: r.x + off.dx,
+			y: r.y + off.dy,
+			width: r.w,
+			height: r.h,
+			memberCount,
+		});
+	}
+	// clusterOffsets が適用されたので、ノード座標も対応シフト。
+	if (Object.keys(clusterOff).length > 0) {
+		// 各ノードは「自身が属するゾーンを覆う集合矩形群」の交差に居る。
+		// ノードを単純に1つの cluster の offset で動かすと多重所属で破綻するので、
+		// 「最大件数のクラスタ」の offset を採用 (= cascade tie-break と同基準)。
+		const baseSetCounts = new Map<string, number>();
+		for (const z of region.zones) {
+			for (const m of z.memberships) {
+				baseSetCounts.set(m, (baseSetCounts.get(m) ?? 0) + z.count);
+			}
+		}
+		for (const n of positionedNodes) {
+			if (n.memberships.length === 0) continue;
+			let best = n.memberships[0];
+			let bestCount = baseSetCounts.get(best) ?? 0;
+			for (const m of n.memberships) {
+				const c = baseSetCounts.get(m) ?? 0;
+				if (c > bestCount || (c === bestCount && m < best)) {
+					best = m;
+					bestCount = c;
+				}
+			}
+			const off = clusterOff[best];
+			if (off) {
+				n.x += off.dx;
+				n.y += off.dy;
+				const r = idToRect.get(n.id);
+				if (r) {
+					r.x = n.x;
+					r.y = n.y;
+				}
+			}
+		}
+	}
 
 	// Edge bundling: group inter-cluster edges by (srcCluster, tgtCluster). If
 	// a pair has multiple file-to-file links, draw ONE bundled line between the
