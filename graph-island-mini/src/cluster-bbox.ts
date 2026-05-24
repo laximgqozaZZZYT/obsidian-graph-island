@@ -150,45 +150,42 @@ export function computeClusterOwnedCells(
 	return out;
 }
 
-// Compute outline segments around the owned-cell region. For each owned
-// cell, check its 4 neighbours; if the neighbour is NOT in the owned
-// set, draw a line on the shared edge. The collection of segments
-// produces the cluster's boundary — rectilinear polygon, possibly with
-// holes (= cells inside the bbox but NOT owned, e.g. cells holding
-// only foreign cards) and possibly with exclaves (= owned cells in
-// disconnected groups).
+// Compute hole cells for a cluster: cells inside the cluster's AABB
+// that are NOT owned by it (= cells with only foreign-cluster cards
+// or empty cells).
 //
-// Coordinate convention matches drawCardGrid: each cell's inner box
-// runs from (col*W + padX, row*H + padY) to ((col+1)*W - padX,
-// (row+1)*H - padY), where padX = channelW/2, padY = channelH/2.
-export function computeOutlineSegments(
+// The outer enclosure is still drawn as the AABB rectangle (single
+// connected rectangle, no exclaves, no non-rectangular shapes per
+// the latest user spec). Holes are rendered with a distinguishable
+// visual (dashed stroke) so users see "this cell is inside the
+// cluster's bbox but doesn't belong to the cluster" — the foreign
+// cards inside are unambiguously NOT part of this cluster.
+//
+// Returns one pixel rectangle per hole cell. Coordinate convention
+// matches drawCardGrid (cell inner box runs from (col*W + padX, ...) to
+// ((col+1)*W - padX, ...)).
+export function computeHoleCellRects(
 	ownedCells: Set<string>,
+	range: { minCol: number; maxCol: number; minRow: number; maxRow: number },
 	slotW: number,
 	slotH: number,
 	channelW: number,
 	channelH: number,
-): Array<{ x1: number; y1: number; x2: number; y2: number }> {
-	const segments: Array<{ x1: number; y1: number; x2: number; y2: number }> = [];
+): Array<{ x: number; y: number; w: number; h: number }> {
+	const out: Array<{ x: number; y: number; w: number; h: number }> = [];
 	const padX = channelW / 2;
 	const padY = channelH / 2;
-	for (const cellKey of ownedCells) {
-		const [colStr, rowStr] = cellKey.split(",");
-		const col = parseInt(colStr, 10);
-		const row = parseInt(rowStr, 10);
-		const left = col * slotW + padX;
-		const right = (col + 1) * slotW - padX;
-		const top = row * slotH + padY;
-		const bottom = (row + 1) * slotH - padY;
-		if (!ownedCells.has(`${col - 1},${row}`))
-			segments.push({ x1: left, y1: top, x2: left, y2: bottom });
-		if (!ownedCells.has(`${col + 1},${row}`))
-			segments.push({ x1: right, y1: top, x2: right, y2: bottom });
-		if (!ownedCells.has(`${col},${row - 1}`))
-			segments.push({ x1: left, y1: top, x2: right, y2: top });
-		if (!ownedCells.has(`${col},${row + 1}`))
-			segments.push({ x1: left, y1: bottom, x2: right, y2: bottom });
+	for (let col = range.minCol; col <= range.maxCol; col++) {
+		for (let row = range.minRow; row <= range.maxRow; row++) {
+			if (ownedCells.has(`${col},${row}`)) continue;
+			const x = col * slotW + padX;
+			const y = row * slotH + padY;
+			const w = slotW - 2 * padX;
+			const h = slotH - 2 * padY;
+			out.push({ x, y, w, h });
+		}
 	}
-	return segments;
+	return out;
 }
 
 // Orchestrator: one bbox per cluster + nesting-aware padding. Returns
@@ -236,11 +233,20 @@ export function computeClusterBBoxes(
 			slotH,
 			range.count,
 		);
-		// Outline = boundary of owned cells. This is what the renderer
-		// strokes; the AABB stays for hit-test / label placement.
+		// Holes: cells inside the AABB cell range (= the EXACT range,
+		// NOT the padded one — padding cells are intentionally empty
+		// breathing room, not holes) that don't contain any member of
+		// this cluster.
 		const owned = ownedCellsMap.get(key);
 		if (owned && owned.size > 0) {
-			rect.outline = computeOutlineSegments(owned, slotW, slotH, channelW, channelH);
+			rect.holes = computeHoleCellRects(
+				owned,
+				range,
+				slotW,
+				slotH,
+				channelW,
+				channelH,
+			);
 		}
 		clusters.push(rect);
 	}
