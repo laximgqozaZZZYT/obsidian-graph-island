@@ -295,28 +295,19 @@ export function drawClusterLabels(
 	ctx.font = `${groupFontPx}px sans-serif`;
 	ctx.textBaseline = "alphabetic";
 	ctx.textAlign = "start";
-	const lineH = groupFontPx * 1.4;
 	const padX = 4 / zoom;
 	const insetY = 4 / zoom;
 
-	interface LabelP {
+	interface AnchorInfo {
 		c: ClusterRect;
-		text: string;
-		w: number;
-		cx: number;
-		cy: number;
 		rectX: number;
 		rectY: number;
 		rectW: number;
 		rectH: number;
-		pushed: number;
-		hidden: boolean;
 	}
-	// Pick each cluster's anchor rectangle = its LARGEST piece (so a
-	// cluster whose members all sit inside a bigger cluster's main rect
-	// still labels itself on a real visible rectangle, not on the union
-	// AABB which would coincide with the bigger cluster's rect).
-	const labels: LabelP[] = laid.clusters.map((c) => {
+	// Each cluster anchors on its LARGEST piece — for a sub-only cluster
+	// this is the sub-rect that sits inside another cluster's main rect.
+	const infos: AnchorInfo[] = laid.clusters.map((c) => {
 		let rectX = c.x;
 		let rectY = c.y;
 		let rectW = c.width;
@@ -337,64 +328,83 @@ export function drawClusterLabels(
 			rectW = best.w;
 			rectH = best.h;
 		}
-		const text = truncateToWidth(
-			ctx,
-			`${c.label} (${c.memberCount})`,
-			Math.max(rectW, c.width),
-		);
-		const w = ctx.measureText(text).width;
-		return {
-			c,
-			text,
-			w,
-			cx: rectX + padX,
-			cy: rectY + lineH, // top-INSIDE baseline (alphabetic)
-			rectX,
-			rectY,
-			rectW,
-			rectH,
-			pushed: 0,
-			hidden: false,
-		};
+		return { c, rectX, rectY, rectW, rectH };
 	});
-	// Group labels by anchor rectangle (= clusters sharing a piece).
-	// Within a group, stack labels vertically DOWNWARD inside the rect.
-	// Larger clusters get the top row.
-	const groups = new Map<string, number[]>();
-	for (let i = 0; i < labels.length; i++) {
-		const l = labels[i];
-		// Quantise to slot-grid corners so floating-point noise doesn't
-		// split clusters that share the exact same piece.
-		const key = `${Math.round(l.rectX)}|${Math.round(l.rectY)}|${Math.round(l.rectW)}|${Math.round(l.rectH)}`;
+	// Group clusters that share the exact same anchor rectangle. Each
+	// such group renders one multi-coloured label line just above the
+	// rect — names separated by " · ", one colour per cluster.
+	const groups = new Map<string, AnchorInfo[]>();
+	for (const info of infos) {
+		const key = `${Math.round(info.rectX)}|${Math.round(info.rectY)}|${Math.round(info.rectW)}|${Math.round(info.rectH)}`;
 		const arr = groups.get(key);
-		if (arr) arr.push(i);
-		else groups.set(key, [i]);
+		if (arr) arr.push(info);
+		else groups.set(key, [info]);
 	}
-	for (const idxs of groups.values()) {
-		idxs.sort(
+	const sep = " · ";
+	const sepW = ctx.measureText(sep).width;
+	const moreColor = "rgba(180, 190, 210, 0.9)";
+	const sepColor = "rgba(150, 160, 180, 0.7)";
+	for (const group of groups.values()) {
+		group.sort(
 			(a, b) =>
-				labels[b].c.width * labels[b].c.height -
-				labels[a].c.width * labels[a].c.height,
+				b.c.width * b.c.height - a.c.width * a.c.height,
 		);
-		for (let row = 0; row < idxs.length; row++) {
-			const lab = labels[idxs[row]];
-			const targetY = lab.rectY + lineH + row * lineH;
-			// If we'd run past the rect's bottom, hide rather than spill
-			// outside (spilling caused the original "label floating in
-			// empty space" bug).
-			if (targetY > lab.rectY + lab.rectH) {
-				lab.hidden = true;
-				continue;
+		const rect = group[0];
+		// Anchor: just above the rect (channel space, no node underneath).
+		// Sub-rect anchors land inside their parent main rect because the
+		// sub-rect sits inside it by construction (V3 / V5 invariants).
+		// Solo labels stay above their own rect; shared rects compose one
+		// concatenated line so each name is still individually readable.
+		const baseY = rect.rectY - insetY;
+		const startX = rect.rectX + padX;
+		const rightLimit = rect.rectX + rect.rectW - padX;
+		let x = startX;
+		for (let i = 0; i < group.length; i++) {
+			const info = group[i];
+			const text = `${info.c.label} (${info.c.memberCount})`;
+			const wText = ctx.measureText(text).width;
+			const isLast = i === group.length - 1;
+			const trailing = isLast ? 0 : sepW;
+			// Reserve room for "(+N more)" when we can't fit the rest.
+			const remaining = group.length - i;
+			const more = remaining > 1 ? ` (+${remaining - 1})` : "";
+			const wMore = remaining > 1 ? ctx.measureText(more).width : 0;
+			if (x + wText + trailing > rightLimit) {
+				if (i === 0 && wText <= rect.rectW) {
+					// Always show at least the largest cluster's name even
+					// if it slightly exceeds the channel pad allowance.
+					ctx.fillStyle = `hsla(${clusterHue(info.c.groupKey)}, 65%, 70%, 1)`;
+					ctx.fillText(text, x, baseY);
+					if (remaining > 1) {
+						ctx.fillStyle = moreColor;
+						ctx.fillText(more, x + wText, baseY);
+					}
+				} else if (remaining > 0) {
+					ctx.fillStyle = moreColor;
+					ctx.fillText(`(+${remaining})`, x, baseY);
+				}
+				break;
 			}
-			lab.cy = targetY;
-			lab.pushed = row;
+			// If the *next* name+sep wouldn't fit but " (+N)" would, leave
+			// space for the overflow marker on the next loop.
+			if (!isLast && x + wText + sepW + wMore > rightLimit) {
+				ctx.fillStyle = `hsla(${clusterHue(info.c.groupKey)}, 65%, 70%, 1)`;
+				ctx.fillText(text, x, baseY);
+				if (remaining > 1) {
+					ctx.fillStyle = moreColor;
+					ctx.fillText(more, x + wText, baseY);
+				}
+				break;
+			}
+			ctx.fillStyle = `hsla(${clusterHue(info.c.groupKey)}, 65%, 70%, 1)`;
+			ctx.fillText(text, x, baseY);
+			x += wText;
+			if (!isLast) {
+				ctx.fillStyle = sepColor;
+				ctx.fillText(sep, x, baseY);
+				x += sepW;
+			}
 		}
-	}
-	for (const lab of labels) {
-		if (lab.hidden) continue;
-		const hue = clusterHue(lab.c.groupKey);
-		ctx.fillStyle = `hsla(${hue}, 65%, 70%, 1)`;
-		ctx.fillText(lab.text, lab.cx, lab.cy);
 	}
 }
 
