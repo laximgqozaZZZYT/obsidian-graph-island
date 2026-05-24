@@ -1110,16 +1110,8 @@ export class MiniGraphView extends ItemView {
 		const padBottom = 20;
 		const fitW = Math.max(1, visW - 2 * padX);
 		const fitH = Math.max(1, visH - padTop - padBottom);
-		// World content is wrap-tiled with period (360*slotW, 180*slotH).
-		// Sizing the fit to the period itself (instead of the content
-		// AABB) guarantees the visible range is at most one full lat/lon
-		// period, so the user never sees a repeated tile at default view.
-		const periodX = 360 * this.laid.slotW;
-		const periodY = 180 * this.laid.slotH;
-		const fitDX = periodX > 0 ? periodX : Math.max(1, maxX - minX);
-		const fitDY = periodY > 0 ? periodY : Math.max(1, maxY - minY);
-		const zx = fitW / fitDX;
-		const zy = fitH / fitDY;
+		const zx = fitW / Math.max(1, maxX - minX);
+		const zy = fitH / Math.max(1, maxY - minY);
 		// Min floor is intentionally very low so huge vaults still fit on
 		// screen; the user can zoom in interactively as needed.
 		this.zoom = Math.min(2, Math.max(0.005, Math.min(zx, zy)));
@@ -1221,17 +1213,24 @@ export class MiniGraphView extends ItemView {
 			contentMinY = 0;
 			contentMaxY = H;
 		}
-		// Tile index range that intersects the viewport.
-		const iMin = Math.ceil((leftWorld - contentMaxX) / periodX);
-		const iMax = Math.floor((rightWorld - contentMinX) / periodX);
-		const jMin = Math.ceil((topWorld - contentMaxY) / periodY);
-		const jMax = Math.floor((bottomWorld - contentMinY) / periodY);
-		// Safety cap so a crazy zoom-out doesn't render thousands of tiles.
-		const MAX_TILES_PER_AXIS = 6;
-		const iLo = Math.max(iMin, -MAX_TILES_PER_AXIS);
-		const iHi = Math.min(iMax, MAX_TILES_PER_AXIS);
-		const jLo = Math.max(jMin, -MAX_TILES_PER_AXIS);
-		const jHi = Math.min(jMax, MAX_TILES_PER_AXIS);
+		// Visible range is locked to a single period — the user explicitly
+		// requested "ちょうど一周分" (exactly one revolution) in both lat
+		// and lon. So we draw only the base tile (i=0, j=0); panning past
+		// the content boundary now reveals empty world, not a repeat.
+		// `periodX` / `periodY` / `leftWorld` / `rightWorld` /
+		// `topWorld` / `bottomWorld` / `contentMin*` / `contentMax*` are
+		// kept above for the axis-label and grid code that still needs
+		// them.
+		void leftWorld;
+		void rightWorld;
+		void topWorld;
+		void bottomWorld;
+		void periodX;
+		void periodY;
+		const iLo = 0;
+		const iHi = 0;
+		const jLo = 0;
+		const jHi = 0;
 
 		ctx.lineCap = "round";
 		ctx.lineJoin = "round";
