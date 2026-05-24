@@ -150,6 +150,45 @@ export function computeClusterOwnedCells(
 	return out;
 }
 
+// Compute outline segments for the polygon boundary of owned cells.
+// For each owned cell, check its 4 neighbours; if a neighbour is NOT
+// in the owned set, emit a line on the shared edge. Concatenated,
+// these segments form the cluster's rectilinear boundary — possibly
+// multiple closed loops when owned cells are disconnected, and
+// possibly with internal holes when non-owned cells sit inside.
+//
+// Coordinate convention matches drawCardGrid (cell inner box from
+// (col*W + padX, row*H + padY) to ((col+1)*W - padX, (row+1)*H - padY)).
+export function computeOutlineSegments(
+	ownedCells: Set<string>,
+	slotW: number,
+	slotH: number,
+	channelW: number,
+	channelH: number,
+): Array<{ x1: number; y1: number; x2: number; y2: number }> {
+	const segments: Array<{ x1: number; y1: number; x2: number; y2: number }> = [];
+	const padX = channelW / 2;
+	const padY = channelH / 2;
+	for (const cellKey of ownedCells) {
+		const [colStr, rowStr] = cellKey.split(",");
+		const col = parseInt(colStr, 10);
+		const row = parseInt(rowStr, 10);
+		const left = col * slotW + padX;
+		const right = (col + 1) * slotW - padX;
+		const top = row * slotH + padY;
+		const bottom = (row + 1) * slotH - padY;
+		if (!ownedCells.has(`${col - 1},${row}`))
+			segments.push({ x1: left, y1: top, x2: left, y2: bottom });
+		if (!ownedCells.has(`${col + 1},${row}`))
+			segments.push({ x1: right, y1: top, x2: right, y2: bottom });
+		if (!ownedCells.has(`${col},${row - 1}`))
+			segments.push({ x1: left, y1: top, x2: right, y2: top });
+		if (!ownedCells.has(`${col},${row + 1}`))
+			segments.push({ x1: left, y1: bottom, x2: right, y2: bottom });
+	}
+	return segments;
+}
+
 // Compute hole cells for a cluster: cells inside the cluster's AABB
 // that are NOT owned by it (= cells with only foreign-cluster cards
 // or empty cells).
@@ -233,12 +272,17 @@ export function computeClusterBBoxes(
 			slotH,
 			range.count,
 		);
-		// Holes: cells inside the AABB cell range (= the EXACT range,
-		// NOT the padded one — padding cells are intentionally empty
-		// breathing room, not holes) that don't contain any member of
-		// this cluster.
+		// Outline + holes:
+		//   - outline = boundary of owned cells (= rectilinear polygon,
+		//     tightly wraps the cluster's actual cells; redrawn at the
+		//     final stage so the enclosure completely contains member
+		//     nodes and never engulfs cells with foreign-only cards)
+		//   - holes = cells inside the AABB cell range that DON'T
+		//     contain any member of this cluster (= visual marker so
+		//     hollow regions stay distinguishable from solid)
 		const owned = ownedCellsMap.get(key);
 		if (owned && owned.size > 0) {
+			rect.outline = computeOutlineSegments(owned, slotW, slotH, channelW, channelH);
 			rect.holes = computeHoleCellRects(
 				owned,
 				range,

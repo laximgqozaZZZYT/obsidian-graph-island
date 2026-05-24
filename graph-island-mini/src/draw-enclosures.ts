@@ -5,14 +5,18 @@ import { clusterHue } from "./canvas-utils";
 // smaller / nested ones stay on top — Euler-diagram convention.
 //
 // Each cluster:
-//  - Outer outline: SOLID stroke around the AABB rectangle (= the
-//    cluster's bounding rectangle, single connected, no exclaves,
-//    always rectangular per the latest user spec).
-//  - Holes (cells inside the AABB but not owned by the cluster): a
-//    DASHED stroke around each hole cell so users see "this cell is
-//    inside the bbox but does NOT belong to the cluster". The dash
-//    pattern uses the cluster's own hue at half opacity — visually
-//    distinguishable from the solid outer stroke.
+//  - Outer outline: SOLID stroke along the cluster's rectilinear
+//    polygon boundary (= tightly wraps the cells where member cards
+//    actually live; redrawn at the final stage so the enclosure
+//    completely contains every member node and never engulfs cells
+//    with foreign-only cards). Polygon may have multiple closed
+//    loops if owned cells are disconnected. Falls back to AABB rect
+//    when outline is absent.
+//  - Holes (cells inside the AABB but not owned): DASHED stroke
+//    around each hole cell so users see "this cell is inside the
+//    bbox but does NOT belong to the cluster". Visual distinction
+//    from the solid outer stroke = different dash pattern + half
+//    opacity.
 export function drawEnclosures(
 	ctx: CanvasRenderingContext2D,
 	clusters: ClusterRect[],
@@ -34,11 +38,21 @@ export function drawEnclosures(
 		const baseColour = isHigh
 			? "#ff9d3f"
 			: `hsla(${hue}, 70%, 62%, 0.9)`;
-		// Outer solid rectangle.
+
+		// Outer outline: solid polygon segments, or AABB rect fallback.
 		ctx.setLineDash([]);
 		ctx.strokeStyle = baseColour;
 		ctx.lineWidth = isHigh ? accentStrokeW : strokeW;
-		ctx.strokeRect(c.x, c.y, c.width, c.height);
+		if (c.outline && c.outline.length > 0) {
+			ctx.beginPath();
+			for (const seg of c.outline) {
+				ctx.moveTo(seg.x1, seg.y1);
+				ctx.lineTo(seg.x2, seg.y2);
+			}
+			ctx.stroke();
+		} else {
+			ctx.strokeRect(c.x, c.y, c.width, c.height);
+		}
 
 		// Hole markers (cells inside AABB but not owned).
 		if (c.holes && c.holes.length > 0) {

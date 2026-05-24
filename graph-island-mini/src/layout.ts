@@ -67,19 +67,23 @@ export interface PositionedEdge {
 export interface ClusterRect {
 	groupKey: string;
 	label: string;
-	// AABB of the cluster's owned-cell region. The outer enclosure
-	// outline = this rectangle.
+	// AABB of the cluster's owned-cell region. Used for label / hit-test
+	// fallback. The renderer prefers `outline` when present.
 	x: number;
 	y: number;
 	width: number;
 	height: number;
 	memberCount: number;
-	// Holes = cells inside the AABB that DON'T contain any member
-	// of this cluster (= contain only foreign-cluster cards, or are
-	// empty). The renderer marks each hole cell with a distinguishable
-	// visual (dashed stroke) so users can tell "this cell is inside
-	// the cluster's bbox but does NOT belong to the cluster".
-	// World-pixel rectangles, one per hole cell.
+	// Final-stage polygon outline = rectilinear boundary segments
+	// produced by walking every owned cell's edges. Tightly wraps the
+	// cluster's member cells (= ground truth for "this cell belongs to
+	// the cluster"). Disconnected owned-cell groups produce multiple
+	// closed loops; the renderer strokes all of them.
+	outline?: Array<{ x1: number; y1: number; x2: number; y2: number }>;
+	// Holes = cells inside the AABB that DON'T contain any member of
+	// this cluster (= cells holding only foreign cards or empty cells).
+	// Drawn with a distinguishable dashed stroke so users can tell
+	// "this cell is inside the bbox but does NOT belong to the cluster".
 	holes?: Array<{ x: number; y: number; w: number; h: number }>;
 }
 
