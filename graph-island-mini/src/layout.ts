@@ -7,6 +7,8 @@ import {
 	moveToFront,
 	placeAnchorsConcentric,
 	placeAnchorsFlow,
+	computeClusterSharingCounts,
+	tightenAnchors,
 } from "./anchor-placement";
 import {
 	LaneRegistry,
@@ -195,15 +197,6 @@ export function layout(data: GraphData, sized: SizedNode[], opts: LayoutOptions)
 		};
 	});
 
-	// Anchor stride: keep anchors as close as possible — just enough that a
-	// sub-group placed at one anchor doesn't immediately collide with one
-	// placed at the neighbouring anchor. Multi-membership sub-groups land
-	// at the centroid of multiple anchors; with the OLD stride (= maxSub +
-	// 5 × clusterSpacing) those centroids sat far enough from each
-	// individual anchor that the cluster bbox engulfed huge swaths of
-	// empty space. With stride = maxSub + clusterSpacing the centroids
-	// land within roughly maxSub/2 of each anchor — tight enough that
-	// cluster bboxes stay packed.
 	const maxSubW = packed.reduce((m, p) => Math.max(m, p.width), 0);
 	const maxSubH = packed.reduce((m, p) => Math.max(m, p.height), 0);
 	const strideX = maxSubW + Math.floor(opts.clusterSpacing / 2);
@@ -245,6 +238,14 @@ export function layout(data: GraphData, sized: SizedNode[], opts: LayoutOptions)
 		anchors.set(NONE_BUCKET, { x: 0, y: maxY + strideY * 2 });
 	}
 
+	// Phase 1b: global compactness — pull anchors toward the layout
+	// centroid + toward their sharing partners, while a hard-shell
+	// repulsion keeps non-overlapping pairs at least `strideX × strideY`
+	// apart. Addresses the "exclusive clusters sit far from the shared
+	// core" complaint by compacting the outer-ring anchors.
+	const sharingCounts = computeClusterSharingCounts(data.nodes);
+	tightenAnchors(anchors, sharingCounts, strideX, strideY, 25);
+
 	const positionedNodes: PositionedNode[] = [];
 	const idToRect = new Map<string, Rect>();
 	const idToSize = new Map<string, SizedNode>();
@@ -257,10 +258,7 @@ export function layout(data: GraphData, sized: SizedNode[], opts: LayoutOptions)
 	const RELAX_GAP = Math.max(2, Math.floor(opts.nodeSpacing / 4));
 	relaxSubgroups(subPositions, RELAX_GAP, 80);
 	// Phase 2b: compactness pass — pull each multi-tag sub-group back
-	// toward its LARGEST cluster's anchor by 40%. The largest cluster
-	// is the one that suffers most from a centroid-placed multi-tag
-	// sub-group (= its bbox stretches into empty space toward the
-	// smaller cluster's anchor), so it deserves the pull.
+	// toward its LARGEST cluster's anchor by 40%.
 	compactToLargestCluster(subPositions, anchors, clusterSizes, 0.4);
 	// Phase 3: snap sub-group centres to the global grid after relaxation.
 	snapSubgroupsToGrid(subPositions, gridX, gridY);

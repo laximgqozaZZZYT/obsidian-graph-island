@@ -235,6 +235,117 @@ export function centroidOf(
 //
 // Memberships not present in `weights` default to 1 so callers can
 // pass partial maps without worrying about coverage.
+// Pairwise sharing weights for force-directed refinement.
+// Returns "a|b" (lex-sorted) → count of shared members between cluster a and b.
+export function computeClusterSharingCounts(
+	nodes: { memberships: string[] }[],
+): Map<string, number> {
+	const out = new Map<string, number>();
+	for (const n of nodes) {
+		const ms = [...n.memberships].sort();
+		for (let i = 0; i < ms.length; i++) {
+			for (let j = i + 1; j < ms.length; j++) {
+				const k = `${ms[i]}|${ms[j]}`;
+				out.set(k, (out.get(k) ?? 0) + 1);
+			}
+		}
+	}
+	return out;
+}
+
+// Global compactness refinement (Bug B fix): pulls every anchor toward
+// the centroid of all anchors AND toward each sharing-pair partner,
+// while a hard-shell repulsion keeps non-overlapping clusters at least
+// `minStride` apart. Used AFTER concentric/flow placement to fix the
+// "exclusive clusters sit far from the shared core" complaint.
+//
+// Iteration runs a small number of force-balance steps (default 25).
+// Pull strength is bounded so the rank-induced ordering survives.
+export function tightenAnchors(
+	anchors: Map<string, { x: number; y: number }>,
+	sharing: Map<string, number>,
+	minStrideX: number,
+	minStrideY: number,
+	iters: number = 25,
+): void {
+	const keys = [...anchors.keys()];
+	if (keys.length < 2) return;
+	const centerPullRate = 0.04;
+	const sharePullRate = 0.02;
+	const maxSharePull = Math.max(minStrideX, minStrideY);
+
+	for (let iter = 0; iter < iters; iter++) {
+		// 1. Compute centroid.
+		let cx = 0,
+			cy = 0;
+		for (const k of keys) {
+			const a = anchors.get(k)!;
+			cx += a.x;
+			cy += a.y;
+		}
+		cx /= keys.length;
+		cy /= keys.length;
+
+		// 2. Apply attraction forces (center pull + sharing pull) to a copy.
+		const next = new Map<string, { x: number; y: number }>();
+		for (const k of keys) {
+			const a = anchors.get(k)!;
+			let fx = (cx - a.x) * centerPullRate;
+			let fy = (cy - a.y) * centerPullRate;
+			next.set(k, { x: a.x + fx, y: a.y + fy });
+		}
+		// Sharing pull (pairwise).
+		for (const [pairKey, count] of sharing) {
+			const [ka, kb] = pairKey.split("|");
+			const na = next.get(ka);
+			const nb = next.get(kb);
+			if (!na || !nb) continue;
+			const dx = nb.x - na.x;
+			const dy = nb.y - na.y;
+			const dist = Math.hypot(dx, dy);
+			if (dist < 1) continue;
+			const pull = Math.min(maxSharePull, count * sharePullRate * dist);
+			na.x += (dx / dist) * pull;
+			na.y += (dy / dist) * pull;
+			nb.x -= (dx / dist) * pull;
+			nb.y -= (dy / dist) * pull;
+		}
+
+		// 3. Repulsion: enforce minStride between every pair (axis-wise).
+		for (let i = 0; i < keys.length; i++) {
+			for (let j = i + 1; j < keys.length; j++) {
+				const na = next.get(keys[i])!;
+				const nb = next.get(keys[j])!;
+				const dx = nb.x - na.x;
+				const dy = nb.y - na.y;
+				const adx = Math.abs(dx);
+				const ady = Math.abs(dy);
+				if (adx >= minStrideX || ady >= minStrideY) continue;
+				// Inside the no-go zone — push apart along the SHORTER overlap axis.
+				const ovX = minStrideX - adx;
+				const ovY = minStrideY - ady;
+				if (ovX < ovY) {
+					const sgn = dx >= 0 ? 1 : -1;
+					na.x -= (sgn * ovX) / 2;
+					nb.x += (sgn * ovX) / 2;
+				} else {
+					const sgn = dy >= 0 ? 1 : -1;
+					na.y -= (sgn * ovY) / 2;
+					nb.y += (sgn * ovY) / 2;
+				}
+			}
+		}
+
+		// 4. Write back.
+		for (const k of keys) {
+			const n = next.get(k)!;
+			const a = anchors.get(k)!;
+			a.x = n.x;
+			a.y = n.y;
+		}
+	}
+}
+
 export function weightedCentroidByClusterSize(
 	memberships: string[],
 	anchors: Map<string, { x: number; y: number }>,
