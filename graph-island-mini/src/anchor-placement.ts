@@ -196,7 +196,9 @@ export function subgroupHashOffset(
 	return { x: Math.cos(t) * magnitude, y: Math.sin(t) * magnitude };
 }
 
-// Weighted centroid: average of the anchors of the supplied memberships.
+// Unweighted centroid: average of the anchors of the supplied
+// memberships. Kept for callers that don't have access to cluster
+// sizes (e.g. simple test rigs).
 export function centroidOf(
 	memberships: string[],
 	anchors: Map<string, { x: number; y: number }>,
@@ -213,4 +215,42 @@ export function centroidOf(
 	}
 	if (n === 0) return { x: 0, y: 0 };
 	return { x: x / n, y: y / n };
+}
+
+// Cluster-size-weighted centroid. Each anchor contributes proportional
+// to `weights.get(membership)` (= cluster's total member count). Larger
+// clusters "pull harder", so a multi-tag sub-group is placed CLOSER
+// to its larger cluster's anchor than to its smaller cluster's anchor.
+//
+// Bug-fix anchor: in an Euler diagram with one large cluster X (say
+// 30 members) and one small cluster Y (say 5 members) sharing several
+// multi-tag nodes, the unweighted centroid places those shared nodes
+// equidistant from both anchors. That STRETCHES cluster X's bbox out
+// toward Y by ~50% of the inter-anchor distance, and most of the cells
+// in that stretch belong to Y (Bug #3) — and X's members appear
+// abnormally spread (Bug #1). Weighting by size puts the shared
+// nodes ~85% toward X, keeping X tight at the cost of a mild
+// extension of Y's bbox INTO X — which is the natural Euler-diagram
+// reading (the smaller set lives inside the larger one's territory).
+//
+// Memberships not present in `weights` default to 1 so callers can
+// pass partial maps without worrying about coverage.
+export function weightedCentroidByClusterSize(
+	memberships: string[],
+	anchors: Map<string, { x: number; y: number }>,
+	weights: Map<string, number>,
+): { x: number; y: number } {
+	let x = 0,
+		y = 0,
+		totalW = 0;
+	for (const m of memberships) {
+		const a = anchors.get(m);
+		if (!a) continue;
+		const w = Math.max(1, weights.get(m) ?? 1);
+		x += a.x * w;
+		y += a.y * w;
+		totalW += w;
+	}
+	if (totalW === 0) return { x: 0, y: 0 };
+	return { x: x / totalW, y: y / totalW };
 }

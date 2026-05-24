@@ -25,6 +25,7 @@ import {
 import {
 	buildInitialSubPositions,
 	relaxSubgroups,
+	compactToLargestCluster,
 	snapSubgroupsToGrid,
 } from "./subgroup-relax";
 import { snapCardsToGrid } from "./cell-snap";
@@ -137,6 +138,17 @@ export function layout(data: GraphData, sized: SizedNode[], opts: LayoutOptions)
 	const clusterKeys = collectClusterKeys(data.nodes, labels);
 	const subgroups = groupByMembershipSet(data.nodes);
 
+	// Per-cluster member count (sum of nodes in every sub-group that
+	// contains this cluster). Used downstream by compactToLargestCluster
+	// to pull multi-tag sub-groups toward their largest member cluster's
+	// anchor (Bug #1 / Bug #3 mitigation).
+	const clusterSizes = new Map<string, number>();
+	for (const sg of subgroups) {
+		for (const m of sg.memberships) {
+			clusterSizes.set(m, (clusterSizes.get(m) ?? 0) + sg.nodes.length);
+		}
+	}
+
 	// Cell pitch comes from opts.cellW / opts.cellH (set by the view from
 	// the user-configured base node size). Individual sized[] entries may
 	// be larger or smaller, but the slot lattice stays uniform.
@@ -245,6 +257,12 @@ export function layout(data: GraphData, sized: SizedNode[], opts: LayoutOptions)
 	const subPositions = buildInitialSubPositions(packed, anchors, clusterOff);
 	const RELAX_GAP = Math.max(2, Math.floor(opts.nodeSpacing / 4));
 	relaxSubgroups(subPositions, RELAX_GAP, 80);
+	// Phase 2b: compactness pass — pull each multi-tag sub-group back
+	// toward its LARGEST cluster's anchor by 40%. The largest cluster
+	// is the one that suffers most from a centroid-placed multi-tag
+	// sub-group (= its bbox stretches into empty space toward the
+	// smaller cluster's anchor), so it deserves the pull.
+	compactToLargestCluster(subPositions, anchors, clusterSizes, 0.4);
 	// Phase 3: snap sub-group centres to the global grid after relaxation.
 	snapSubgroupsToGrid(subPositions, gridX, gridY);
 
