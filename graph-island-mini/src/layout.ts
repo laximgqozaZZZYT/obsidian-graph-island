@@ -34,9 +34,7 @@ import { snapCardsToGrid } from "./cell-snap";
 import {
 	computeClusterBBoxes,
 	clampClustersToB2,
-	expandClustersByInheritance,
 } from "./cluster-bbox";
-import { evictForeignNodes } from "./evict-foreign";
 
 export interface SizedNode extends GraphNode {
 	width: number;
@@ -118,11 +116,6 @@ export interface LayoutOptions {
 	// square rings outward. "flow" places focus top-left and fills columns
 	// rightward (main flow direction = toward the focus). Default: concentric.
 	anchorPlacement?: "concentric" | "flow";
-	// inheritFrom: child cluster key → parent cluster key. The child's
-	// bbox is expanded to engulf the parent (legacy visual nesting). Applied
-	// inside layout() so the foreign-node eviction runs on the FINAL bbox
-	// shape (= post-expansion).
-	inheritFrom?: Record<string, string>;
 }
 
 // Local alias so existing internal references continue to compile —
@@ -317,27 +310,6 @@ export function layout(data: GraphData, sized: SizedNode[], opts: LayoutOptions)
 		clusterSpacing: opts.clusterSpacing,
 	});
 	clampClustersToB2(clusters, positionedNodes, slotW, slotH);
-
-	// Phase 4.4: inheritance expansion — child cluster's bbox engulfs
-	// the parent's bbox (legacy visual nesting). Applied here (was in
-	// view.ts) so the foreign-node eviction below runs on the FINAL
-	// rectangle shape; otherwise an expanded child would re-engulf
-	// nodes that the eviction just moved out of it.
-	expandClustersByInheritance(clusters, opts.inheritFrom ?? {});
-
-	// Phase 4.5: relocate nodes that ended up inside a cluster bbox they
-	// don't belong to. Runs on the FINAL bboxes (post-inheritance), so
-	// inheritance-driven engulfment is taken into account. idToRect is
-	// updated to match the new positions so downstream edge routing reads
-	// the post-eviction layout.
-	evictForeignNodes(positionedNodes, clusters, slotW, slotH);
-	for (const n of positionedNodes) {
-		const r = idToRect.get(n.id);
-		if (r) {
-			r.x = n.x;
-			r.y = n.y;
-		}
-	}
 
 	// Edge bundling: group inter-cluster edges by (srcCluster, tgtCluster). If
 	// a pair has multiple file-to-file links, draw ONE bundled line between the

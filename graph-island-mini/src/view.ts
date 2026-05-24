@@ -18,6 +18,7 @@ import {
 	computeDroppedClusters as computeDroppedClustersFn,
 } from "./query-pipeline";
 import { colLetters, clusterHue } from "./canvas-utils";
+import { expandClustersByInheritance } from "./cluster-bbox";
 import { runAggregateSnap } from "./aggregate-snap";
 import {
 	drawCardGrid as drawCardGridFn,
@@ -842,10 +843,6 @@ export class MiniGraphView extends ItemView {
 			cellH: CARD_CELL_H,
 			clusterLabels,
 			anchorPlacement: this.settings.anchorPlacement,
-			// inheritFrom now applies INSIDE layout (was applied after, in
-			// the view; moved so foreign-node eviction sees the final
-			// rectangle shape).
-			inheritFrom: this.settings.inheritFrom ?? {},
 		});
 		// Stage 5: id → incident-edge-index adjacency for hover lookups.
 		this.adjacency = buildAdjacency(this.laid.edges);
@@ -867,8 +864,10 @@ export class MiniGraphView extends ItemView {
 		this.trulyAggSet = aggResult.trulyAgg;
 		this.aggregateCount = aggResult.aggregateCount;
 
-		// expandClustersByInheritance moved into layout() so the foreign-
-		// node eviction sees the post-expansion bboxes.
+		expandClustersByInheritance(
+			this.laid.clusters,
+			this.settings.inheritFrom ?? {},
+		);
 		this.highlightedNodes.clear();
 		this.highlightedEdgeIdx.clear();
 		if (wasEmpty) this.fitToView();
