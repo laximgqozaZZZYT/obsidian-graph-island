@@ -382,19 +382,22 @@ export function computeClusterBBoxes(
 			slotH,
 			range.count,
 		);
-		// Outline = boundary of the SIMPLY-CONNECTED closure of owned
-		// cells. The closure:
-		//   1. bridges disconnected owned-cell groups via Manhattan
-		//      bridges (= prevents 飛び地 / exclaves)
-		//   2. fills internal cavities reachable only from inside the
-		//      bbox (= prevents 空洞 / holes)
-		// Resulting outline is a single closed loop (= one rectilinear
-		// polygon) that completely contains every member node.
+		// Outline = boundary of the AABB rectangle filled solid (= the
+		// simplest "single connected, no holes, no exclaves" shape).
+		// Per-cell rectilinear polygons (closeToSimplyConnected) ARE
+		// single-connected but can have deep concavities that visually
+		// read as separate pieces; the user reported those concavities
+		// as 飛び地. AABB sidesteps that by being a literal rectangle.
 		const owned = ownedCellsMap.get(key);
 		if (owned && owned.size > 0) {
-			const closed = closeToSimplyConnected(owned, range);
+			const aabbCells = new Set<string>();
+			for (let col = range.minCol; col <= range.maxCol; col++) {
+				for (let row = range.minRow; row <= range.maxRow; row++) {
+					aabbCells.add(`${col},${row}`);
+				}
+			}
 			rect.outline = computeOutlineSegments(
-				closed,
+				aabbCells,
 				slotW,
 				slotH,
 				channelW,
