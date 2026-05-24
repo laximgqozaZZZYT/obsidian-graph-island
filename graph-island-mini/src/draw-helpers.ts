@@ -155,22 +155,49 @@ export function drawGridHeaders(
 	ctx.stroke();
 }
 
-// Map a column index to a longitude-style label. The cell at col 0
-// (= the column containing world x = 0) is the prime meridian (= "0°").
-// Cells to the east of it get "${n}°E"; cells to the west get
-// "${n}°W". Beyond ±180 we just keep counting (the grid can extend
-// arbitrarily); the layout is a map projection, not a real globe.
+// Map a column index to a longitude label, wrapped to (−180°, 180°].
+// The cell at col 0 (= the column containing world x = 0) is the prime
+// meridian ("0°"). Cells east of it get "${n}°E", west cells get
+// "${n}°W". The label wraps modulo 360 so col 200 → "160°W" (=
+// equivalent meridian on the other side of the date line), reflecting
+// the "両端が構造上で繋がる" (toroidal longitude) topology — even
+// though rendering stays on a flat plane.
 function longitudeLabel(col: number): string {
-	if (col === 0) return "0°";
-	return `${Math.abs(col)}°${col > 0 ? "E" : "W"}`;
+	const n = wrapTo(col, 360, -180);
+	if (n === 0) return "0°";
+	if (n === 180 || n === -180) return "180°";
+	return `${Math.abs(n)}°${n > 0 ? "E" : "W"}`;
 }
 
-// Map a row index to a latitude-style label. Rows count DOWN in screen
-// coords, so row r > 0 (= below origin) = south, row r < 0 = north.
-// Row 0 (= the row containing world y = 0) is the equator (= "0°").
+// Map a row index to a latitude label, wrapped to (−90°, 90°]. Rows
+// count DOWN in screen coords, so row r > 0 (= below origin) = south.
+// Row 0 (= the row containing world y = 0) is the equator ("0°"). The
+// label wraps modulo 180 so row 100 → "80°N" (= equivalent latitude
+// on the antipodal side, as if you continued past the south pole and
+// came up the other side of the globe).
 function latitudeLabel(row: number): string {
-	if (row === 0) return "0°";
-	return `${Math.abs(row)}°${row > 0 ? "S" : "N"}`;
+	const n = wrapTo(row, 180, -90);
+	if (n === 0) return "0°";
+	if (n === 90 || n === -90) return "90°";
+	return `${Math.abs(n)}°${n > 0 ? "S" : "N"}`;
+}
+
+// Wrap an integer cell index into the half-open interval
+// [min, min + period). Used so column/row indices map back into the
+// canonical latitude/longitude range regardless of how far the grid
+// extends. JS `%` returns negative remainders for negative dividends;
+// the double-mod idiom normalises that.
+function wrapTo(v: number, period: number, min: number): number {
+	const max = min + period;
+	const m = (((v - min) % period) + period) % period;
+	const out = m + min;
+	// Snap the +max boundary back to min so e.g. col 180 → 180 (not −180);
+	// but col 540 (= 3 × 180 wraps) lands on -180 / +180 depending on phase.
+	// For our labels we want either "180°" or "0°" at the antimeridian
+	// rather than a flipped sign, so leave the value as-is here and let
+	// the caller render it.
+	if (out === max) return min;
+	return out;
 }
 
 // Shared footprint extent: cell range encompassing every node's full
