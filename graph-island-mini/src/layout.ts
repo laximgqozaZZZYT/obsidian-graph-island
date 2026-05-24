@@ -35,6 +35,7 @@ import {
 	computeClusterBBoxes,
 	clampClustersToB2,
 } from "./cluster-bbox";
+import { evictForeignNodes } from "./evict-foreign";
 
 export interface SizedNode extends GraphNode {
 	width: number;
@@ -310,6 +311,21 @@ export function layout(data: GraphData, sized: SizedNode[], opts: LayoutOptions)
 		clusterSpacing: opts.clusterSpacing,
 	});
 	clampClustersToB2(clusters, positionedNodes, slotW, slotH);
+
+	// Phase 4.5: relocate nodes that ended up inside a cluster bbox they
+	// don't belong to (= "foreign enclosure intrusion"). The bboxes are
+	// frozen at this point; nodes are moved to the nearest valid free
+	// cell that satisfies "inside every own cluster ∧ outside every
+	// foreign cluster". idToRect is updated to match the new positions
+	// so downstream edge routing reads the post-eviction layout.
+	evictForeignNodes(positionedNodes, clusters, slotW, slotH);
+	for (const n of positionedNodes) {
+		const r = idToRect.get(n.id);
+		if (r) {
+			r.x = n.x;
+			r.y = n.y;
+		}
+	}
 
 	// Edge bundling: group inter-cluster edges by (srcCluster, tgtCluster). If
 	// a pair has multiple file-to-file links, draw ONE bundled line between the
