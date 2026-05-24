@@ -122,6 +122,65 @@ export function cellRangeToClusterRect(
 	};
 }
 
+// Cells with at least one card (= cells that any cluster claims).
+// Used to distinguish "empty" cells (= no card) from "occupied" cells
+// when computing additional carve candidates for inter-cluster
+// disambiguation.
+export function computeAllOccupiedCells(
+	positionedNodes: PositionedNode[],
+	slotW: number,
+	slotH: number,
+): Set<string> {
+	const out = new Set<string>();
+	for (const n of positionedNodes) {
+		const fp = nodeFootprint(n, slotW, slotH);
+		for (let c = fp.startCol; c <= fp.endCol; c++) {
+			for (let r = fp.startRow; r <= fp.endRow; r++) {
+				out.add(`${c},${r}`);
+			}
+		}
+	}
+	return out;
+}
+
+// Empty cells inside the cluster's AABB that fall ALSO inside some
+// OTHER cluster's AABB. These cells have no card at all, so they
+// aren't "foreign-only" in the existing sense, but they visually
+// "belong" to whichever other cluster's enclosure also claims them.
+// Carving them out of this cluster's polygon prevents two unrelated
+// clusters' enclosures from visually owning the same blank space.
+//
+// Implementation: O(rangeCellCount × |otherClusters|). Acceptable for
+// typical vaults (≤ 20 clusters × ≤ 200 cells per AABB).
+export function computeEmptyCellsInOtherClusterAABBs(
+	currentKey: string,
+	currentOwned: Set<string>,
+	currentRange: { minCol: number; maxCol: number; minRow: number; maxRow: number },
+	otherRanges: Map<
+		string,
+		{ minCol: number; maxCol: number; minRow: number; maxRow: number }
+	>,
+	allOccupiedCells: Set<string>,
+): Set<string> {
+	const out = new Set<string>();
+	for (let c = currentRange.minCol; c <= currentRange.maxCol; c++) {
+		for (let r = currentRange.minRow; r <= currentRange.maxRow; r++) {
+			const k = `${c},${r}`;
+			if (currentOwned.has(k)) continue; // we have own card
+			if (allOccupiedCells.has(k)) continue; // has SOME card (handled elsewhere)
+			// Empty cell. Carve if some other cluster's AABB covers it.
+			for (const [otherKey, otherRange] of otherRanges) {
+				if (otherKey === currentKey) continue;
+				if (c < otherRange.minCol || c > otherRange.maxCol) continue;
+				if (r < otherRange.minRow || r > otherRange.maxRow) continue;
+				out.add(k);
+				break;
+			}
+		}
+	}
+	return out;
+}
+
 // Foreign-only cells for a cluster: cells inside the cluster's AABB
 // that have at least one card from ANOTHER cluster but NO card from
 // this cluster. These are the cells we want to carve out of the AABB
@@ -448,9 +507,31 @@ export function computeClusterBBoxes(
 		slotW,
 		slotH,
 	);
+	// Pre-pass: every cluster's AABB cell range. Used downstream so
+	// each cluster knows which OTHER cluster's AABB it might overlap
+	// (= candidates for empty-cell carving via the new rule).
+	const rangeMap = new Map<
+		string,
+		{
+			minCol: number;
+			maxCol: number;
+			minRow: number;
+			maxRow: number;
+			count: number;
+		}
+	>();
+	for (const k of clusterKeys) {
+		const r = computeClusterCellRange(k, positionedNodes, slotW, slotH);
+		if (r) rangeMap.set(k, r);
+	}
+	// All cells that hold at least one card (= occupied). Cells in the
+	// AABB that are NEITHER owned NOR occupied are "empty" and become
+	// carve candidates IF they fall inside another cluster's AABB.
+	const allOccupied = computeAllOccupiedCells(positionedNodes, slotW, slotH);
+
 	const clusters: ClusterRect[] = [];
 	for (const key of clusterKeys) {
-		const range = computeClusterCellRange(key, positionedNodes, slotW, slotH);
+		const range = rangeMap.get(key);
 		if (!range) continue;
 		const nest = nestingDepth.get(key) ?? 0;
 		const padCellsX = basePadCellsX + nest * nestPadCellsX;
@@ -491,7 +572,23 @@ export function computeClusterBBoxes(
 				slotH,
 				range,
 			);
-			const carved = carveFromBoundary(aabbCells, foreignOnly, range);
+			// New rule: empty cells inside the cluster's AABB that also
+			// fall inside another cluster's AABB are scraped away from
+			// the polygon (= "対応する要素がなく他グループの囲いがある
+			// 箇所をこそぐ"). Right-angle corners may become hook shapes
+			// as a result, which the user explicitly allowed.
+			const emptyInOtherAabb = computeEmptyCellsInOtherClusterAABBs(
+				key,
+				owned,
+				range,
+				rangeMap,
+				allOccupied,
+			);
+			// Union the two candidate sets, then run the boundary-
+			// reachable carving so no interior holes are created.
+			const carveCandidates = new Set<string>(foreignOnly);
+			for (const c of emptyInOtherAabb) carveCandidates.add(c);
+			const carved = carveFromBoundary(aabbCells, carveCandidates, range);
 			rect.outline = computeOutlineSegments(
 				carved,
 				slotW,
