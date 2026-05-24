@@ -416,48 +416,122 @@ function fillInteriorHoles(
 	return closed;
 }
 
-// Connect disconnected components by adding straight-line bridge cells
-// (Manhattan path: horizontal then vertical) between every non-main
-// component and the main (largest) component.
-function bridgeComponents(cells: Set<string>): Set<string> {
+// Enumerate all cells along an L-shaped Manhattan path from (c1,r1) to
+// (c2,r2). When hFirst=true: move horizontally to c2 first, then
+// vertically to r2. When hFirst=false: move vertically to r2 first, then
+// horizontally to c2.
+function lPathCells(
+	c1: number,
+	r1: number,
+	c2: number,
+	r2: number,
+	hFirst: boolean,
+): string[] {
+	const dc = c2 > c1 ? 1 : c2 < c1 ? -1 : 0;
+	const dr = r2 > r1 ? 1 : r2 < r1 ? -1 : 0;
+	const result: string[] = [];
+	let cc = c1;
+	let cr = r1;
+	result.push(`${cc},${cr}`);
+	if (hFirst) {
+		while (cc !== c2) {
+			cc += dc;
+			result.push(`${cc},${cr}`);
+		}
+		while (cr !== r2) {
+			cr += dr;
+			result.push(`${cc},${cr}`);
+		}
+	} else {
+		while (cr !== r2) {
+			cr += dr;
+			result.push(`${cc},${cr}`);
+		}
+		while (cc !== c2) {
+			cc += dc;
+			result.push(`${cc},${cr}`);
+		}
+	}
+	return result;
+}
+
+// Connect disconnected components using a greedy minimum-spanning-tree
+// approach: maintain a "connected" super-component (initially the largest
+// component) and repeatedly attach the nearest unconnected component to
+// ANY cell already in the super-component. Each bridge chooses the
+// L-path orientation (H-first or V-first) that crosses fewer avoidCells.
+//
+// Compared with the original "always connect to comps[0]" strategy, the
+// MST approach produces shorter total bridge length because it can chain
+// nearby components together instead of bridging each one all the way
+// back to the initial largest component. Shorter bridges ⇒ fewer cells
+// ⇒ fewer V1 violations.
+//
+// avoidCells: set of cell keys that contain foreign-cluster nodes. Bridge
+// orientation that crosses fewer avoidCells is preferred (tie → H-first).
+function bridgeComponents(
+	cells: Set<string>,
+	avoidCells: Set<string> = new Set(),
+): Set<string> {
 	const comps = connectedComponents(cells);
 	if (comps.length <= 1) return cells;
 	comps.sort((a, b) => b.size - a.size);
 	const out = new Set<string>(cells);
-	for (let i = 1; i < comps.length; i++) {
-		const comp = comps[i];
+	// connected = union of all already-connected cells (starts as comps[0]).
+	const connected = new Set<string>(comps[0]);
+	// remaining = components still to attach.
+	const remaining = comps.slice(1);
+
+	while (remaining.length > 0) {
+		// Find the (remaining component index, closest cell pair) that
+		// minimises [avoidCount, distance] across all remaining components.
+		let bestCompIdx = -1;
 		let bestA = "";
 		let bestB = "";
 		let bestD = Infinity;
-		for (const a of comp) {
-			const [ac, ar] = a.split(",").map(Number);
-			for (const b of comps[0]) {
-				const [bc, br] = b.split(",").map(Number);
-				const d = Math.abs(ac - bc) + Math.abs(ar - br);
-				if (d < bestD) {
-					bestD = d;
-					bestA = a;
-					bestB = b;
+		let bestAvoid = Infinity;
+		let bestPath: string[] = [];
+
+		for (let ri = 0; ri < remaining.length; ri++) {
+			const comp = remaining[ri];
+			for (const a of comp) {
+				const [ac, ar] = a.split(",").map(Number);
+				for (const b of connected) {
+					const [bc, br] = b.split(",").map(Number);
+					const d = Math.abs(ac - bc) + Math.abs(ar - br);
+					// Compute both L-path orientations and pick the better one.
+					const hPath = lPathCells(ac, ar, bc, br, true);
+					const vPath = lPathCells(ac, ar, bc, br, false);
+					const hAvoid = hPath.filter((k) => avoidCells.has(k)).length;
+					const vAvoid = vPath.filter((k) => avoidCells.has(k)).length;
+					const minAvoid = Math.min(hAvoid, vAvoid);
+					const chosenPath = vAvoid < hAvoid ? vPath : hPath;
+					// Primary sort: fewer avoid cells. Secondary: shorter distance.
+					if (
+						minAvoid < bestAvoid ||
+						(minAvoid === bestAvoid && d < bestD)
+					) {
+						bestAvoid = minAvoid;
+						bestD = d;
+						bestCompIdx = ri;
+						bestA = a;
+						bestB = b;
+						bestPath = chosenPath;
+					}
 				}
 			}
 		}
-		if (!bestA) continue;
-		const [c1, r1] = bestA.split(",").map(Number);
-		const [c2, r2] = bestB.split(",").map(Number);
-		// Horizontal then vertical (L-shape).
-		const dc = c2 > c1 ? 1 : c2 < c1 ? -1 : 0;
-		const dr = r2 > r1 ? 1 : r2 < r1 ? -1 : 0;
-		let cc = c1;
-		let cr = r1;
-		out.add(`${cc},${cr}`);
-		while (cc !== c2) {
-			cc += dc;
-			out.add(`${cc},${cr}`);
+
+		if (bestCompIdx < 0) break;
+
+		// Add bridge cells to output and to the connected super-component.
+		for (const k of bestPath) {
+			out.add(k);
+			connected.add(k);
 		}
-		while (cr !== r2) {
-			cr += dr;
-			out.add(`${cc},${cr}`);
-		}
+		// Also merge the newly attached component into connected.
+		for (const k of remaining[bestCompIdx]) connected.add(k);
+		remaining.splice(bestCompIdx, 1);
 	}
 	return out;
 }
@@ -609,7 +683,12 @@ export function computeClusterBBoxes(
 			// outline visibly encloses every member cell as one shape.
 			// This prevents the "card visible but tiny isolated outline
 			// somewhere far from main cluster body" bug.
-			carved = bridgeComponents(carved);
+			//
+			// Pass foreignOnly as avoidCells so the bridge router prefers
+			// L-paths that cross fewer cells occupied by foreign nodes.
+			// This reduces V1 (foreign-in-enclosure) violations caused by
+			// bridge cells landing on another cluster's card positions.
+			carved = bridgeComponents(carved, foreignOnly);
 			rect.outline = computeOutlineSegments(
 				carved,
 				slotW,
