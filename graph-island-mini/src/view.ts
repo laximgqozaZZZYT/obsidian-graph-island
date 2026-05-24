@@ -1128,38 +1128,11 @@ export class MiniGraphView extends ItemView {
 	// left edge of column A) at screen x = headerW. That gives the upper-
 	// bound constraint panX ≤ headerW − minCol*W*zoom. Same logic for Y.
 	private clampPan(): void {
-		if (!this.settings.showGrid) return;
-		if (this.laid.nodes.length === 0) return;
-		const W = this.laid.slotW;
-		const H = this.laid.slotH;
-		if (W <= 0 || H <= 0) return;
-
-		let cardMinCol = Infinity;
-		let cardMinRow = Infinity;
-		for (const n of this.laid.nodes) {
-			// Use card FOOTPRINT (multi-cell for scaled cards), not just the
-			// centre cell, so the pan clamp accounts for the full extent.
-			const colSpan = Math.max(1, Math.ceil(n.width / W));
-			const rowSpan = Math.max(1, Math.ceil(n.height / H));
-			const col = Math.round(n.x / W - colSpan / 2);
-			const row = Math.round(n.y / H - rowSpan / 2);
-			if (col < cardMinCol) cardMinCol = col;
-			if (row < cardMinRow) cardMinRow = row;
-		}
-		// Grid origin sits ONE cell to the left/above the leftmost / topmost
-		// card so column A and row 1 stay reserved-empty.
-		const minColIdx = cardMinCol - 1;
-		const minRowIdx = cardMinRow - 1;
-
-		const cellScreenW = W * this.zoom;
-		const cellScreenH = H * this.zoom;
-		const headerH = Math.max(22, Math.min(36, cellScreenH * 0.9));
-		const headerW = Math.max(32, Math.min(56, cellScreenW * 0.7));
-
-		const maxPanX = headerW - minColIdx * W * this.zoom;
-		const maxPanY = headerH - minRowIdx * H * this.zoom;
-		if (this.panX > maxPanX) this.panX = maxPanX;
-		if (this.panY > maxPanY) this.panY = maxPanY;
+		// World-map style: free pan in all directions. The body now tiles
+		// across the visible viewport, so there's always content under the
+		// cursor regardless of pan. Previously this clamped panX/panY to
+		// keep the layout from scrolling off the top-left, which the user
+		// found surprising ("左上への移動ができないのもおかしい").
 	}
 
 	private requestDraw(): void {
@@ -1200,6 +1173,109 @@ export class MiniGraphView extends ItemView {
 			this.drawCardGrid(ctx);
 		}
 
+		// World-map tiling. The body content (enclosures, edges, cards,
+		// stacks, labels) repeats every (360 cols × 180 rows) — same
+		// period as the lat/lon labels. So when the user pans past
+		// "180°E" they see the SAME content again from "180°W" onward,
+		// like a digital world map.
+		const W = this.laid.slotW;
+		const H = this.laid.slotH;
+		const periodX = 360 * W;
+		const periodY = 180 * H;
+		const visW = cw / dpr;
+		const visH = ch / dpr;
+		// Viewport in world coords.
+		const leftWorld = -this.panX / this.zoom;
+		const rightWorld = (visW - this.panX) / this.zoom;
+		const topWorld = -this.panY / this.zoom;
+		const bottomWorld = (visH - this.panY) / this.zoom;
+		// Content bbox (= union of card footprints + cluster rects).
+		// Falls back to a tiny window when there are no nodes.
+		let contentMinX = Infinity,
+			contentMaxX = -Infinity,
+			contentMinY = Infinity,
+			contentMaxY = -Infinity;
+		for (const n of this.laid.nodes) {
+			contentMinX = Math.min(contentMinX, n.x - n.width / 2);
+			contentMaxX = Math.max(contentMaxX, n.x + n.width / 2);
+			contentMinY = Math.min(contentMinY, n.y - n.height / 2);
+			contentMaxY = Math.max(contentMaxY, n.y + n.height / 2);
+		}
+		for (const c of this.laid.clusters) {
+			contentMinX = Math.min(contentMinX, c.x);
+			contentMaxX = Math.max(contentMaxX, c.x + c.width);
+			contentMinY = Math.min(contentMinY, c.y);
+			contentMaxY = Math.max(contentMaxY, c.y + c.height);
+		}
+		if (!isFinite(contentMinX)) {
+			contentMinX = 0;
+			contentMaxX = W;
+			contentMinY = 0;
+			contentMaxY = H;
+		}
+		// Tile index range that intersects the viewport.
+		const iMin = Math.ceil((leftWorld - contentMaxX) / periodX);
+		const iMax = Math.floor((rightWorld - contentMinX) / periodX);
+		const jMin = Math.ceil((topWorld - contentMaxY) / periodY);
+		const jMax = Math.floor((bottomWorld - contentMinY) / periodY);
+		// Safety cap so a crazy zoom-out doesn't render thousands of tiles.
+		const MAX_TILES_PER_AXIS = 6;
+		const iLo = Math.max(iMin, -MAX_TILES_PER_AXIS);
+		const iHi = Math.min(iMax, MAX_TILES_PER_AXIS);
+		const jLo = Math.max(jMin, -MAX_TILES_PER_AXIS);
+		const jHi = Math.min(jMax, MAX_TILES_PER_AXIS);
+
+		ctx.lineCap = "round";
+		ctx.lineJoin = "round";
+		const hasHighlight = this.highlightedEdgeIdx.size > 0;
+		const hiddenSet = new Set(this.settings.hiddenNodes);
+		const skipNode = (id: string): boolean =>
+			hiddenSet.has(id) || this.trulyAggSet.has(id);
+
+		for (let ti = iLo; ti <= iHi; ti++) {
+			for (let tj = jLo; tj <= jHi; tj++) {
+				const offX = ti * periodX;
+				const offY = tj * periodY;
+				ctx.setTransform(
+					dpr * this.zoom,
+					0,
+					0,
+					dpr * this.zoom,
+					dpr * (this.panX + this.zoom * offX),
+					dpr * (this.panY + this.zoom * offY),
+				);
+				this.drawBodyTile(ctx, hasHighlight, skipNode);
+			}
+		}
+
+		// Restore the world transform so the cluster labels (above) and
+		// header (below) draw in the canonical (0,0)-tile.
+		ctx.setTransform(
+			dpr * this.zoom,
+			0,
+			0,
+			dpr * this.zoom,
+			dpr * this.panX,
+			dpr * this.panY,
+		);
+		if (this.settings.showEnclosures) {
+			this.drawClusterLabels(ctx);
+		}
+
+		if (this.settings.showGrid) {
+			ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+			this.drawGridHeaders(ctx);
+		}
+	}
+
+	// Single-tile body renderer — called once per (i, j) tile in the
+	// world-map tiling loop. Assumes the context transform is already
+	// set for the appropriate tile offset.
+	private drawBodyTile(
+		ctx: CanvasRenderingContext2D,
+		hasHighlight: boolean,
+		skipNode: (id: string) => boolean,
+	): void {
 		if (this.settings.showEnclosures) {
 			drawEnclosures(
 				ctx,
@@ -1208,26 +1284,6 @@ export class MiniGraphView extends ItemView {
 				this.zoom,
 			);
 		}
-
-		ctx.lineCap = "round";
-		ctx.lineJoin = "round";
-		const hasHighlight = this.highlightedEdgeIdx.size > 0;
-
-		// Per-layer card visibility / aggregation. Hidden node IDs come from
-		// the layer tabs' card-list checkboxes. Aggregated clusters replace
-		// their member cards with a single 3-card diagonal stack at the
-		// cluster centre. A node only becomes "aggregated-hidden" when ALL
-		// of its memberships are aggregated layers — otherwise it still
-		// belongs to a non-aggregated cluster and must remain visible there.
-		const hiddenSet = new Set(this.settings.hiddenNodes);
-		// Reuse the trulyAgg set computed during rebuild — the same set the
-		// aggregate-snap loop uses for reserving footprints. Recomputing a
-		// looser "every membership in aggSet" check here would create an
-		// inconsistency: a node the rebuild treats as aggregated (= no
-		// footprint in occupied) might still be drawn here, and the
-		// aggregate badge would land inside it.
-		const skipNode = (id: string): boolean =>
-			hiddenSet.has(id) || this.trulyAggSet.has(id);
 
 		if (this.settings.showEdges) {
 			drawBaseEdges(
@@ -1239,17 +1295,12 @@ export class MiniGraphView extends ItemView {
 			);
 		}
 
-		// Layer 2: base cards (covers the "stub" segment from edge port → card center)
 		for (const n of this.laid.nodes) {
 			if (this.highlightedNodes.has(n.id)) continue;
 			if (skipNode(n.id)) continue;
 			this.drawCard(ctx, n, false);
 		}
 
-		// Aggregated cluster stacks. Only clusters with a truly-aggregated
-		// subset (= count > 0 in aggregateCount) render a stack — others
-		// keep their normal cluster appearance because none of their
-		// members were actually folded in.
 		if (this.aggregateCount.size > 0 && this.laid.nodes.length > 0) {
 			const cardW = this.laid.nodes[0].width;
 			const cardH = this.laid.nodes[0].height;
@@ -1272,26 +1323,10 @@ export class MiniGraphView extends ItemView {
 			);
 		}
 
-		// Layer 4: accent cards on top
 		for (const n of this.laid.nodes) {
 			if (!this.highlightedNodes.has(n.id)) continue;
 			if (skipNode(n.id)) continue;
 			this.drawCard(ctx, n, true);
-		}
-
-		// Cluster labels with collision-aware placement: larger clusters keep
-		// their natural position above the enclosure; smaller ones whose label
-		// would collide are pushed up by full line-heights, and labels pushed
-		// 2+ levels gain a thin leader line back to the enclosure top.
-		if (this.settings.showEnclosures) {
-			this.drawClusterLabels(ctx);
-		}
-
-		// Frozen-pane headers: drawn LAST in screen space so they overlay
-		// everything and stick to the viewport edges regardless of pan/zoom.
-		if (this.settings.showGrid) {
-			ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-			this.drawGridHeaders(ctx);
 		}
 	}
 
