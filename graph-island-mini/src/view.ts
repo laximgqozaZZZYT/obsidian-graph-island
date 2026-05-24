@@ -1110,8 +1110,16 @@ export class MiniGraphView extends ItemView {
 		const padBottom = 20;
 		const fitW = Math.max(1, visW - 2 * padX);
 		const fitH = Math.max(1, visH - padTop - padBottom);
-		const zx = fitW / Math.max(1, maxX - minX);
-		const zy = fitH / Math.max(1, maxY - minY);
+		// World content is wrap-tiled with period (360*slotW, 180*slotH).
+		// Sizing the fit to the period itself (instead of the content
+		// AABB) guarantees the visible range is at most one full lat/lon
+		// period, so the user never sees a repeated tile at default view.
+		const periodX = 360 * this.laid.slotW;
+		const periodY = 180 * this.laid.slotH;
+		const fitDX = periodX > 0 ? periodX : Math.max(1, maxX - minX);
+		const fitDY = periodY > 0 ? periodY : Math.max(1, maxY - minY);
+		const zx = fitW / fitDX;
+		const zy = fitH / fitDY;
 		// Min floor is intentionally very low so huge vaults still fit on
 		// screen; the user can zoom in interactively as needed.
 		this.zoom = Math.min(2, Math.max(0.005, Math.min(zx, zy)));
