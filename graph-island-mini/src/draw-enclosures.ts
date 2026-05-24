@@ -4,12 +4,16 @@ import { clusterHue } from "./canvas-utils";
 // Render cluster enclosures. Larger clusters draw first so the
 // smaller / nested ones stay on top — Euler-diagram convention.
 //
-// Outline = rectilinear polygon boundary of the cluster's owned-cell
-// closure (= cells with member cards, plus bridge cells linking any
-// disconnected groups, plus fills for internal cavities). Single
-// closed loop, no exclaves, no internal holes — satisfies the latest
-// user spec where both 飛び地 and 空洞 are forbidden. Falls back to
-// the AABB rect when outline is absent (e.g. test scenarios).
+// Per cluster we draw 2 layers:
+//   1. Tinted fill: each cell of the carved polygon, filled with the
+//      cluster's hue at low opacity. Overlapping clusters (= cells
+//      belonging to multiple memberships) blend additively, so an
+//      Euler intersection reads as a slightly more saturated patch.
+//   2. Outline: rectilinear polygon boundary, drawn on top of the
+//      fills. Stroke at full opacity.
+//
+// Caller is responsible for the overall z-order: enclosures (this)
+// are drawn FIRST in view.ts, then edges, then cards on top.
 export function drawEnclosures(
 	ctx: CanvasRenderingContext2D,
 	clusters: ClusterRect[],
@@ -22,6 +26,23 @@ export function drawEnclosures(
 	const strokeW = 1.6 / zoom;
 	const accentStrokeW = 3.2 / zoom;
 
+	// Pass 1: fills (cell-aligned). Drawn first so outlines sit cleanly
+	// on top of the tinted region.
+	for (const c of sortedClusters) {
+		if (!c.cells || c.cells.length === 0) continue;
+		const hue = clusterHue(c.groupKey);
+		const isHigh = highlightedClusters.has(c.groupKey);
+		ctx.fillStyle = isHigh
+			? "rgba(255, 157, 63, 0.22)"
+			: `hsla(${hue}, 65%, 55%, 0.18)`;
+		ctx.beginPath();
+		for (const cell of c.cells) {
+			ctx.rect(cell.x, cell.y, cell.w, cell.h);
+		}
+		ctx.fill();
+	}
+
+	// Pass 2: outlines.
 	for (const c of sortedClusters) {
 		const hue = clusterHue(c.groupKey);
 		const isHigh = highlightedClusters.has(c.groupKey);

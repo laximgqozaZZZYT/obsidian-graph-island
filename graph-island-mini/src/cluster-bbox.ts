@@ -499,6 +499,26 @@ export function computeClusterBBoxes(
 				channelW,
 				channelH,
 			);
+			// Cell-aligned fill rectangles for the renderer. Same coord
+			// convention as drawCardGrid (cell inner box runs from
+			// (col*W + padX, row*H + padY) to ((col+1)*W - padX, ...)).
+			const padX = channelW / 2;
+			const padY = channelH / 2;
+			const cellW = slotW - 2 * padX;
+			const cellH = slotH - 2 * padY;
+			const cellRects: Array<{ x: number; y: number; w: number; h: number }> = [];
+			for (const k of carved) {
+				const [colStr, rowStr] = k.split(",");
+				const col = parseInt(colStr, 10);
+				const row = parseInt(rowStr, 10);
+				cellRects.push({
+					x: col * slotW + padX,
+					y: row * slotH + padY,
+					w: cellW,
+					h: cellH,
+				});
+			}
+			rect.cells = cellRects;
 		}
 		clusters.push(rect);
 	}

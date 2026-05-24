@@ -74,12 +74,15 @@ export interface ClusterRect {
 	width: number;
 	height: number;
 	memberCount: number;
-	// Final-stage polygon outline = rectilinear boundary segments of
-	// the SIMPLY-CONNECTED closure of the cluster's owned cells
-	// (= internal cavities filled, disconnected groups bridged).
-	// Single closed loop, no exclaves (飛び地), no internal holes
-	// (空洞). Completely contains every member node.
+	// Outer boundary segments of the cluster's carved AABB polygon
+	// (= AABB with foreign-only cells removed from the boundary).
 	outline?: Array<{ x1: number; y1: number; x2: number; y2: number }>;
+	// Cell-aligned fill rectangles inside the cluster's polygon
+	// (= one entry per cell that survived carving). The renderer
+	// fills each with the cluster's hue at low opacity so the
+	// enclosure is a tinted region that overlaps neighbours
+	// without obscuring them.
+	cells?: Array<{ x: number; y: number; w: number; h: number }>;
 }
 
 // Trunks have been retired — every wire is a thin single line routed via
