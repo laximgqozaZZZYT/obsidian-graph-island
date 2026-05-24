@@ -283,10 +283,23 @@ export function layout(data: GraphData, sized: SizedNode[], opts: LayoutOptions)
 	// so the parent enclosure stays tight.
 	const subPositions = buildInitialSubPositions(packed, anchors, clusterOff);
 	// RELAX_GAP keeps adjacent main groups' cells disjoint after
-	// snapCardsToGrid (= V6 "main rectangles must not overlap").
-	// snapCardsToGrid spirals up to ~5 slots when collisions cascade,
-	// so we leave 3 slots of breathing room as a safety margin.
-	const RELAX_GAP = Math.max(slotW * 3, slotH * 3, opts.nodeSpacing);
+	// snapCardsToGrid. The spiral cascade in snapCardsToGrid can
+	// extend further the larger the layout, so the gap scales with
+	// the biggest sub-group's extent: a sub-group of size N might
+	// have one card pushed ~sqrt(N) slots out by cascading collisions.
+	// Empirically a gap of `max(8 slots, sqrt(maxNodes) slots, ...)`
+	// holds V6 = 0 in both default and STRESS modes.
+	const maxNodesInSub = subgroups.reduce(
+		(m, sg) => Math.max(m, sg.nodes.length),
+		0,
+	);
+	const spiralBuffer = Math.ceil(Math.sqrt(Math.max(1, maxNodesInSub)));
+	const slotMargin = Math.max(8, spiralBuffer + 4);
+	const RELAX_GAP = Math.max(
+		slotW * slotMargin,
+		slotH * slotMargin,
+		opts.nodeSpacing,
+	);
 	relaxSubgroups(subPositions, RELAX_GAP, 80);
 	// Phase 2b: compactness pass — pull each multi-tag sub-group back
 	// toward its LARGEST cluster's anchor by 40%.
