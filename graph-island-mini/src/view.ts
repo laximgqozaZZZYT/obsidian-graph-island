@@ -66,12 +66,16 @@ import {
 	renderOrderBySection as renderOrderBySectionFn,
 	toggleArrayMember as toggleArrayMemberFn,
 } from "./panel-sections";
+import {
+	HOVER_DELAY_MS,
+	sameTarget,
+	computeHighlight,
+	positionTip as positionTipFn,
+} from "./highlight";
+import { MarqueeController } from "./marquee-controller";
 
 export const VIEW_TYPE_MINI = "graph-island-mini";
 
-const HOVER_DELAY_MS = 350;
-const TOOLTIP_OFFSET_X = 14;
-const TOOLTIP_OFFSET_Y = -8;
 
 // Internal cache: maps file path → pre-processed body preview (post-frontmatter,
 // trimmed). Persists across rebuilds so we don't re-read 2k+ files every time
@@ -103,9 +107,9 @@ export class MiniGraphView extends ItemView {
 	private hoverTarget: HoverTarget = null;
 	private tipEl: HTMLDivElement | null = null;
 	private hoverGen = 0;
-	private marqueeEl: HTMLDivElement | null = null;
-	private marqueeStart: { sx: number; sy: number } | null = null;
-	private marqueeArmed = false;
+	// Marquee state machine lives in its own controller — the view
+	// just queries it (isArmed / isActive) and pumps pointer events.
+	private marquee!: MarqueeController;
 	private highlightedNodes: Set<string> = new Set();
 	private highlightedEdgeIdx: Set<number> = new Set();
 	// Clusters to render with accent stroke on hover. Populated from the
@@ -198,7 +202,18 @@ export class MiniGraphView extends ItemView {
 		this.canvas.style.cursor = "grab";
 		this.ctx = this.canvas.getContext("2d")!;
 
-		this.addAction("square-dashed-mouse-pointer", "Marquee zoom (or Shift+drag)", () => this.armMarquee());
+		// Marquee controller wires canvas + root + the view's coordinate /
+		// fitToRect / hover-cancel callbacks so the controller has zero
+		// view-state references beyond what's passed at construction.
+		this.marquee = new MarqueeController({
+			canvas: this.canvas,
+			root: this.root,
+			screenToWorld: (sx, sy) => this.screenToWorld(sx, sy),
+			fitToRect: (w) => this.fitToRect(w),
+			onActivate: () => this.cancelHover(),
+		});
+
+		this.addAction("square-dashed-mouse-pointer", "Marquee zoom (or Shift+drag)", () => this.marquee.arm());
 		this.addAction("zoom-in", "Zoom in", () => this.zoomBy(1.4));
 		this.addAction("zoom-out", "Zoom out", () => this.zoomBy(1 / 1.4));
 		this.addAction("maximize", "Fit to view", () => this.fitToView());
@@ -1365,40 +1380,19 @@ export class MiniGraphView extends ItemView {
 	}
 
 	private applyHighlight(target: HoverTarget): void {
-		this.highlightedEdgeIdx.clear();
-		this.highlightedNodes.clear();
-		this.highlightedClusters.clear();
-		this.hoveredNodeId = null;
-		if (!target || target.kind !== "node") {
-			this.requestDraw();
-			return;
-		}
-		const id = target.nodeId;
-		this.hoveredNodeId = id;
-		this.highlightedNodes.add(id);
-		const idIndex = new Map<string, PositionedNode>();
-		for (const n of this.laid.nodes) idIndex.set(n.id, n);
-		const targetNode = idIndex.get(id);
-		if (targetNode) {
-			for (const m of targetNode.memberships) {
-				this.highlightedClusters.add(m);
-			}
-		}
-		const adj = this.adjacency.get(id);
-		if (adj) {
-			for (const i of adj) {
-				this.highlightedEdgeIdx.add(i);
-				const edge = this.laid.edges[i];
-				if (!edge) continue;
-				const otherId = edge.source === id ? edge.target : edge.source;
-				this.highlightedNodes.add(otherId);
-				const otherNode = idIndex.get(otherId);
-				if (!otherNode) continue;
-				for (const m of otherNode.memberships) {
-					this.highlightedClusters.add(m);
-				}
-			}
-		}
+		// The pure computeHighlight() returns 4 fresh sets; assign them
+		// wholesale to the view fields so the renderer sees a consistent
+		// snapshot. Renderer reads these sets directly (no .clear() races).
+		const next = computeHighlight(
+			target,
+			this.laid.nodes,
+			this.laid.edges,
+			this.adjacency,
+		);
+		this.highlightedNodes = next.highlightedNodes;
+		this.highlightedClusters = next.highlightedClusters;
+		this.highlightedEdgeIdx = next.highlightedEdgeIdx;
+		this.hoveredNodeId = next.hoveredNodeId;
 		this.requestDraw();
 	}
 
@@ -1467,75 +1461,16 @@ export class MiniGraphView extends ItemView {
 		this.positionTip(sx, sy, tip);
 	}
 
-	private armMarquee(): void {
-		this.marqueeArmed = true;
-		this.canvas.style.cursor = "crosshair";
-		this.cancelHover();
-	}
-
-	private startMarquee(sx: number, sy: number): void {
-		this.cancelHover();
-		this.marqueeStart = { sx, sy };
-		const el = document.createElement("div");
-		el.className = "gim-marquee";
-		el.style.left = sx + "px";
-		el.style.top = sy + "px";
-		el.style.width = "0px";
-		el.style.height = "0px";
-		this.root.appendChild(el);
-		this.marqueeEl = el;
-	}
-
-	private updateMarquee(clientX: number, clientY: number): void {
-		if (!this.marqueeStart || !this.marqueeEl) return;
-		const rect = this.canvas.getBoundingClientRect();
-		const sx = Math.max(0, Math.min(rect.width, clientX - rect.left));
-		const sy = Math.max(0, Math.min(rect.height, clientY - rect.top));
-		const x = Math.min(this.marqueeStart.sx, sx);
-		const y = Math.min(this.marqueeStart.sy, sy);
-		const w = Math.abs(sx - this.marqueeStart.sx);
-		const h = Math.abs(sy - this.marqueeStart.sy);
-		this.marqueeEl.style.left = x + "px";
-		this.marqueeEl.style.top = y + "px";
-		this.marqueeEl.style.width = w + "px";
-		this.marqueeEl.style.height = h + "px";
-	}
-
-	private finishMarquee(clientX: number, clientY: number): void {
-		if (!this.marqueeStart) return;
-		const rect = this.canvas.getBoundingClientRect();
-		const sx = clientX - rect.left;
-		const sy = clientY - rect.top;
-		const x0 = Math.min(this.marqueeStart.sx, sx);
-		const y0 = Math.min(this.marqueeStart.sy, sy);
-		const x1 = Math.max(this.marqueeStart.sx, sx);
-		const y1 = Math.max(this.marqueeStart.sy, sy);
-		this.cancelMarquee();
-		if (x1 - x0 < 6 || y1 - y0 < 6) return;
-		const a = this.screenToWorld(x0, y0);
-		const b = this.screenToWorld(x1, y1);
-		this.fitToRect({ minX: a.x, minY: a.y, maxX: b.x, maxY: b.y });
-	}
-
-	private cancelMarquee(): void {
-		this.marqueeStart = null;
-		this.marqueeArmed = false;
-		this.canvas.style.cursor = "grab";
-		if (this.marqueeEl) {
-			this.marqueeEl.remove();
-			this.marqueeEl = null;
-		}
-	}
-
 	private positionTip(sx: number, sy: number, tip: HTMLElement): void {
 		const rect = this.canvas.getBoundingClientRect();
-		const tipW = tip.offsetWidth || 240;
-		const tipH = tip.offsetHeight || 60;
-		let x = sx + TOOLTIP_OFFSET_X;
-		let y = sy + TOOLTIP_OFFSET_Y;
-		if (x + tipW > rect.width) x = sx - tipW - TOOLTIP_OFFSET_X;
-		if (y + tipH > rect.height) y = rect.height - tipH - 4;
-		if (y < 4) y = 4;
+		const { x, y } = positionTipFn(
+			sx,
+			sy,
+			tip.offsetWidth || 240,
+			tip.offsetHeight || 60,
+			rect.width,
+			rect.height,
+		);
 		tip.style.left = x + "px";
 		tip.style.top = y + "px";
 	}
@@ -1547,8 +1482,8 @@ export class MiniGraphView extends ItemView {
 			const rect = c.getBoundingClientRect();
 			const sx = e.clientX - rect.left;
 			const sy = e.clientY - rect.top;
-			if (e.shiftKey || this.marqueeArmed) {
-				this.startMarquee(sx, sy);
+			if (e.shiftKey || this.marquee.isArmed()) {
+				this.marquee.begin(sx, sy);
 				e.preventDefault();
 				return;
 			}
@@ -1560,8 +1495,8 @@ export class MiniGraphView extends ItemView {
 			this.cancelHover();
 		});
 		window.addEventListener("mousemove", (e) => {
-			if (this.marqueeStart) {
-				this.updateMarquee(e.clientX, e.clientY);
+			if (this.marquee.isActive()) {
+				this.marquee.update(e.clientX, e.clientY);
 				return;
 			}
 			if (!this.dragging) return;
@@ -1572,24 +1507,24 @@ export class MiniGraphView extends ItemView {
 			this.requestDraw();
 		});
 		window.addEventListener("mouseup", (e) => {
-			if (this.marqueeStart) {
-				this.finishMarquee(e.clientX, e.clientY);
+			if (this.marquee.isActive()) {
+				this.marquee.finish(e.clientX, e.clientY);
 				return;
 			}
 			this.dragging = false;
 			c.style.cursor = "grab";
 		});
 		window.addEventListener("keydown", (e) => {
-			if (e.key === "Escape" && this.marqueeStart) this.cancelMarquee();
+			if (e.key === "Escape" && this.marquee.isActive()) this.marquee.cancel();
 		});
 		c.addEventListener("contextmenu", (e) => {
-			if (this.marqueeStart) {
+			if (this.marquee.isActive()) {
 				e.preventDefault();
-				this.cancelMarquee();
+				this.marquee.cancel();
 			}
 		});
 		c.addEventListener("click", (e) => {
-			if (e.shiftKey || this.marqueeStart || this.marqueeEl) return;
+			if (e.shiftKey || this.marquee.isActive()) return;
 			const rect = c.getBoundingClientRect();
 			const w = this.screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
 			const hit = this.hitTest(w.x, w.y);
@@ -1614,13 +1549,5 @@ export class MiniGraphView extends ItemView {
 		}, { passive: false });
 		c.addEventListener("dblclick", () => this.fitToView());
 	}
-}
-
-function sameTarget(a: HoverTarget, b: HoverTarget): boolean {
-	if (a === null || b === null) return a === b;
-	if (a.kind !== b.kind) return false;
-	if (a.kind === "cluster" && b.kind === "cluster") return a.group === b.group;
-	if (a.kind === "node" && b.kind === "node") return a.nodeId === b.nodeId;
-	return false;
 }
 
