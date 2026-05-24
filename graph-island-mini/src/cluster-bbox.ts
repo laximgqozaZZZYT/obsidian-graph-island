@@ -122,6 +122,75 @@ export function cellRangeToClusterRect(
 	};
 }
 
+// Per-cluster owned-cell map. A cell is "owned by cluster X" iff at
+// least one card whose memberships include X has a footprint cell at
+// that grid position. A multi-membership card (e.g. {A, B}) contributes
+// to BOTH A's and B's owned sets, so their outlines naturally overlap
+// on that cell — exactly the Euler-diagram intersection.
+export function computeClusterOwnedCells(
+	positionedNodes: PositionedNode[],
+	clusterKeys: string[],
+	slotW: number,
+	slotH: number,
+): Map<string, Set<string>> {
+	const out = new Map<string, Set<string>>();
+	for (const key of clusterKeys) out.set(key, new Set());
+	for (const n of positionedNodes) {
+		const fp = nodeFootprint(n, slotW, slotH);
+		for (const m of n.memberships) {
+			const set = out.get(m);
+			if (!set) continue;
+			for (let c = fp.startCol; c <= fp.endCol; c++) {
+				for (let r = fp.startRow; r <= fp.endRow; r++) {
+					set.add(`${c},${r}`);
+				}
+			}
+		}
+	}
+	return out;
+}
+
+// Compute outline segments around the owned-cell region. For each owned
+// cell, check its 4 neighbours; if the neighbour is NOT in the owned
+// set, draw a line on the shared edge. The collection of segments
+// produces the cluster's boundary — rectilinear polygon, possibly with
+// holes (= cells inside the bbox but NOT owned, e.g. cells holding
+// only foreign cards) and possibly with exclaves (= owned cells in
+// disconnected groups).
+//
+// Coordinate convention matches drawCardGrid: each cell's inner box
+// runs from (col*W + padX, row*H + padY) to ((col+1)*W - padX,
+// (row+1)*H - padY), where padX = channelW/2, padY = channelH/2.
+export function computeOutlineSegments(
+	ownedCells: Set<string>,
+	slotW: number,
+	slotH: number,
+	channelW: number,
+	channelH: number,
+): Array<{ x1: number; y1: number; x2: number; y2: number }> {
+	const segments: Array<{ x1: number; y1: number; x2: number; y2: number }> = [];
+	const padX = channelW / 2;
+	const padY = channelH / 2;
+	for (const cellKey of ownedCells) {
+		const [colStr, rowStr] = cellKey.split(",");
+		const col = parseInt(colStr, 10);
+		const row = parseInt(rowStr, 10);
+		const left = col * slotW + padX;
+		const right = (col + 1) * slotW - padX;
+		const top = row * slotH + padY;
+		const bottom = (row + 1) * slotH - padY;
+		if (!ownedCells.has(`${col - 1},${row}`))
+			segments.push({ x1: left, y1: top, x2: left, y2: bottom });
+		if (!ownedCells.has(`${col + 1},${row}`))
+			segments.push({ x1: right, y1: top, x2: right, y2: bottom });
+		if (!ownedCells.has(`${col},${row - 1}`))
+			segments.push({ x1: left, y1: top, x2: right, y2: top });
+		if (!ownedCells.has(`${col},${row + 1}`))
+			segments.push({ x1: left, y1: bottom, x2: right, y2: bottom });
+	}
+	return segments;
+}
+
 // Orchestrator: one bbox per cluster + nesting-aware padding. Returns
 // the bbox list AND the per-cluster member set + nesting depth so
 // downstream callers (e.g. the B2 clamp) can reuse them without
@@ -144,6 +213,12 @@ export function computeClusterBBoxes(
 	const basePadCellsY = Math.max(0, Math.ceil((BASE_PAD - channelH / 2) / slotH));
 	const nestPadCellsX = Math.max(1, Math.ceil(NEST_PAD / slotW));
 	const nestPadCellsY = Math.max(1, Math.ceil(NEST_PAD / slotH));
+	const ownedCellsMap = computeClusterOwnedCells(
+		positionedNodes,
+		clusterKeys,
+		slotW,
+		slotH,
+	);
 	const clusters: ClusterRect[] = [];
 	for (const key of clusterKeys) {
 		const range = computeClusterCellRange(key, positionedNodes, slotW, slotH);
@@ -151,18 +226,23 @@ export function computeClusterBBoxes(
 		const nest = nestingDepth.get(key) ?? 0;
 		const padCellsX = basePadCellsX + nest * nestPadCellsX;
 		const padCellsY = basePadCellsY + nest * nestPadCellsY;
-		clusters.push(
-			cellRangeToClusterRect(
-				key,
-				labels.get(key) ?? key,
-				range,
-				padCellsX,
-				padCellsY,
-				slotW,
-				slotH,
-				range.count,
-			),
+		const rect = cellRangeToClusterRect(
+			key,
+			labels.get(key) ?? key,
+			range,
+			padCellsX,
+			padCellsY,
+			slotW,
+			slotH,
+			range.count,
 		);
+		// Outline = boundary of owned cells. This is what the renderer
+		// strokes; the AABB stays for hit-test / label placement.
+		const owned = ownedCellsMap.get(key);
+		if (owned && owned.size > 0) {
+			rect.outline = computeOutlineSegments(owned, slotW, slotH, channelW, channelH);
+		}
+		clusters.push(rect);
 	}
 	return { clusters, memberSets, nestingDepth };
 }

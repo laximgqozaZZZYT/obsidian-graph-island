@@ -5,12 +5,14 @@ import { clusterHue } from "./canvas-utils";
 // the smaller / nested ones stay on top — same as Euler-diagram convention
 // where the inner set is always visible.
 //
-// Bug-fix anchor: Bug #3 ("unrelated nodes in group enclosure") shows up
-// HERE as a visual artefact — the stroke rectangle covers cells that
-// aren't actually members of the cluster. But the rectangle dimensions
-// come from cluster-bbox.ts; this function is only the renderer. Keeping
-// the two split means we can rule out "the renderer was wrong" while
-// debugging the bbox itself.
+// Two render modes per cluster:
+//  (a) `outline` set: stroke each line segment in the per-cell boundary
+//      (= rectilinear polygon following the owned cells exactly). This
+//      naturally produces holes (= cells inside the bbox but not owned)
+//      and exclaves (= disconnected groups of owned cells), so non-
+//      intersecting clusters never visually overlap.
+//  (b) fallback: stroke the AABB rectangle. Used when the cluster has
+//      no precomputed outline (= some test scenarios).
 export function drawEnclosures(
 	ctx: CanvasRenderingContext2D,
 	clusters: ClusterRect[],
@@ -29,6 +31,15 @@ export function drawEnclosures(
 			? "#ff9d3f"
 			: `hsla(${hue}, 70%, 62%, 0.9)`;
 		ctx.lineWidth = isHigh ? accentStrokeW : strokeW;
-		ctx.strokeRect(c.x, c.y, c.width, c.height);
+		if (c.outline && c.outline.length > 0) {
+			ctx.beginPath();
+			for (const seg of c.outline) {
+				ctx.moveTo(seg.x1, seg.y1);
+				ctx.lineTo(seg.x2, seg.y2);
+			}
+			ctx.stroke();
+		} else {
+			ctx.strokeRect(c.x, c.y, c.width, c.height);
+		}
 	}
 }
