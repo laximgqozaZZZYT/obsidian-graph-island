@@ -55,15 +55,17 @@ export function computeCardSize(opts: CardSizeOptions): {
 	};
 }
 
-// `nodeSpacing` setting controls horizontal channel width; vertical
-// channel preserves CARD_CELL aspect ratio. Floors at 8 px / 1 px so
-// the slot lattice never collapses.
+// `nodeSpacing` setting controls BOTH the horizontal and vertical
+// channel width — kept symmetric so row separations between cards are
+// as visible as column separations. (Earlier versions scaled channelH
+// by the card aspect ratio, which made vertical channels look cramped.)
+// Floors at 8 px so the slot lattice never collapses.
 export function computeChannelDims(nodeSpacing: number): {
 	channelW: number;
 	channelH: number;
 } {
 	const channelW = Math.max(8, nodeSpacing);
-	const channelH = Math.max(1, (channelW * CARD_CELL_H) / CARD_CELL_W);
+	const channelH = channelW;
 	return { channelW, channelH };
 }
 

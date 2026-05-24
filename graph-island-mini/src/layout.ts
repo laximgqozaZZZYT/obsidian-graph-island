@@ -155,11 +155,14 @@ export function layout(data: GraphData, sized: SizedNode[], opts: LayoutOptions)
 	const cardW = opts.cellW > 0 ? opts.cellW : sized[0]?.width ?? 80;
 	const cardH = opts.cellH > 0 ? opts.cellH : sized[0]?.height ?? 24;
 	// Channels (隘路): narrow gaps between slots reserved for wires, trunks
-	// and cluster borders. channelH is derived from channelW so the slot
-	// aspect ratio EQUALS the card aspect ratio — that way a card scaled
-	// to span N × N slots keeps the same w / h ratio as a 1 × 1 card.
+	// and cluster borders. Horizontal and vertical channels share the
+	// same width — a previous version scaled channelH by cardH/cardW
+	// which produced a vertical channel ~3× narrower than the horizontal
+	// one (with the default 120×32 card), so row separations between
+	// cards looked cramped against generous column gaps. Uniform channel
+	// width keeps the visual breathing room symmetric.
 	const channelW = Math.max(8, opts.nodeSpacing);
-	const channelH = Math.max(1, (channelW * cardH) / cardW);
+	const channelH = channelW;
 	const slotW = cardW + channelW;
 	const slotH = cardH + channelH;
 	const gridX = slotW;
