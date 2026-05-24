@@ -1,10 +1,5 @@
 import type { LaidOut, ClusterRect } from "./layout";
-import {
-	clusterHue,
-	colLetters,
-	roundedRectPath,
-	truncateToWidth,
-} from "./canvas-utils";
+import { clusterHue, roundedRectPath, truncateToWidth } from "./canvas-utils";
 import {
 	CARD_TITLE_FONT_PX,
 	CARD_BODY_FONT_PX,
@@ -125,9 +120,11 @@ export function drawGridHeaders(
 	ctx.stroke();
 
 	// Labels with stride so they don't overlap at low zoom.
-	const colStride = Math.max(1, Math.ceil(18 / Math.max(1, cellScreenW)));
-	const rowStride = Math.max(1, Math.ceil(14 / Math.max(1, cellScreenH)));
-	const fontPx = Math.min(headerH * 0.7, headerW * 0.7, 16);
+	// Stride bumped a bit because lat/lon labels are wider than the old
+	// "A" / "1" forms.
+	const colStride = Math.max(1, Math.ceil(36 / Math.max(1, cellScreenW)));
+	const rowStride = Math.max(1, Math.ceil(28 / Math.max(1, cellScreenH)));
+	const fontPx = Math.min(headerH * 0.62, headerW * 0.4, 14);
 	ctx.font = `700 ${fontPx}px sans-serif`;
 	ctx.fillStyle = "rgba(245, 250, 255, 1)";
 	ctx.textAlign = "center";
@@ -135,12 +132,12 @@ export function drawGridHeaders(
 	for (let c = minCol; c <= maxCol; c += colStride) {
 		const xC = c * W * zoom + panX + cellScreenW / 2;
 		if (xC < headerW || xC > visW) continue;
-		ctx.fillText(colLetters(c - minCol), xC, headerH / 2);
+		ctx.fillText(longitudeLabel(c), xC, headerH / 2);
 	}
 	for (let r = minRow; r <= maxRow; r += rowStride) {
 		const yC = r * H * zoom + panY + cellScreenH / 2;
 		if (yC < headerH || yC > visH) continue;
-		ctx.fillText(String(r - minRow + 1), headerW / 2, yC);
+		ctx.fillText(latitudeLabel(r), headerW / 2, yC);
 	}
 	ctx.textAlign = "start";
 	ctx.textBaseline = "alphabetic";
@@ -156,6 +153,24 @@ export function drawGridHeaders(
 	ctx.moveTo(headerW, 0);
 	ctx.lineTo(headerW, headerH);
 	ctx.stroke();
+}
+
+// Map a column index to a longitude-style label. The cell at col 0
+// (= the column containing world x = 0) is the prime meridian (= "0°").
+// Cells to the east of it get "${n}°E"; cells to the west get
+// "${n}°W". Beyond ±180 we just keep counting (the grid can extend
+// arbitrarily); the layout is a map projection, not a real globe.
+function longitudeLabel(col: number): string {
+	if (col === 0) return "0°";
+	return `${Math.abs(col)}°${col > 0 ? "E" : "W"}`;
+}
+
+// Map a row index to a latitude-style label. Rows count DOWN in screen
+// coords, so row r > 0 (= below origin) = south, row r < 0 = north.
+// Row 0 (= the row containing world y = 0) is the equator (= "0°").
+function latitudeLabel(row: number): string {
+	if (row === 0) return "0°";
+	return `${Math.abs(row)}°${row > 0 ? "S" : "N"}`;
 }
 
 // Shared footprint extent: cell range encompassing every node's full
