@@ -31,10 +31,6 @@ import {
 import { colLetters, clusterHue, wrapText } from "./canvas-utils";
 import { runAggregateSnap } from "./aggregate-snap";
 import {
-	computeParentOf,
-	computeTrulyAgg,
-} from "./aggregate-util";
-import {
 	drawCardGrid as drawCardGridFn,
 	drawGridHeaders as drawGridHeadersFn,
 	drawClusterLabels as drawClusterLabelsFn,
@@ -60,6 +56,14 @@ import {
 	screenToWorld as screenToWorldFn,
 	type HoverTarget,
 } from "./hit-test";
+import {
+	resolveEffectiveQuery,
+	resolveEffectiveHaving,
+	computeDegreeMaps,
+	filterEdgesByAlive,
+	filterLayoutData,
+	buildAdjacency,
+} from "./rebuild-pipeline";
 
 export const VIEW_TYPE_MINI = "graph-island-mini";
 
@@ -885,47 +889,24 @@ export class MiniGraphView extends ItemView {
 
 	private async rebuild(): Promise<void> {
 		const gen = ++this.rebuildGen;
-		// AUTO augmentation: manual rows are absolute (always kept). When the
-		// matching auto flag is on, append computed rows that AND-combine with
-		// the manual ones. The user can disable auto per section.
-		let effGroupBy = [...this.settings.groupBy];
-		if (
-			this.settings.groupByAuto &&
-			!effGroupBy.some((r) => r.trim().length > 0)
-		) {
-			effGroupBy = ["tag:*"];
-		}
-		let effWhere = [...this.settings.where];
-		if (this.settings.whereAuto) {
-			for (const r of effGroupBy) {
-				if (r.trim().length > 0) effWhere.push(r);
-			}
-		}
+
+		// Stage 1: AUTO-augment GROUP_BY / WHERE, then run the vault → graph
+		// builder. Errors from the query parsers are surfaced into panel
+		// state so the user sees them inline.
+		const { effGroupBy, effWhere } = resolveEffectiveQuery(this.settings);
 		const { result, errors } = buildGraph(this.app, effWhere, effGroupBy);
 		this.whereError = errors.where ?? "";
 		this.groupByError = errors.groupBy ?? "";
 		let { data, clusterLabels } = result;
 
-		// Compute the effective HAVING after WHERE/GROUP_BY have produced
-		// node counts so auto thresholds can scale with data size.
-		let effHaving = [...this.settings.having];
-		if (this.settings.havingAuto) {
-			const n = data.nodes.length;
-			if (n > 10) {
-				const floor = Math.max(2, Math.floor(Math.sqrt(n) / 3));
-				effHaving.push(`count >= ${floor}`);
-			}
-			if (n > 30) {
-				// Tighter ceiling so single mega-clusters can't dominate the view.
-				const ceiling = Math.floor(n * 0.2);
-				effHaving.push(`count <= ${ceiling}`);
-			}
-		}
-
-		// Apply HAVING BEFORE layout so dropped clusters are removed from each
-		// node's memberships and the layout repositions nodes around only the
-		// surviving clusters. Files whose ONLY membership was dropped fall back
-		// to the NONE_BUCKET cluster.
+		// Stage 1b: HAVING runs AFTER buildGraph so auto thresholds can scale
+		// with the produced node count, then drops the resulting clusters
+		// from each node's memberships + the cluster-label map.
+		const effHaving = resolveEffectiveHaving(
+			this.settings.having,
+			this.settings.havingAuto,
+			data.nodes.length,
+		);
 		const dropped = this.computeDroppedClusters(data.nodes, effHaving);
 		if (dropped.size > 0) {
 			data = filterMemberships(data, dropped);
@@ -933,20 +914,16 @@ export class MiniGraphView extends ItemView {
 		}
 		this.clusterLabels = clusterLabels;
 
-		// Pre-compute degree (number of incident edges) per node so the
-		// "degree" sort field can be resolved in O(1) during ORDER_BY. Also
-		// compute directional in/out degree counters used by nodeSizeMode.
-		this.degreeMap.clear();
-		this.inDegreeMap.clear();
-		this.outDegreeMap.clear();
-		for (const e of data.edges) {
-			this.degreeMap.set(e.source, (this.degreeMap.get(e.source) ?? 0) + 1);
-			this.degreeMap.set(e.target, (this.degreeMap.get(e.target) ?? 0) + 1);
-			this.outDegreeMap.set(e.source, (this.outDegreeMap.get(e.source) ?? 0) + 1);
-			this.inDegreeMap.set(e.target, (this.inDegreeMap.get(e.target) ?? 0) + 1);
-		}
-		// LIMIT: filter visible nodes per cluster + assign display modes,
-		// using the standalone ORDER_BY field/direction as sort criterion.
+		// Stage 2: degree maps (total / in / out). Used by ORDER_BY + size-
+		// mode resolvers. Cleared in place so view-state references stay
+		// valid for callers holding the same Map instance.
+		const degrees = computeDegreeMaps(data.edges);
+		this.degreeMap = degrees.degreeMap;
+		this.inDegreeMap = degrees.inDegreeMap;
+		this.outDegreeMap = degrees.outDegreeMap;
+
+		// Stage 3: LIMIT. Per-tier visible-node selection + display-mode
+		// assignment. Edges are re-filtered against the surviving id set.
 		const limitTiers = this.parseLimitRules();
 		const { visibleNodes, modes } = applyLimitRules(
 			data.nodes,
@@ -958,58 +935,29 @@ export class MiniGraphView extends ItemView {
 		this.displayMode = modes;
 		data = {
 			nodes: visibleNodes,
-			edges: data.edges.filter(
-				(e) =>
-					modes.has(e.source) &&
-					modes.has(e.target),
-			),
+			edges: filterEdgesByAlive(data.edges, (id) => modes.has(id)),
 		};
 
 		await this.ensureBodies(data.nodes);
 		if (gen !== this.rebuildGen) return;
 
-		// Card sizes are determined by the user-configured base node size
-		// (m × n in settings) plus an optional scale factor when sizeMode
-		// varies by link count. The lattice pitch is the BASE size, so
-		// fixed-mode cards fit exactly while link-scaled cards may stick
-		// out beyond their cell.
-		// Cluster relations needed by the per-cluster NODE_DISPLAY resolver:
-		// build each cluster's member id set + each cluster's strict-superset
-		// list against the *current* (post-LIMIT) data so cardFor can walk
-		// the override chain.
+		// Recompute the cluster member sets + strict supersets against the
+		// CURRENT (post-LIMIT) graph so the NODE_DISPLAY override chain
+		// (own cluster → inheritFrom → strict superset → global) reflects
+		// what's actually on screen.
 		this.recomputeClusterRelations(data.nodes);
 		this.recomputeNodeDisplayCache(data.nodes);
 
-		// Pre-compute aggregation BEFORE layout so trulyAgg + hidden nodes
-		// don't take physical space in the cluster pack. Otherwise every
-		// graph-settings change that flips aggregation / visibility would
-		// leave the surrounding nodes pinned at their initial positions
-		// — exactly the bug the user is reporting.
-		const preAggSet = new Set(this.settings.aggregatedLayers);
-		const preParentOf = computeParentOf(
-			[
-				...new Set(
-					data.nodes.flatMap((n) => n.memberships),
-				),
-			],
-			data.nodes,
-			this.settings.inheritFrom ?? {},
-		);
-		const preTrulyAgg = computeTrulyAgg(data.nodes, preAggSet, preParentOf);
-		const hiddenSet = new Set(this.settings.hiddenNodes);
-		const layoutNodes = data.nodes.filter(
-			(n) => !preTrulyAgg.has(n.id) && !hiddenSet.has(n.id),
-		);
-		const layoutAlive = new Set(layoutNodes.map((n) => n.id));
-		const layoutEdges = data.edges.filter(
-			(e) => layoutAlive.has(e.source) && layoutAlive.has(e.target),
-		);
-		const layoutData = { nodes: layoutNodes, edges: layoutEdges };
+		// Stage 4: drop aggregated + hidden cards from the layout input.
+		// They are folded back in by aggregate-snap BELOW; here we just
+		// ensure they don't reserve grid cells the visible cards could
+		// otherwise occupy.
+		const { layoutData, preTrulyAgg } = filterLayoutData(data, this.settings);
 
 		// Card sizes derive from the user-configured row × column span
 		// times the canonical CARD_CELL_W × CARD_CELL_H lattice step, with
 		// an optional degree-driven scale that preserves the m : n aspect.
-		const sized = layoutNodes.map((n) => this.cardFor(n));
+		const sized = layoutData.nodes.map((n) => this.cardFor(n));
 		const wasEmpty = this.laid.clusters.length === 0;
 		this.laid = layout(layoutData, sized, {
 			clusterSpacing: this.settings.clusterSpacing,
@@ -1019,15 +967,8 @@ export class MiniGraphView extends ItemView {
 			clusterLabels,
 			anchorPlacement: this.settings.anchorPlacement,
 		});
-		this.adjacency = new Map();
-		this.laid.edges.forEach((e, i) => {
-			// Every edge (bundled or not) carries the underlying source/target
-			// node IDs now, so the adjacency map can be built uniformly.
-			const sa = this.adjacency.get(e.source);
-			if (sa) sa.push(i); else this.adjacency.set(e.source, [i]);
-			const ta = this.adjacency.get(e.target);
-			if (ta) ta.push(i); else this.adjacency.set(e.target, [i]);
-		});
+		// Stage 5: id → incident-edge-index adjacency for hover lookups.
+		this.adjacency = buildAdjacency(this.laid.edges);
 		// Aggregate-snap: badge cell selection + edge stitching back into
 		// the aggregate stack. trulyAgg + hidden were already excluded
 		// from the layout pass, so the layout above ran on visible nodes
