@@ -67,21 +67,24 @@ export interface PositionedEdge {
 export interface ClusterRect {
 	groupKey: string;
 	label: string;
-	// AABB of the cluster's owned-cell region. Used for label / hit-test
-	// fallback. The renderer prefers `outline` when present.
+	// Overall bbox = bounding box of every piece combined.
+	// Used for label placement + hit-test fallback.
 	x: number;
 	y: number;
 	width: number;
 	height: number;
 	memberCount: number;
-	// Outer boundary segments of the cluster's carved AABB polygon
-	// (= AABB with foreign-only cells removed from the boundary).
+	// PIECES = the cluster's enclosure is the UNION of these
+	// rectangles. Each piece is a tight AABB around some 4-connected
+	// component of the cluster's owned cells, possibly subdivided
+	// further to exclude foreign-cluster cards. Multiple pieces (=
+	// 離れ島 / exclaves) are permitted; the constraint is that NO
+	// piece contains a cell with a card from another cluster the
+	// member doesn't belong to.
+	pieces?: Array<{ x: number; y: number; w: number; h: number }>;
+	// Legacy outline (segment list) — kept while older code paths
+	// still depend on it. Renderer prefers `pieces` when present.
 	outline?: Array<{ x1: number; y1: number; x2: number; y2: number }>;
-	// Cell-aligned fill rectangles inside the cluster's polygon
-	// (= one entry per cell that survived carving). The renderer
-	// fills each with the cluster's hue at low opacity so the
-	// enclosure is a tinted region that overlaps neighbours
-	// without obscuring them.
 	cells?: Array<{ x: number; y: number; w: number; h: number }>;
 }
 

@@ -113,8 +113,21 @@ for (const [name, scene] of Object.entries(scenarios)) {
 	const ownedMap = computeClusterOwnedCells(laid.nodes, clusterKeys, slotW, slotH);
 	const polyCellMap = new Map();
 	for (const c of laid.clusters) {
-		const set = new Set();
-		if (c.cells) {
+		const set = polyCellMap.get(c.groupKey) ?? new Set();
+		// Prefer the new `pieces` field; fall back to legacy `cells`.
+		if (c.pieces && c.pieces.length > 0) {
+			const padX = laid.channelW / 2;
+			const padY = laid.channelH / 2;
+			for (const p of c.pieces) {
+				const c0 = Math.round((p.x - padX) / slotW);
+				const r0 = Math.round((p.y - padY) / slotH);
+				const cN = Math.round((p.x + p.w - padX) / slotW) - 1;
+				const rN = Math.round((p.y + p.h - padY) / slotH) - 1;
+				for (let col = c0; col <= cN; col++) {
+					for (let row = r0; row <= rN; row++) set.add(`${col},${row}`);
+				}
+			}
+		} else if (c.cells) {
 			for (const r of c.cells) {
 				const col = Math.round(r.x / slotW);
 				const row = Math.round(r.y / slotH);
@@ -153,9 +166,11 @@ for (const [name, scene] of Object.entries(scenarios)) {
 				}
 			}
 		}
+		// User spec 2026-05-24: exclaves are now permitted, so multi-
+		// component polygons are NOT a violation. We still report the
+		// count for diagnostic purposes.
 		if (comps > 1) {
 			disconnected++;
-			reports.push(`  [${name}] CLUSTER ${key}: polygon has ${comps} disconnected components (owned=${owned.size}, poly=${poly.size})`);
 		}
 	}
 	totalMissing += missing;
@@ -165,8 +180,11 @@ for (const [name, scene] of Object.entries(scenarios)) {
 
 console.log(`\nTOTAL: missing=${totalMissing}, disconnected=${totalDisconnected}`);
 for (const r of reports.slice(0, 40)) console.log(r);
-if (totalMissing > 0 || totalDisconnected > 0) {
-	console.log("\nFAIL: cluster polygon invariants violated");
+// Only owned-cell presence is a hard invariant now (exclaves permitted).
+if (totalMissing > 0) {
+	console.log("\nFAIL: owned cells missing from polygon");
 	process.exit(1);
 }
-console.log("\nOK (every owned cell enclosed; every polygon single-connected)");
+console.log(
+	`\nOK (every owned cell enclosed; ${totalDisconnected} polygon(s) split into exclaves — permitted by current spec)`,
+);

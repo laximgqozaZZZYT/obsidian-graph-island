@@ -825,20 +825,116 @@ export function closeToSimplyConnected(
 	return filled;
 }
 
-// Orchestrator: one bbox per cluster + nesting-aware padding. Returns
-// the bbox list AND the per-cluster member set + nesting depth so
-// downstream callers (e.g. the B2 clamp) can reuse them without
-// recomputing.
+// Foreign-free maximal rectangle starting at (startCol, startRow).
+// Grows right first to find max width without crossing a foreign cell,
+// then down keeping the same width. Bounded by (maxBoundCol,
+// maxBoundRow) so we don't extend past the cluster's AABB.
 //
-// ──── Contract (Kaizen, 2026-05-24): ────────────────────────────────
+// `foreignCells` = cells holding at least one card from another
+// cluster the current cluster's members don't share. ANY foreign cell
+// in the candidate rectangle aborts further growth in that direction.
+// Result: rectangle containing the seed cell (which is always owned),
+// possibly some empty cells, and NO foreign cells.
+export function maxForeignFreeRect(
+	startCol: number,
+	startRow: number,
+	foreignCells: Set<string>,
+	maxBoundCol: number,
+	maxBoundRow: number,
+): { minCol: number; maxCol: number; minRow: number; maxRow: number } {
+	let width = 1;
+	while (startCol + width <= maxBoundCol) {
+		if (foreignCells.has(`${startCol + width},${startRow}`)) break;
+		width++;
+	}
+	let height = 1;
+	outer: while (startRow + height <= maxBoundRow) {
+		for (let c = startCol; c < startCol + width; c++) {
+			if (foreignCells.has(`${c},${startRow + height}`)) break outer;
+		}
+		height++;
+	}
+	return {
+		minCol: startCol,
+		maxCol: startCol + width - 1,
+		minRow: startRow,
+		maxRow: startRow + height - 1,
+	};
+}
+
+// Decompose a cluster's owned cells into a set of axis-aligned
+// RECTANGLES that together cover every own cell AND contain no
+// foreign cell. Multiple rectangles per cluster (= 離れ島 / exclaves)
+// are produced when own cells are spread out with foreign cells in
+// between.
+//
+// Algorithm: greedy. Iterate own cells in row-major order; for each
+// uncovered own cell, find the maximal foreign-free rectangle starting
+// at that cell (right then down) and mark every cell it covers
+// (including absorbed empty cells) as covered. Continue until every
+// own cell is in some rectangle.
+//
+// Properties (= the new user spec, 2026-05-24):
+//   - V1 zero: no rectangle contains a foreign cell, so no foreign
+//     node sits inside the union of this cluster's rectangles.
+//   - V3 zero: every own cell starts a rectangle if not covered, so
+//     every own cell is in at least one rectangle.
+//   - Exclaves: permitted (= "離れ島は許容する"). The union may have
+//     multiple disjoint pieces.
+//   - 可能な限り四辺形: each piece IS an axis-aligned rectangle.
+export function decomposeIntoForeignFreeRects(
+	ownedCells: Set<string>,
+	foreignCells: Set<string>,
+	range: { minCol: number; maxCol: number; minRow: number; maxRow: number },
+): Array<{ minCol: number; maxCol: number; minRow: number; maxRow: number }> {
+	const covered = new Set<string>();
+	const rects: Array<{
+		minCol: number;
+		maxCol: number;
+		minRow: number;
+		maxRow: number;
+	}> = [];
+	const sorted = [...ownedCells].sort((a, b) => {
+		const [ac, ar] = a.split(",").map(Number);
+		const [bc, br] = b.split(",").map(Number);
+		return ar - br || ac - bc;
+	});
+	for (const cell of sorted) {
+		if (covered.has(cell)) continue;
+		const [sc, sr] = cell.split(",").map(Number);
+		const r = maxForeignFreeRect(
+			sc,
+			sr,
+			foreignCells,
+			range.maxCol,
+			range.maxRow,
+		);
+		for (let c = r.minCol; c <= r.maxCol; c++) {
+			for (let row = r.minRow; row <= r.maxRow; row++) {
+				covered.add(`${c},${row}`);
+			}
+		}
+		rects.push(r);
+	}
+	return rects;
+}
+
+// (Re-export already defined above. This banner just precedes the
+// orchestrator that consumes these helpers.)
+
+// Orchestrator: produces one ClusterRect per cluster.
+//
+// ──── Contract (User spec update, 2026-05-24): ─────────────────────
 // For every cluster c in the returned `clusters` array:
-//   (a) every owned cell MUST appear in c.cells (= polygon)
-//   (b) c.cells MUST form a single 4-connected component
-// Exclaves are NOT permitted at this layer. The only allowed source of
-// visual exclaves is the world-map tile renderer in view.ts (= the
-// same polygon drawn at multiple pan offsets), which sits ABOVE this
-// function in the pipeline.
-// Enforced by scripts/carve-verify.mjs across 5 stress scenarios.
+//   (a) c.pieces (= the cluster's enclosure rectangles) COVER every
+//       owned cell of the cluster.
+//   (b) NO piece contains a cell with a foreign card (= a card
+//       whose memberships don't include this cluster's key).
+//   (c) Pieces ARE allowed to be exclaves (= the cluster's enclosure
+//       may be the union of multiple disjoint rectangles).
+//   (d) Empty cells inside pieces are permitted (= no foreign node
+//       there → no V1 violation).
+// Enforced by scripts/random-layout-verify.mjs.
 // ────────────────────────────────────────────────────────────────────
 export function computeClusterBBoxes(
 	positionedNodes: PositionedNode[],
@@ -905,37 +1001,10 @@ export function computeClusterBBoxes(
 		);
 		const owned = ownedCellsMap.get(key);
 		if (owned && owned.size > 0) {
-			const aabbCells = new Set<string>();
-			for (let col = range.minCol; col <= range.maxCol; col++) {
-				for (let row = range.minRow; row <= range.maxRow; row++) {
-					aabbCells.add(`${col},${row}`);
-				}
-			}
-			const foreignOnly = computeForeignOnlyCellsInRange(
-				positionedNodes,
-				owned,
-				key,
-				slotW,
-				slotH,
-				range,
-			);
-			// Union of foreign-only cells + empty cells in another cluster's
-			// AABB (these are the boundary-carve candidates). The old rule
-			// for empty-cell carving is kept to preserve correct visual
-			// disambiguation between overlapping cluster bounding boxes.
-			const emptyInOtherAabb = computeEmptyCellsInOtherClusterAABBs(
-				key,
-				owned,
-				range,
-				rangeMap,
-				allOccupied,
-			);
-			const carveCandidates = new Set<string>(foreignOnly);
-			for (const c of emptyInOtherAabb) carveCandidates.add(c);
-			let carved = carveFromBoundary(aabbCells, carveCandidates, range);
-
-			// Build the global foreign-cell set: all cells occupied by any
-			// node that does NOT belong to this cluster.
+			// Build the global foreign-cell set: cells occupied by any
+			// card whose memberships do NOT include this cluster's key.
+			// These are the cells that MUST stay outside every piece of
+			// this cluster's enclosure (= V1 = 0 by construction).
 			const globalForeignCells = new Set<string>();
 			for (const n of positionedNodes) {
 				if (n.memberships.includes(key)) continue;
@@ -946,39 +1015,40 @@ export function computeClusterBBoxes(
 					}
 				}
 			}
-			// Restore connectivity after carving (bridgeComponents), then
-			// remove interior foreign-filler cells (pruneUnnecessaryForeignCells).
-			// Phase A of pruning: foreign-free BFS bridge (V1=0).
-			// Phase B of pruning: minimum-foreign L-path bridge (V2=0).
-			carved = bridgeComponents(carved, globalForeignCells, owned);
-			carved = pruneUnnecessaryForeignCells(carved, globalForeignCells, owned);
-			rect.outline = computeOutlineSegments(
-				carved,
-				slotW,
-				slotH,
-				channelW,
-				channelH,
+			// Decompose the cluster's owned cells into a set of axis-
+			// aligned rectangles. Each rectangle is the maximum foreign-
+			// free rect anchored at an uncovered own cell; together they
+			// cover every own cell. Multiple rectangles = exclaves, which
+			// the current user spec explicitly permits.
+			const rectRanges = decomposeIntoForeignFreeRects(
+				owned,
+				globalForeignCells,
+				range,
 			);
-			// Cell-aligned fill rectangles for the renderer. Same coord
-			// convention as drawCardGrid (cell inner box runs from
-			// (col*W + padX, row*H + padY) to ((col+1)*W - padX, ...)).
 			const padX = channelW / 2;
 			const padY = channelH / 2;
-			const cellW = slotW - 2 * padX;
-			const cellH = slotH - 2 * padY;
-			const cellRects: Array<{ x: number; y: number; w: number; h: number }> = [];
-			for (const k of carved) {
-				const [colStr, rowStr] = k.split(",");
-				const col = parseInt(colStr, 10);
-				const row = parseInt(rowStr, 10);
-				cellRects.push({
-					x: col * slotW + padX,
-					y: row * slotH + padY,
-					w: cellW,
-					h: cellH,
-				});
+			rect.pieces = rectRanges.map((r) => ({
+				x: r.minCol * slotW + padX,
+				y: r.minRow * slotH + padY,
+				w: (r.maxCol - r.minCol + 1) * slotW - 2 * padX,
+				h: (r.maxRow - r.minRow + 1) * slotH - 2 * padY,
+			}));
+			// Update the overall bbox to span every piece (= used for
+			// label placement etc.). When a cluster degenerates into a
+			// single rectangle, this matches the legacy AABB.
+			if (rect.pieces.length > 0) {
+				let l = Infinity, t = Infinity, r2 = -Infinity, b = -Infinity;
+				for (const p of rect.pieces) {
+					if (p.x < l) l = p.x;
+					if (p.y < t) t = p.y;
+					if (p.x + p.w > r2) r2 = p.x + p.w;
+					if (p.y + p.h > b) b = p.y + p.h;
+				}
+				rect.x = l;
+				rect.y = t;
+				rect.width = r2 - l;
+				rect.height = b - t;
 			}
-			rect.cells = cellRects;
 		}
 		clusters.push(rect);
 	}

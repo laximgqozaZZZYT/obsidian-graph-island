@@ -111,13 +111,36 @@ function cellOfNode(n, slotW, slotH) {
 	return cells;
 }
 
-function polygonCellSet(cluster, slotW, slotH) {
+function polygonCellSet(cluster, slotW, slotH, channelW, channelH) {
 	const out = new Set();
-	if (!cluster.cells) return out;
-	for (const r of cluster.cells) {
-		const col = Math.round(r.x / slotW);
-		const row = Math.round(r.y / slotH);
-		out.add(`${col},${row}`);
+	// Prefer the new `pieces` field (= multi-rect enclosure per user
+	// spec 2026-05-24). Each piece is a pixel rect aligned to the slot
+	// grid; convert to col/row range and add every cell it covers.
+	if (cluster.pieces && cluster.pieces.length > 0) {
+		const padX = channelW / 2;
+		const padY = channelH / 2;
+		for (const p of cluster.pieces) {
+			// Pixel rect → cell range. piece.x = col*slotW + padX, so
+			// col = (piece.x - padX) / slotW.
+			const c0 = Math.round((p.x - padX) / slotW);
+			const r0 = Math.round((p.y - padY) / slotH);
+			const cN = Math.round((p.x + p.w - padX) / slotW) - 1;
+			const rN = Math.round((p.y + p.h - padY) / slotH) - 1;
+			for (let c = c0; c <= cN; c++) {
+				for (let r = r0; r <= rN; r++) {
+					out.add(`${c},${r}`);
+				}
+			}
+		}
+		return out;
+	}
+	// Legacy fallback: cells field.
+	if (cluster.cells) {
+		for (const r of cluster.cells) {
+			const col = Math.round(r.x / slotW);
+			const row = Math.round(r.y / slotH);
+			out.add(`${col},${row}`);
+		}
 	}
 	return out;
 }
@@ -149,10 +172,20 @@ function components4(cells) {
 function verifyScenario(seed, scenario, laid) {
 	const slotW = laid.slotW;
 	const slotH = laid.slotH;
+	const channelW = laid.channelW;
+	const channelH = laid.channelH;
 	const violations = [];
+	// User spec 2026-05-24: cluster enclosure may consist of MULTIPLE
+	// rectangular pieces (= 離れ島 OK). Per-cluster polygon = union of
+	// pieces. Multiple ClusterRect entries with the same groupKey would
+	// also be unioned (currently the orchestrator produces one entry
+	// per cluster with all pieces inside; the union code handles both).
 	const polyByCluster = new Map();
 	for (const c of laid.clusters) {
-		polyByCluster.set(c.groupKey, polygonCellSet(c, slotW, slotH));
+		const existing = polyByCluster.get(c.groupKey) ?? new Set();
+		const piece = polygonCellSet(c, slotW, slotH, channelW, channelH);
+		for (const k of piece) existing.add(k);
+		polyByCluster.set(c.groupKey, existing);
 	}
 
 	// V1 + V3: per-node check
@@ -177,16 +210,8 @@ function verifyScenario(seed, scenario, laid) {
 		}
 	}
 
-	// V2: per-cluster polygon connectivity
-	for (const [key, poly] of polyByCluster) {
-		const comps = components4(poly);
-		if (comps > 1) {
-			violations.push({
-				rule: "V2",
-				detail: `seed=${seed} cluster ${key} polygon has ${comps} 4-connected components (poly size=${poly.size})`,
-			});
-		}
-	}
+	// V2: exclaves are explicitly ALLOWED under the current user spec
+	// ("離れ島は許容する"). No connectivity check is performed.
 
 	return violations;
 }

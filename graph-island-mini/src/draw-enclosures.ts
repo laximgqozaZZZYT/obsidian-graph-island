@@ -1,19 +1,26 @@
 import type { ClusterRect } from "./layout";
 import { clusterHue } from "./canvas-utils";
 
-// Render cluster enclosures. Larger clusters draw first so the
-// smaller / nested ones stay on top — Euler-diagram convention.
+// Render cluster enclosures.
 //
-// Per cluster we draw 2 layers:
-//   1. Tinted fill: each cell of the carved polygon, filled with the
-//      cluster's hue at low opacity. Overlapping clusters (= cells
-//      belonging to multiple memberships) blend additively, so an
-//      Euler intersection reads as a slightly more saturated patch.
-//   2. Outline: rectilinear polygon boundary, drawn on top of the
-//      fills. Stroke at full opacity.
+// Per current user spec (2026-05-24): each cluster's enclosure is the
+// union of one or more axis-aligned rectangles (= `cluster.pieces`).
+// Multiple pieces (= 離れ島 / exclaves) are permitted, provided no
+// piece overlaps a non-member's cell (= V1 = 0 by construction in
+// cluster-bbox.ts).
 //
-// Caller is responsible for the overall z-order: enclosures (this)
-// are drawn FIRST in view.ts, then edges, then cards on top.
+// Render order per cluster:
+//   1. Fill each piece with the cluster hue at moderate opacity.
+//      Overlapping pieces from different clusters blend additively, so
+//      Euler intersections look more saturated.
+//   2. Stroke each piece's outline on top of the fill.
+//
+// Caller (view.ts) is responsible for the overall z-order: enclosures
+// run FIRST in the body draw, then edges, then cards on top.
+//
+// Fallback (only when `pieces` is not populated): use the legacy
+// `outline` segments or the AABB rect — kept so test scenes that don't
+// run the orchestrator still draw something.
 export function drawEnclosures(
 	ctx: CanvasRenderingContext2D,
 	clusters: ClusterRect[],
@@ -26,23 +33,23 @@ export function drawEnclosures(
 	const strokeW = 1.6 / zoom;
 	const accentStrokeW = 3.2 / zoom;
 
-	// Pass 1: fills (cell-aligned). Drawn first so outlines sit cleanly
-	// on top of the tinted region. Opacity raised so the cluster
-	// territory reads clearly even on a single fill layer — overlapping
-	// clusters still blend additively (= intersections look more
-	// saturated than single-membership regions).
+	// Pass 1: fills. Draw all clusters' fills first so outlines (pass 2)
+	// sit cleanly on top.
 	for (const c of sortedClusters) {
-		if (!c.cells || c.cells.length === 0) continue;
 		const hue = clusterHue(c.groupKey);
 		const isHigh = highlightedClusters.has(c.groupKey);
 		ctx.fillStyle = isHigh
 			? "rgba(255, 157, 63, 0.40)"
 			: `hsla(${hue}, 60%, 50%, 0.32)`;
-		ctx.beginPath();
-		for (const cell of c.cells) {
-			ctx.rect(cell.x, cell.y, cell.w, cell.h);
+		if (c.pieces && c.pieces.length > 0) {
+			ctx.beginPath();
+			for (const p of c.pieces) ctx.rect(p.x, p.y, p.w, p.h);
+			ctx.fill();
+		} else if (c.cells && c.cells.length > 0) {
+			ctx.beginPath();
+			for (const cell of c.cells) ctx.rect(cell.x, cell.y, cell.w, cell.h);
+			ctx.fill();
 		}
-		ctx.fill();
 	}
 
 	// Pass 2: outlines.
@@ -53,7 +60,9 @@ export function drawEnclosures(
 			? "#ff9d3f"
 			: `hsla(${hue}, 70%, 62%, 0.9)`;
 		ctx.lineWidth = isHigh ? accentStrokeW : strokeW;
-		if (c.outline && c.outline.length > 0) {
+		if (c.pieces && c.pieces.length > 0) {
+			for (const p of c.pieces) ctx.strokeRect(p.x, p.y, p.w, p.h);
+		} else if (c.outline && c.outline.length > 0) {
 			ctx.beginPath();
 			for (const seg of c.outline) {
 				ctx.moveTo(seg.x1, seg.y1);
