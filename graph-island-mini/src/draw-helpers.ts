@@ -15,9 +15,15 @@ import {
 	CARD_RADIUS_PX,
 } from "./types";
 
-// Excel-style cell grid covering every card's footprint plus a 1-cell
-// reserved border on the top and left (column A / row 1 stay empty).
-// Drawn before any other body content so cards / enclosures sit on top.
+// Number of extra cells drawn beyond the actual content extent (cards +
+// cluster bboxes). Visible breathing room on the right / bottom + an
+// extra header strip on the left / top so column A / row 1 stay empty
+// AND there's a "next blank cell" hint at every edge.
+const GRID_BUFFER_CELLS = 2;
+
+// Excel-style cell grid covering every card's footprint, every cluster
+// bbox, and a 2-cell buffer in each direction. Drawn before any other
+// body content so cards / enclosures sit on top.
 export function drawCardGrid(
 	ctx: CanvasRenderingContext2D,
 	laid: LaidOut,
@@ -30,10 +36,10 @@ export function drawCardGrid(
 	const channelH = laid.channelH;
 	if (W <= 0 || H <= 0) return;
 	const ext = footprintExtent(laid, W, H);
-	const minCol = ext.minCol - 1;
-	const maxCol = ext.maxCol;
-	const minRow = ext.minRow - 1;
-	const maxRow = ext.maxRow;
+	const minCol = ext.minCol - GRID_BUFFER_CELLS;
+	const maxCol = ext.maxCol + GRID_BUFFER_CELLS;
+	const minRow = ext.minRow - GRID_BUFFER_CELLS;
+	const maxRow = ext.maxRow + GRID_BUFFER_CELLS;
 	const padX = channelW / 2;
 	const padY = channelH / 2;
 
@@ -75,10 +81,10 @@ export function drawGridHeaders(
 	const H = laid.slotH;
 	if (W <= 0 || H <= 0) return;
 	const ext = footprintExtent(laid, W, H);
-	const minCol = ext.minCol - 1;
-	const maxCol = ext.maxCol;
-	const minRow = ext.minRow - 1;
-	const maxRow = ext.maxRow;
+	const minCol = ext.minCol - GRID_BUFFER_CELLS;
+	const maxCol = ext.maxCol + GRID_BUFFER_CELLS;
+	const minRow = ext.minRow - GRID_BUFFER_CELLS;
+	const maxRow = ext.maxRow + GRID_BUFFER_CELLS;
 
 	const dpr = window.devicePixelRatio || 1;
 	const visW = canvas.width / dpr;
@@ -153,7 +159,13 @@ export function drawGridHeaders(
 }
 
 // Shared footprint extent: cell range encompassing every node's full
-// (multi-cell) footprint. Used by both the grid + header drawers.
+// (multi-cell) footprint AND every cluster bbox. Used by both the grid +
+// header drawers.
+//
+// Cluster bboxes are included because their padding (= clusterSpacing
+// + nesting depth) can extend the visible outline 1–3 cells beyond the
+// rightmost / bottom-most card. Without that, a cluster border would
+// stroke OUTSIDE the lattice — visually "outside the grid".
 function footprintExtent(
 	laid: LaidOut,
 	W: number,
@@ -174,6 +186,20 @@ function footprintExtent(
 		if (endCol > maxCol) maxCol = endCol;
 		if (startRow < minRow) minRow = startRow;
 		if (endRow > maxRow) maxRow = endRow;
+	}
+	// Cluster bboxes — their padding can extend beyond the card footprint.
+	// Floor / ceil convert the pixel rect back into the cell range it
+	// overlaps. (`c.x + c.width` is the bbox right edge; subtract 1 to
+	// get the LAST cell it intersects, since cell c spans [c*W, (c+1)*W).)
+	for (const c of laid.clusters) {
+		const cStartCol = Math.floor(c.x / W);
+		const cEndCol = Math.ceil((c.x + c.width) / W) - 1;
+		const cStartRow = Math.floor(c.y / H);
+		const cEndRow = Math.ceil((c.y + c.height) / H) - 1;
+		if (cStartCol < minCol) minCol = cStartCol;
+		if (cEndCol > maxCol) maxCol = cEndCol;
+		if (cStartRow < minRow) minRow = cStartRow;
+		if (cEndRow > maxRow) maxRow = cEndRow;
 	}
 	return { minCol, maxCol, minRow, maxRow };
 }
