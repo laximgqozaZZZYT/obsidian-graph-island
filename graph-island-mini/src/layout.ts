@@ -226,8 +226,23 @@ export function layout(data: GraphData, sized: SizedNode[], opts: LayoutOptions)
 
 	const maxSubW = packed.reduce((m, p) => Math.max(m, p.width), 0);
 	const maxSubH = packed.reduce((m, p) => Math.max(m, p.height), 0);
-	const strideX = maxSubW + Math.floor(opts.clusterSpacing / 2);
-	const strideY = maxSubH + Math.floor(opts.clusterSpacing / 2);
+	// Anchor stride must include the relax gap so the layout starts
+	// with enough breathing room that relax doesn't have to violently
+	// push sub-groups around. Match the formula used by RELAX_GAP
+	// below (sub-group size and total node count).
+	const totalNodes = subgroups.reduce((s, sg) => s + sg.nodes.length, 0);
+	const maxNodesInSub = subgroups.reduce(
+		(m, sg) => Math.max(m, sg.nodes.length),
+		0,
+	);
+	const slotMargin = Math.max(
+		8,
+		Math.ceil(Math.sqrt(Math.max(1, maxNodesInSub))) + 4,
+		Math.ceil(totalNodes / 50),
+	);
+	const channelSpacing = Math.max(slotW, slotH) * slotMargin;
+	const strideX = maxSubW + channelSpacing;
+	const strideY = maxSubH + channelSpacing;
 
 	// Phase 1: rank clusters by aggregate degree, pick a focus cluster
 	// containing the global max-degree node, and place anchors per the chosen
@@ -282,24 +297,9 @@ export function layout(data: GraphData, sized: SizedNode[], opts: LayoutOptions)
 	// sub-groups in the same group touching after collision resolution
 	// so the parent enclosure stays tight.
 	const subPositions = buildInitialSubPositions(packed, anchors, clusterOff);
-	// RELAX_GAP keeps adjacent main groups' cells disjoint after
-	// snapCardsToGrid. The spiral cascade in snapCardsToGrid can
-	// extend further the larger the layout, so the gap scales with
-	// the biggest sub-group's extent: a sub-group of size N might
-	// have one card pushed ~sqrt(N) slots out by cascading collisions.
-	// Empirically a gap of `max(8 slots, sqrt(maxNodes) slots, ...)`
-	// holds V6 = 0 in both default and STRESS modes.
-	const maxNodesInSub = subgroups.reduce(
-		(m, sg) => Math.max(m, sg.nodes.length),
-		0,
-	);
-	const spiralBuffer = Math.ceil(Math.sqrt(Math.max(1, maxNodesInSub)));
-	const slotMargin = Math.max(8, spiralBuffer + 4);
-	const RELAX_GAP = Math.max(
-		slotW * slotMargin,
-		slotH * slotMargin,
-		opts.nodeSpacing,
-	);
+	// Use the same slot-margin formula computed above so relax target
+	// matches the stride at which anchors are placed.
+	const RELAX_GAP = channelSpacing;
 	relaxSubgroups(subPositions, RELAX_GAP, 80);
 	// Phase 2b: compactness pass — pull each multi-tag sub-group back
 	// toward its LARGEST cluster's anchor by 40%.
