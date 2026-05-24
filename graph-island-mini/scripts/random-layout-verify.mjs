@@ -18,11 +18,13 @@
 //       that cluster's enclosure. HARD invariant.
 //   V5. Every piece in cluster.pieces is a positive-area rectangle.
 //       HARD invariant.
+//   V6. MAIN rectangles of distinct clusters DO NOT overlap.
+//       HARD invariant (added 2026-05-24 in the latest revision).
 //
 // V2 (non-wrap exclaves) and V4 (single-rect) are removed entirely —
 // multi-rectangle enclosures are now intentional.
 //
-// Output: per-trial summary. Exits non-zero if V3 or V5 violates.
+// Output: per-trial summary. Exits non-zero if V3, V5, or V6 violates.
 // Seeds are deterministic so a failing trial can be re-run by passing
 // SEED=<n> on the command line.
 //
@@ -215,7 +217,7 @@ function verifyScenario(seed, scenario, laid) {
 		}
 	}
 
-	// V5 (hard, NEW): every piece is a positive-area rectangle.
+	// V5 (hard): every piece is a positive-area rectangle.
 	for (const c of laid.clusters) {
 		if (!c.pieces || c.pieces.length === 0) continue;
 		for (let i = 0; i < c.pieces.length; i++) {
@@ -224,6 +226,63 @@ function verifyScenario(seed, scenario, laid) {
 				violations.push({
 					rule: "V5",
 					detail: `seed=${seed} cluster ${c.groupKey} piece[${i}] has non-positive dimensions (w=${p.w}, h=${p.h})`,
+				});
+			}
+		}
+	}
+
+	// V6 (hard, NEW): MAIN rectangles of distinct clusters MUST NOT
+	// overlap. Compute main rect per cluster INDEPENDENTLY from node
+	// positions + `mainOf` so the check doesn't depend on which piece
+	// the orchestrator labelled as "main".
+	const memberCounts = new Map();
+	for (const n of laid.nodes) {
+		for (const m of n.memberships) memberCounts.set(m, (memberCounts.get(m) ?? 0) + 1);
+	}
+	const mainOf = new Map();
+	for (const n of laid.nodes) {
+		if (n.memberships.length === 0) continue;
+		let best = n.memberships[0];
+		let bestSize = memberCounts.get(best) ?? 0;
+		for (let i = 1; i < n.memberships.length; i++) {
+			const m = n.memberships[i];
+			const s = memberCounts.get(m) ?? 0;
+			if (s > bestSize || (s === bestSize && m < best)) {
+				best = m;
+				bestSize = s;
+			}
+		}
+		mainOf.set(n.id, best);
+	}
+	const mainRectByCluster = new Map();
+	for (const n of laid.nodes) {
+		const main = mainOf.get(n.id);
+		if (!main) continue;
+		let r = mainRectByCluster.get(main);
+		if (!r) {
+			r = { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity };
+			mainRectByCluster.set(main, r);
+		}
+		const left = n.x - n.width / 2;
+		const right = n.x + n.width / 2;
+		const top = n.y - n.height / 2;
+		const bottom = n.y + n.height / 2;
+		if (left < r.minX) r.minX = left;
+		if (right > r.maxX) r.maxX = right;
+		if (top < r.minY) r.minY = top;
+		if (bottom > r.maxY) r.maxY = bottom;
+	}
+	const clusterKeys = [...mainRectByCluster.keys()];
+	for (let i = 0; i < clusterKeys.length; i++) {
+		for (let j = i + 1; j < clusterKeys.length; j++) {
+			const a = mainRectByCluster.get(clusterKeys[i]);
+			const b = mainRectByCluster.get(clusterKeys[j]);
+			const overlapX = Math.min(a.maxX, b.maxX) - Math.max(a.minX, b.minX);
+			const overlapY = Math.min(a.maxY, b.maxY) - Math.max(a.minY, b.minY);
+			if (overlapX > 0 && overlapY > 0) {
+				violations.push({
+					rule: "V6",
+					detail: `seed=${seed} main rects of ${clusterKeys[i]} and ${clusterKeys[j]} overlap (${overlapX.toFixed(1)}×${overlapY.toFixed(1)})`,
 				});
 			}
 		}
@@ -256,7 +315,7 @@ const seeds = fixedSeed !== null
 let totalViolations = 0;
 let trialsRun = 0;
 let trialsWithViolations = 0;
-const violationRuleCounts = { V1: 0, V3: 0, V5: 0 };
+const violationRuleCounts = { V1: 0, V3: 0, V5: 0, V6: 0 };
 const reportedSamples = [];
 
 for (const seed of seeds) {
@@ -301,6 +360,7 @@ console.log(`  total violations: ${totalViolations}`);
 console.log(`    V1 (foreign-in-enclosure, diagnostic): ${violationRuleCounts.V1 ?? 0}`);
 console.log(`    V3 (missing from own enclosure): ${violationRuleCounts.V3 ?? 0}`);
 console.log(`    V5 (piece not a positive rect): ${violationRuleCounts.V5 ?? 0}`);
+console.log(`    V6 (main rects overlap):       ${violationRuleCounts.V6 ?? 0}`);
 
 if (reportedSamples.length > 0) {
 	console.log(`\nSample violations (first ${reportedSamples.length}):`);
@@ -312,9 +372,12 @@ if (reportedSamples.length > 0) {
 // V1 is NO LONGER a hard fail (user explicitly accepts foreign-in-
 // enclosure as the trade-off for guaranteed rectangle shape). Only V3
 // (own missing) and V4 (non-rectangle shape) trigger exit non-zero.
-const hardViolations = (violationRuleCounts.V3 ?? 0) + (violationRuleCounts.V5 ?? 0);
+const hardViolations =
+	(violationRuleCounts.V3 ?? 0) +
+	(violationRuleCounts.V5 ?? 0) +
+	(violationRuleCounts.V6 ?? 0);
 if (hardViolations > 0) {
-	console.log(`\nFAIL: ${hardViolations} V3/V5 (hard) violations across ${trialsWithViolations} trial(s).`);
+	console.log(`\nFAIL: ${hardViolations} V3/V5/V6 (hard) violations across ${trialsWithViolations} trial(s).`);
 	console.log(`Re-run a single trial with: SEED=<n> node scripts/random-layout-verify.mjs`);
 	process.exit(1);
 }
@@ -322,4 +385,4 @@ const v1Note =
 	violationRuleCounts.V1 > 0
 		? ` (V1 = ${violationRuleCounts.V1} foreign-in-enclosure events recorded as diagnostics — accepted per spec)`
 		: "";
-console.log(`\nOK: all ${trialsRun} trials satisfied V3 and V5${v1Note}.`);
+console.log(`\nOK: all ${trialsRun} trials satisfied V3, V5, V6${v1Note}.`);

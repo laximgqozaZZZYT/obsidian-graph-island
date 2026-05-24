@@ -21,6 +21,8 @@ import {
 import {
 	type SubGroup,
 	groupByMembershipSet,
+	computeMainOf,
+	groupByMain,
 	fallbackSize,
 	shelfPack,
 } from "./subgroup-packing";
@@ -152,7 +154,14 @@ export function layout(data: GraphData, sized: SizedNode[], opts: LayoutOptions)
 	const nodeOff = opts.nodeOffsets ?? {};
 
 	const clusterKeys = collectClusterKeys(data.nodes, labels);
-	const subgroups = groupByMembershipSet(data.nodes);
+	// User spec (2026-05-24, latest): each node belongs to a single
+	// MAIN cluster (largest in membership; ties alphabetical). The
+	// layout's sub-group decomposition is now main-based, NOT
+	// signature-based, so multi-tag nodes live entirely inside their
+	// main cluster's sub-group. Main rectangles of distinct clusters
+	// land at distinct anchors and therefore cannot overlap.
+	const mainOf = computeMainOf(data.nodes);
+	const subgroups = groupByMain(data.nodes, mainOf);
 
 	// Per-cluster member count (sum of nodes in every sub-group that
 	// contains this cluster). Used downstream by compactToLargestCluster
@@ -273,7 +282,11 @@ export function layout(data: GraphData, sized: SizedNode[], opts: LayoutOptions)
 	// sub-groups in the same group touching after collision resolution
 	// so the parent enclosure stays tight.
 	const subPositions = buildInitialSubPositions(packed, anchors, clusterOff);
-	const RELAX_GAP = Math.max(2, Math.floor(opts.nodeSpacing / 4));
+	// RELAX_GAP keeps adjacent main groups' cells disjoint after
+	// snapCardsToGrid (= V6 "main rectangles must not overlap").
+	// snapCardsToGrid spirals up to ~5 slots when collisions cascade,
+	// so we leave 3 slots of breathing room as a safety margin.
+	const RELAX_GAP = Math.max(slotW * 3, slotH * 3, opts.nodeSpacing);
 	relaxSubgroups(subPositions, RELAX_GAP, 80);
 	// Phase 2b: compactness pass — pull each multi-tag sub-group back
 	// toward its LARGEST cluster's anchor by 40%.
