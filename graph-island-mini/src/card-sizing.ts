@@ -64,7 +64,9 @@ export function computeChannelDims(nodeSpacing: number): {
 	channelW: number;
 	channelH: number;
 } {
-	const channelW = Math.max(8, nodeSpacing);
+	// Keep in sync with layout.ts: floor 24, multiplier 1.5×, both axes
+	// equal so the cell grid breathing room reads symmetrically.
+	const channelW = Math.max(24, Math.floor(nodeSpacing * 1.5));
 	const channelH = channelW;
 	return { channelW, channelH };
 }

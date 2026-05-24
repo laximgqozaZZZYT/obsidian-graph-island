@@ -27,14 +27,17 @@ export function drawEnclosures(
 	const accentStrokeW = 3.2 / zoom;
 
 	// Pass 1: fills (cell-aligned). Drawn first so outlines sit cleanly
-	// on top of the tinted region.
+	// on top of the tinted region. Opacity raised so the cluster
+	// territory reads clearly even on a single fill layer — overlapping
+	// clusters still blend additively (= intersections look more
+	// saturated than single-membership regions).
 	for (const c of sortedClusters) {
 		if (!c.cells || c.cells.length === 0) continue;
 		const hue = clusterHue(c.groupKey);
 		const isHigh = highlightedClusters.has(c.groupKey);
 		ctx.fillStyle = isHigh
-			? "rgba(255, 157, 63, 0.22)"
-			: `hsla(${hue}, 65%, 55%, 0.18)`;
+			? "rgba(255, 157, 63, 0.40)"
+			: `hsla(${hue}, 60%, 50%, 0.32)`;
 		ctx.beginPath();
 		for (const cell of c.cells) {
 			ctx.rect(cell.x, cell.y, cell.w, cell.h);

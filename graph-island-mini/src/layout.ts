@@ -170,7 +170,11 @@ export function layout(data: GraphData, sized: SizedNode[], opts: LayoutOptions)
 	// Channels (隘路): narrow gaps between slots reserved for wires, trunks
 	// and cluster borders. Horizontal and vertical channels share the same
 	// width — uniform breathing room (was asymmetric, vertical ~3× narrower).
-	const channelW = Math.max(8, opts.nodeSpacing);
+	// Channel (隘路) width: floor doubled (8 → 24) so the cluster fills
+	// have visible breathing room between cells and the enclosure
+	// boundary reads more clearly. Multiplier 1.5× lifts user-set
+	// `nodeSpacing` further.
+	const channelW = Math.max(24, Math.floor(opts.nodeSpacing * 1.5));
 	const channelH = channelW;
 	const slotW = cardW + channelW;
 	const slotH = cardH + channelH;
