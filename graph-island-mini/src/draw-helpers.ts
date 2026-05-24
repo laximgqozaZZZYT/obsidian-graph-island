@@ -310,10 +310,41 @@ export function drawClusterLabels(
 		pushed: number;
 	}
 	const labels: LabelP[] = laid.clusters.map((c) => {
-		const text = truncateToWidth(ctx, `${c.label} (${c.memberCount})`, c.width);
+		// Anchor on the LARGEST piece's top-left, not the union AABB.
+		// Why: when a cluster has no main-rect of its own (its members
+		// are owned by a larger cluster via the main-group rule) its
+		// pieces are sub-rects sitting inside another cluster's main
+		// rect. The union AABB then coincides with that outer rect,
+		// so the label drifts far from any visible piece (and the
+		// overlap-push loop pushes it even further into empty world).
+		// Anchoring on the largest piece keeps the label sitting on
+		// the rectangle it actually belongs to.
+		let anchorRectX = c.x;
+		let anchorRectY = c.y;
+		let anchorRectW = c.width;
+		if (c.pieces && c.pieces.length > 0) {
+			let best = c.pieces[0];
+			let bestArea = best.w * best.h;
+			for (let i = 1; i < c.pieces.length; i++) {
+				const p = c.pieces[i];
+				const a = p.w * p.h;
+				if (a > bestArea) {
+					best = p;
+					bestArea = a;
+				}
+			}
+			anchorRectX = best.x;
+			anchorRectY = best.y;
+			anchorRectW = best.w;
+		}
+		const text = truncateToWidth(
+			ctx,
+			`${c.label} (${c.memberCount})`,
+			Math.max(anchorRectW, c.width),
+		);
 		const w = ctx.measureText(text).width;
-		const anchorX = c.x + padX;
-		const anchorY = c.y - insetY;
+		const anchorX = anchorRectX + padX;
+		const anchorY = anchorRectY - insetY;
 		return {
 			c,
 			text,
