@@ -1001,54 +1001,23 @@ export function computeClusterBBoxes(
 		);
 		const owned = ownedCellsMap.get(key);
 		if (owned && owned.size > 0) {
-			// Build the global foreign-cell set: cells occupied by any
-			// card whose memberships do NOT include this cluster's key.
-			// These are the cells that MUST stay outside every piece of
-			// this cluster's enclosure (= V1 = 0 by construction).
-			const globalForeignCells = new Set<string>();
-			for (const n of positionedNodes) {
-				if (n.memberships.includes(key)) continue;
-				const fp = nodeFootprint(n, slotW, slotH);
-				for (let c = fp.startCol; c <= fp.endCol; c++) {
-					for (let r = fp.startRow; r <= fp.endRow; r++) {
-						globalForeignCells.add(`${c},${r}`);
-					}
-				}
-			}
-			// Decompose the cluster's owned cells into a set of axis-
-			// aligned rectangles. Each rectangle is the maximum foreign-
-			// free rect anchored at an uncovered own cell; together they
-			// cover every own cell. Multiple rectangles = exclaves, which
-			// the current user spec explicitly permits.
-			const rectRanges = decomposeIntoForeignFreeRects(
-				owned,
-				globalForeignCells,
-				range,
-			);
+			// User spec (2026-05-24, revised): enclosure MUST always be
+			// a single rectangle. Foreign nodes inside it are accepted
+			// as the trade-off. No carving, no exclaves, no L-shapes.
+			//
+			// Rectangle = AABB of the cluster's owned cells (no
+			// per-side padding so the rectangle hugs the cards).
 			const padX = channelW / 2;
 			const padY = channelH / 2;
-			rect.pieces = rectRanges.map((r) => ({
-				x: r.minCol * slotW + padX,
-				y: r.minRow * slotH + padY,
-				w: (r.maxCol - r.minCol + 1) * slotW - 2 * padX,
-				h: (r.maxRow - r.minRow + 1) * slotH - 2 * padY,
-			}));
-			// Update the overall bbox to span every piece (= used for
-			// label placement etc.). When a cluster degenerates into a
-			// single rectangle, this matches the legacy AABB.
-			if (rect.pieces.length > 0) {
-				let l = Infinity, t = Infinity, r2 = -Infinity, b = -Infinity;
-				for (const p of rect.pieces) {
-					if (p.x < l) l = p.x;
-					if (p.y < t) t = p.y;
-					if (p.x + p.w > r2) r2 = p.x + p.w;
-					if (p.y + p.h > b) b = p.y + p.h;
-				}
-				rect.x = l;
-				rect.y = t;
-				rect.width = r2 - l;
-				rect.height = b - t;
-			}
+			const x = range.minCol * slotW + padX;
+			const y = range.minRow * slotH + padY;
+			const w = (range.maxCol - range.minCol + 1) * slotW - 2 * padX;
+			const h = (range.maxRow - range.minRow + 1) * slotH - 2 * padY;
+			rect.x = x;
+			rect.y = y;
+			rect.width = w;
+			rect.height = h;
+			rect.pieces = [{ x, y, w, h }];
 		}
 		clusters.push(rect);
 	}
