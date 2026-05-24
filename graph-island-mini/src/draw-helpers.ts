@@ -16,27 +16,49 @@ import {
 // AND there's a "next blank cell" hint at every edge.
 const GRID_BUFFER_CELLS = 2;
 
-// Excel-style cell grid covering every card's footprint, every cluster
-// bbox, and a 2-cell buffer in each direction. Drawn before any other
-// body content so cards / enclosures sit on top.
+// Excel-style cell grid drawn across the entire VISIBLE viewport
+// (= not just the content footprint). Combined with the wrap-aware
+// lat/lon labels, the grid reads like a digital world map that
+// continues seamlessly as the user pans — past "180°E" it shows
+// "180°", "179°W", "178°W", ... rather than fading into a void.
+//
+// Drawn before any other body content so cards / enclosures sit on top.
 export function drawCardGrid(
 	ctx: CanvasRenderingContext2D,
 	laid: LaidOut,
+	canvas: HTMLCanvasElement,
 	zoom: number,
+	panX: number,
+	panY: number,
 ): void {
-	if (laid.nodes.length === 0) return;
 	const W = laid.slotW;
 	const H = laid.slotH;
 	const channelW = laid.channelW;
 	const channelH = laid.channelH;
 	if (W <= 0 || H <= 0) return;
-	const ext = footprintExtent(laid, W, H);
-	const minCol = ext.minCol - GRID_BUFFER_CELLS;
-	const maxCol = ext.maxCol + GRID_BUFFER_CELLS;
-	const minRow = ext.minRow - GRID_BUFFER_CELLS;
-	const maxRow = ext.maxRow + GRID_BUFFER_CELLS;
 	const padX = channelW / 2;
 	const padY = channelH / 2;
+
+	// Visible world rect: invert the (pan, zoom) screen transform.
+	// In CSS pixels: world.x = (screen_x − panX) / zoom.
+	const dpr = window.devicePixelRatio || 1;
+	const visW = canvas.width / dpr;
+	const visH = canvas.height / dpr;
+	const leftWorld = -panX / zoom;
+	const rightWorld = (visW - panX) / zoom;
+	const topWorld = -panY / zoom;
+	const bottomWorld = (visH - panY) / zoom;
+
+	const minCol = Math.floor(leftWorld / W) - 1;
+	const maxCol = Math.ceil(rightWorld / W) + 1;
+	const minRow = Math.floor(topWorld / H) - 1;
+	const maxRow = Math.ceil(bottomWorld / H) + 1;
+
+	// Safety: cap cell count per draw so an extreme zoom-out doesn't
+	// trigger millions of segments.
+	const maxCells = 8000;
+	const cellCount = (maxCol - minCol + 1) * (maxRow - minRow + 1);
+	if (cellCount > maxCells) return;
 
 	ctx.strokeStyle = "rgba(120, 140, 160, 0.22)";
 	ctx.lineWidth = 1 / zoom;
@@ -71,44 +93,56 @@ export function drawGridHeaders(
 	panX: number,
 	panY: number,
 ): void {
-	if (laid.nodes.length === 0) return;
 	const W = laid.slotW;
 	const H = laid.slotH;
 	if (W <= 0 || H <= 0) return;
-	const ext = footprintExtent(laid, W, H);
-	const minCol = ext.minCol - GRID_BUFFER_CELLS;
-	const maxCol = ext.maxCol + GRID_BUFFER_CELLS;
-	const minRow = ext.minRow - GRID_BUFFER_CELLS;
-	const maxRow = ext.maxRow + GRID_BUFFER_CELLS;
 
 	const dpr = window.devicePixelRatio || 1;
 	const visW = canvas.width / dpr;
 	const visH = canvas.height / dpr;
 	const cellScreenW = W * zoom;
 	const cellScreenH = H * zoom;
+	// Header labels span the ENTIRE viewport (= the grid below them is
+	// continuous like a world map, so the labels must follow). Range
+	// derived from inverse pan/zoom — same math as drawCardGrid.
+	const leftWorld = -panX / zoom;
+	const rightWorld = (visW - panX) / zoom;
+	const topWorld = -panY / zoom;
+	const bottomWorld = (visH - panY) / zoom;
+	const minCol = Math.floor(leftWorld / W) - 1;
+	const maxCol = Math.ceil(rightWorld / W) + 1;
+	const minRow = Math.floor(topWorld / H) - 1;
+	const maxRow = Math.ceil(bottomWorld / H) + 1;
 	const headerH = Math.max(22, Math.min(36, cellScreenH * 0.9));
 	const headerW = Math.max(32, Math.min(56, cellScreenW * 0.7));
+	// Safety cap: at extreme zoom-out the visible cell count explodes.
+	// Skip per-cell tick rendering when it would generate too many
+	// segments; the corner / band overlays still draw below.
+	const headerCellCount = (maxCol - minCol) + (maxRow - minRow);
+	const skipTicks = headerCellCount > 4000;
 
 	ctx.fillStyle = "rgba(58, 78, 108, 0.98)";
 	ctx.fillRect(0, 0, visW, headerH);
 	ctx.fillRect(0, 0, headerW, visH);
 
-	ctx.strokeStyle = "rgba(120, 140, 160, 0.45)";
-	ctx.lineWidth = 1;
-	ctx.beginPath();
-	for (let c = minCol; c <= maxCol + 1; c++) {
-		const x = c * W * zoom + panX;
-		if (x < headerW - 0.5 || x > visW + 0.5) continue;
-		ctx.moveTo(x, 0);
-		ctx.lineTo(x, headerH);
+	if (!skipTicks) {
+		ctx.strokeStyle = "rgba(120, 140, 160, 0.45)";
+		ctx.lineWidth = 1;
+		ctx.beginPath();
+		for (let c = minCol; c <= maxCol + 1; c++) {
+			const x = c * W * zoom + panX;
+			if (x < headerW - 0.5 || x > visW + 0.5) continue;
+			ctx.moveTo(x, 0);
+			ctx.lineTo(x, headerH);
+		}
+		for (let r = minRow; r <= maxRow + 1; r++) {
+			const y = r * H * zoom + panY;
+			if (y < headerH - 0.5 || y > visH + 0.5) continue;
+			ctx.moveTo(0, y);
+			ctx.lineTo(headerW, y);
+		}
+		ctx.stroke();
 	}
-	for (let r = minRow; r <= maxRow + 1; r++) {
-		const y = r * H * zoom + panY;
-		if (y < headerH - 0.5 || y > visH + 0.5) continue;
-		ctx.moveTo(0, y);
-		ctx.lineTo(headerW, y);
-	}
-	ctx.stroke();
 
 	ctx.strokeStyle = "rgba(180, 200, 230, 0.9)";
 	ctx.lineWidth = 1.6;
@@ -129,15 +163,17 @@ export function drawGridHeaders(
 	ctx.fillStyle = "rgba(245, 250, 255, 1)";
 	ctx.textAlign = "center";
 	ctx.textBaseline = "middle";
-	for (let c = minCol; c <= maxCol; c += colStride) {
-		const xC = c * W * zoom + panX + cellScreenW / 2;
-		if (xC < headerW || xC > visW) continue;
-		ctx.fillText(longitudeLabel(c), xC, headerH / 2);
-	}
-	for (let r = minRow; r <= maxRow; r += rowStride) {
-		const yC = r * H * zoom + panY + cellScreenH / 2;
-		if (yC < headerH || yC > visH) continue;
-		ctx.fillText(latitudeLabel(r), headerW / 2, yC);
+	if (!skipTicks) {
+		for (let c = minCol; c <= maxCol; c += colStride) {
+			const xC = c * W * zoom + panX + cellScreenW / 2;
+			if (xC < headerW || xC > visW) continue;
+			ctx.fillText(longitudeLabel(c), xC, headerH / 2);
+		}
+		for (let r = minRow; r <= maxRow; r += rowStride) {
+			const yC = r * H * zoom + panY + cellScreenH / 2;
+			if (yC < headerH || yC > visH) continue;
+			ctx.fillText(latitudeLabel(r), headerW / 2, yC);
+		}
 	}
 	ctx.textAlign = "start";
 	ctx.textBaseline = "alphabetic";

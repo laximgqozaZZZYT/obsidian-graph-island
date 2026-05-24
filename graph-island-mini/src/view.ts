@@ -1301,7 +1301,7 @@ export class MiniGraphView extends ItemView {
 	// strips of blank space. Cluster enclosures, trunks and single wires
 	// all route through those visible channels.
 	private drawCardGrid(ctx: CanvasRenderingContext2D): void {
-		drawCardGridFn(ctx, this.laid, this.zoom);
+		drawCardGridFn(ctx, this.laid, this.canvas, this.zoom, this.panX, this.panY);
 	}
 
 	// Frozen-pane row/column headers. Drawn in SCREEN space (identity
