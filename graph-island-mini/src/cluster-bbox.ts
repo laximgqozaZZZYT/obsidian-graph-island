@@ -982,6 +982,32 @@ export function computeClusterBBoxes(
 	// also fall inside another cluster's AABB become carve candidates.
 	const allOccupied = computeAllOccupiedCells(positionedNodes, slotW, slotH);
 
+	// Main-group assignment per node. Each node's "main" is the cluster
+	// (among its memberships) with the largest total member count;
+	// ties broken alphabetically. This drives the main-enclosure /
+	// sub-enclosure split below.
+	const clusterMemberCount = new Map<string, number>();
+	for (const n of positionedNodes) {
+		for (const m of n.memberships) {
+			clusterMemberCount.set(m, (clusterMemberCount.get(m) ?? 0) + 1);
+		}
+	}
+	const mainOf = new Map<string, string>();
+	for (const n of positionedNodes) {
+		if (n.memberships.length === 0) continue;
+		let bestKey = n.memberships[0];
+		let bestSize = clusterMemberCount.get(bestKey) ?? 0;
+		for (let i = 1; i < n.memberships.length; i++) {
+			const m = n.memberships[i];
+			const s = clusterMemberCount.get(m) ?? 0;
+			if (s > bestSize || (s === bestSize && m < bestKey)) {
+				bestKey = m;
+				bestSize = s;
+			}
+		}
+		mainOf.set(n.id, bestKey);
+	}
+
 	const clusters: ClusterRect[] = [];
 	for (const key of clusterKeys) {
 		const range = rangeMap.get(key);
@@ -1001,23 +1027,85 @@ export function computeClusterBBoxes(
 		);
 		const owned = ownedCellsMap.get(key);
 		if (owned && owned.size > 0) {
-			// User spec (2026-05-24, revised): enclosure MUST always be
-			// a single rectangle. Foreign nodes inside it are accepted
-			// as the trade-off. No carving, no exclaves, no L-shapes.
-			//
-			// Rectangle = AABB of the cluster's owned cells (no
-			// per-side padding so the rectangle hugs the cards).
+			// User spec (2026-05-24, revised AGAIN, late):
+			//   - each node has a MAIN group (largest cluster the node
+			//     belongs to; ties broken alphabetically)
+			//   - cluster X's main enclosure = AABB of nodes with main=X
+			//   - for each other cluster Y whose main-nodes also include
+			//     X in their memberships, add a sub enclosure = AABB of
+			//     those nodes (= they sit inside Y's main rect; X also
+			//     wants to claim them)
+			// Result: multiple rectangles per cluster permitted. The
+			// SAME rectangle can be a piece of multiple clusters (=
+			// rectangle for sig {A, B} appears in both A's and B's
+			// pieces lists, drawn twice with different colours).
+			const mainCells = new Set<string>();
+			const extrasByMain = new Map<string, Set<string>>();
+			for (const n of positionedNodes) {
+				if (!n.memberships.includes(key)) continue;
+				const nodeMain = mainOf.get(n.id);
+				if (!nodeMain) continue;
+				let target: Set<string>;
+				if (nodeMain === key) {
+					target = mainCells;
+				} else {
+					let s = extrasByMain.get(nodeMain);
+					if (!s) {
+						s = new Set();
+						extrasByMain.set(nodeMain, s);
+					}
+					target = s;
+				}
+				const fp = nodeFootprint(n, slotW, slotH);
+				for (let c = fp.startCol; c <= fp.endCol; c++) {
+					for (let r = fp.startRow; r <= fp.endRow; r++) {
+						target.add(`${c},${r}`);
+					}
+				}
+			}
 			const padX = channelW / 2;
 			const padY = channelH / 2;
-			const x = range.minCol * slotW + padX;
-			const y = range.minRow * slotH + padY;
-			const w = (range.maxCol - range.minCol + 1) * slotW - 2 * padX;
-			const h = (range.maxRow - range.minRow + 1) * slotH - 2 * padY;
-			rect.x = x;
-			rect.y = y;
-			rect.width = w;
-			rect.height = h;
-			rect.pieces = [{ x, y, w, h }];
+			const aabbFromCells = (cells: Set<string>): { x: number; y: number; w: number; h: number } => {
+				let minC = Infinity,
+					maxC = -Infinity,
+					minR = Infinity,
+					maxR = -Infinity;
+				for (const k of cells) {
+					const [c, r] = k.split(",").map(Number);
+					if (c < minC) minC = c;
+					if (c > maxC) maxC = c;
+					if (r < minR) minR = r;
+					if (r > maxR) maxR = r;
+				}
+				return {
+					x: minC * slotW + padX,
+					y: minR * slotH + padY,
+					w: (maxC - minC + 1) * slotW - 2 * padX,
+					h: (maxR - minR + 1) * slotH - 2 * padY,
+				};
+			};
+			const pieces: Array<{ x: number; y: number; w: number; h: number }> = [];
+			if (mainCells.size > 0) pieces.push(aabbFromCells(mainCells));
+			for (const cells of extrasByMain.values()) {
+				if (cells.size > 0) pieces.push(aabbFromCells(cells));
+			}
+			if (pieces.length > 0) {
+				rect.pieces = pieces;
+				let l = Infinity,
+					t = Infinity,
+					r2 = -Infinity,
+					b = -Infinity;
+				for (const p of pieces) {
+					if (p.x < l) l = p.x;
+					if (p.y < t) t = p.y;
+					if (p.x + p.w > r2) r2 = p.x + p.w;
+					if (p.y + p.h > b) b = p.y + p.h;
+				}
+				rect.x = l;
+				rect.y = t;
+				rect.width = r2 - l;
+				rect.height = b - t;
+			}
 		}
 		clusters.push(rect);
 	}

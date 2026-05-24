@@ -1,27 +1,28 @@
 // Randomised stress test for cluster-polygon invariants.
 //
-// User spec REVISED (2026-05-24 later in the day):
-//   "もうノードがほかの関係しないグループの囲みに含まれてしまうのを許容します。
-//    許容するので、必ず囲みを四辺形にしてください"
-// => V1 violations are NOW ACCEPTED. In exchange, V4 (= enclosure is a
-//    single rectangle) becomes a HARD invariant.
+// User spec REVISED AGAIN (2026-05-24, late):
+//   "おなじノード、グループの囲いが複数あることを許容します。
+//    これまで積集合は囲い同士の重なりによって表現していましたが、今後は
+//    各ノードでメインとなるグループを決め、その囲いのなかに所属させて
+//    ください。その他に所属するグループがある場合、そのノードおよび
+//    同様のノード群を囲ってください。"
+// => multiple enclosures per cluster ALLOWED. Each node has a MAIN
+//    group. Cluster X's pieces = main rect (= AABB of main=X nodes) +
+//    sub rects (= AABB of nodes whose main ≠ X but include X).
 //
 // Rules checked:
 //
 //   V1. (diagnostic only) Node sits inside a cluster's enclosure
-//       WITHOUT having that cluster in its memberships. Reported but
-//       no longer causes exit non-zero.
+//       without having that cluster in memberships. Reported.
 //   V3. A node belongs to some cluster but its cell is NOT inside
 //       that cluster's enclosure. HARD invariant.
-//   V4. Each cluster's enclosure MUST be a SINGLE rectangle (i.e.
-//       cluster.pieces.length === 1, and that piece's cell footprint
-//       equals the bounding box of every owned cell). HARD invariant.
+//   V5. Every piece in cluster.pieces is a positive-area rectangle.
+//       HARD invariant.
 //
-// V2 (= non-wrap exclave) is removed entirely — the new enclosure model
-// is always a single rectangle, so multi-component polygons cannot
-// arise at this layer.
+// V2 (non-wrap exclaves) and V4 (single-rect) are removed entirely —
+// multi-rectangle enclosures are now intentional.
 //
-// Output: per-trial summary. Exits non-zero if V3 or V4 violates.
+// Output: per-trial summary. Exits non-zero if V3 or V5 violates.
 // Seeds are deterministic so a failing trial can be re-run by passing
 // SEED=<n> on the command line.
 //
@@ -214,31 +215,17 @@ function verifyScenario(seed, scenario, laid) {
 		}
 	}
 
-	// V4 (hard, NEW): each cluster's enclosure must be a single
-	// rectangle. cluster.pieces.length === 1, and that piece's cell
-	// footprint equals the bounding box of cluster's owned cells.
+	// V5 (hard, NEW): every piece is a positive-area rectangle.
 	for (const c of laid.clusters) {
-		if (!c.pieces || c.pieces.length !== 1) {
-			violations.push({
-				rule: "V4",
-				detail: `seed=${seed} cluster ${c.groupKey} has ${(c.pieces ?? []).length} pieces (expected 1)`,
-			});
-			continue;
-		}
-		const p = c.pieces[0];
-		const padX = channelW / 2;
-		const padY = channelH / 2;
-		const c0 = Math.round((p.x - padX) / slotW);
-		const r0 = Math.round((p.y - padY) / slotH);
-		const cN = Math.round((p.x + p.w - padX) / slotW) - 1;
-		const rN = Math.round((p.y + p.h - padY) / slotH) - 1;
-		const w = cN - c0 + 1;
-		const h = rN - r0 + 1;
-		if (w <= 0 || h <= 0) {
-			violations.push({
-				rule: "V4",
-				detail: `seed=${seed} cluster ${c.groupKey} piece has non-positive dimensions (w=${w}, h=${h})`,
-			});
+		if (!c.pieces || c.pieces.length === 0) continue;
+		for (let i = 0; i < c.pieces.length; i++) {
+			const p = c.pieces[i];
+			if (!(p.w > 0 && p.h > 0)) {
+				violations.push({
+					rule: "V5",
+					detail: `seed=${seed} cluster ${c.groupKey} piece[${i}] has non-positive dimensions (w=${p.w}, h=${p.h})`,
+				});
+			}
 		}
 	}
 
@@ -269,7 +256,7 @@ const seeds = fixedSeed !== null
 let totalViolations = 0;
 let trialsRun = 0;
 let trialsWithViolations = 0;
-const violationRuleCounts = { V1: 0, V3: 0, V4: 0 };
+const violationRuleCounts = { V1: 0, V3: 0, V5: 0 };
 const reportedSamples = [];
 
 for (const seed of seeds) {
@@ -313,7 +300,7 @@ console.log(`  trials with violations: ${trialsWithViolations}`);
 console.log(`  total violations: ${totalViolations}`);
 console.log(`    V1 (foreign-in-enclosure, diagnostic): ${violationRuleCounts.V1 ?? 0}`);
 console.log(`    V3 (missing from own enclosure): ${violationRuleCounts.V3 ?? 0}`);
-console.log(`    V4 (enclosure not a single rect): ${violationRuleCounts.V4 ?? 0}`);
+console.log(`    V5 (piece not a positive rect): ${violationRuleCounts.V5 ?? 0}`);
 
 if (reportedSamples.length > 0) {
 	console.log(`\nSample violations (first ${reportedSamples.length}):`);
@@ -325,9 +312,9 @@ if (reportedSamples.length > 0) {
 // V1 is NO LONGER a hard fail (user explicitly accepts foreign-in-
 // enclosure as the trade-off for guaranteed rectangle shape). Only V3
 // (own missing) and V4 (non-rectangle shape) trigger exit non-zero.
-const hardViolations = (violationRuleCounts.V3 ?? 0) + (violationRuleCounts.V4 ?? 0);
+const hardViolations = (violationRuleCounts.V3 ?? 0) + (violationRuleCounts.V5 ?? 0);
 if (hardViolations > 0) {
-	console.log(`\nFAIL: ${hardViolations} V3/V4 (hard) violations across ${trialsWithViolations} trial(s).`);
+	console.log(`\nFAIL: ${hardViolations} V3/V5 (hard) violations across ${trialsWithViolations} trial(s).`);
 	console.log(`Re-run a single trial with: SEED=<n> node scripts/random-layout-verify.mjs`);
 	process.exit(1);
 }
@@ -335,4 +322,4 @@ const v1Note =
 	violationRuleCounts.V1 > 0
 		? ` (V1 = ${violationRuleCounts.V1} foreign-in-enclosure events recorded as diagnostics — accepted per spec)`
 		: "";
-console.log(`\nOK: all ${trialsRun} trials satisfied V3 and V4${v1Note}.`);
+console.log(`\nOK: all ${trialsRun} trials satisfied V3 and V5${v1Note}.`);
