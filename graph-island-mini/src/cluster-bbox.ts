@@ -455,23 +455,91 @@ function lPathCells(
 	return result;
 }
 
+// BFS shortest path between two cell sets, hard-avoiding avoidCells.
+// Search space is bounded to a rectangle padded `pad` cells beyond the
+// bounding box of start+end cells so we can route around obstacles
+// without an unbounded search. Returns null if no path exists within
+// the bounded search space.
+function bfsPath(
+	startSet: Set<string>,
+	endSet: Set<string>,
+	avoidCells: Set<string>,
+	pad: number,
+): string[] | null {
+	// Determine bounding box of start + end cells.
+	let minC = Infinity, maxC = -Infinity, minR = Infinity, maxR = -Infinity;
+	for (const k of startSet) {
+		const [c, r] = k.split(",").map(Number);
+		if (c < minC) minC = c; if (c > maxC) maxC = c;
+		if (r < minR) minR = r; if (r > maxR) maxR = r;
+	}
+	for (const k of endSet) {
+		const [c, r] = k.split(",").map(Number);
+		if (c < minC) minC = c; if (c > maxC) maxC = c;
+		if (r < minR) minR = r; if (r > maxR) maxR = r;
+	}
+	minC -= pad; maxC += pad; minR -= pad; maxR += pad;
+
+	// BFS from all start cells simultaneously (multi-source).
+	const prev = new Map<string, string | null>();
+	const queue: string[] = [];
+	for (const k of startSet) {
+		if (avoidCells.has(k)) continue;
+		prev.set(k, null);
+		queue.push(k);
+	}
+	let found = "";
+	outer: while (queue.length > 0) {
+		const cur = queue.shift()!;
+		const [c, r] = cur.split(",").map(Number);
+		for (const [dc, dr] of [[-1, 0], [1, 0], [0, -1], [0, 1]] as const) {
+			const nc = c + dc, nr = r + dr;
+			if (nc < minC || nc > maxC || nr < minR || nr > maxR) continue;
+			const nk = `${nc},${nr}`;
+			if (avoidCells.has(nk)) continue;
+			if (prev.has(nk)) continue;
+			prev.set(nk, cur);
+			if (endSet.has(nk)) { found = nk; break outer; }
+			queue.push(nk);
+		}
+	}
+	if (!found) return null;
+	// Reconstruct path.
+	const path: string[] = [];
+	let cur: string | null = found;
+	while (cur !== null) {
+		path.push(cur);
+		cur = prev.get(cur) ?? null;
+		if (cur !== null && startSet.has(cur)) { path.push(cur); break; }
+	}
+	return path;
+}
+
 // Connect disconnected components using a greedy minimum-spanning-tree
 // approach: maintain a "connected" super-component (initially the largest
 // component) and repeatedly attach the nearest unconnected component to
-// ANY cell already in the super-component. Each bridge chooses the
-// L-path orientation (H-first or V-first) that crosses fewer avoidCells.
+// ANY cell already in the super-component.
 //
-// Compared with the original "always connect to comps[0]" strategy, the
-// MST approach produces shorter total bridge length because it can chain
-// nearby components together instead of bridging each one all the way
-// back to the initial largest component. Shorter bridges ⇒ fewer cells
-// ⇒ fewer V1 violations.
+// Bridge strategy (two-phase):
+//   Phase 1: BFS that HARD-AVOIDS avoidCells (foreign nodes). Routes
+//            around obstacles through empty space. This keeps V1 = 0.
+//   Phase 2 (fallback): Only fires when no foreign-free BFS path exists.
+//            If the isolated component has no mustKeep cells, drop it
+//            entirely (avoids adding bridge cells through enemy territory).
+//            If it has mustKeep cells, fall back to L-path soft-avoid to
+//            ensure V3 = 0 (own-cell must be enclosed). V2 = 0 is also
+//            preserved because the main component always retains all
+//            mustKeep cells reachable from it.
 //
-// avoidCells: set of cell keys that contain foreign-cluster nodes. Bridge
-// orientation that crosses fewer avoidCells is preferred (tie → H-first).
+// avoidCells: set of cell keys that contain foreign-cluster nodes.
+// mustKeep: cells that MUST be in the final polygon (own cells). A
+//           component with no mustKeep cells is silently dropped when
+//           Phase 1 BFS fails, instead of bridging through foreign
+//           territory. This eliminates V1 violations for those cases.
 function bridgeComponents(
 	cells: Set<string>,
 	avoidCells: Set<string> = new Set(),
+	mustKeep: Set<string> = new Set(),
 ): Set<string> {
 	const comps = connectedComponents(cells);
 	if (comps.length <= 1) return cells;
@@ -483,57 +551,261 @@ function bridgeComponents(
 	const remaining = comps.slice(1);
 
 	while (remaining.length > 0) {
-		// Find the (remaining component index, closest cell pair) that
-		// minimises [avoidCount, distance] across all remaining components.
-		let bestCompIdx = -1;
-		let bestA = "";
-		let bestB = "";
-		let bestD = Infinity;
-		let bestAvoid = Infinity;
-		let bestPath: string[] = [];
+		let bridged = false;
+
+		// Phase 1: try BFS foreign-free path for each remaining component.
+		let bestPhase1Idx = -1;
+		let bestPhase1Path: string[] = [];
+		let bestPhase1Len = Infinity;
 
 		for (let ri = 0; ri < remaining.length; ri++) {
-			const comp = remaining[ri];
+			const path = bfsPath(remaining[ri], connected, avoidCells, 8);
+			if (path && path.length < bestPhase1Len) {
+				bestPhase1Len = path.length;
+				bestPhase1Idx = ri;
+				bestPhase1Path = path;
+			}
+		}
+
+		if (bestPhase1Idx >= 0) {
+			for (const k of bestPhase1Path) { out.add(k); connected.add(k); }
+			for (const k of remaining[bestPhase1Idx]) connected.add(k);
+			remaining.splice(bestPhase1Idx, 1);
+			bridged = true;
+		}
+
+		if (!bridged) {
+			// Phase 2 fallback: no foreign-free path found for any component.
+			// Drop components that have no mustKeep cells (just neutral/empty
+			// cells that don't need to stay in the polygon). For components
+			// with mustKeep cells, use L-path soft-avoid to enforce V3 = 0.
+			let mustKeepIdx = -1;
+			for (let ri = 0; ri < remaining.length; ri++) {
+				const hasOwn = [...remaining[ri]].some((k) => mustKeep.has(k));
+				if (hasOwn) { mustKeepIdx = ri; break; }
+			}
+
+			if (mustKeepIdx < 0) {
+				// All remaining components are neutral-only — drop them.
+				for (let ri = remaining.length - 1; ri >= 0; ri--) {
+					for (const k of remaining[ri]) out.delete(k);
+					remaining.splice(ri, 1);
+				}
+				break;
+			}
+
+			// L-path fallback for the must-keep component only.
+			let bestCompIdx = mustKeepIdx;
+			let bestD = Infinity;
+			let bestAvoid = Infinity;
+			let bestPath: string[] = [];
+
+			const comp = remaining[mustKeepIdx];
 			for (const a of comp) {
 				const [ac, ar] = a.split(",").map(Number);
 				for (const b of connected) {
 					const [bc, br] = b.split(",").map(Number);
 					const d = Math.abs(ac - bc) + Math.abs(ar - br);
-					// Compute both L-path orientations and pick the better one.
 					const hPath = lPathCells(ac, ar, bc, br, true);
 					const vPath = lPathCells(ac, ar, bc, br, false);
 					const hAvoid = hPath.filter((k) => avoidCells.has(k)).length;
 					const vAvoid = vPath.filter((k) => avoidCells.has(k)).length;
 					const minAvoid = Math.min(hAvoid, vAvoid);
 					const chosenPath = vAvoid < hAvoid ? vPath : hPath;
-					// Primary sort: fewer avoid cells. Secondary: shorter distance.
-					if (
-						minAvoid < bestAvoid ||
-						(minAvoid === bestAvoid && d < bestD)
-					) {
+					if (minAvoid < bestAvoid || (minAvoid === bestAvoid && d < bestD)) {
 						bestAvoid = minAvoid;
 						bestD = d;
-						bestCompIdx = ri;
-						bestA = a;
-						bestB = b;
 						bestPath = chosenPath;
 					}
 				}
 			}
+			for (const k of bestPath) { out.add(k); connected.add(k); }
+			for (const k of remaining[mustKeepIdx]) connected.add(k);
+			remaining.splice(mustKeepIdx, 1);
 		}
-
-		if (bestCompIdx < 0) break;
-
-		// Add bridge cells to output and to the connected super-component.
-		for (const k of bestPath) {
-			out.add(k);
-			connected.add(k);
-		}
-		// Also merge the newly attached component into connected.
-		for (const k of remaining[bestCompIdx]) connected.add(k);
-		remaining.splice(bestCompIdx, 1);
 	}
 	return out;
+}
+
+// Find the path from startSet to endSet that crosses the minimum number
+// of foreign cells (0-1 BFS / deque BFS). Non-foreign cells cost 0;
+// foreign cells cost 1. Search space is bounded to the bounding box of
+// startSet ∪ endSet padded by `pad` cells. Returns the path as a list of
+// cell keys, or an empty array if endSet is unreachable within the bound.
+function minForeignPath(
+	startSet: Set<string>,
+	endSet: Set<string>,
+	foreignCells: Set<string>,
+	pad: number,
+): string[] {
+	// Bounding box.
+	let minC = Infinity, maxC = -Infinity, minR = Infinity, maxR = -Infinity;
+	for (const k of startSet) {
+		const [c, r] = k.split(",").map(Number);
+		if (c < minC) minC = c; if (c > maxC) maxC = c;
+		if (r < minR) minR = r; if (r > maxR) maxR = r;
+	}
+	for (const k of endSet) {
+		if (foreignCells.has(k)) continue; // only target non-foreign endSet cells
+		const [c, r] = k.split(",").map(Number);
+		if (c < minC) minC = c; if (c > maxC) maxC = c;
+		if (r < minR) minR = r; if (r > maxR) maxR = r;
+	}
+	minC -= pad; maxC += pad; minR -= pad; maxR += pad;
+
+	// 0-1 BFS: deque with non-foreign neighbours pushed to front, foreign to back.
+	const prev = new Map<string, string | null>();
+	const deque: string[] = [];
+	for (const k of startSet) {
+		if (prev.has(k)) continue;
+		prev.set(k, null);
+		deque.unshift(k);
+	}
+	let found = "";
+	outer: while (deque.length > 0) {
+		const cur = deque.shift()!;
+		const [c, r] = cur.split(",").map(Number);
+		for (const [dc, dr] of [[-1, 0], [1, 0], [0, -1], [0, 1]] as const) {
+			const nc = c + dc, nr = r + dr;
+			if (nc < minC || nc > maxC || nr < minR || nr > maxR) continue;
+			const nk = `${nc},${nr}`;
+			if (prev.has(nk)) continue;
+			prev.set(nk, cur);
+			if (endSet.has(nk) && !foreignCells.has(nk)) { found = nk; break outer; }
+			// Cost 0 (non-foreign): push to front; Cost 1 (foreign): push to back.
+			if (foreignCells.has(nk)) deque.push(nk);
+			else deque.unshift(nk);
+		}
+	}
+	if (!found) return [];
+	// Reconstruct path.
+	const path: string[] = [];
+	let cur: string | null = found;
+	while (cur !== null && !startSet.has(cur)) {
+		path.push(cur);
+		cur = prev.get(cur) ?? null;
+	}
+	return path;
+}
+
+// Remove foreign cells from a polygon that are not essential for
+// connectivity between owned cells.
+//
+// Algorithm:
+//   1. Build the sub-polygon of non-foreign cells. Find its connected
+//      components (two owned cells are in the same component iff there
+//      is a non-foreign path between them).
+//   2. Partition components into "main" (largest with ≥1 owned cell) and
+//      "minor" (all others).
+//   3. Drop minor components that have NO owned cells entirely.
+//   4. For each minor component WITH owned cells:
+//      Phase A: BFS hard-avoiding foreign cells. If a foreign-free path
+//               exists, use it (V1 stays 0 for this bridge).
+//      Phase B: no foreign-free path exists (component is topologically
+//               isolated). Use L-path with minimum foreign crossing to
+//               bridge to the main result (V2 stays 0, V1 gets minimum
+//               possible violations).
+//   5. Return the union of: main component + minor-comp owned cells +
+//      bridge cells. All other foreign cells (interior fillers) are
+//      dropped.
+//
+// This eliminates V1 violations from interior foreign-filler cells
+// while preserving essential foreign bridges for V2 = 0 and V3 = 0.
+function pruneUnnecessaryForeignCells(
+	cells: Set<string>,
+	foreignCells: Set<string>,
+	ownedCells: Set<string>,
+): Set<string> {
+	if (foreignCells.size === 0) return cells;
+
+	// Step 1: Build sub-polygon of non-foreign cells.
+	const nonForeign = new Set<string>();
+	for (const k of cells) {
+		if (!foreignCells.has(k)) nonForeign.add(k);
+	}
+
+	// Step 2: Connected components of the non-foreign sub-polygon.
+	const visited = new Set<string>();
+	const components: Set<string>[] = [];
+	for (const start of nonForeign) {
+		if (visited.has(start)) continue;
+		const comp = new Set<string>();
+		const q: string[] = [start];
+		visited.add(start);
+		while (q.length > 0) {
+			const cur = q.shift()!;
+			comp.add(cur);
+			const [c, r] = cur.split(",").map(Number);
+			for (const [dc, dr] of [[-1, 0], [1, 0], [0, -1], [0, 1]] as const) {
+				const nk = `${c + dc},${r + dr}`;
+				if (nonForeign.has(nk) && !visited.has(nk)) {
+					visited.add(nk);
+					q.push(nk);
+				}
+			}
+		}
+		components.push(comp);
+	}
+
+	if (components.length <= 1) {
+		// Already connected without foreign cells — return nonForeign directly.
+		return nonForeign;
+	}
+
+	// Step 3: Find the main component (largest with ≥1 owned cell).
+	// If no component has owned cells, just use the largest.
+	let mainIdx = 0;
+	let mainScore = -Infinity;
+	for (let i = 0; i < components.length; i++) {
+		const ownedCount = [...components[i]].filter((k) => ownedCells.has(k)).length;
+		const score = ownedCount * 100000 + components[i].size;
+		if (score > mainScore) {
+			mainScore = score;
+			mainIdx = i;
+		}
+	}
+	const mainComp = components[mainIdx];
+
+	// Step 4: For each minor component with owned cells, bridge to result.
+	const result = new Set<string>(mainComp);
+
+	// Precompute bounding box of owned cells for bfsPath pad.
+	let oMinC = Infinity, oMaxC = -Infinity, oMinR = Infinity, oMaxR = -Infinity;
+	for (const k of ownedCells) {
+		const [c, r] = k.split(",").map(Number);
+		if (c < oMinC) oMinC = c; if (c > oMaxC) oMaxC = c;
+		if (r < oMinR) oMinR = r; if (r > oMaxR) oMaxR = r;
+	}
+	const bfsPad = Math.max(20, Math.ceil((oMaxC - oMinC + oMaxR - oMinR) / 2));
+
+	for (let i = 0; i < components.length; i++) {
+		if (i === mainIdx) continue;
+		const comp = components[i];
+		const hasOwned = [...comp].some((k) => ownedCells.has(k));
+		if (!hasOwned) continue; // drop this component entirely
+
+		// Phase A: foreign-free BFS path (V1 stays 0 for this bridge).
+		const freePath = bfsPath(comp, result, foreignCells, bfsPad);
+		if (freePath) {
+			for (const k of freePath) result.add(k);
+			for (const k of comp) result.add(k);
+			continue;
+		}
+
+		// Phase B: no foreign-free path exists. Component is topologically
+		// isolated (all non-foreign routes are blocked by foreign nodes).
+		// Use Dijkstra-like min-foreign-crossing BFS (0-cost for non-foreign
+		// cells, 1-cost for foreign cells) to find the path that crosses the
+		// fewest possible foreign cells. V2 = 0 is maintained. V1 violations
+		// are limited to the minimum bridge cells required.
+		const phaseBPath = minForeignPath(comp, result, foreignCells, bfsPad);
+		if (phaseBPath.length > 0) {
+			for (const k of phaseBPath) result.add(k);
+		}
+		for (const k of comp) result.add(k);
+	}
+
+	return result;
 }
 
 // Close a cell set into a single simply-connected rectilinear region:
@@ -609,9 +881,9 @@ export function computeClusterBBoxes(
 		const r = computeClusterCellRange(k, positionedNodes, slotW, slotH);
 		if (r) rangeMap.set(k, r);
 	}
-	// All cells that hold at least one card (= occupied). Cells in the
-	// AABB that are NEITHER owned NOR occupied are "empty" and become
-	// carve candidates IF they fall inside another cluster's AABB.
+	// All cells that hold at least one card (= occupied). Used by the
+	// empty-cell carving rule: empty cells inside the cluster's AABB that
+	// also fall inside another cluster's AABB become carve candidates.
 	const allOccupied = computeAllOccupiedCells(positionedNodes, slotW, slotH);
 
 	const clusters: ClusterRect[] = [];
@@ -631,16 +903,6 @@ export function computeClusterBBoxes(
 			slotH,
 			range.count,
 		);
-		// Outline = AABB rectangle, with foreign-only cells carved out
-		// from the boundary inward. The default shape is the rectangle
-		// (= when the AABB contains no foreign-only cells, no carving
-		// happens and the outline is a clean rectangle). When a
-		// neighbouring cluster's cards intrude into this cluster's AABB
-		// from one of its sides, those cells are removed — producing
-		// L-shape / hook concavities along the side. Interior foreign
-		// cells (= surrounded by polygon cells) stay in the polygon to
-		// avoid creating holes; only boundary-reachable foreign cells
-		// are carved.
 		const owned = ownedCellsMap.get(key);
 		if (owned && owned.size > 0) {
 			const aabbCells = new Set<string>();
@@ -657,11 +919,10 @@ export function computeClusterBBoxes(
 				slotH,
 				range,
 			);
-			// New rule: empty cells inside the cluster's AABB that also
-			// fall inside another cluster's AABB are scraped away from
-			// the polygon (= "対応する要素がなく他グループの囲いがある
-			// 箇所をこそぐ"). Right-angle corners may become hook shapes
-			// as a result, which the user explicitly allowed.
+			// Union of foreign-only cells + empty cells in another cluster's
+			// AABB (these are the boundary-carve candidates). The old rule
+			// for empty-cell carving is kept to preserve correct visual
+			// disambiguation between overlapping cluster bounding boxes.
 			const emptyInOtherAabb = computeEmptyCellsInOtherClusterAABBs(
 				key,
 				owned,
@@ -669,26 +930,28 @@ export function computeClusterBBoxes(
 				rangeMap,
 				allOccupied,
 			);
-			// Union the two candidate sets, then run the boundary-
-			// reachable carving so no interior holes are created.
 			const carveCandidates = new Set<string>(foreignOnly);
 			for (const c of emptyInOtherAabb) carveCandidates.add(c);
 			let carved = carveFromBoundary(aabbCells, carveCandidates, range);
-			// Post-carve connectivity restoration. Aggressive empty-cell
-			// carving can disconnect the polygon into multiple components
-			// — typically when owned cells are scattered across the AABB
-			// and the carve removes the bridge cells. Restore minimal
-			// bridge cells (Manhattan path between disconnected
-			// components) so the polygon stays single-connected and the
-			// outline visibly encloses every member cell as one shape.
-			// This prevents the "card visible but tiny isolated outline
-			// somewhere far from main cluster body" bug.
-			//
-			// Pass foreignOnly as avoidCells so the bridge router prefers
-			// L-paths that cross fewer cells occupied by foreign nodes.
-			// This reduces V1 (foreign-in-enclosure) violations caused by
-			// bridge cells landing on another cluster's card positions.
-			carved = bridgeComponents(carved, foreignOnly);
+
+			// Build the global foreign-cell set: all cells occupied by any
+			// node that does NOT belong to this cluster.
+			const globalForeignCells = new Set<string>();
+			for (const n of positionedNodes) {
+				if (n.memberships.includes(key)) continue;
+				const fp = nodeFootprint(n, slotW, slotH);
+				for (let c = fp.startCol; c <= fp.endCol; c++) {
+					for (let r = fp.startRow; r <= fp.endRow; r++) {
+						globalForeignCells.add(`${c},${r}`);
+					}
+				}
+			}
+			// Restore connectivity after carving (bridgeComponents), then
+			// remove interior foreign-filler cells (pruneUnnecessaryForeignCells).
+			// Phase A of pruning: foreign-free BFS bridge (V1=0).
+			// Phase B of pruning: minimum-foreign L-path bridge (V2=0).
+			carved = bridgeComponents(carved, globalForeignCells, owned);
+			carved = pruneUnnecessaryForeignCells(carved, globalForeignCells, owned);
 			rect.outline = computeOutlineSegments(
 				carved,
 				slotW,
