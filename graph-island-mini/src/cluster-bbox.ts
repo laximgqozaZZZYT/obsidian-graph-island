@@ -483,6 +483,17 @@ export function closeToSimplyConnected(
 // the bbox list AND the per-cluster member set + nesting depth so
 // downstream callers (e.g. the B2 clamp) can reuse them without
 // recomputing.
+//
+// ──── Contract (Kaizen, 2026-05-24): ────────────────────────────────
+// For every cluster c in the returned `clusters` array:
+//   (a) every owned cell MUST appear in c.cells (= polygon)
+//   (b) c.cells MUST form a single 4-connected component
+// Exclaves are NOT permitted at this layer. The only allowed source of
+// visual exclaves is the world-map tile renderer in view.ts (= the
+// same polygon drawn at multiple pan offsets), which sits ABOVE this
+// function in the pipeline.
+// Enforced by scripts/carve-verify.mjs across 5 stress scenarios.
+// ────────────────────────────────────────────────────────────────────
 export function computeClusterBBoxes(
 	positionedNodes: PositionedNode[],
 	opts: ClusterBBoxOptions,

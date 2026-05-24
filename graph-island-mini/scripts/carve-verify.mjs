@@ -1,10 +1,19 @@
-// Verify that after cluster bbox carving, every owned cell remains in
-// the cluster's polygon. If any owned cell is dropped, the carving is
-// over-aggressive (= user bug: "card visible but not enclosed").
+// Strict invariant checker for cluster polygons (Kaizen — 2026-05-24).
 //
-// Also reports clusters whose polygon is disconnected — even when all
-// owned cells are present, deep disconnection makes the outline look
-// like scattered tiny rects.
+// Contract enforced:
+//   1. Every owned cell MUST appear in its cluster's polygon.
+//   2. Every cluster's polygon MUST be single-connected (= one
+//      4-connected component). Exclaves are only allowed when produced
+//      by the world-map tile renderer (= same polygon drawn at multiple
+//      pan offsets), which happens OUTSIDE cluster-bbox.ts.
+//
+// Either invariant violated → FAIL (exit 1). Wired into the test
+// harness so regression is impossible to merge silently.
+//
+// Scenarios covered: hub + many leaves, sparse scattered, heavy
+// pairwise overlap, single isolated card. New scenarios should be
+// appended; failures are reported with concrete cell sets so the
+// regression can be reproduced.
 import esbuild from "esbuild";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
@@ -28,95 +37,136 @@ await esbuild.build({
 });
 const { computeClusterOwnedCells } = await import(cbBundle);
 
-// Build a scene mimicking the user's vault: several clusters with many
-// nodes, some scattered owned cells per cluster.
-const data = { nodes: [], edges: [] };
-const sized = [];
-function mkNode(id, memb) {
-	data.nodes.push({ id, label: id.slice(0, 10), memberships: memb });
-	sized.push({ id, label: id, memberships: memb, width: 120, height: 32 });
-}
-const groups = ["scene", "talk", "drama", "act", "creation", "concept", "character", "deity", "inferno", "paradiso", "purgatorio"];
-for (const g of groups) {
-	for (let i = 0; i < 25; i++) mkNode(`${g}/${i}.md`, [g]);
-}
-// Multi-membership cards to create AABB overlaps.
-const pairs = [["scene", "talk"], ["scene", "drama"], ["act", "scene"], ["drama", "act"], ["creation", "scene"]];
-for (const [a, b] of pairs) {
-	for (let i = 0; i < 4; i++) mkNode(`${a}_${b}/${i}.md`, [a, b]);
+// Scenario builders. Each returns { data, sized } with the same shape
+// expected by layout().
+function mkScene(builder) {
+	const data = { nodes: [], edges: [] };
+	const sized = [];
+	const mk = (id, memb) => {
+		data.nodes.push({ id, label: id.slice(0, 10), memberships: memb });
+		sized.push({ id, label: id, memberships: memb, width: 120, height: 32 });
+	};
+	builder(mk);
+	return { data, sized };
 }
 
-const laid = layout(data, sized, { clusterSpacing: 80, nodeSpacing: 16, cellW: 120, cellH: 32 });
-const slotW = laid.slotW;
-const slotH = laid.slotH;
-
-// Per-cluster owned-cell map (re-compute since clusters carry only the
-// outline + cell rects, not the owned set).
-const clusterKeys = laid.clusters.map(c => c.groupKey);
-const ownedMap = computeClusterOwnedCells(laid.nodes, clusterKeys, slotW, slotH);
-
-// Build per-cluster "polygon cell set" from the cells field.
-const polyCellMap = new Map();
-for (const c of laid.clusters) {
-	const set = new Set();
-	if (c.cells) {
-		for (const r of c.cells) {
-			// Convert pixel rect back to "col,row".
-			const col = Math.round(r.x / slotW);
-			const row = Math.round(r.y / slotH);
-			set.add(`${col},${row}`);
+const scenarios = {
+	// User-vault-like: hub cluster + many leaves + several pairwise crosses.
+	hubAndLeaves: mkScene((mk) => {
+		const groups = ["scene", "talk", "drama", "act", "creation", "concept", "character", "deity", "inferno", "paradiso", "purgatorio"];
+		for (const g of groups) for (let i = 0; i < 25; i++) mk(`${g}/${i}.md`, [g]);
+		const pairs = [["scene", "talk"], ["scene", "drama"], ["act", "scene"], ["drama", "act"], ["creation", "scene"]];
+		for (const [a, b] of pairs) for (let i = 0; i < 4; i++) mk(`${a}_${b}/${i}.md`, [a, b]);
+	}),
+	// Sparse scattered: each cluster has just a few cards spread by
+	// multi-membership lattice — stresses the bridge-restoration pass.
+	sparseScattered: mkScene((mk) => {
+		const groups = ["A", "B", "C", "D", "E"];
+		for (const g of groups) for (let i = 0; i < 6; i++) mk(`${g}/${i}.md`, [g]);
+		// Every pair has a few shared cards (creates intra-cluster spread).
+		for (let i = 0; i < groups.length; i++) {
+			for (let j = i + 1; j < groups.length; j++) {
+				for (let k = 0; k < 3; k++) mk(`${groups[i]}_${groups[j]}/${k}.md`, [groups[i], groups[j]]);
+			}
 		}
-	}
-	polyCellMap.set(c.groupKey, set);
-}
+	}),
+	// Heavy 3-way overlap.
+	heavyTriOverlap: mkScene((mk) => {
+		for (let i = 0; i < 10; i++) mk(`X/${i}.md`, ["X"]);
+		for (let i = 0; i < 10; i++) mk(`Y/${i}.md`, ["Y"]);
+		for (let i = 0; i < 10; i++) mk(`Z/${i}.md`, ["Z"]);
+		for (let i = 0; i < 5; i++) mk(`XY/${i}.md`, ["X", "Y"]);
+		for (let i = 0; i < 5; i++) mk(`YZ/${i}.md`, ["Y", "Z"]);
+		for (let i = 0; i < 5; i++) mk(`XZ/${i}.md`, ["X", "Z"]);
+		for (let i = 0; i < 3; i++) mk(`XYZ/${i}.md`, ["X", "Y", "Z"]);
+	}),
+	// Single isolated card per cluster — minimum case.
+	singletons: mkScene((mk) => {
+		for (const g of ["P", "Q", "R", "S", "T"]) mk(`${g}/0.md`, [g]);
+	}),
+	// One large hub + several tiny single-card "satellites" with multi-tag
+	// links back to the hub. Creates many disconnected owned-cell sets
+	// for the hub if bridging fails.
+	hubWithSatellites: mkScene((mk) => {
+		for (let i = 0; i < 30; i++) mk(`hub/${i}.md`, ["hub"]);
+		for (let i = 0; i < 8; i++) {
+			mk(`sat${i}/0.md`, [`sat${i}`]);
+			mk(`hub_sat${i}/0.md`, ["hub", `sat${i}`]);
+		}
+	}),
+};
 
-let missing = 0;
-let disconnected = 0;
+let totalMissing = 0;
+let totalDisconnected = 0;
 const reports = [];
-for (const key of clusterKeys) {
-	const owned = ownedMap.get(key) ?? new Set();
-	const poly = polyCellMap.get(key) ?? new Set();
-	// (1) every owned cell present in polygon?
-	const missingCells = [];
-	for (const k of owned) {
-		if (!poly.has(k)) missingCells.push(k);
+
+for (const [name, scene] of Object.entries(scenarios)) {
+	const laid = layout(scene.data, scene.sized, {
+		clusterSpacing: 80,
+		nodeSpacing: 16,
+		cellW: 120,
+		cellH: 32,
+	});
+	const slotW = laid.slotW;
+	const slotH = laid.slotH;
+	const clusterKeys = laid.clusters.map((c) => c.groupKey);
+	const ownedMap = computeClusterOwnedCells(laid.nodes, clusterKeys, slotW, slotH);
+	const polyCellMap = new Map();
+	for (const c of laid.clusters) {
+		const set = new Set();
+		if (c.cells) {
+			for (const r of c.cells) {
+				const col = Math.round(r.x / slotW);
+				const row = Math.round(r.y / slotH);
+				set.add(`${col},${row}`);
+			}
+		}
+		polyCellMap.set(c.groupKey, set);
 	}
-	if (missingCells.length > 0) {
-		missing += missingCells.length;
-		reports.push(`  CLUSTER ${key}: ${missingCells.length} owned cells missing from polygon: ${missingCells.slice(0, 5).join(" ")}...`);
-	}
-	// (2) connected-components of polygon
-	const seen = new Set();
-	let comps = 0;
-	for (const start of poly) {
-		if (seen.has(start)) continue;
-		comps++;
-		const q = [start];
-		seen.add(start);
-		while (q.length) {
-			const cur = q.shift();
-			const [c, r] = cur.split(",").map(Number);
-			for (const [dc, dr] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
-				const k = `${c + dc},${r + dr}`;
-				if (poly.has(k) && !seen.has(k)) {
-					seen.add(k);
-					q.push(k);
+	let missing = 0;
+	let disconnected = 0;
+	for (const key of clusterKeys) {
+		const owned = ownedMap.get(key) ?? new Set();
+		const poly = polyCellMap.get(key) ?? new Set();
+		const missingCells = [];
+		for (const k of owned) if (!poly.has(k)) missingCells.push(k);
+		if (missingCells.length > 0) {
+			missing += missingCells.length;
+			reports.push(`  [${name}] CLUSTER ${key}: ${missingCells.length} owned cells missing: ${missingCells.slice(0, 4).join(" ")}`);
+		}
+		const seen = new Set();
+		let comps = 0;
+		for (const start of poly) {
+			if (seen.has(start)) continue;
+			comps++;
+			const q = [start];
+			seen.add(start);
+			while (q.length) {
+				const cur = q.shift();
+				const [c, r] = cur.split(",").map(Number);
+				for (const [dc, dr] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
+					const k = `${c + dc},${r + dr}`;
+					if (poly.has(k) && !seen.has(k)) {
+						seen.add(k);
+						q.push(k);
+					}
 				}
 			}
 		}
+		if (comps > 1) {
+			disconnected++;
+			reports.push(`  [${name}] CLUSTER ${key}: polygon has ${comps} disconnected components (owned=${owned.size}, poly=${poly.size})`);
+		}
 	}
-	if (comps > 1) {
-		disconnected++;
-		reports.push(`  CLUSTER ${key}: polygon has ${comps} disconnected components (owned=${owned.size}, poly=${poly.size})`);
-	}
+	totalMissing += missing;
+	totalDisconnected += disconnected;
+	console.log(`  scenario ${name}: clusters=${clusterKeys.length}, missing=${missing}, disconnected=${disconnected}`);
 }
-console.log(`Cluster polygon verification:`);
-console.log(`  total clusters: ${clusterKeys.length}`);
-console.log(`  owned cells missing from polygon: ${missing}`);
-console.log(`  disconnected polygons: ${disconnected}`);
-for (const r of reports.slice(0, 20)) console.log(r);
-if (missing > 0) {
-	console.log("FAIL");
+
+console.log(`\nTOTAL: missing=${totalMissing}, disconnected=${totalDisconnected}`);
+for (const r of reports.slice(0, 40)) console.log(r);
+if (totalMissing > 0 || totalDisconnected > 0) {
+	console.log("\nFAIL: cluster polygon invariants violated");
 	process.exit(1);
 }
-console.log("OK (no missing cells; disconnections may still cause faint outlines)");
+console.log("\nOK (every owned cell enclosed; every polygon single-connected)");
