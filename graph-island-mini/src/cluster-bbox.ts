@@ -122,6 +122,89 @@ export function cellRangeToClusterRect(
 	};
 }
 
+// Foreign-only cells for a cluster: cells inside the cluster's AABB
+// that have at least one card from ANOTHER cluster but NO card from
+// this cluster. These are the cells we want to carve out of the AABB
+// so the cluster's enclosure doesn't visually "contain" non-members.
+export function computeForeignOnlyCellsInRange(
+	positionedNodes: PositionedNode[],
+	ownedCells: Set<string>,
+	clusterKey: string,
+	slotW: number,
+	slotH: number,
+	range: { minCol: number; maxCol: number; minRow: number; maxRow: number },
+): Set<string> {
+	const out = new Set<string>();
+	for (const n of positionedNodes) {
+		if (n.memberships.includes(clusterKey)) continue; // own card
+		const fp = nodeFootprint(n, slotW, slotH);
+		for (let c = fp.startCol; c <= fp.endCol; c++) {
+			if (c < range.minCol || c > range.maxCol) continue;
+			for (let r = fp.startRow; r <= fp.endRow; r++) {
+				if (r < range.minRow || r > range.maxRow) continue;
+				const k = `${c},${r}`;
+				if (ownedCells.has(k)) continue; // shared cell, not foreign-only
+				out.add(k);
+			}
+		}
+	}
+	return out;
+}
+
+// Carve foreign-only cells from the AABB cell set, but ONLY those that
+// are reachable from the AABB boundary via other foreign-only cells.
+// Interior foreign-only cells (= surrounded on all sides by polygon
+// cells) stay in the polygon, so the result has NO internal holes;
+// only the boundary acquires L-shaped / hook-shaped concavities
+// (= the "カギ状の n 角" the user explicitly allowed for foreign
+// exclusion).
+export function carveFromBoundary(
+	aabbCells: Set<string>,
+	foreignOnly: Set<string>,
+	range: { minCol: number; maxCol: number; minRow: number; maxRow: number },
+): Set<string> {
+	const carved = new Set<string>(aabbCells);
+	const queue: [number, number][] = [];
+	const trySeed = (c: number, r: number): void => {
+		const k = `${c},${r}`;
+		if (!foreignOnly.has(k)) return;
+		if (!carved.has(k)) return;
+		carved.delete(k);
+		queue.push([c, r]);
+	};
+	// Seed: AABB boundary cells that are foreign-only.
+	for (let c = range.minCol; c <= range.maxCol; c++) {
+		trySeed(c, range.minRow);
+		trySeed(c, range.maxRow);
+	}
+	for (let r = range.minRow; r <= range.maxRow; r++) {
+		trySeed(range.minCol, r);
+		trySeed(range.maxCol, r);
+	}
+	// Propagate: a foreign-only cell adjacent to an already-carved cell
+	// can also be carved (still reachable from outside).
+	while (queue.length > 0) {
+		const [c, r] = queue.shift()!;
+		for (const [dc, dr] of [
+			[-1, 0],
+			[1, 0],
+			[0, -1],
+			[0, 1],
+		]) {
+			const nc = c + dc;
+			const nr = r + dr;
+			if (nc < range.minCol || nc > range.maxCol) continue;
+			if (nr < range.minRow || nr > range.maxRow) continue;
+			const nk = `${nc},${nr}`;
+			if (!foreignOnly.has(nk)) continue;
+			if (!carved.has(nk)) continue;
+			carved.delete(nk);
+			queue.push([nc, nr]);
+		}
+	}
+	return carved;
+}
+
 // Per-cluster owned-cell map. A cell is "owned by cluster X" iff at
 // least one card whose memberships include X has a footprint cell at
 // that grid position. A multi-membership card (e.g. {A, B}) contributes
@@ -382,12 +465,16 @@ export function computeClusterBBoxes(
 			slotH,
 			range.count,
 		);
-		// Outline = boundary of the AABB rectangle filled solid (= the
-		// simplest "single connected, no holes, no exclaves" shape).
-		// Per-cell rectilinear polygons (closeToSimplyConnected) ARE
-		// single-connected but can have deep concavities that visually
-		// read as separate pieces; the user reported those concavities
-		// as 飛び地. AABB sidesteps that by being a literal rectangle.
+		// Outline = AABB rectangle, with foreign-only cells carved out
+		// from the boundary inward. The default shape is the rectangle
+		// (= when the AABB contains no foreign-only cells, no carving
+		// happens and the outline is a clean rectangle). When a
+		// neighbouring cluster's cards intrude into this cluster's AABB
+		// from one of its sides, those cells are removed — producing
+		// L-shape / hook concavities along the side. Interior foreign
+		// cells (= surrounded by polygon cells) stay in the polygon to
+		// avoid creating holes; only boundary-reachable foreign cells
+		// are carved.
 		const owned = ownedCellsMap.get(key);
 		if (owned && owned.size > 0) {
 			const aabbCells = new Set<string>();
@@ -396,8 +483,17 @@ export function computeClusterBBoxes(
 					aabbCells.add(`${col},${row}`);
 				}
 			}
+			const foreignOnly = computeForeignOnlyCellsInRange(
+				positionedNodes,
+				owned,
+				key,
+				slotW,
+				slotH,
+				range,
+			);
+			const carved = carveFromBoundary(aabbCells, foreignOnly, range);
 			rect.outline = computeOutlineSegments(
-				aabbCells,
+				carved,
 				slotW,
 				slotH,
 				channelW,
