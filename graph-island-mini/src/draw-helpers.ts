@@ -305,23 +305,22 @@ export function drawClusterLabels(
 		w: number;
 		cx: number;
 		cy: number;
-		anchorX: number;
-		anchorY: number;
+		rectX: number;
+		rectY: number;
+		rectW: number;
+		rectH: number;
 		pushed: number;
+		hidden: boolean;
 	}
+	// Pick each cluster's anchor rectangle = its LARGEST piece (so a
+	// cluster whose members all sit inside a bigger cluster's main rect
+	// still labels itself on a real visible rectangle, not on the union
+	// AABB which would coincide with the bigger cluster's rect).
 	const labels: LabelP[] = laid.clusters.map((c) => {
-		// Anchor on the LARGEST piece's top-left, not the union AABB.
-		// Why: when a cluster has no main-rect of its own (its members
-		// are owned by a larger cluster via the main-group rule) its
-		// pieces are sub-rects sitting inside another cluster's main
-		// rect. The union AABB then coincides with that outer rect,
-		// so the label drifts far from any visible piece (and the
-		// overlap-push loop pushes it even further into empty world).
-		// Anchoring on the largest piece keeps the label sitting on
-		// the rectangle it actually belongs to.
-		let anchorRectX = c.x;
-		let anchorRectY = c.y;
-		let anchorRectW = c.width;
+		let rectX = c.x;
+		let rectY = c.y;
+		let rectW = c.width;
+		let rectH = c.height;
 		if (c.pieces && c.pieces.length > 0) {
 			let best = c.pieces[0];
 			let bestArea = best.w * best.h;
@@ -333,72 +332,67 @@ export function drawClusterLabels(
 					bestArea = a;
 				}
 			}
-			anchorRectX = best.x;
-			anchorRectY = best.y;
-			anchorRectW = best.w;
+			rectX = best.x;
+			rectY = best.y;
+			rectW = best.w;
+			rectH = best.h;
 		}
 		const text = truncateToWidth(
 			ctx,
 			`${c.label} (${c.memberCount})`,
-			Math.max(anchorRectW, c.width),
+			Math.max(rectW, c.width),
 		);
 		const w = ctx.measureText(text).width;
-		const anchorX = anchorRectX + padX;
-		const anchorY = anchorRectY - insetY;
 		return {
 			c,
 			text,
 			w,
-			cx: anchorX,
-			cy: anchorY,
-			anchorX,
-			anchorY,
+			cx: rectX + padX,
+			cy: rectY + lineH, // top-INSIDE baseline (alphabetic)
+			rectX,
+			rectY,
+			rectW,
+			rectH,
 			pushed: 0,
+			hidden: false,
 		};
 	});
-	const order = labels.map((_, i) => i);
-	order.sort(
-		(a, b) =>
-			labels[b].c.width * labels[b].c.height -
-			labels[a].c.width * labels[a].c.height,
-	);
-
-	const overlap = (a: LabelP, b: LabelP): boolean => {
-		const ay0 = a.cy - lineH * 0.8;
-		const ay1 = a.cy + lineH * 0.2;
-		const by0 = b.cy - lineH * 0.8;
-		const by1 = b.cy + lineH * 0.2;
-		return (
-			a.cx < b.cx + b.w && b.cx < a.cx + a.w && ay0 < by1 && by0 < ay1
+	// Group labels by anchor rectangle (= clusters sharing a piece).
+	// Within a group, stack labels vertically DOWNWARD inside the rect.
+	// Larger clusters get the top row.
+	const groups = new Map<string, number[]>();
+	for (let i = 0; i < labels.length; i++) {
+		const l = labels[i];
+		// Quantise to slot-grid corners so floating-point noise doesn't
+		// split clusters that share the exact same piece.
+		const key = `${Math.round(l.rectX)}|${Math.round(l.rectY)}|${Math.round(l.rectW)}|${Math.round(l.rectH)}`;
+		const arr = groups.get(key);
+		if (arr) arr.push(i);
+		else groups.set(key, [i]);
+	}
+	for (const idxs of groups.values()) {
+		idxs.sort(
+			(a, b) =>
+				labels[b].c.width * labels[b].c.height -
+				labels[a].c.width * labels[a].c.height,
 		);
-	};
-	for (let idx = 0; idx < order.length; idx++) {
-		const me = labels[order[idx]];
-		let attempts = 0;
-		while (attempts < 16) {
-			let hit = false;
-			for (let jdx = 0; jdx < idx; jdx++) {
-				if (overlap(me, labels[order[jdx]])) {
-					me.cy -= lineH;
-					me.pushed++;
-					hit = true;
-					break;
-				}
+		for (let row = 0; row < idxs.length; row++) {
+			const lab = labels[idxs[row]];
+			const targetY = lab.rectY + lineH + row * lineH;
+			// If we'd run past the rect's bottom, hide rather than spill
+			// outside (spilling caused the original "label floating in
+			// empty space" bug).
+			if (targetY > lab.rectY + lab.rectH) {
+				lab.hidden = true;
+				continue;
 			}
-			if (!hit) break;
-			attempts++;
+			lab.cy = targetY;
+			lab.pushed = row;
 		}
 	}
 	for (const lab of labels) {
+		if (lab.hidden) continue;
 		const hue = clusterHue(lab.c.groupKey);
-		if (lab.pushed >= 2) {
-			ctx.strokeStyle = `hsla(${hue}, 65%, 70%, 0.55)`;
-			ctx.lineWidth = 0.7 / zoom;
-			ctx.beginPath();
-			ctx.moveTo(lab.cx, lab.cy);
-			ctx.lineTo(lab.anchorX, lab.anchorY);
-			ctx.stroke();
-		}
 		ctx.fillStyle = `hsla(${hue}, 65%, 70%, 1)`;
 		ctx.fillText(lab.text, lab.cx, lab.cy);
 	}
