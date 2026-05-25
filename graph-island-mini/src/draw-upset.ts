@@ -110,7 +110,9 @@ function drawMatrixDots(
 		}
 		if (isFinite(topY) && botY > topY) {
 			ctx.strokeStyle = "rgba(180, 195, 220, 0.75)";
-			ctx.lineWidth = Math.max(1.5, r * 0.35) / zoom;
+			// 2 device pixels regardless of zoom — thinner than the dot
+			// radius so the dots stay clearly visible on top of the line.
+			ctx.lineWidth = 2 / zoom;
 			ctx.beginPath();
 			ctx.moveTo(col.x, topY);
 			ctx.lineTo(col.x, botY);

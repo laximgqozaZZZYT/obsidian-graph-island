@@ -108,8 +108,15 @@ export function layoutUpset(
 	const cardsTopY = 0;
 	const cardsBottomY = cardsTopY + tallestColumnCards * slotH;
 
-	const matrixGap = slotH;
-	const matrixRowH = Math.max(slotH * 0.7, cardH * 0.9);
+	// Matrix geometry is INDEPENDENT of card size. Use a compact pitch
+	// (≈24 world units) sized for the 12-px-screen-space font we draw
+	// labels at; this stops the matrix from inheriting the card stack's
+	// huge slot pitch (which made dots gigantic and connectors look
+	// like solid coloured pills).
+	const matrixPitch = Math.max(20, channelH * 1.5, 24);
+	const matrixRowH = matrixPitch;
+	const matrixColW = matrixPitch;
+	const matrixGap = matrixPitch * 1.2;
 	const matrixTopY = cardsBottomY + matrixGap;
 	const matrixBottomY = matrixTopY + setKeys.length * matrixRowH;
 
@@ -119,14 +126,16 @@ export function layoutUpset(
 	const setLabelX = setLabelWidth; // right-edge of label band
 	const matrixLeftX = setLabelX + channelW;
 
-	// Place each column centre. The leftmost column sits just to the
-	// right of the label band.
+	// Columns are anchored on a card-width pitch (so a card stack sits
+	// on top of its matrix column). Matrix dots themselves are tiny
+	// relative to that pitch — see `dotR` below.
 	const columns: UpsetMeta["columns"] = sigs.map((sig, idx) => ({
 		signature: sig.signature,
 		nodeIds: sig.nodeIds,
 		size: sig.nodeIds.length,
 		x: matrixLeftX + slotW / 2 + idx * slotW,
 	}));
+	void matrixColW;
 
 	// --- 4. Position the cards. Each column's cards stack from the
 	// bottom upward so the visual "tower" height encodes intersection
@@ -164,7 +173,10 @@ export function layoutUpset(
 		y: matrixTopY + (idx + 0.5) * matrixRowH,
 	}));
 
-	const dotR = Math.max(4, Math.min(matrixRowH * 0.32, slotW * 0.2));
+	// Dot radius is tied to matrix row height ONLY (not slot width).
+	// Cap aggressively so a row of dots reads as a row of dots, not as
+	// a solid coloured bar.
+	const dotR = Math.max(3, Math.min(matrixRowH * 0.22, 6));
 
 	const upset: UpsetMeta = {
 		sets,
