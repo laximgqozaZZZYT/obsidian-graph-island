@@ -97,7 +97,22 @@ export interface MiniSettings {
 	panelVisible: boolean;
 	clusterOffsets: Record<string, Offset>;
 	nodeOffsets: Record<string, Offset>;
+	// View mode for the [全体] tab. "euler" = the current Euler-diagram
+	// rectangle layout. Future modes will be appended here.
+	viewMode: ViewMode;
 }
+
+export type ViewMode = "euler";
+
+export interface ViewModeOption {
+	id: ViewMode;
+	label: string;
+	description?: string;
+}
+
+export const VIEW_MODES: ViewModeOption[] = [
+	{ id: "euler", label: "オイラー図", description: "メイン/サブの長方形囲い" },
+];
 
 export const DEFAULT_SETTINGS: MiniSettings = {
 	clusterSpacing: 80,
@@ -128,6 +143,7 @@ export const DEFAULT_SETTINGS: MiniSettings = {
 	panelVisible: false,
 	clusterOffsets: {},
 	nodeOffsets: {},
+	viewMode: "euler",
 };
 
 export const NONE_BUCKET = "(none)";

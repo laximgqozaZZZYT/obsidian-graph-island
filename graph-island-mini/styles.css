@@ -245,6 +245,48 @@
 	margin-bottom: 6px;
 }
 
+.gim-viewmode-options {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.gim-viewmode-option {
+	display: flex;
+	align-items: flex-start;
+	gap: 8px;
+	padding: 6px 8px;
+	border: 1px solid var(--background-modifier-border, #2a2f3a);
+	border-radius: 6px;
+	cursor: pointer;
+	background: var(--background-secondary, #1a1d24);
+}
+
+.gim-viewmode-option:hover {
+	background: var(--background-secondary-alt, #20242d);
+}
+
+.gim-viewmode-option input[type="radio"] {
+	margin-top: 2px;
+	flex: 0 0 auto;
+}
+
+.gim-viewmode-text {
+	display: flex;
+	flex-direction: column;
+	gap: 1px;
+	line-height: 1.3;
+}
+
+.gim-viewmode-text strong {
+	font-size: 12px;
+}
+
+.gim-viewmode-desc {
+	font-size: 11px;
+	color: var(--text-muted, #7a8aa0);
+}
+
 .gim-panel-section-header h4 {
 	margin: 0;
 }

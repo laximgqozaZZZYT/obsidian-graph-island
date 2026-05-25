@@ -7,8 +7,8 @@ import {
 	type SizedNode,
 	type ClusterRect,
 } from "./layout";
-import type { MiniSettings, GraphNode } from "./types";
-import { NONE_BUCKET } from "./types";
+import type { MiniSettings, GraphNode, ViewMode } from "./types";
+import { NONE_BUCKET, VIEW_MODES } from "./types";
 import { CARD_MIN_W, CARD_MAX_W, CARD_CELL_W, CARD_CELL_H } from "./types";
 import { type LimitRule, applyLimitRules } from "./limit";
 import { filterMemberships, filterLabels } from "./query-filters";
@@ -396,6 +396,7 @@ export class MiniGraphView extends ItemView {
 	}
 
 	private renderAllTab(el: HTMLElement): void {
+		this.renderViewModeSection(el);
 		this.renderExprSection(el, "WHERE", this.settings.where, this.whereError, {
 			autoKey: "whereAuto",
 		});
@@ -713,6 +714,40 @@ export class MiniGraphView extends ItemView {
 			settings: this.settings,
 			save: () => void this.save(),
 		});
+	}
+
+	private renderViewModeSection(parent: HTMLElement): void {
+		const section = parent.createDiv({ cls: "gim-panel-section" });
+		section.createEl("h4", { text: "表示モード" });
+		const radioGroup = section.createDiv({ cls: "gim-viewmode-options" });
+		for (const opt of VIEW_MODES) {
+			const item = radioGroup.createEl("label", {
+				cls: "gim-viewmode-option",
+			});
+			const input = item.createEl("input", {
+				type: "radio",
+				attr: { name: "gim-viewmode" },
+			}) as HTMLInputElement;
+			input.value = opt.id;
+			input.checked = this.settings.viewMode === opt.id;
+			input.addEventListener("change", () => {
+				if (!input.checked) return;
+				const next = input.value as ViewMode;
+				if (this.settings.viewMode === next) return;
+				this.settings.viewMode = next;
+				void this.save();
+				void this.rebuild();
+				this.renderPanel();
+			});
+			const text = item.createDiv({ cls: "gim-viewmode-text" });
+			text.createEl("strong", { text: opt.label });
+			if (opt.description) {
+				text.createEl("span", {
+					cls: "gim-viewmode-desc",
+					text: opt.description,
+				});
+			}
+		}
 	}
 
 	private renderToggleSection(
