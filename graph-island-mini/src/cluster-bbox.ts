@@ -1063,8 +1063,14 @@ export function computeClusterBBoxes(
 					}
 				}
 			}
-			const padX = channelW / 2;
-			const padY = channelH / 2;
+			// Enclosure edges ride the channel centre-lines (= slot grid
+			// lines `col * slotW` / `row * slotH`), never the inner card
+			// inset. Per user spec (2026-05-26): "囲いについては必ず
+			// 隘路の中心線を通るようにしてください".
+			// channelW / channelH are kept above only for legacy callers;
+			// they are intentionally NOT used to inset the AABB here.
+			void channelW;
+			void channelH;
 			const aabbFromCells = (cells: Set<string>): { x: number; y: number; w: number; h: number } => {
 				let minC = Infinity,
 					maxC = -Infinity,
@@ -1078,10 +1084,10 @@ export function computeClusterBBoxes(
 					if (r > maxR) maxR = r;
 				}
 				return {
-					x: minC * slotW + padX,
-					y: minR * slotH + padY,
-					w: (maxC - minC + 1) * slotW - 2 * padX,
-					h: (maxR - minR + 1) * slotH - 2 * padY,
+					x: minC * slotW,
+					y: minR * slotH,
+					w: (maxC - minC + 1) * slotW,
+					h: (maxR - minR + 1) * slotH,
 				};
 			};
 			const pieces: Array<{ x: number; y: number; w: number; h: number; kind: "main" | "sub" }> = [];
