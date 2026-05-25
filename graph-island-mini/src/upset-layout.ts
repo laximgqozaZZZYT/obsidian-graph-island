@@ -1,29 +1,29 @@
-// UpSet plot layout.
+// UpSet plot layout — data preparation only.
 //
-// Given the same `(GraphData, SizedNode[])` input the Euler pipeline
-// consumes, this module produces a `LaidOut` where:
-//   - Each unique membership signature becomes ONE column.
-//   - Every node belonging to that signature is stacked vertically
-//     inside the column (one card per row), so every element stays
-//     individually visible — the Euler pipeline's aggregation does
-//     NOT happen here.
-//   - Below the cards a dot-matrix indicates which sets (= clusters)
-//     each column belongs to. ≥4-way intersections fall out for free
-//     because a column with 4+ filled dots is no different from one
-//     with 2.
-//   - To the left of the matrix, set labels are right-aligned next to
-//     their dot row + a horizontal size bar.
+// The UpSet plot is rendered in SCREEN space as a fixed footer (see
+// draw-upset.ts) so fonts and dots stay readable at every world
+// zoom. Card stacking — the previous "1 card per node in world
+// coords" pipeline — was removed because it forced fit-to-view to
+// compete between the overview matrix and the per-node detail; the
+// detail panel (separate UI) replaces that role.
 //
-// Edges and cluster enclosures are intentionally empty in this mode —
-// the matrix carries the relational information.
+// This module therefore just:
+//   - Buckets nodes by their exact membership signature.
+//   - Collects per-set total sizes.
+//   - Sorts columns and applies the min-size cull.
+//
+// Geometry (row heights, column widths, label positions) is computed
+// by draw-upset.ts from the canvas dimensions at paint time.
 import type { GraphData } from "./types";
-import type { LaidOut, PositionedNode, UpsetMeta } from "./layout";
+import type { LaidOut, UpsetMeta } from "./layout";
 
 export interface UpsetLayoutOptions {
 	cellW: number;
 	cellH: number;
-	nodeSpacing: number; // horizontal channel between columns
+	nodeSpacing: number;
 	clusterLabels: Map<string, string>;
+	columnSort?: "size" | "degree";
+	minColumnSize?: number;
 }
 
 interface Sized {
@@ -37,10 +37,11 @@ export function layoutUpset(
 	sized: Sized[],
 	opts: UpsetLayoutOptions,
 ): LaidOut {
-	const sizedById = new Map<string, Sized>();
-	for (const s of sized) sizedById.set(s.id, s);
+	void sized;
 
-	// --- 1. Determine sets (rows) and their total sizes.
+	// --- 1. Sets (rows). HAVING-failed clusters are already absent
+	// from node.memberships by the time we get here, so any membership
+	// key seen here is one that survived the upstream filters.
 	const setSizes = new Map<string, number>();
 	for (const n of data.nodes) {
 		for (const m of n.memberships) {
@@ -48,150 +49,76 @@ export function layoutUpset(
 		}
 	}
 	const setKeys = [...setSizes.keys()].sort((a, b) => {
-		// Larger sets first; alphabetical tiebreak so the row order is
-		// deterministic between renders.
 		const da = setSizes.get(b)! - setSizes.get(a)!;
 		return da !== 0 ? da : a.localeCompare(b);
 	});
 
-	// --- 2. Bucket nodes by their exact membership signature.
-	const sigToNodes = new Map<string, { signature: string[]; nodeIds: string[] }>();
+	// --- 2. Buckets keyed by exact membership signature.
+	// "|" separator avoids the {ab, c} / {a, bc} collision the naive
+	// `.join("")` would produce.
+	const sigToBucket = new Map<
+		string,
+		{ signature: string[]; nodeIds: string[] }
+	>();
 	for (const n of data.nodes) {
-		// Empty-membership nodes can't appear in any intersection; skip
-		// (they'd otherwise produce a phantom "no set" column).
 		if (n.memberships.length === 0) continue;
 		const sorted = [...n.memberships].sort();
-		const key = sorted.join("");
-		const entry = sigToNodes.get(key);
+		const key = sorted.join("|");
+		const entry = sigToBucket.get(key);
 		if (entry) entry.nodeIds.push(n.id);
-		else sigToNodes.set(key, { signature: sorted, nodeIds: [n.id] });
+		else sigToBucket.set(key, { signature: sorted, nodeIds: [n.id] });
 	}
-	const sigs = [...sigToNodes.values()].sort((a, b) => {
-		// Largest intersection first; if tied, smaller-degree set
-		// combinations first (= shorter signature), then alphabetical.
-		if (b.nodeIds.length !== a.nodeIds.length)
-			return b.nodeIds.length - a.nodeIds.length;
-		if (a.signature.length !== b.signature.length)
-			return a.signature.length - b.signature.length;
+
+	// --- 3. Min-size cull. Defaults to keeping everything.
+	const minSize = Math.max(1, opts.minColumnSize ?? 1);
+	const buckets = [...sigToBucket.values()].filter(
+		(b) => b.nodeIds.length >= minSize,
+	);
+
+	// --- 4. Column sort.
+	const sortMode = opts.columnSort ?? "size";
+	buckets.sort((a, b) => {
+		if (sortMode === "degree") {
+			if (a.signature.length !== b.signature.length)
+				return a.signature.length - b.signature.length;
+			if (b.nodeIds.length !== a.nodeIds.length)
+				return b.nodeIds.length - a.nodeIds.length;
+		} else {
+			if (b.nodeIds.length !== a.nodeIds.length)
+				return b.nodeIds.length - a.nodeIds.length;
+			if (a.signature.length !== b.signature.length)
+				return a.signature.length - b.signature.length;
+		}
 		return a.signature.join().localeCompare(b.signature.join());
 	});
 
-	// --- 3. Geometry.
-	// Cards have VARIABLE width/height in `sized` — title length + body
-	// line count drive the cell size in Euler mode. UpSet packs cards
-	// into a grid, so the column pitch / row pitch must use the
-	// LARGEST observed card so neighbouring columns / rows never
-	// overlap their content. (The first cut used `opts.cellW/cellH`
-	// which is the *canonical* size, not the actual rendered size, so
-	// any card with body text spilled into the next slot.)
-	const fallbackW = opts.cellW > 0 ? opts.cellW : 80;
-	const fallbackH = opts.cellH > 0 ? opts.cellH : 24;
-	let maxCardW = fallbackW;
-	let maxCardH = fallbackH;
-	for (const s of sized) {
-		if (s.width > maxCardW) maxCardW = s.width;
-		if (s.height > maxCardH) maxCardH = s.height;
-	}
-	const cardW = maxCardW;
-	const cardH = maxCardH;
-	const channelW = Math.max(12, opts.nodeSpacing);
-	const channelH = Math.max(6, Math.round(opts.nodeSpacing / 2));
-	const slotW = cardW + channelW;
-	const slotH = cardH + channelH;
-
-	// Tallest column dictates the cards band height; matrix begins
-	// below that with a small gap.
-	const tallestColumnCards = sigs.reduce(
-		(m, s) => Math.max(m, s.nodeIds.length),
-		1,
-	);
-	const cardsTopY = 0;
-	const cardsBottomY = cardsTopY + tallestColumnCards * slotH;
-
-	// Matrix geometry is INDEPENDENT of card size. Use a compact pitch
-	// (≈24 world units) sized for the 12-px-screen-space font we draw
-	// labels at; this stops the matrix from inheriting the card stack's
-	// huge slot pitch (which made dots gigantic and connectors look
-	// like solid coloured pills).
-	const matrixPitch = Math.max(20, channelH * 1.5, 24);
-	const matrixRowH = matrixPitch;
-	const matrixColW = matrixPitch;
-	const matrixGap = matrixPitch * 1.2;
-	const matrixTopY = cardsBottomY + matrixGap;
-	const matrixBottomY = matrixTopY + setKeys.length * matrixRowH;
-
-	// Set label band on the left of the matrix. Width is generous so
-	// long labels stay readable; columns start AFTER this band.
-	const setLabelWidth = Math.max(cardW * 1.6, 160);
-	const setLabelX = setLabelWidth; // right-edge of label band
-	const matrixLeftX = setLabelX + channelW;
-
-	// Columns are anchored on a card-width pitch (so a card stack sits
-	// on top of its matrix column). Matrix dots themselves are tiny
-	// relative to that pitch — see `dotR` below.
-	const columns: UpsetMeta["columns"] = sigs.map((sig, idx) => ({
-		signature: sig.signature,
-		nodeIds: sig.nodeIds,
-		size: sig.nodeIds.length,
-		x: matrixLeftX + slotW / 2 + idx * slotW,
-	}));
-	void matrixColW;
-
-	// --- 4. Position the cards. Each column's cards stack from the
-	// bottom upward so the visual "tower" height encodes intersection
-	// size (taller column = bigger intersection — UpSet bar analogue).
-	const positionedNodes: PositionedNode[] = [];
-	for (const col of columns) {
-		// Stable order inside the column: by node id so the same
-		// intersection always renders the same way.
-		col.nodeIds.sort((a, b) => a.localeCompare(b));
-		for (let i = 0; i < col.nodeIds.length; i++) {
-			const id = col.nodeIds[i];
-			const node = data.nodes.find((n) => n.id === id);
-			if (!node) continue;
-			const s = sizedById.get(id);
-			const w = s?.width ?? cardW;
-			const h = s?.height ?? cardH;
-			// Stack from bottom: index 0 sits flush with cardsBottomY.
-			const cy = cardsBottomY - (i + 0.5) * slotH;
-			const cx = col.x;
-			positionedNodes.push({
-				...node,
-				x: cx,
-				y: cy,
-				width: w,
-				height: h,
-			} as PositionedNode);
-		}
+	// --- 5. Stable node order inside each column (by id) so the same
+	// intersection always lists the same files in the same order in
+	// the detail panel.
+	for (const bucket of buckets) {
+		bucket.nodeIds.sort((a, b) => a.localeCompare(b));
 	}
 
-	// --- 5. Set rows: y centres aligned with matrix rows.
-	const sets: UpsetMeta["sets"] = setKeys.map((key, idx) => ({
+	const sets: UpsetMeta["sets"] = setKeys.map((key) => ({
 		key,
 		label: opts.clusterLabels.get(key) ?? key,
 		size: setSizes.get(key) ?? 0,
-		y: matrixTopY + (idx + 0.5) * matrixRowH,
+	}));
+	const columns: UpsetMeta["columns"] = buckets.map((b) => ({
+		signature: b.signature,
+		nodeIds: b.nodeIds,
+		size: b.nodeIds.length,
 	}));
 
-	// Dot radius is tied to matrix row height ONLY (not slot width).
-	// Cap aggressively so a row of dots reads as a row of dots, not as
-	// a solid coloured bar.
-	const dotR = Math.max(3, Math.min(matrixRowH * 0.22, 6));
-
-	const upset: UpsetMeta = {
-		sets,
-		columns,
-		cardsBottomY,
-		matrixTopY,
-		matrixRowH,
-		matrixBottomY,
-		setLabelX,
-		matrixLeftX,
-		dotR,
-	};
+	// Channel sizes still flow through so the world-space grid
+	// renderer can derive a lattice even when no nodes are positioned.
+	const channelW = Math.max(12, opts.nodeSpacing);
+	const channelH = Math.max(6, Math.round(opts.nodeSpacing / 2));
+	const slotW = (opts.cellW > 0 ? opts.cellW : 80) + channelW;
+	const slotH = (opts.cellH > 0 ? opts.cellH : 24) + channelH;
 
 	return {
-		nodes: positionedNodes,
+		nodes: [],
 		edges: [],
 		clusters: [],
 		trunks: [],
@@ -199,6 +126,6 @@ export function layoutUpset(
 		slotH,
 		channelW,
 		channelH,
-		upset,
+		upset: { sets, columns },
 	};
 }

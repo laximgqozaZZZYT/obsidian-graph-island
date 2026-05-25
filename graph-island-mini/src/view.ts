@@ -160,6 +160,10 @@ export class MiniGraphView extends ItemView {
 	// Current tab in the settings panel. "__all__" = 全体. Otherwise = a
 	// cluster groupKey produced by WHERE → GROUP_BY → HAVING.
 	private activeTab: string = "__all__";
+	// UpSet mode: signature key (= `signature.join("|")`) of the column
+	// currently selected by the user (highlighted in the matrix; drives
+	// the detail panel listing in Phase C). null = nothing selected.
+	private upsetSelectedSignatureKey: string | null = null;
 	// Per-cluster "truly-aggregated" member count. Populated during
 	// rebuild() for clusters in aggregatedLayers — the count excludes
 	// members that also belong to a non-aggregated cluster (since those
@@ -880,6 +884,8 @@ export class MiniGraphView extends ItemView {
 			clusterLabels,
 			anchorPlacement: this.settings.anchorPlacement,
 			viewMode: this.settings.viewMode,
+			upsetColumnSort: this.settings.upsetColumnSort,
+			upsetMinColumnSize: this.settings.upsetMinColumnSize,
 		});
 		// Stage 5: id → incident-edge-index adjacency for hover lookups.
 		this.adjacency = buildAdjacency(this.laid.edges);
@@ -1117,10 +1123,20 @@ export class MiniGraphView extends ItemView {
 	}
 
 	private fitToView(): void {
+		// UpSet plot is in SCREEN space and is always fully visible; the
+		// world canvas above it is intentionally blank. Reset pan / zoom
+		// to a neutral identity so the (currently empty) world area is
+		// centred rather than scrolled off, and bail before the world
+		// fit-bbox math (which would compute over an empty set).
+		if (this.laid.upset) {
+			this.zoom = 1;
+			this.panX = 0;
+			this.panY = 0;
+			this.requestDraw();
+			return;
+		}
 		const hasContent =
-			this.laid.clusters.length > 0 ||
-			this.laid.nodes.length > 0 ||
-			this.laid.upset != null;
+			this.laid.clusters.length > 0 || this.laid.nodes.length > 0;
 		if (!hasContent) return;
 		let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
 		for (const c of this.laid.clusters) {
@@ -1128,17 +1144,6 @@ export class MiniGraphView extends ItemView {
 			minY = Math.min(minY, c.y);
 			maxX = Math.max(maxX, c.x + c.width);
 			maxY = Math.max(maxY, c.y + c.height);
-		}
-		// UpSet matrix + set-label band live outside the card AABB.
-		// Include them so fit-to-view frames the whole plot, not just
-		// the cards.
-		if (this.laid.upset) {
-			const u = this.laid.upset;
-			minX = Math.min(minX, 0);
-			maxY = Math.max(maxY, u.matrixBottomY + u.matrixRowH);
-			if (u.columns.length > 0) {
-				maxX = Math.max(maxX, u.columns[u.columns.length - 1].x + u.matrixRowH);
-			}
 		}
 		// Cards stay visible even when no enclosure surrounds them (e.g. files
 		// that landed in NONE_BUCKET after HAVING dropped their only cluster).
@@ -1325,6 +1330,20 @@ export class MiniGraphView extends ItemView {
 			ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 			this.drawGridHeaders(ctx);
 		}
+
+		// UpSet plot is rendered in SCREEN space last so it sits on top
+		// of the (empty in this mode) world canvas as a fixed footer.
+		// Fonts/dots/bars stay readable regardless of world zoom.
+		if (this.laid.upset) {
+			drawUpset(
+				ctx,
+				this.laid,
+				this.canvas.clientWidth,
+				this.canvas.clientHeight,
+				dpr,
+				this.upsetSelectedSignatureKey,
+			);
+		}
 	}
 
 	// Single-tile body renderer — called once per (i, j) tile in the
@@ -1335,12 +1354,9 @@ export class MiniGraphView extends ItemView {
 		hasHighlight: boolean,
 		skipNode: (id: string) => boolean,
 	): void {
-		// UpSet pipeline: matrix + dots + set labels live below the
-		// card band. Cards themselves still go through the normal card
-		// renderer below so every element stays individually visible.
-		if (this.laid.upset) {
-			drawUpset(ctx, this.laid, this.zoom);
-		}
+		// UpSet mode renders entirely in screen space (see end of
+		// draw()) so the per-tile world-space loop has nothing to do.
+		if (this.laid.upset) return;
 		if (this.settings.showEnclosures && !this.laid.upset) {
 			drawEnclosures(
 				ctx,

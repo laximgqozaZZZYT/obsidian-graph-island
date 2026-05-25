@@ -1,165 +1,344 @@
-// UpSet plot rendering — the matrix band that sits below the card
-// stacks. Cards themselves are rendered by the normal card pipeline;
-// this module only paints the auxiliary set-labels / dot-matrix /
-// size-bars layer.
+// UpSet plot renderer — screen-space footer.
+//
+// The UpSet plot is pinned to the BOTTOM of the canvas in SCREEN
+// pixels: fonts, dots, bars, paddings all keep a constant physical
+// size regardless of the user's world-space pan/zoom. The plot's
+// total height is computed from its content (set rows + column bar
+// band + numerals) — when the plot's natural height exceeds the
+// canvas, the top of the plot just extends upward into the canvas
+// area (cards aren't drawn in UpSet mode, so there's nothing to
+// collide with).
+//
+// LOD trigger is COLUMN WIDTH IN SCREEN PIXELS, not zoom — that
+// keeps Phase B (min font size) and Phase D (LOD) on the same axis
+// instead of fighting each other.
 import type { LaidOut, UpsetMeta } from "./layout";
 import { clusterHue } from "./canvas-utils";
-import { CARD_TITLE_FONT_PX, CARD_BODY_FONT_PX } from "./types";
+
+const FONT_PX = 12;
+const SMALL_FONT_PX = 10;
+const ROW_H = 22;
+const BAR_AREA_H = 80;
+const COL_COUNT_H = 18;
+const SET_LABEL_PAD = 8;
+const SET_LABEL_BAND_W = 140;
+const SET_SIZE_BAR_BAND_W = 70;
+const LEFT_BAND_W = SET_LABEL_BAND_W + SET_SIZE_BAR_BAND_W + 16;
+const MIN_COL_W = 6;
+const IDEAL_COL_W = 22;
+const HIGHLIGHT = "rgba(255, 157, 63, 0.9)";
+
+export interface UpsetScreenLayout {
+	footerTopY: number;
+	footerBottomY: number;
+	leftBandX: number;
+	matrixLeftX: number;
+	colW: number;
+	barAreaTopY: number;
+	barAreaBottomY: number;
+	matrixTopY: number;
+	matrixBottomY: number;
+	countsTopY: number;
+	setRows: Array<{ key: string; label: string; size: number; y: number }>;
+	colXs: number[];
+	dotR: number;
+	showSetLabels: boolean;
+}
+
+export function computeUpsetScreenLayout(
+	u: UpsetMeta,
+	canvasW: number,
+	canvasH: number,
+): UpsetScreenLayout {
+	const cols = u.columns.length;
+	const sets = u.sets.length;
+	const colsBand = Math.max(canvasW - LEFT_BAND_W - 16, MIN_COL_W * Math.max(cols, 1));
+	const colW = cols > 0
+		? Math.max(MIN_COL_W, Math.min(IDEAL_COL_W, colsBand / cols))
+		: IDEAL_COL_W;
+	const totalH =
+		BAR_AREA_H + sets * ROW_H + COL_COUNT_H + 24;
+	const footerTopY = Math.max(0, canvasH - totalH);
+	const footerBottomY = canvasH;
+	const barAreaTopY = footerTopY + 8;
+	const barAreaBottomY = barAreaTopY + BAR_AREA_H;
+	const matrixTopY = barAreaBottomY + 8;
+	const matrixBottomY = matrixTopY + sets * ROW_H;
+	const countsTopY = matrixBottomY + 2;
+	const leftBandX = 8;
+	const matrixLeftX = LEFT_BAND_W;
+	const setRows = u.sets.map((s, idx) => ({
+		key: s.key,
+		label: s.label,
+		size: s.size,
+		y: matrixTopY + (idx + 0.5) * ROW_H,
+	}));
+	const colXs = u.columns.map((_, idx) => matrixLeftX + (idx + 0.5) * colW);
+	const dotR = Math.max(3, Math.min(ROW_H * 0.32, colW * 0.4));
+	const showSetLabels = colW >= MIN_COL_W; // labels live in left band, always on
+	return {
+		footerTopY,
+		footerBottomY,
+		leftBandX,
+		matrixLeftX,
+		colW,
+		barAreaTopY,
+		barAreaBottomY,
+		matrixTopY,
+		matrixBottomY,
+		countsTopY,
+		setRows,
+		colXs,
+		dotR,
+		showSetLabels,
+	};
+}
 
 export function drawUpset(
 	ctx: CanvasRenderingContext2D,
 	laid: LaidOut,
-	zoom: number,
+	canvasW: number,
+	canvasH: number,
+	dpr: number,
+	selectedSignatureKey: string | null,
 ): void {
 	const u = laid.upset;
 	if (!u) return;
-	drawSetSizeBars(ctx, u, zoom);
-	drawSetLabels(ctx, u, zoom);
-	drawColumnGuides(ctx, u, zoom);
-	drawMatrixDots(ctx, u, zoom);
-	drawColumnCounts(ctx, u, zoom);
+	// Detach from the world transform: SCREEN-space rendering.
+	ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+	const L = computeUpsetScreenLayout(u, canvasW, canvasH);
+	// Footer background — subtle so it reads as a distinct band over
+	// the world canvas above.
+	ctx.fillStyle = "rgba(15, 17, 22, 0.92)";
+	ctx.fillRect(0, L.footerTopY, canvasW, canvasH - L.footerTopY);
+	ctx.strokeStyle = "rgba(120, 130, 150, 0.35)";
+	ctx.lineWidth = 1;
+	ctx.beginPath();
+	ctx.moveTo(0, L.footerTopY + 0.5);
+	ctx.lineTo(canvasW, L.footerTopY + 0.5);
+	ctx.stroke();
+	drawColumnBars(ctx, u, L);
+	drawRowTracks(ctx, u, L, canvasW);
+	drawSetSizeBars(ctx, u, L);
+	drawSetLabels(ctx, u, L);
+	drawMatrixDots(ctx, u, L, selectedSignatureKey);
+	drawColumnCounts(ctx, u, L);
+	drawSelectedColumnFrame(ctx, u, L, selectedSignatureKey);
 }
 
-// Pale grey background bar per matrix row so the dot row reads as a
-// horizontal track even when no dots are filled in a region.
-function drawColumnGuides(
+function drawColumnBars(
 	ctx: CanvasRenderingContext2D,
 	u: UpsetMeta,
-	zoom: number,
+	L: UpsetScreenLayout,
 ): void {
-	if (u.sets.length === 0 || u.columns.length === 0) return;
-	const rowH = u.matrixRowH;
-	const trackH = Math.max(2, rowH * 0.92);
-	const left = u.columns[0].x - rowH * 0.6;
-	const right = u.columns[u.columns.length - 1].x + rowH * 0.6;
-	ctx.fillStyle = "rgba(120, 130, 150, 0.10)";
-	for (const set of u.sets) {
-		ctx.fillRect(left, set.y - trackH / 2, right - left, trackH);
+	if (u.columns.length === 0) return;
+	const maxSize = Math.max(1, ...u.columns.map((c) => c.size));
+	const usableH = L.barAreaBottomY - L.barAreaTopY - 16;
+	ctx.textAlign = "center";
+	ctx.textBaseline = "bottom";
+	ctx.font = `${SMALL_FONT_PX}px sans-serif`;
+	for (let i = 0; i < u.columns.length; i++) {
+		const c = u.columns[i];
+		const x = L.colXs[i];
+		const h = (c.size / maxSize) * usableH;
+		const top = L.barAreaBottomY - h;
+		const barW = Math.max(3, Math.min(L.colW * 0.7, 14));
+		ctx.fillStyle = "rgba(150, 170, 200, 0.85)";
+		ctx.fillRect(x - barW / 2, top, barW, h);
+		// Numeral above the bar (only when there's vertical room).
+		if (h > SMALL_FONT_PX + 4 && L.colW >= 14) {
+			ctx.fillStyle = "rgba(220, 225, 235, 0.9)";
+			ctx.fillText(String(c.size), x, top - 2);
+		}
 	}
-	void zoom;
 }
 
-// Horizontal bars to the LEFT of the matrix indicating each set's
-// total size (= number of nodes that belong to the set, summed across
-// all intersection columns). Bars are right-anchored at `setLabelX`.
+function drawRowTracks(
+	ctx: CanvasRenderingContext2D,
+	u: UpsetMeta,
+	L: UpsetScreenLayout,
+	canvasW: number,
+): void {
+	const trackH = ROW_H * 0.92;
+	ctx.fillStyle = "rgba(120, 130, 150, 0.08)";
+	for (const set of L.setRows) {
+		ctx.fillRect(
+			L.matrixLeftX,
+			set.y - trackH / 2,
+			canvasW - L.matrixLeftX - 4,
+			trackH,
+		);
+		void u;
+	}
+}
+
 function drawSetSizeBars(
 	ctx: CanvasRenderingContext2D,
 	u: UpsetMeta,
-	zoom: number,
+	L: UpsetScreenLayout,
 ): void {
 	if (u.sets.length === 0) return;
 	const maxSize = Math.max(1, ...u.sets.map((s) => s.size));
-	const maxBarW = Math.max(60, u.setLabelX * 0.45);
-	const barH = Math.max(4, u.matrixRowH * 0.45);
-	for (const set of u.sets) {
+	const maxBarW = SET_SIZE_BAR_BAND_W - 8;
+	const barH = Math.max(4, ROW_H * 0.5);
+	const rightX = SET_LABEL_BAND_W + SET_SIZE_BAR_BAND_W;
+	ctx.font = `${SMALL_FONT_PX}px sans-serif`;
+	ctx.textAlign = "end";
+	ctx.textBaseline = "middle";
+	for (const set of L.setRows) {
 		const w = (set.size / maxSize) * maxBarW;
-		const x = u.setLabelX - w;
-		const y = set.y - barH / 2;
-		ctx.fillStyle = `hsla(${clusterHue(set.key)}, 65%, 60%, 0.55)`;
-		ctx.fillRect(x, y, w, barH);
-		ctx.strokeStyle = `hsla(${clusterHue(set.key)}, 65%, 70%, 0.85)`;
-		ctx.lineWidth = 1 / zoom;
-		ctx.strokeRect(x, y, w, barH);
-		// Numeric size at the bar's left edge (for cardinality precision).
-		// Same world-space font size as un-scaled card body text so the
-		// UpSet annotations read at the same physical size as default
-		// cards at any zoom.
+		const x = rightX - w;
+		ctx.fillStyle = `hsla(${clusterHue(set.key)}, 65%, 55%, 0.65)`;
+		ctx.fillRect(x, set.y - barH / 2, w, barH);
 		ctx.fillStyle = "rgba(220, 225, 235, 0.85)";
-		ctx.font = `${CARD_BODY_FONT_PX}px sans-serif`;
-		ctx.textBaseline = "middle";
-		ctx.textAlign = "end";
-		ctx.fillText(String(set.size), x - 4 / zoom, set.y);
+		ctx.fillText(String(set.size), x - 4, set.y);
 	}
 }
 
-// Set names right-aligned just to the LEFT of the dot matrix. Uses
-// the same world-space font size as un-scaled card titles so the
-// matrix labels match the card labels at every zoom level.
 function drawSetLabels(
 	ctx: CanvasRenderingContext2D,
 	u: UpsetMeta,
-	zoom: number,
+	L: UpsetScreenLayout,
 ): void {
-	ctx.font = `${CARD_TITLE_FONT_PX}px sans-serif`;
-	ctx.textBaseline = "middle";
+	if (!L.showSetLabels) return;
+	ctx.font = `${FONT_PX}px sans-serif`;
 	ctx.textAlign = "end";
-	for (const set of u.sets) {
+	ctx.textBaseline = "middle";
+	for (const set of L.setRows) {
 		ctx.fillStyle = `hsla(${clusterHue(set.key)}, 65%, 80%, 1)`;
-		ctx.fillText(set.label, u.setLabelX - 6 / zoom, set.y);
+		const label = ellipsise(ctx, set.label, SET_LABEL_BAND_W - SET_LABEL_PAD);
+		ctx.fillText(label, SET_LABEL_BAND_W - SET_LABEL_PAD, set.y);
 	}
+	void u;
 }
 
-// One dot per (set, column). Filled if the set participates in that
-// intersection, empty (= small grey ring) otherwise. Filled dots in
-// the same column are connected by a vertical line so the eye picks
-// out the intersection at a glance — this is the bit that makes
-// ≥4-way intersections legible.
 function drawMatrixDots(
 	ctx: CanvasRenderingContext2D,
 	u: UpsetMeta,
-	zoom: number,
+	L: UpsetScreenLayout,
+	selectedSignatureKey: string | null,
 ): void {
-	const r = u.dotR;
-	const setIndex = new Map<string, number>();
-	u.sets.forEach((s, i) => setIndex.set(s.key, i));
-	for (const col of u.columns) {
-		const inColumn = new Set(col.signature);
-		// Find min/max y of filled dots for the connector line.
+	const setIdx = new Map<string, number>();
+	u.sets.forEach((s, i) => setIdx.set(s.key, i));
+	for (let i = 0; i < u.columns.length; i++) {
+		const col = u.columns[i];
+		const x = L.colXs[i];
+		const inCol = new Set(col.signature);
 		let topY = Infinity;
 		let botY = -Infinity;
-		for (const setKey of col.signature) {
-			const i = setIndex.get(setKey);
-			if (i == null) continue;
-			const y = u.sets[i].y;
+		for (const k of col.signature) {
+			const ridx = setIdx.get(k);
+			if (ridx == null) continue;
+			const y = L.setRows[ridx].y;
 			if (y < topY) topY = y;
 			if (y > botY) botY = y;
 		}
+		const key = col.signature.join("|");
+		const highlighted = selectedSignatureKey === key;
 		if (isFinite(topY) && botY > topY) {
-			ctx.strokeStyle = "rgba(180, 195, 220, 0.75)";
-			// 2 device pixels regardless of zoom — thinner than the dot
-			// radius so the dots stay clearly visible on top of the line.
-			ctx.lineWidth = 2 / zoom;
+			ctx.strokeStyle = highlighted ? HIGHLIGHT : "rgba(180, 195, 220, 0.85)";
+			ctx.lineWidth = highlighted ? 2.4 : 1.8;
 			ctx.beginPath();
-			ctx.moveTo(col.x, topY);
-			ctx.lineTo(col.x, botY);
+			ctx.moveTo(x, topY);
+			ctx.lineTo(x, botY);
 			ctx.stroke();
 		}
-		for (const set of u.sets) {
+		for (const set of L.setRows) {
 			const y = set.y;
-			if (inColumn.has(set.key)) {
-				ctx.fillStyle = `hsla(${clusterHue(set.key)}, 65%, 65%, 1)`;
+			if (inCol.has(set.key)) {
+				ctx.fillStyle = highlighted
+					? HIGHLIGHT
+					: `hsla(${clusterHue(set.key)}, 65%, 65%, 1)`;
 				ctx.beginPath();
-				ctx.arc(col.x, y, r, 0, Math.PI * 2);
+				ctx.arc(x, y, L.dotR, 0, Math.PI * 2);
 				ctx.fill();
 			} else {
 				ctx.fillStyle = "rgba(70, 80, 95, 0.55)";
 				ctx.beginPath();
-				ctx.arc(col.x, y, r * 0.55, 0, Math.PI * 2);
+				ctx.arc(x, y, Math.max(1.5, L.dotR * 0.45), 0, Math.PI * 2);
 				ctx.fill();
 			}
 		}
 	}
 }
 
-// Intersection-size number above each column (= same role as the
-// vertical bars in canonical UpSet, but compact since the card stack
-// already encodes the size visually by its height).
 function drawColumnCounts(
 	ctx: CanvasRenderingContext2D,
 	u: UpsetMeta,
-	zoom: number,
+	L: UpsetScreenLayout,
 ): void {
-	// Match the card body font (= un-scaled default card body text) so
-	// the column intersection-size numerals read at the same physical
-	// size as the cards stacked above them.
-	ctx.font = `${CARD_BODY_FONT_PX}px sans-serif`;
-	ctx.fillStyle = "rgba(220, 225, 235, 0.85)";
+	// Counts are also drawn above the column bars; this row is the
+	// LAST resort when columns are too narrow for that. Skip
+	// entirely when the column is narrower than the numeral itself.
+	if (L.colW < 14) return;
+	ctx.font = `${SMALL_FONT_PX}px sans-serif`;
+	ctx.fillStyle = "rgba(180, 190, 210, 0.75)";
 	ctx.textAlign = "center";
-	ctx.textBaseline = "bottom";
-	// Place the count just BELOW the matrix bottom (so it reads naturally
-	// "column → count"). Distance scales with row height.
-	const y = u.matrixBottomY + u.matrixRowH * 0.85;
-	for (const col of u.columns) {
-		ctx.fillText(String(col.size), col.x, y);
+	ctx.textBaseline = "top";
+	const y = L.countsTopY;
+	for (let i = 0; i < u.columns.length; i++) {
+		ctx.fillText(String(u.columns[i].size), L.colXs[i], y);
 	}
+}
+
+function drawSelectedColumnFrame(
+	ctx: CanvasRenderingContext2D,
+	u: UpsetMeta,
+	L: UpsetScreenLayout,
+	selectedSignatureKey: string | null,
+): void {
+	if (!selectedSignatureKey) return;
+	const idx = u.columns.findIndex(
+		(c) => c.signature.join("|") === selectedSignatureKey,
+	);
+	if (idx < 0) return;
+	const x = L.colXs[idx];
+	const w = L.colW;
+	ctx.strokeStyle = HIGHLIGHT;
+	ctx.lineWidth = 1.5;
+	ctx.strokeRect(
+		x - w / 2,
+		L.barAreaTopY,
+		w,
+		L.matrixBottomY - L.barAreaTopY,
+	);
+}
+
+// Hit-test helper used by the canvas click handler in view.ts. Returns
+// the column's signature key when the click landed on a column.
+export function hitTestUpsetColumn(
+	u: UpsetMeta,
+	canvasW: number,
+	canvasH: number,
+	screenX: number,
+	screenY: number,
+): string | null {
+	const L = computeUpsetScreenLayout(u, canvasW, canvasH);
+	if (screenY < L.barAreaTopY || screenY > L.matrixBottomY) return null;
+	if (screenX < L.matrixLeftX - L.colW / 2) return null;
+	for (let i = 0; i < u.columns.length; i++) {
+		const x = L.colXs[i];
+		if (Math.abs(screenX - x) <= L.colW / 2) {
+			return u.columns[i].signature.join("|");
+		}
+	}
+	return null;
+}
+
+function ellipsise(
+	ctx: CanvasRenderingContext2D,
+	text: string,
+	maxW: number,
+): string {
+	if (ctx.measureText(text).width <= maxW) return text;
+	const ell = "…";
+	let lo = 0;
+	let hi = text.length;
+	while (lo < hi) {
+		const mid = (lo + hi + 1) >> 1;
+		const slice = text.slice(0, mid) + ell;
+		if (ctx.measureText(slice).width <= maxW) lo = mid;
+		else hi = mid - 1;
+	}
+	return text.slice(0, lo) + ell;
 }

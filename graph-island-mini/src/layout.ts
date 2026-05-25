@@ -125,25 +125,20 @@ export interface LaidOut {
 }
 
 export interface UpsetMeta {
-	// One row per set (= cluster). Sorted by total node count desc so the
-	// row stack reads "biggest set on top".
-	sets: Array<{ key: string; label: string; size: number; y: number }>;
-	// One column per non-empty intersection signature. Sorted by
-	// intersection size desc.
+	// One row per set (= cluster). Sorted by total node count desc.
+	sets: Array<{ key: string; label: string; size: number }>;
+	// One column per non-empty intersection signature. Order depends
+	// on the `upsetColumnSort` setting; intersection size or signature
+	// degree.
 	columns: Array<{
-		signature: string[]; // sorted membership keys for this column
+		signature: string[];
 		nodeIds: string[];
-		size: number; // = nodeIds.length
-		x: number; // column centre x (world coords)
+		size: number;
 	}>;
-	// World coords for the auxiliary rendering bands.
-	cardsBottomY: number; // bottom edge of the card stacks
-	matrixTopY: number; // top of the dot-matrix band
-	matrixRowH: number; // pitch between matrix rows
-	matrixBottomY: number; // bottom edge of the dot-matrix
-	setLabelX: number; // x where set labels (right-aligned) terminate
-	matrixLeftX: number; // x where the dot-matrix begins
-	dotR: number; // dot radius
+	// The UpSet plot is rendered in SCREEN space as a fixed footer
+	// (so fonts and dots stay readable at every world zoom). No world
+	// coordinates are pre-computed; draw-upset.ts derives the screen
+	// layout from canvas dimensions at paint time.
 }
 
 export interface LayoutOptions {
@@ -165,6 +160,8 @@ export interface LayoutOptions {
 	// "euler" (default) = the rectangle-enclosure pipeline below. "upset"
 	// short-circuits into `layoutUpset()` for the matrix-style display.
 	viewMode?: import("./types").ViewMode;
+	upsetColumnSort?: "size" | "degree";
+	upsetMinColumnSize?: number;
 }
 
 // Local alias so existing internal references continue to compile —
@@ -186,6 +183,8 @@ export function layout(data: GraphData, sized: SizedNode[], opts: LayoutOptions)
 			cellH: opts.cellH,
 			nodeSpacing: opts.nodeSpacing,
 			clusterLabels: opts.clusterLabels ?? new Map<string, string>(),
+			columnSort: opts.upsetColumnSort,
+			minColumnSize: opts.upsetMinColumnSize,
 		});
 	}
 	const sizedById = new Map<string, SizedNode>();
