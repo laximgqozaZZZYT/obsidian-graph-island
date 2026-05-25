@@ -1063,15 +1063,25 @@ export function computeClusterBBoxes(
 					}
 				}
 			}
-			// Enclosure edges ride the channel centre-lines (= slot grid
-			// lines `col * slotW` / `row * slotH`), never the inner card
-			// inset. Per user spec (2026-05-26): "囲いについては必ず
-			// 隘路の中心線を通るようにしてください".
-			// channelW / channelH are kept above only for legacy callers;
-			// they are intentionally NOT used to inset the AABB here.
-			void channelW;
-			void channelH;
-			const aabbFromCells = (cells: Set<string>): { x: number; y: number; w: number; h: number } => {
+			// Enclosure edges ride the channel centre-lines for MAIN pieces
+			// (= slot grid lines `col * slotW` / `row * slotH`). Per spec
+			// (2026-05-26): "囲いについては必ず隘路の中心線を通る
+			// ようにしてください".
+			//
+			// SUB pieces (= 外局) are pulled inward by a small inset so
+			// that, when several sub rects (or a sub rect and its parent
+			// main rect) share a grid line, their outlines don't collapse
+			// into one indistinguishable border. The inset uses the
+			// existing channel half-width — it's the largest amount that
+			// still leaves the sub rect inside its parent main rect's
+			// channel-aligned border.
+			const subInsetX = channelW / 2;
+			const subInsetY = channelH / 2;
+			const aabbFromCells = (
+				cells: Set<string>,
+				inset: number,
+				insetY: number,
+			): { x: number; y: number; w: number; h: number } => {
 				let minC = Infinity,
 					maxC = -Infinity,
 					minR = Infinity,
@@ -1084,20 +1094,26 @@ export function computeClusterBBoxes(
 					if (r > maxR) maxR = r;
 				}
 				return {
-					x: minC * slotW,
-					y: minR * slotH,
-					w: (maxC - minC + 1) * slotW,
-					h: (maxR - minR + 1) * slotH,
+					x: minC * slotW + inset,
+					y: minR * slotH + insetY,
+					w: (maxC - minC + 1) * slotW - 2 * inset,
+					h: (maxR - minR + 1) * slotH - 2 * insetY,
 				};
 			};
 			const pieces: Array<{ x: number; y: number; w: number; h: number; kind: "main" | "sub" }> = [];
 			if (mainCells.size > 0) {
-				pieces.push({ ...aabbFromCells(mainCells), kind: "main" });
+				pieces.push({ ...aabbFromCells(mainCells, 0, 0), kind: "main" });
 			}
 			for (const cells of extrasByMain.values()) {
-				if (cells.size > 0) {
-					pieces.push({ ...aabbFromCells(cells), kind: "sub" });
-				}
+				if (cells.size === 0) continue;
+				const r = aabbFromCells(cells, subInsetX, subInsetY);
+				// Skip degenerate sub rects (single cell whose inset
+				// would consume the whole width/height). Falling back to
+				// the un-inset version would defeat the visual separation
+				// the user asked for, so we just drop the piece — the
+				// cluster's other pieces still represent it.
+				if (r.w <= 0 || r.h <= 0) continue;
+				pieces.push({ ...r, kind: "sub" });
 			}
 			if (pieces.length > 0) {
 				rect.pieces = pieces;
