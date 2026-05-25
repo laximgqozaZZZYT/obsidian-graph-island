@@ -39,6 +39,7 @@ import {
 } from "./node-display";
 import { drawEnclosures } from "./draw-enclosures";
 import { drawBaseEdges, drawAccentEdges } from "./draw-edges";
+import { drawUpset } from "./draw-upset";
 import { drawCard as drawCardFn } from "./draw-card";
 import {
 	hitTest as hitTestFn,
@@ -878,6 +879,7 @@ export class MiniGraphView extends ItemView {
 			cellH: CARD_CELL_H,
 			clusterLabels,
 			anchorPlacement: this.settings.anchorPlacement,
+			viewMode: this.settings.viewMode,
 		});
 		// Stage 5: id → incident-edge-index adjacency for hover lookups.
 		this.adjacency = buildAdjacency(this.laid.edges);
@@ -1115,13 +1117,28 @@ export class MiniGraphView extends ItemView {
 	}
 
 	private fitToView(): void {
-		if (this.laid.clusters.length === 0) return;
+		const hasContent =
+			this.laid.clusters.length > 0 ||
+			this.laid.nodes.length > 0 ||
+			this.laid.upset != null;
+		if (!hasContent) return;
 		let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
 		for (const c of this.laid.clusters) {
 			minX = Math.min(minX, c.x);
 			minY = Math.min(minY, c.y);
 			maxX = Math.max(maxX, c.x + c.width);
 			maxY = Math.max(maxY, c.y + c.height);
+		}
+		// UpSet matrix + set-label band live outside the card AABB.
+		// Include them so fit-to-view frames the whole plot, not just
+		// the cards.
+		if (this.laid.upset) {
+			const u = this.laid.upset;
+			minX = Math.min(minX, 0);
+			maxY = Math.max(maxY, u.matrixBottomY + u.matrixRowH);
+			if (u.columns.length > 0) {
+				maxX = Math.max(maxX, u.columns[u.columns.length - 1].x + u.matrixRowH);
+			}
 		}
 		// Cards stay visible even when no enclosure surrounds them (e.g. files
 		// that landed in NONE_BUCKET after HAVING dropped their only cluster).
@@ -1318,7 +1335,13 @@ export class MiniGraphView extends ItemView {
 		hasHighlight: boolean,
 		skipNode: (id: string) => boolean,
 	): void {
-		if (this.settings.showEnclosures) {
+		// UpSet pipeline: matrix + dots + set labels live below the
+		// card band. Cards themselves still go through the normal card
+		// renderer below so every element stays individually visible.
+		if (this.laid.upset) {
+			drawUpset(ctx, this.laid, this.zoom);
+		}
+		if (this.settings.showEnclosures && !this.laid.upset) {
 			drawEnclosures(
 				ctx,
 				this.laid.clusters,

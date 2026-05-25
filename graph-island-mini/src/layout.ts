@@ -37,6 +37,7 @@ import {
 	computeClusterBBoxes,
 	clampClustersToB2,
 } from "./cluster-bbox";
+import { layoutUpset } from "./upset-layout";
 
 export interface SizedNode extends GraphNode {
 	width: number;
@@ -117,6 +118,32 @@ export interface LaidOut {
 	slotH: number;
 	channelW: number;
 	channelH: number;
+	// Set when the layout pass produced an UpSet plot. Renderer keys off
+	// `upset != null` to swap the enclosure/edge pipeline for the matrix
+	// + dot-row pipeline.
+	upset?: UpsetMeta;
+}
+
+export interface UpsetMeta {
+	// One row per set (= cluster). Sorted by total node count desc so the
+	// row stack reads "biggest set on top".
+	sets: Array<{ key: string; label: string; size: number; y: number }>;
+	// One column per non-empty intersection signature. Sorted by
+	// intersection size desc.
+	columns: Array<{
+		signature: string[]; // sorted membership keys for this column
+		nodeIds: string[];
+		size: number; // = nodeIds.length
+		x: number; // column centre x (world coords)
+	}>;
+	// World coords for the auxiliary rendering bands.
+	cardsBottomY: number; // bottom edge of the card stacks
+	matrixTopY: number; // top of the dot-matrix band
+	matrixRowH: number; // pitch between matrix rows
+	matrixBottomY: number; // bottom edge of the dot-matrix
+	setLabelX: number; // x where set labels (right-aligned) terminate
+	matrixLeftX: number; // x where the dot-matrix begins
+	dotR: number; // dot radius
 }
 
 export interface LayoutOptions {
@@ -135,6 +162,9 @@ export interface LayoutOptions {
 	// square rings outward. "flow" places focus top-left and fills columns
 	// rightward (main flow direction = toward the focus). Default: concentric.
 	anchorPlacement?: "concentric" | "flow";
+	// "euler" (default) = the rectangle-enclosure pipeline below. "upset"
+	// short-circuits into `layoutUpset()` for the matrix-style display.
+	viewMode?: import("./types").ViewMode;
 }
 
 // Local alias so existing internal references continue to compile —
@@ -150,6 +180,14 @@ type Rect = RouteRect;
 //     whose memberships overlap end up with overlapping rectangles, and
 //     multi-tag files land in the overlap regions.
 export function layout(data: GraphData, sized: SizedNode[], opts: LayoutOptions): LaidOut {
+	if (opts.viewMode === "upset") {
+		return layoutUpset(data, sized, {
+			cellW: opts.cellW,
+			cellH: opts.cellH,
+			nodeSpacing: opts.nodeSpacing,
+			clusterLabels: opts.clusterLabels ?? new Map<string, string>(),
+		});
+	}
 	const sizedById = new Map<string, SizedNode>();
 	for (const s of sized) sizedById.set(s.id, s);
 	const labels = opts.clusterLabels ?? new Map<string, string>();

@@ -102,7 +102,7 @@ export interface MiniSettings {
 	viewMode: ViewMode;
 }
 
-export type ViewMode = "euler";
+export type ViewMode = "euler" | "upset";
 
 export interface ViewModeOption {
 	id: ViewMode;
@@ -112,6 +112,11 @@ export interface ViewModeOption {
 
 export const VIEW_MODES: ViewModeOption[] = [
 	{ id: "euler", label: "Euler diagram", description: "Main / sub rectangle enclosures" },
+	{
+		id: "upset",
+		label: "UpSet plot",
+		description: "Stack of cards per intersection + dot matrix (handles ≥4-way intersections)",
+	},
 ];
 
 export const DEFAULT_SETTINGS: MiniSettings = {
