@@ -1221,7 +1221,7 @@ export class MiniGraphView extends ItemView {
 		// Excel-style row/column underlay. Drawn first so enclosures, edges,
 		// trunks, and cards all sit on top. Cells follow card geometry and
 		// ignore the cluster bounding boxes by design.
-		if (this.settings.showGrid) {
+		if (this.settings.showGrid && !this.laid.upset) {
 			this.drawCardGrid(ctx);
 		}
 
@@ -1321,7 +1321,7 @@ export class MiniGraphView extends ItemView {
 			this.drawClusterLabels(ctx);
 		}
 
-		if (this.settings.showGrid) {
+		if (this.settings.showGrid && !this.laid.upset) {
 			ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 			this.drawGridHeaders(ctx);
 		}

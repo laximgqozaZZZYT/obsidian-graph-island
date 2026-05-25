@@ -77,8 +77,23 @@ export function layoutUpset(
 	});
 
 	// --- 3. Geometry.
-	const cardW = opts.cellW > 0 ? opts.cellW : 80;
-	const cardH = opts.cellH > 0 ? opts.cellH : 24;
+	// Cards have VARIABLE width/height in `sized` — title length + body
+	// line count drive the cell size in Euler mode. UpSet packs cards
+	// into a grid, so the column pitch / row pitch must use the
+	// LARGEST observed card so neighbouring columns / rows never
+	// overlap their content. (The first cut used `opts.cellW/cellH`
+	// which is the *canonical* size, not the actual rendered size, so
+	// any card with body text spilled into the next slot.)
+	const fallbackW = opts.cellW > 0 ? opts.cellW : 80;
+	const fallbackH = opts.cellH > 0 ? opts.cellH : 24;
+	let maxCardW = fallbackW;
+	let maxCardH = fallbackH;
+	for (const s of sized) {
+		if (s.width > maxCardW) maxCardW = s.width;
+		if (s.height > maxCardH) maxCardH = s.height;
+	}
+	const cardW = maxCardW;
+	const cardH = maxCardH;
 	const channelW = Math.max(12, opts.nodeSpacing);
 	const channelH = Math.max(6, Math.round(opts.nodeSpacing / 2));
 	const slotW = cardW + channelW;
