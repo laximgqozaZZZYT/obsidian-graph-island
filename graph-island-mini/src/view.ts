@@ -718,7 +718,7 @@ export class MiniGraphView extends ItemView {
 
 	private renderViewModeSection(parent: HTMLElement): void {
 		const section = parent.createDiv({ cls: "gim-panel-section" });
-		section.createEl("h4", { text: "表示モード" });
+		section.createEl("h4", { text: "View mode" });
 		const radioGroup = section.createDiv({ cls: "gim-viewmode-options" });
 		for (const opt of VIEW_MODES) {
 			const item = radioGroup.createEl("label", {

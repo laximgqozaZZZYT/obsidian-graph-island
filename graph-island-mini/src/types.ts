@@ -111,7 +111,7 @@ export interface ViewModeOption {
 }
 
 export const VIEW_MODES: ViewModeOption[] = [
-	{ id: "euler", label: "オイラー図", description: "メイン/サブの長方形囲い" },
+	{ id: "euler", label: "Euler diagram", description: "Main / sub rectangle enclosures" },
 ];
 
 export const DEFAULT_SETTINGS: MiniSettings = {

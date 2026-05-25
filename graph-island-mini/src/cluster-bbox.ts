@@ -1071,12 +1071,14 @@ export function computeClusterBBoxes(
 			// SUB pieces (= 外局) are pulled inward by a small inset so
 			// that, when several sub rects (or a sub rect and its parent
 			// main rect) share a grid line, their outlines don't collapse
-			// into one indistinguishable border. The inset uses the
-			// existing channel half-width — it's the largest amount that
-			// still leaves the sub rect inside its parent main rect's
-			// channel-aligned border.
-			const subInsetX = channelW / 2;
-			const subInsetY = channelH / 2;
+			// into one indistinguishable border. Per user spec
+			// (2026-05-26, refined): use the channel QUARTER-line — i.e.
+			// half-way between the main centre-line and the card edge —
+			// so the sub border has clear breathing room on both sides
+			// (won't fuse with the main centre-line, won't rub against
+			// the card stroke).
+			const subInsetX = channelW / 4;
+			const subInsetY = channelH / 4;
 			const aabbFromCells = (
 				cells: Set<string>,
 				inset: number,
