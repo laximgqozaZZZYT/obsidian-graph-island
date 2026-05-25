@@ -1209,7 +1209,12 @@ export class MiniGraphView extends ItemView {
 		// If the filter pipeline (WHERE / HAVING / LIMIT) eliminated every
 		// node, draw a hint instead of an empty canvas. This makes the cause
 		// of the blank view discoverable instead of mysterious.
-		if (this.laid.nodes.length === 0) {
+		// UpSet mode intentionally leaves `laid.nodes` empty (the plot
+		// lives in screen space, not as world-positioned cards), so the
+		// hint should only fire when there's truly nothing to show —
+		// here: no UpSet columns either.
+		const upsetHasColumns = (this.laid.upset?.columns.length ?? 0) > 0;
+		if (this.laid.nodes.length === 0 && !upsetHasColumns) {
 			ctx.fillStyle = "#7a8aa0";
 			ctx.font = `${14 * dpr}px sans-serif`;
 			ctx.textAlign = "center";
