@@ -42,9 +42,15 @@ export function drawEnclosures(
 			? "rgba(255, 157, 63, 0.40)"
 			: `hsla(${hue}, 60%, 50%, 0.32)`;
 		if (c.pieces && c.pieces.length > 0) {
-			ctx.beginPath();
-			for (const p of c.pieces) ctx.rect(p.x, p.y, p.w, p.h);
-			ctx.fill();
+			// Per spec (2026-05-26): only the cluster's main rect is
+			// filled; 外局 (sub rects) get an outline-only treatment so
+			// the parent main cluster's colour stays readable underneath.
+			const mains = c.pieces.filter((p) => p.kind === "main");
+			if (mains.length > 0) {
+				ctx.beginPath();
+				for (const p of mains) ctx.rect(p.x, p.y, p.w, p.h);
+				ctx.fill();
+			}
 		} else if (c.cells && c.cells.length > 0) {
 			ctx.beginPath();
 			for (const cell of c.cells) ctx.rect(cell.x, cell.y, cell.w, cell.h);

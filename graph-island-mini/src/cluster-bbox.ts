@@ -1084,10 +1084,14 @@ export function computeClusterBBoxes(
 					h: (maxR - minR + 1) * slotH - 2 * padY,
 				};
 			};
-			const pieces: Array<{ x: number; y: number; w: number; h: number }> = [];
-			if (mainCells.size > 0) pieces.push(aabbFromCells(mainCells));
+			const pieces: Array<{ x: number; y: number; w: number; h: number; kind: "main" | "sub" }> = [];
+			if (mainCells.size > 0) {
+				pieces.push({ ...aabbFromCells(mainCells), kind: "main" });
+			}
 			for (const cells of extrasByMain.values()) {
-				if (cells.size > 0) pieces.push(aabbFromCells(cells));
+				if (cells.size > 0) {
+					pieces.push({ ...aabbFromCells(cells), kind: "sub" });
+				}
 			}
 			if (pieces.length > 0) {
 				rect.pieces = pieces;

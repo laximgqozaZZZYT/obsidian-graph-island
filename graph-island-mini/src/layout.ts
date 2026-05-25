@@ -83,7 +83,10 @@ export interface ClusterRect {
 	// 離れ島 / exclaves) are permitted; the constraint is that NO
 	// piece contains a cell with a card from another cluster the
 	// member doesn't belong to.
-	pieces?: Array<{ x: number; y: number; w: number; h: number }>;
+	// `kind`: "main" = the cluster's own AABB (filled + outlined).
+	//         "sub"  = 外局 — a co-located node group whose `mainOf` is
+	//                  another cluster (outlined only, no fill).
+	pieces?: Array<{ x: number; y: number; w: number; h: number; kind: "main" | "sub" }>;
 	// Legacy outline (segment list) — kept while older code paths
 	// still depend on it. Renderer prefers `pieces` when present.
 	outline?: Array<{ x1: number; y1: number; x2: number; y2: number }>;
