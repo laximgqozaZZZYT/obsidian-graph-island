@@ -58,7 +58,11 @@ export function drawEnclosures(
 		}
 	}
 
-	// Pass 2: outlines.
+	// Pass 2: outlines. Main rects use a solid stroke; 外局 (sub rects)
+	// use a dashed stroke so the user can tell the two roles apart at
+	// a glance.
+	const dashLen = 6 / zoom;
+	const dashGap = 4 / zoom;
 	for (const c of sortedClusters) {
 		const hue = clusterHue(c.groupKey);
 		const isHigh = highlightedClusters.has(c.groupKey);
@@ -67,7 +71,15 @@ export function drawEnclosures(
 			: `hsla(${hue}, 70%, 62%, 0.9)`;
 		ctx.lineWidth = isHigh ? accentStrokeW : strokeW;
 		if (c.pieces && c.pieces.length > 0) {
-			for (const p of c.pieces) ctx.strokeRect(p.x, p.y, p.w, p.h);
+			for (const p of c.pieces) {
+				if (p.kind === "sub") {
+					ctx.setLineDash([dashLen, dashGap]);
+				} else {
+					ctx.setLineDash([]);
+				}
+				ctx.strokeRect(p.x, p.y, p.w, p.h);
+			}
+			ctx.setLineDash([]);
 		} else if (c.outline && c.outline.length > 0) {
 			ctx.beginPath();
 			for (const seg of c.outline) {

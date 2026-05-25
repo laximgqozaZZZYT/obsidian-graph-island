@@ -304,37 +304,73 @@ export function drawClusterLabels(
 		rectY: number;
 		rectW: number;
 		rectH: number;
+		hidden: boolean;
 	}
-	// Each cluster anchors on its LARGEST piece — for a sub-only cluster
-	// this is the sub-rect that sits inside another cluster's main rect.
+	// Anchor selection: prefer the cluster's MAIN piece (= its "home"
+	// rectangle) over any 外局 sub piece, regardless of relative size.
+	// Only fall back to the largest sub piece when the cluster has no
+	// main rect at all (= every member's mainOf points at another
+	// cluster). This keeps a cluster's label on the rectangle the user
+	// thinks of as "this cluster", not on whatever rect happens to be
+	// biggest.
 	const infos: AnchorInfo[] = laid.clusters.map((c) => {
 		let rectX = c.x;
 		let rectY = c.y;
 		let rectW = c.width;
 		let rectH = c.height;
+		let hasAnchor = false;
 		if (c.pieces && c.pieces.length > 0) {
-			let best = c.pieces[0];
-			let bestArea = best.w * best.h;
-			for (let i = 1; i < c.pieces.length; i++) {
-				const p = c.pieces[i];
+			// First sweep: among the main pieces, pick the largest.
+			let bestMain: (typeof c.pieces)[number] | null = null;
+			let bestMainArea = -1;
+			for (const p of c.pieces) {
+				if (p.kind !== "main") continue;
 				const a = p.w * p.h;
-				if (a > bestArea) {
-					best = p;
-					bestArea = a;
+				if (a > bestMainArea) {
+					bestMain = p;
+					bestMainArea = a;
 				}
 			}
-			rectX = best.x;
-			rectY = best.y;
-			rectW = best.w;
-			rectH = best.h;
+			if (bestMain) {
+				rectX = bestMain.x;
+				rectY = bestMain.y;
+				rectW = bestMain.w;
+				rectH = bestMain.h;
+				hasAnchor = true;
+			} else {
+				// No main rect — fall back to the largest sub piece.
+				let bestSub: (typeof c.pieces)[number] | null = null;
+				let bestSubArea = -1;
+				for (const p of c.pieces) {
+					if (p.kind !== "sub") continue;
+					const a = p.w * p.h;
+					if (a > bestSubArea) {
+						bestSub = p;
+						bestSubArea = a;
+					}
+				}
+				if (bestSub) {
+					rectX = bestSub.x;
+					rectY = bestSub.y;
+					rectW = bestSub.w;
+					rectH = bestSub.h;
+					hasAnchor = true;
+				}
+			}
 		}
-		return { c, rectX, rectY, rectW, rectH };
+		// Hide the label if the cluster has no usable piece (= layout
+		// degenerated to a 0-area rect, or pieces are missing). Drawing
+		// a label at a stale `c.x, c.y` was the source of the "label
+		// floating with no enclosure under it" reports.
+		const hidden = !hasAnchor || rectW <= 0 || rectH <= 0;
+		return { c, rectX, rectY, rectW, rectH, hidden };
 	});
 	// Group clusters that share the exact same anchor rectangle. Each
 	// such group renders one multi-coloured label line just above the
 	// rect — names separated by " · ", one colour per cluster.
 	const groups = new Map<string, AnchorInfo[]>();
 	for (const info of infos) {
+		if (info.hidden) continue;
 		const key = `${Math.round(info.rectX)}|${Math.round(info.rectY)}|${Math.round(info.rectW)}|${Math.round(info.rectH)}`;
 		const arr = groups.get(key);
 		if (arr) arr.push(info);
