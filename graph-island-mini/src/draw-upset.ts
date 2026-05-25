@@ -4,6 +4,7 @@
 // size-bars layer.
 import type { LaidOut, UpsetMeta } from "./layout";
 import { clusterHue } from "./canvas-utils";
+import { CARD_TITLE_FONT_PX, CARD_BODY_FONT_PX } from "./types";
 
 export function drawUpset(
 	ctx: CanvasRenderingContext2D,
@@ -60,21 +61,26 @@ function drawSetSizeBars(
 		ctx.lineWidth = 1 / zoom;
 		ctx.strokeRect(x, y, w, barH);
 		// Numeric size at the bar's left edge (for cardinality precision).
+		// Same world-space font size as un-scaled card body text so the
+		// UpSet annotations read at the same physical size as default
+		// cards at any zoom.
 		ctx.fillStyle = "rgba(220, 225, 235, 0.85)";
-		ctx.font = `${10 / zoom}px sans-serif`;
+		ctx.font = `${CARD_BODY_FONT_PX}px sans-serif`;
 		ctx.textBaseline = "middle";
 		ctx.textAlign = "end";
 		ctx.fillText(String(set.size), x - 4 / zoom, set.y);
 	}
 }
 
-// Set names right-aligned just to the LEFT of the dot matrix.
+// Set names right-aligned just to the LEFT of the dot matrix. Uses
+// the same world-space font size as un-scaled card titles so the
+// matrix labels match the card labels at every zoom level.
 function drawSetLabels(
 	ctx: CanvasRenderingContext2D,
 	u: UpsetMeta,
 	zoom: number,
 ): void {
-	ctx.font = `${12 / zoom}px sans-serif`;
+	ctx.font = `${CARD_TITLE_FONT_PX}px sans-serif`;
 	ctx.textBaseline = "middle";
 	ctx.textAlign = "end";
 	for (const set of u.sets) {
@@ -143,7 +149,10 @@ function drawColumnCounts(
 	u: UpsetMeta,
 	zoom: number,
 ): void {
-	ctx.font = `${11 / zoom}px sans-serif`;
+	// Match the card body font (= un-scaled default card body text) so
+	// the column intersection-size numerals read at the same physical
+	// size as the cards stacked above them.
+	ctx.font = `${CARD_BODY_FONT_PX}px sans-serif`;
 	ctx.fillStyle = "rgba(220, 225, 235, 0.85)";
 	ctx.textAlign = "center";
 	ctx.textBaseline = "bottom";
