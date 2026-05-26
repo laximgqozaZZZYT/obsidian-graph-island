@@ -18,6 +18,12 @@ import type {
 	PositionedEdge,
 	UpsetMeta,
 } from "./layout";
+import {
+	LaneRegistry,
+	aggregateEdges,
+	routeZ,
+	type RouteObstacle,
+} from "./edge-routing";
 
 export interface UpsetLayoutOptions {
 	cellW: number;
@@ -160,30 +166,59 @@ export function layoutUpset(
 		size: setSizes.get(key) ?? 0,
 	}));
 
-	// Edges: same source data as the Euler pipeline (data.edges
-	// survives WHERE / HAVING / LIMIT upstream). Route as a straight
-	// line from source-card centre to target-card centre; the existing
-	// drawBaseEdges / drawAccentEdges code only needs a `path` with
-	// 2+ points to render.
-	//
-	// Cards that ended up filtered out (no position in
-	// positionedNodes) drop their edges silently — matches the Euler
-	// behaviour where `filterEdgesByAlive` removes orphaned references.
-	const idToPos = new Map<string, { x: number; y: number }>();
-	for (const n of positionedNodes) idToPos.set(n.id, { x: n.x, y: n.y });
+	// Edges: SAME pipeline as the Euler layout (per user spec
+	// "オイラー図と同様の仕様で"):
+	//   1. Build per-card RouteRect map (= what aggregateEdges and
+	//      routeZ expect).
+	//   2. `aggregateEdges` dedupes parallel links between the same
+	//      pair so routeZ only sees one Z per pair.
+	//   3. `LaneRegistry` keeps parallel edges through the same
+	//      horizontal gutter separated, so they read as distinct
+	//      wires instead of fusing into one thick line.
+	//   4. `routeZ` does the actual orthogonal routing through the
+	//      channel lattice, avoiding card obstacles.
+	// There are no clusters in UpSet mode, so we skip the
+	// intra/inter-cluster branching the Euler pipeline does and run
+	// every edge through the same routeZ call.
+	const idToRect = new Map<string, { x: number; y: number; w: number; h: number }>();
+	const routeObstacles: RouteObstacle[] = [];
+	for (const n of positionedNodes) {
+		idToRect.set(n.id, { x: n.x, y: n.y, w: n.width, h: n.height });
+		const cs = Math.max(1, Math.ceil(n.width / slotW));
+		const rs = Math.max(1, Math.ceil(n.height / slotH));
+		const sc = Math.round(n.x / slotW - cs / 2);
+		const sr = Math.round(n.y / slotH - rs / 2);
+		routeObstacles.push({
+			id: n.id,
+			startCol: sc,
+			endCol: sc + cs - 1,
+			startRow: sr,
+			endRow: sr + rs - 1,
+		});
+	}
+	const aggregated = aggregateEdges(data.edges, idToRect);
+	const lanes = new LaneRegistry();
 	const edges: PositionedEdge[] = [];
-	for (const e of data.edges) {
-		const src = idToPos.get(e.source);
-		const tgt = idToPos.get(e.target);
-		if (!src || !tgt) continue;
+	for (const e of aggregated) {
+		const a = idToRect.get(e.source);
+		const b = idToRect.get(e.target);
+		if (!a || !b) continue;
 		edges.push({
 			source: e.source,
 			target: e.target,
-			weight: 1,
-			path: [
-				{ x: src.x, y: src.y },
-				{ x: tgt.x, y: tgt.y },
-			],
+			weight: e.weight,
+			path: routeZ(
+				a,
+				b,
+				lanes,
+				slotW,
+				slotH,
+				channelW,
+				channelH,
+				routeObstacles,
+				e.source,
+				e.target,
+			),
 			bundled: false,
 			bundleCount: 1,
 		});
