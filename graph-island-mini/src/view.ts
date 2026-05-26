@@ -39,7 +39,11 @@ import {
 } from "./node-display";
 import { drawEnclosures } from "./draw-enclosures";
 import { drawBaseEdges, drawAccentEdges } from "./draw-edges";
-import { drawUpset, computeUpsetWorldLayout } from "./draw-upset";
+import {
+	drawUpsetWorld,
+	drawUpsetScreen,
+	LABEL_BAND_PX,
+} from "./draw-upset";
 import { drawCard as drawCardFn } from "./draw-card";
 import {
 	hitTest as hitTestFn,
@@ -1128,33 +1132,31 @@ export class MiniGraphView extends ItemView {
 		// and the matrix never overlap, full canvas width horizontally.
 		if (this.laid.upset) {
 			const u = this.laid.upset;
-			// Estimate the world-space bbox of cards + matrix together
-			// so the integrated view frames into the canvas in one
-			// fit-to-view. Numbers mirror draw-upset's world layout
-			// (label band + size bar band + dots).
-			const slotW = u.cardSlotW;
+			// World bbox = cards stacked above + matrix band below.
+			// Label band is screen-fixed (LABEL_BAND_PX) so we reserve
+			// that many screen pixels on the LEFT, then fit the world
+			// bbox into the remaining canvas area.
 			const slotH = u.cardSlotH;
-			const labelBandW = slotW * (1.8 + 0.9 + 0.4);
 			const matrixGap = slotH * 0.5;
 			const rowH = slotH * 0.55;
 			const matrixH = u.sets.length * rowH + matrixGap;
-			const minX = -labelBandW;
-			const maxX = u.cardsWorldWidth + slotW * 0.2;
-			const minY = 0;
-			const maxY = u.cardsWorldHeight + matrixH;
+			const worldW = Math.max(1, u.cardsWorldWidth);
+			const worldH = Math.max(1, u.cardsWorldHeight + matrixH);
 			const padX = 24;
 			const padY = 24;
-			const visW = Math.max(1, this.canvas.clientWidth - padX * 2);
+			const visW = Math.max(
+				1,
+				this.canvas.clientWidth - LABEL_BAND_PX - padX * 2,
+			);
 			const visH = Math.max(1, this.canvas.clientHeight - padY * 2);
-			const cw = Math.max(1, maxX - minX);
-			const ch = Math.max(1, maxY - minY);
-			const zx = visW / cw;
-			const zy = visH / ch;
+			const zx = visW / worldW;
+			const zy = visH / worldH;
 			this.zoom = Math.max(0.05, Math.min(2, Math.min(zx, zy)));
-			const cx = (minX + maxX) / 2;
-			const cy = (minY + maxY) / 2;
-			this.panX = this.canvas.clientWidth / 2 - cx * this.zoom;
-			this.panY = this.canvas.clientHeight / 2 - cy * this.zoom;
+			// Centre the world bbox in the area RIGHT of the label band.
+			const visLeftScreen = LABEL_BAND_PX + padX;
+			this.panX =
+				visLeftScreen + (visW - worldW * this.zoom) / 2;
+			this.panY = padY + (visH - worldH * this.zoom) / 2;
 			this.requestDraw();
 			return;
 		}
@@ -1359,6 +1361,22 @@ export class MiniGraphView extends ItemView {
 			this.drawGridHeaders(ctx);
 		}
 
+		// UpSet row-label band — screen-fixed at the left edge so set
+		// names stay readable while the world (cards + matrix) pans
+		// underneath. Rows align with the matrix world-Y rows by
+		// transforming each row's world Y to screen Y at draw time.
+		if (this.laid.upset) {
+			drawUpsetScreen(
+				ctx,
+				this.laid,
+				this.canvas.clientWidth,
+				this.canvas.clientHeight,
+				dpr,
+				this.zoom,
+				this.panX,
+				this.panY,
+			);
+		}
 	}
 
 	// Single-tile body renderer — called once per (i, j) tile in the
@@ -1369,12 +1387,12 @@ export class MiniGraphView extends ItemView {
 		hasHighlight: boolean,
 		skipNode: (id: string) => boolean,
 	): void {
-		// UpSet mode: the matrix is drawn here in WORLD space — same
-		// transform as the cards — so labels, size bars, dots and
-		// connectors pan / zoom together with the card stacks above
-		// them. Footer band is gone.
+		// UpSet mode: matrix DOTS + CONNECTORS go through the world
+		// pipeline so they pan / zoom with the card stacks above.
+		// The label / size-bar band itself is screen-fixed and gets
+		// drawn after the world pass — see end of draw().
 		if (this.laid.upset) {
-			drawUpset(
+			drawUpsetWorld(
 				ctx,
 				this.laid,
 				this.canvas.clientWidth,
