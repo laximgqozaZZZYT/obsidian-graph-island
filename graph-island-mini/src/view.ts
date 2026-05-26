@@ -39,12 +39,7 @@ import {
 } from "./node-display";
 import { drawEnclosures } from "./draw-enclosures";
 import { drawBaseEdges, drawAccentEdges } from "./draw-edges";
-import {
-	drawUpset,
-	computeUpsetScreenLayout,
-	computeUpsetVScrollbar,
-	computeUpsetHScrollbar,
-} from "./draw-upset";
+import { drawUpset, computeUpsetWorldLayout } from "./draw-upset";
 import { drawCard as drawCardFn } from "./draw-card";
 import {
 	hitTest as hitTestFn,
@@ -169,47 +164,6 @@ export class MiniGraphView extends ItemView {
 	// currently selected by the user (highlighted in the matrix; drives
 	// the detail panel listing in Phase C). null = nothing selected.
 	private upsetSelectedSignatureKey: string | null = null;
-	// UpSet mode: footer matrix vertical scroll offset. Clamped against
-	// `maxScrollY` by computeUpsetScreenLayout; updated via wheel events
-	// when the pointer is inside the footer band.
-	private upsetFooterScrollY: number = 0;
-	// Drag state for the footer scrollbar thumb. `orientation`
-	// distinguishes the vertical row-scroll (independent state) from
-	// the horizontal pan-scroll (drives world panX so cards and matrix
-	// stay aligned horizontally).
-	private upsetScrollDrag:
-		| {
-				orientation: "vertical";
-				grabOffsetY: number;
-				trackY: number;
-				trackH: number;
-				thumbH: number;
-				matrixTotalH: number;
-				matrixViewportH: number;
-		  }
-		| {
-				orientation: "horizontal";
-				grabOffsetX: number;
-				trackX: number;
-				trackW: number;
-				thumbW: number;
-				contentW: number;
-				canvasW: number;
-		  }
-		| null = null;
-	// Direct-drag scroll INSIDE the footer body (= grab any matrix /
-	// label-band area and drag to scroll rows up/down and cards left/
-	// right). Active during a mousedown-to-mouseup gesture; null when
-	// no footer drag is in flight.
-	private upsetBodyDrag:
-		| {
-				lastX: number;
-				lastY: number;
-				maxScrollY: number;
-				cardsContentW: number;
-				canvasW: number;
-		  }
-		| null = null;
 	// Per-cluster "truly-aggregated" member count. Populated during
 	// rebuild() for clusters in aggregatedLayers — the count excludes
 	// members that also belong to a non-aggregated cluster (since those
@@ -1174,22 +1128,33 @@ export class MiniGraphView extends ItemView {
 		// and the matrix never overlap, full canvas width horizontally.
 		if (this.laid.upset) {
 			const u = this.laid.upset;
-			// Footer is fixed at canvasH/4 — same formula as draw-upset.
-			const footerH = Math.max(
-				120,
-				Math.floor(this.canvas.clientHeight * 0.25),
-			);
-			const visW = Math.max(1, this.canvas.clientWidth);
-			const visH = Math.max(1, this.canvas.clientHeight - footerH - 16);
-			const cw = Math.max(1, u.cardsWorldWidth);
-			const ch = Math.max(1, u.cardsWorldHeight);
+			// Estimate the world-space bbox of cards + matrix together
+			// so the integrated view frames into the canvas in one
+			// fit-to-view. Numbers mirror draw-upset's world layout
+			// (label band + size bar band + dots).
+			const slotW = u.cardSlotW;
+			const slotH = u.cardSlotH;
+			const labelBandW = slotW * (1.8 + 0.9 + 0.4);
+			const matrixGap = slotH * 0.5;
+			const rowH = slotH * 0.55;
+			const matrixH = u.sets.length * rowH + matrixGap;
+			const minX = -labelBandW;
+			const maxX = u.cardsWorldWidth + slotW * 0.2;
+			const minY = 0;
+			const maxY = u.cardsWorldHeight + matrixH;
+			const padX = 24;
+			const padY = 24;
+			const visW = Math.max(1, this.canvas.clientWidth - padX * 2);
+			const visH = Math.max(1, this.canvas.clientHeight - padY * 2);
+			const cw = Math.max(1, maxX - minX);
+			const ch = Math.max(1, maxY - minY);
 			const zx = visW / cw;
 			const zy = visH / ch;
 			this.zoom = Math.max(0.05, Math.min(2, Math.min(zx, zy)));
-			this.panX = (visW - cw * this.zoom) / 2;
-			this.panY =
-				this.canvas.clientHeight - footerH - 8 - ch * this.zoom;
-			this.upsetFooterScrollY = 0;
+			const cx = (minX + maxX) / 2;
+			const cy = (minY + maxY) / 2;
+			this.panX = this.canvas.clientWidth / 2 - cx * this.zoom;
+			this.panY = this.canvas.clientHeight / 2 - cy * this.zoom;
 			this.requestDraw();
 			return;
 		}
@@ -1394,23 +1359,6 @@ export class MiniGraphView extends ItemView {
 			this.drawGridHeaders(ctx);
 		}
 
-		// UpSet plot is rendered in SCREEN space last so it sits on top
-		// of the (empty in this mode) world canvas as a fixed footer.
-		// Fonts/dots/bars stay readable regardless of world zoom.
-		if (this.laid.upset) {
-			drawUpset(
-				ctx,
-				this.laid,
-				this.canvas.clientWidth,
-				this.canvas.clientHeight,
-				dpr,
-				this.zoom,
-				this.panX,
-				this.upsetFooterScrollY,
-				this.upsetSelectedSignatureKey,
-				this.upsetScrollDrag != null,
-			);
-		}
 	}
 
 	// Single-tile body renderer — called once per (i, j) tile in the
@@ -1421,10 +1369,20 @@ export class MiniGraphView extends ItemView {
 		hasHighlight: boolean,
 		skipNode: (id: string) => boolean,
 	): void {
-		// UpSet mode: cards (main area) still get drawn through the
-		// normal world-space pipeline below — that's what makes every
-		// node individually visible. Enclosures and edges are off
-		// (clusters / edges empty in UpSet layout).
+		// UpSet mode: the matrix is drawn here in WORLD space — same
+		// transform as the cards — so labels, size bars, dots and
+		// connectors pan / zoom together with the card stacks above
+		// them. Footer band is gone.
+		if (this.laid.upset) {
+			drawUpset(
+				ctx,
+				this.laid,
+				this.canvas.clientWidth,
+				this.zoom,
+				this.panX,
+				this.upsetSelectedSignatureKey,
+			);
+		}
 		if (this.settings.showEnclosures && !this.laid.upset) {
 			drawEnclosures(
 				ctx,
@@ -1543,133 +1501,6 @@ export class MiniGraphView extends ItemView {
 
 	private openFile(id: string): void {
 		this.app.workspace.openLinkText(id, "", false);
-	}
-
-	// Returns true when the mousedown landed on a footer scrollbar.
-	// Tests vertical first (row scroll, independent) then horizontal
-	// (world panX, keeps matrix + cards aligned).
-	private tryBeginScrollbarDrag(sx: number, sy: number): boolean {
-		if (!this.laid.upset) return false;
-		const L = computeUpsetScreenLayout(
-			this.laid.upset,
-			this.canvas.clientWidth,
-			this.canvas.clientHeight,
-			this.zoom,
-			this.panX,
-			this.upsetFooterScrollY,
-		);
-		const h = computeUpsetHScrollbar(
-			L,
-			this.canvas.clientWidth,
-			this.zoom,
-			this.panX,
-			this.laid.upset.cardsWorldWidth,
-		);
-		const v = computeUpsetVScrollbar(L, this.canvas.clientWidth, h != null);
-		if (v) {
-			const inX = sx >= v.trackX && sx <= v.trackX + v.trackW;
-			const inY = sy >= v.trackY && sy <= v.trackY + v.trackH;
-			if (inX && inY) {
-				const inThumb = sy >= v.thumbY && sy <= v.thumbY + v.thumbH;
-				this.upsetScrollDrag = {
-					orientation: "vertical",
-					grabOffsetY: inThumb ? sy - v.thumbY : v.thumbH / 2,
-					trackY: v.trackY,
-					trackH: v.trackH,
-					thumbH: v.thumbH,
-					matrixTotalH: L.matrixTotalH,
-					matrixViewportH: L.matrixViewportH,
-				};
-				if (!inThumb) this.updateScrollbarDrag(sx, sy);
-				return true;
-			}
-		}
-		if (h) {
-			const inY = sy >= h.trackY && sy <= h.trackY + h.trackH;
-			const inX = sx >= h.trackX && sx <= h.trackX + h.trackW;
-			if (inX && inY) {
-				const inThumb = sx >= h.thumbX && sx <= h.thumbX + h.thumbW;
-				this.upsetScrollDrag = {
-					orientation: "horizontal",
-					grabOffsetX: inThumb ? sx - h.thumbX : h.thumbW / 2,
-					trackX: h.trackX,
-					trackW: h.trackW,
-					thumbW: h.thumbW,
-					contentW: this.laid.upset.cardsWorldWidth * this.zoom,
-					canvasW: this.canvas.clientWidth,
-				};
-				if (!inThumb) this.updateScrollbarDrag(sx, sy);
-				return true;
-			}
-		}
-		return false;
-	}
-
-	// Footer body drag: any non-scrollbar mousedown inside the footer
-	// captures a 2-axis drag — moving the cursor up/down scrolls the
-	// row matrix vertically (independent state) and left/right pans
-	// the world horizontally (= cards + matrix together).
-	private tryBeginFooterBodyDrag(sx: number, sy: number): boolean {
-		if (!this.laid.upset) return false;
-		const footerTopY =
-			this.canvas.clientHeight -
-			Math.max(120, Math.floor(this.canvas.clientHeight * 0.25));
-		if (sy < footerTopY) return false;
-		const L = computeUpsetScreenLayout(
-			this.laid.upset,
-			this.canvas.clientWidth,
-			this.canvas.clientHeight,
-			this.zoom,
-			this.panX,
-			this.upsetFooterScrollY,
-		);
-		this.upsetBodyDrag = {
-			lastX: sx,
-			lastY: sy,
-			maxScrollY: Math.max(0, L.matrixTotalH - L.matrixViewportH),
-			cardsContentW: this.laid.upset.cardsWorldWidth * this.zoom,
-			canvasW: this.canvas.clientWidth,
-		};
-		return true;
-	}
-
-	private updateFooterBodyDrag(sx: number, sy: number): void {
-		const d = this.upsetBodyDrag;
-		if (!d) return;
-		const dx = sx - d.lastX;
-		const dy = sy - d.lastY;
-		d.lastX = sx;
-		d.lastY = sy;
-		// Drag DOWN on the rows ⇒ rows move with the cursor (scrollY
-		// decreases). Standard "grab and pull" panel feel.
-		this.upsetFooterScrollY = Math.max(
-			0,
-			Math.min(d.maxScrollY, this.upsetFooterScrollY - dy),
-		);
-		// Drag RIGHT ⇒ content follows the cursor right (panX grows).
-		const minPanX = d.canvasW - d.cardsContentW;
-		this.panX = Math.max(minPanX, Math.min(0, this.panX + dx));
-		this.requestDraw();
-	}
-
-	private updateScrollbarDrag(sx: number, sy: number): void {
-		const d = this.upsetScrollDrag;
-		if (!d) return;
-		if (d.orientation === "vertical") {
-			const thumbTop = sy - d.grabOffsetY;
-			const usable = Math.max(1, d.trackH - d.thumbH);
-			const ratio = Math.max(0, Math.min(1, (thumbTop - d.trackY) / usable));
-			const maxScrollY = Math.max(0, d.matrixTotalH - d.matrixViewportH);
-			this.upsetFooterScrollY = ratio * maxScrollY;
-		} else {
-			const thumbLeft = sx - d.grabOffsetX;
-			const usable = Math.max(1, d.trackW - d.thumbW);
-			const ratio = Math.max(0, Math.min(1, (thumbLeft - d.trackX) / usable));
-			// panX = 0 (left) → minPanX = canvasW - contentW (right).
-			const minPanX = d.canvasW - d.contentW;
-			this.panX = 0 + (minPanX - 0) * ratio;
-		}
-		this.requestDraw();
 	}
 
 	private onPointerMove(e: MouseEvent): void {
@@ -1793,21 +1624,9 @@ export class MiniGraphView extends ItemView {
 			const rect = c.getBoundingClientRect();
 			const sx = e.clientX - rect.left;
 			const sy = e.clientY - rect.top;
-			// UpSet footer scrollbar interaction takes precedence over
-			// pan/marquee so the user can grab the thumb even when the
-			// cursor would otherwise initiate a world-pan drag.
-			if (this.laid.upset && this.tryBeginScrollbarDrag(sx, sy)) {
-				e.preventDefault();
-				return;
-			}
-			// Otherwise, a click anywhere INSIDE the footer body becomes
-			// a row + column drag-scroll so the user can grab the label
-			// band / size bars / matrix dots and move them directly.
-			if (this.laid.upset && this.tryBeginFooterBodyDrag(sx, sy)) {
-				c.style.cursor = "grabbing";
-				e.preventDefault();
-				return;
-			}
+			// Footer drag/scroll handlers retired — UpSet matrix is now
+			// integrated with the cards in world space, so the normal
+			// pan handler below moves both together.
 			if (e.shiftKey || this.marquee.isArmed()) {
 				this.marquee.begin(sx, sy);
 				e.preventDefault();
@@ -1821,20 +1640,6 @@ export class MiniGraphView extends ItemView {
 			this.cancelHover();
 		});
 		window.addEventListener("mousemove", (e) => {
-			if (this.upsetScrollDrag) {
-				const rect = c.getBoundingClientRect();
-				const sx = e.clientX - rect.left;
-				const sy = e.clientY - rect.top;
-				this.updateScrollbarDrag(sx, sy);
-				return;
-			}
-			if (this.upsetBodyDrag) {
-				const rect = c.getBoundingClientRect();
-				const sx = e.clientX - rect.left;
-				const sy = e.clientY - rect.top;
-				this.updateFooterBodyDrag(sx, sy);
-				return;
-			}
 			if (this.marquee.isActive()) {
 				this.marquee.update(e.clientX, e.clientY);
 				return;
@@ -1847,17 +1652,6 @@ export class MiniGraphView extends ItemView {
 			this.requestDraw();
 		});
 		window.addEventListener("mouseup", (e) => {
-			if (this.upsetScrollDrag) {
-				this.upsetScrollDrag = null;
-				this.requestDraw();
-				return;
-			}
-			if (this.upsetBodyDrag) {
-				this.upsetBodyDrag = null;
-				c.style.cursor = "grab";
-				this.requestDraw();
-				return;
-			}
 			if (this.marquee.isActive()) {
 				this.marquee.finish(e.clientX, e.clientY);
 				return;
@@ -1889,36 +1683,8 @@ export class MiniGraphView extends ItemView {
 			const rect = c.getBoundingClientRect();
 			const sx = e.clientX - rect.left;
 			const sy = e.clientY - rect.top;
-			// UpSet footer scroll: when the pointer is inside the
-			// footer band (= bottom quarter), vertical wheel scrolls
-			// the row matrix internally; horizontal wheel (or shift +
-			// wheel) pans the world horizontally so the matrix +
-			// cards drift together.
-			if (this.laid.upset) {
-				const footerTopY =
-					this.canvas.clientHeight -
-					Math.max(120, Math.floor(this.canvas.clientHeight * 0.25));
-				if (sy >= footerTopY) {
-					const dx = e.shiftKey ? e.deltaY : e.deltaX;
-					const dy = e.shiftKey ? 0 : e.deltaY;
-					if (dy !== 0) {
-						this.upsetFooterScrollY = Math.max(
-							0,
-							this.upsetFooterScrollY + dy,
-						);
-					}
-					if (dx !== 0) {
-						// Negative deltaX = scroll-left = pan content right.
-						const contentW =
-							this.laid.upset.cardsWorldWidth * this.zoom;
-						const minPanX = this.canvas.clientWidth - contentW;
-						const next = this.panX - dx;
-						this.panX = Math.max(minPanX, Math.min(0, next));
-					}
-					this.requestDraw();
-					return;
-				}
-			}
+			// UpSet footer scroll path retired — the matrix is in world
+			// space now, so the normal zoom-on-wheel below applies.
 			const factor = Math.exp(-e.deltaY * 0.0015);
 			const next = Math.max(0.005, Math.min(8, this.zoom * factor));
 			const wx = (sx - this.panX) / this.zoom;

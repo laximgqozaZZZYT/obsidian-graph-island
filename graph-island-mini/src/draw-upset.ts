@@ -1,97 +1,46 @@
-// UpSet plot renderer — screen-space footer.
+// UpSet matrix renderer — WORLD-SPACE integrated with the card stacks.
 //
-// The UpSet plot is pinned to the BOTTOM of the canvas in SCREEN
-// pixels: fonts, dots, bars, paddings all keep a constant physical
-// size regardless of the user's world-space pan/zoom. The plot's
-// total height is computed from its content (set rows + column bar
-// band + numerals) — when the plot's natural height exceeds the
-// canvas, the top of the plot just extends upward into the canvas
-// area (cards aren't drawn in UpSet mode, so there's nothing to
-// collide with).
+// Cards live in [y=0, y=cardsWorldHeight]. The matrix is laid out
+// directly below the cards (= same world transform; pans / zooms with
+// them). Row labels and per-set size bars sit on the LEFT side of the
+// matrix, also in world coords.
 //
-// LOD trigger is COLUMN WIDTH IN SCREEN PIXELS, not zoom — that
-// keeps Phase B (min font size) and Phase D (LOD) on the same axis
-// instead of fighting each other.
-import type { LaidOut, UpsetMeta } from "./layout";
+// Dynamic row filter (per the 2026-05-26 spec): only sets that the
+// CURRENTLY-VISIBLE columns belong to are drawn as rows. Visibility
+// is decided by projecting each column's worldX through the live
+// pan/zoom and asking whether it falls within the canvas viewport.
+import type { LaidOut } from "./layout";
 import { clusterHue } from "./canvas-utils";
 
-const FONT_PX = 12;
-const SMALL_FONT_PX = 10;
-const ROW_H = 22;
-// Column Pareto bars retired (2026-05-26 spec) — the band that used
-// to hold them is gone, so the matrix viewport now reaches all the
-// way up to the footer top edge.
-const BAR_AREA_H = 0;
-const COL_COUNT_H = 18;
-const SET_LABEL_PAD = 8;
-const SET_LABEL_BAND_W = 140;
-const SET_SIZE_BAR_BAND_W = 70;
-const LEFT_BAND_W = SET_LABEL_BAND_W + SET_SIZE_BAR_BAND_W + 16;
-const MIN_COL_W = 6;
-const IDEAL_COL_W = 22;
+const ROW_H_FACTOR = 0.55; // matrix row height ÷ card slot height
+const DOT_R_FACTOR = 0.22; // dot radius ÷ row height
+const LABEL_FONT_FACTOR = 0.5; // label font ÷ row height
+const LABEL_BAND_FACTOR = 1.8; // label band width ÷ card slot width
+const SIZE_BAR_BAND_FACTOR = 0.9; // size-bar band ÷ card slot width
+const MATRIX_GAP_FACTOR = 0.5; // gap below cards ÷ card slot height
 const HIGHLIGHT = "rgba(255, 157, 63, 0.9)";
 
-export interface UpsetScreenLayout {
-	footerTopY: number;
-	footerBottomY: number;
-	leftBandX: number;
-	matrixLeftX: number;
-	colW: number;
-	barAreaTopY: number;
-	barAreaBottomY: number;
-	matrixViewportTopY: number;
-	matrixViewportBottomY: number;
+export interface UpsetWorldLayout {
 	matrixTopY: number;
 	matrixBottomY: number;
-	matrixTotalH: number;
-	matrixViewportH: number;
-	maxScrollY: number;
-	// setRows is FILTERED to only the sets that have at least one
-	// member among the cards currently visible in main. When main has
-	// no visible cards (= panned entirely off-screen) we fall back to
-	// the full set list so the matrix isn't blank.
-	setRows: Array<{ key: string; label: string; size: number; y: number }>;
-	colXs: number[];
+	rowH: number;
 	dotR: number;
-	showSetLabels: boolean;
-	visibleColRange: { firstIdx: number; lastIdx: number } | null;
+	labelBandX: number; // right edge of label band
+	sizeBarRightX: number; // right edge of size-bar band
+	leftEdgeX: number; // far left of the whole UpSet "frame"
+	setRows: Array<{ key: string; label: string; size: number; y: number }>;
 }
 
-// Footer is a screen-fixed MINI-MAP — it always shows ALL columns at
-// a uniform pitch regardless of how the user pans / zooms the main
-// canvas. A viewport rectangle on top of the matrix shows which
-// columns are currently visible above (`drawViewportIndicator`).
-// Footer height is locked to canvasH/4; the set-row matrix scrolls
-// internally when its total height exceeds the viewport, fonts stay
-// constant.
-export function computeUpsetScreenLayout(
-	u: UpsetMeta,
+export function computeUpsetWorldLayout(
+	laid: LaidOut,
 	canvasW: number,
-	canvasH: number,
 	zoom: number,
 	panX: number,
-	scrollY: number,
-): UpsetScreenLayout {
+): UpsetWorldLayout | null {
+	const u = laid.upset;
+	if (!u) return null;
+	// Phase 1: which columns are visible in the canvas right now?
 	const cols = u.columns.length;
-	const footerH = Math.max(120, Math.floor(canvasH * 0.25));
-	const footerTopY = canvasH - footerH;
-	const footerBottomY = canvasH;
-	const padTop = 6;
-	const barAreaTopY = footerTopY + padTop;
-	const barAreaBottomY = barAreaTopY + BAR_AREA_H;
-	const matrixViewportTopY = barAreaBottomY + 6;
-	const matrixViewportBottomY = footerBottomY - 6;
-	const matrixViewportH = Math.max(0, matrixViewportBottomY - matrixViewportTopY);
-	const leftBandX = 8;
-	const matrixLeftX = LEFT_BAND_W;
-	const matrixUsableW = Math.max(
-		MIN_COL_W * Math.max(cols, 1),
-		canvasW - matrixLeftX - 16,
-	);
-	const colW = cols > 0
-		? Math.max(MIN_COL_W, Math.min(IDEAL_COL_W, matrixUsableW / cols))
-		: IDEAL_COL_W;
-	// Phase 1: which columns are visible in main?
 	let firstIdx = -1;
 	let lastIdx = -1;
 	for (let i = 0; i < cols; i++) {
@@ -101,54 +50,44 @@ export function computeUpsetScreenLayout(
 			lastIdx = i;
 		}
 	}
-	// Phase 2: active set keys = union of memberships of visible
-	// columns. If nothing is visible (main panned off entirely), keep
-	// the matrix populated by falling back to the full set list.
+	// Phase 2: active set keys = union of visible columns' signatures.
+	// Fallback to all sets when no column is on-screen (e.g. user
+	// panned far away) so the matrix never collapses to nothing.
 	const activeKeys = new Set<string>();
 	if (firstIdx >= 0) {
 		for (let i = firstIdx; i <= lastIdx; i++) {
 			for (const k of u.columns[i].signature) activeKeys.add(k);
 		}
 	}
-	const filteredSets =
+	const activeSets =
 		activeKeys.size > 0
 			? u.sets.filter((s) => activeKeys.has(s.key))
 			: u.sets;
-	// Matrix total height now driven by the FILTERED row count.
-	const matrixTotalH = filteredSets.length * ROW_H;
-	const maxScrollY = Math.max(0, matrixTotalH - matrixViewportH);
-	const clampedScroll = Math.max(0, Math.min(scrollY, maxScrollY));
-	const matrixTopY = matrixViewportTopY - clampedScroll;
-	const matrixBottomY = matrixTopY + matrixTotalH;
-	const setRows = filteredSets.map((s, idx) => ({
+	// Phase 3: world-space geometry.
+	const slotW = u.cardSlotW;
+	const slotH = u.cardSlotH;
+	const rowH = slotH * ROW_H_FACTOR;
+	const matrixTopY = u.cardsWorldHeight + slotH * MATRIX_GAP_FACTOR;
+	const matrixBottomY = matrixTopY + activeSets.length * rowH;
+	const dotR = Math.max(2, Math.min(rowH, slotW) * DOT_R_FACTOR);
+	const sizeBarRightX = -slotW * 0.2;
+	const labelBandX = sizeBarRightX - slotW * SIZE_BAR_BAND_FACTOR - slotW * 0.2;
+	const leftEdgeX = labelBandX - slotW * LABEL_BAND_FACTOR;
+	const setRows = activeSets.map((s, idx) => ({
 		key: s.key,
 		label: s.label,
 		size: s.size,
-		y: matrixTopY + (idx + 0.5) * ROW_H,
+		y: matrixTopY + (idx + 0.5) * rowH,
 	}));
-	const colXs = u.columns.map((_, idx) => matrixLeftX + (idx + 0.5) * colW);
-	const dotR = Math.max(3, Math.min(ROW_H * 0.32, colW * 0.4));
-	const showSetLabels = colW >= MIN_COL_W;
 	return {
-		footerTopY,
-		footerBottomY,
-		leftBandX,
-		matrixLeftX,
-		colW,
-		barAreaTopY,
-		barAreaBottomY,
-		matrixViewportTopY,
-		matrixViewportBottomY,
 		matrixTopY,
 		matrixBottomY,
-		matrixTotalH,
-		matrixViewportH,
-		maxScrollY,
-		setRows,
-		colXs,
+		rowH,
 		dotR,
-		showSetLabels,
-		visibleColRange: firstIdx >= 0 ? { firstIdx, lastIdx } : null,
+		labelBandX,
+		sizeBarRightX,
+		leftEdgeX,
+		setRows,
 	};
 }
 
@@ -156,302 +95,63 @@ export function drawUpset(
 	ctx: CanvasRenderingContext2D,
 	laid: LaidOut,
 	canvasW: number,
-	canvasH: number,
-	dpr: number,
 	zoom: number,
 	panX: number,
-	scrollY: number,
 	selectedSignatureKey: string | null,
-	scrollbarDragActive: boolean,
 ): void {
 	const u = laid.upset;
 	if (!u) return;
-	ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-	const L = computeUpsetScreenLayout(u, canvasW, canvasH, zoom, panX, scrollY);
-	// Mark which columns are visible in main — drives the viewport
-	// indicator + the dim/bright styling so the user can read off
-	// "this is what the cards above are showing right now".
-	const visibleCols = computeVisibleColumns(L);
-	void zoom;
-	void panX;
-	void canvasH;
-	ctx.fillStyle = "#0f1116";
-	ctx.fillRect(0, L.footerTopY, canvasW, canvasH - L.footerTopY);
-	ctx.strokeStyle = "rgba(120, 130, 150, 0.35)";
-	ctx.lineWidth = 1;
-	ctx.beginPath();
-	ctx.moveTo(0, L.footerTopY + 0.5);
-	ctx.lineTo(canvasW, L.footerTopY + 0.5);
-	ctx.stroke();
-	ctx.save();
-	ctx.beginPath();
-	ctx.rect(
-		0,
-		L.matrixViewportTopY,
-		canvasW,
-		L.matrixViewportBottomY - L.matrixViewportTopY,
-	);
-	ctx.clip();
-	drawRowTracks(ctx, u, L, canvasW);
-	drawSetSizeBars(ctx, u, L);
-	drawSetLabels(ctx, u, L);
-	drawMatrixDots(ctx, u, L, selectedSignatureKey, visibleCols);
-	drawViewportIndicator(ctx, L, visibleCols);
-	ctx.restore();
-	const hScrollbar = computeUpsetHScrollbar(
-		L,
-		canvasW,
-		zoom,
-		panX,
-		u.cardsWorldWidth,
-	);
-	drawScrollbars(ctx, L, canvasW, scrollbarDragActive, hScrollbar);
-	drawSelectedColumnFrame(ctx, u, L, selectedSignatureKey);
-}
-
-// Convert the layout's `visibleColRange` to a screen-x band suitable
-// for the viewport indicator + dim styling.
-function computeVisibleColumns(
-	L: UpsetScreenLayout,
-): { firstIdx: number; lastIdx: number; xLeft: number; xRight: number } | null {
-	const r = L.visibleColRange;
-	if (!r) return null;
-	return {
-		firstIdx: r.firstIdx,
-		lastIdx: r.lastIdx,
-		xLeft: L.colXs[r.firstIdx] - L.colW / 2,
-		xRight: L.colXs[r.lastIdx] + L.colW / 2,
-	};
-}
-
-function drawViewportIndicator(
-	ctx: CanvasRenderingContext2D,
-	L: UpsetScreenLayout,
-	visibleCols: ReturnType<typeof computeVisibleColumns>,
-): void {
-	if (!visibleCols) return;
-	const top = L.matrixViewportTopY;
-	const bottom = L.matrixViewportBottomY;
-	const x = visibleCols.xLeft;
-	const w = visibleCols.xRight - visibleCols.xLeft;
-	ctx.fillStyle = "rgba(255, 200, 80, 0.10)";
-	ctx.fillRect(x, top, w, bottom - top);
-	ctx.strokeStyle = "rgba(255, 200, 80, 0.55)";
-	ctx.lineWidth = 1.5;
-	ctx.strokeRect(x + 0.5, top + 0.5, w - 1, bottom - top - 1);
-}
-
-// Scrollbar geometry exposed for hit-testing in view.ts.
-export interface UpsetScrollbar {
-	trackX: number;
-	trackY: number;
-	trackW: number;
-	trackH: number;
-	thumbX: number;
-	thumbY: number;
-	thumbW: number;
-	thumbH: number;
-	orientation: "vertical" | "horizontal";
-}
-
-const SCROLLBAR_W = 10;
-const SCROLLBAR_GAP = 4; // padding between scrollbars and canvas edges
-
-export function computeUpsetVScrollbar(
-	L: UpsetScreenLayout,
-	canvasW: number,
-	hasHScroll: boolean,
-): UpsetScrollbar | null {
-	if (L.maxScrollY <= 0) return null;
-	const trackW = SCROLLBAR_W;
-	const trackX = canvasW - trackW - SCROLLBAR_GAP;
-	const trackY = L.matrixViewportTopY + 2;
-	const bottomReserve = hasHScroll ? SCROLLBAR_W + SCROLLBAR_GAP * 2 : 4;
-	const trackH = Math.max(40, L.matrixViewportH - bottomReserve);
-	const ratio = L.matrixViewportH / L.matrixTotalH;
-	const thumbH = Math.max(24, trackH * ratio);
-	const scrolled = -(L.matrixTopY - L.matrixViewportTopY);
-	const thumbY = trackY + (trackH - thumbH) * (scrolled / L.maxScrollY);
-	return {
-		trackX,
-		trackY,
-		trackW,
-		trackH,
-		thumbX: trackX,
-		thumbY,
-		thumbW: trackW,
-		thumbH,
-		orientation: "vertical",
-	};
-}
-
-// Horizontal scrollbar — represents the world's horizontal panX
-// against the total card area's projected screen width.
-// `contentW = cardsWorldWidth * zoom`. When content > canvas width
-// the bar appears at the bottom of the matrix viewport. Dragging
-// the thumb updates world panX (= cards and matrix shift together).
-export function computeUpsetHScrollbar(
-	L: UpsetScreenLayout,
-	canvasW: number,
-	zoom: number,
-	panX: number,
-	cardsWorldWidth: number,
-): UpsetScrollbar | null {
-	const contentW = cardsWorldWidth * zoom;
-	if (contentW <= canvasW) return null;
-	const trackH = SCROLLBAR_W;
-	const trackX = L.matrixLeftX;
-	const trackW = Math.max(
-		40,
-		canvasW - L.matrixLeftX - SCROLLBAR_GAP - (SCROLLBAR_W + SCROLLBAR_GAP),
-	);
-	const trackY = L.footerBottomY - trackH - SCROLLBAR_GAP;
-	const ratio = canvasW / contentW;
-	const thumbW = Math.max(24, trackW * ratio);
-	// panX = 0 ⇒ content left flush with canvas left (thumb at start).
-	// panX = canvasW - contentW (negative) ⇒ content right flush (thumb end).
-	const maxPanX = 0;
-	const minPanX = canvasW - contentW;
-	const clamped = Math.max(minPanX, Math.min(maxPanX, panX));
-	const t = (maxPanX - clamped) / (maxPanX - minPanX);
-	const thumbX = trackX + (trackW - thumbW) * t;
-	return {
-		trackX,
-		trackY,
-		trackW,
-		trackH,
-		thumbX,
-		thumbY: trackY,
-		thumbW,
-		thumbH: trackH,
-		orientation: "horizontal",
-	};
-}
-
-function drawScrollbars(
-	ctx: CanvasRenderingContext2D,
-	L: UpsetScreenLayout,
-	canvasW: number,
-	dragActive: boolean,
-	hScrollbar: UpsetScrollbar | null,
-): void {
-	const v = computeUpsetVScrollbar(L, canvasW, hScrollbar != null);
-	const paintBar = (s: UpsetScrollbar): void => {
-		const thinDim = Math.min(s.trackW, s.trackH);
-		roundRect(ctx, s.trackX, s.trackY, s.trackW, s.trackH, thinDim / 2);
-		ctx.fillStyle = "rgba(100, 110, 130, 0.28)";
-		ctx.fill();
-		const tThin = Math.min(s.thumbW, s.thumbH);
-		roundRect(ctx, s.thumbX, s.thumbY, s.thumbW, s.thumbH, tThin / 2);
-		ctx.fillStyle = dragActive
-			? "rgba(220, 230, 245, 0.85)"
-			: "rgba(180, 195, 220, 0.65)";
-		ctx.fill();
-	};
-	if (v) paintBar(v);
-	if (hScrollbar) paintBar(hScrollbar);
-}
-
-function roundRect(
-	ctx: CanvasRenderingContext2D,
-	x: number,
-	y: number,
-	w: number,
-	h: number,
-	r: number,
-): void {
-	const rr = Math.min(r, w / 2, h / 2);
-	ctx.beginPath();
-	ctx.moveTo(x + rr, y);
-	ctx.lineTo(x + w - rr, y);
-	ctx.quadraticCurveTo(x + w, y, x + w, y + rr);
-	ctx.lineTo(x + w, y + h - rr);
-	ctx.quadraticCurveTo(x + w, y + h, x + w - rr, y + h);
-	ctx.lineTo(x + rr, y + h);
-	ctx.quadraticCurveTo(x, y + h, x, y + h - rr);
-	ctx.lineTo(x, y + rr);
-	ctx.quadraticCurveTo(x, y, x + rr, y);
-	ctx.closePath();
-}
-
-// drawColumnBars removed — see BAR_AREA_H comment.
-
-function drawRowTracks(
-	ctx: CanvasRenderingContext2D,
-	u: UpsetMeta,
-	L: UpsetScreenLayout,
-	canvasW: number,
-): void {
-	const trackH = ROW_H * 0.92;
+	const L = computeUpsetWorldLayout(laid, canvasW, zoom, panX);
+	if (!L) return;
+	const slotW = u.cardSlotW;
+	const fontPx = Math.max(slotW * 0.16, L.rowH * LABEL_FONT_FACTOR);
+	const setIdx = new Map<string, number>();
+	L.setRows.forEach((s, i) => setIdx.set(s.key, i));
+	// Row tracks: faint strips so empty rows still read as rows.
+	const tracksRight = u.cardsWorldWidth + slotW * 0.2;
+	const tracksLeft = L.labelBandX;
 	ctx.fillStyle = "rgba(120, 130, 150, 0.08)";
 	for (const set of L.setRows) {
 		ctx.fillRect(
-			L.matrixLeftX,
-			set.y - trackH / 2,
-			canvasW - L.matrixLeftX - 4,
-			trackH,
+			tracksLeft,
+			set.y - L.rowH * 0.45,
+			tracksRight - tracksLeft,
+			L.rowH * 0.9,
 		);
-		void u;
 	}
-}
-
-function drawSetSizeBars(
-	ctx: CanvasRenderingContext2D,
-	u: UpsetMeta,
-	L: UpsetScreenLayout,
-): void {
-	if (u.sets.length === 0) return;
+	// Set size bars (left of labels).
 	const maxSize = Math.max(1, ...u.sets.map((s) => s.size));
-	const maxBarW = SET_SIZE_BAR_BAND_W - 8;
-	const barH = Math.max(4, ROW_H * 0.5);
-	const rightX = SET_LABEL_BAND_W + SET_SIZE_BAR_BAND_W;
-	ctx.font = `${SMALL_FONT_PX}px sans-serif`;
-	ctx.textAlign = "end";
-	ctx.textBaseline = "middle";
+	const barMaxW = (L.sizeBarRightX - L.labelBandX) * 0.9;
+	const barH = L.rowH * 0.45;
 	for (const set of L.setRows) {
-		const w = (set.size / maxSize) * maxBarW;
-		const x = rightX - w;
+		const w = (set.size / maxSize) * barMaxW;
+		const x = L.sizeBarRightX - w;
 		ctx.fillStyle = `hsla(${clusterHue(set.key)}, 65%, 55%, 0.65)`;
 		ctx.fillRect(x, set.y - barH / 2, w, barH);
 		ctx.fillStyle = "rgba(220, 225, 235, 0.85)";
-		ctx.fillText(String(set.size), x - 4, set.y);
+		ctx.font = `${fontPx * 0.8}px sans-serif`;
+		ctx.textAlign = "end";
+		ctx.textBaseline = "middle";
+		ctx.fillText(String(set.size), x - 2, set.y);
 	}
-}
-
-function drawSetLabels(
-	ctx: CanvasRenderingContext2D,
-	u: UpsetMeta,
-	L: UpsetScreenLayout,
-): void {
-	if (!L.showSetLabels) return;
-	ctx.font = `${FONT_PX}px sans-serif`;
+	// Set labels (right-aligned, sit immediately to the left of the
+	// size-bar band).
+	ctx.font = `${fontPx}px sans-serif`;
 	ctx.textAlign = "end";
 	ctx.textBaseline = "middle";
 	for (const set of L.setRows) {
 		ctx.fillStyle = `hsla(${clusterHue(set.key)}, 65%, 80%, 1)`;
-		const label = ellipsise(ctx, set.label, SET_LABEL_BAND_W - SET_LABEL_PAD);
-		ctx.fillText(label, SET_LABEL_BAND_W - SET_LABEL_PAD, set.y);
+		ctx.fillText(set.label, L.labelBandX, set.y);
 	}
-	void u;
-}
-
-function drawMatrixDots(
-	ctx: CanvasRenderingContext2D,
-	u: UpsetMeta,
-	L: UpsetScreenLayout,
-	selectedSignatureKey: string | null,
-	visibleCols: ReturnType<typeof computeVisibleColumns>,
-): void {
-	// setIdx maps key → index within L.setRows (= the FILTERED row
-	// list). Signature members whose set was filtered out resolve to
-	// undefined and are skipped — both for the connector span and for
-	// the dot loop below.
-	const setIdx = new Map<string, number>();
-	L.setRows.forEach((s, i) => setIdx.set(s.key, i));
+	// Matrix dots + connectors. Iterates ALL columns (even off-screen)
+	// because they have a stable world position; the canvas viewport
+	// itself clips them on the way out.
 	for (let i = 0; i < u.columns.length; i++) {
 		const col = u.columns[i];
-		const x = L.colXs[i];
+		const x = col.xWorld;
 		const inCol = new Set(col.signature);
+		const key = col.signature.join("|");
+		const highlighted = key === selectedSignatureKey;
 		let topY = Infinity;
 		let botY = -Infinity;
 		for (const k of col.signature) {
@@ -461,106 +161,30 @@ function drawMatrixDots(
 			if (y < topY) topY = y;
 			if (y > botY) botY = y;
 		}
-		const key = col.signature.join("|");
-		const highlighted = selectedSignatureKey === key;
-		const active =
-			visibleCols == null ||
-			(i >= visibleCols.firstIdx && i <= visibleCols.lastIdx);
-		const alpha = active ? 1 : 0.35;
 		if (isFinite(topY) && botY > topY) {
 			ctx.strokeStyle = highlighted
 				? HIGHLIGHT
-				: `rgba(180, 195, 220, ${0.85 * alpha})`;
-			ctx.lineWidth = highlighted ? 2.4 : 1.8;
+				: "rgba(180, 195, 220, 0.85)";
+			ctx.lineWidth = (highlighted ? 2.4 : 1.6) / zoom;
 			ctx.beginPath();
 			ctx.moveTo(x, topY);
 			ctx.lineTo(x, botY);
 			ctx.stroke();
 		}
 		for (const set of L.setRows) {
-			const y = set.y;
 			if (inCol.has(set.key)) {
 				ctx.fillStyle = highlighted
 					? HIGHLIGHT
-					: `hsla(${clusterHue(set.key)}, 65%, 65%, ${alpha})`;
+					: `hsla(${clusterHue(set.key)}, 65%, 65%, 1)`;
 				ctx.beginPath();
-				ctx.arc(x, y, L.dotR, 0, Math.PI * 2);
+				ctx.arc(x, set.y, L.dotR, 0, Math.PI * 2);
 				ctx.fill();
 			} else {
-				ctx.fillStyle = `rgba(70, 80, 95, ${0.55 * alpha})`;
+				ctx.fillStyle = "rgba(70, 80, 95, 0.55)";
 				ctx.beginPath();
-				ctx.arc(x, y, Math.max(1.5, L.dotR * 0.45), 0, Math.PI * 2);
+				ctx.arc(x, set.y, Math.max(0.5, L.dotR * 0.45), 0, Math.PI * 2);
 				ctx.fill();
 			}
 		}
 	}
-}
-
-// Column count numerals are drawn ABOVE the column bars by
-// drawColumnBars (when the bar is tall enough). The separate
-// "counts row" was removed when the footer scroll viewport took over
-// the bottom band.
-
-function drawSelectedColumnFrame(
-	ctx: CanvasRenderingContext2D,
-	u: UpsetMeta,
-	L: UpsetScreenLayout,
-	selectedSignatureKey: string | null,
-): void {
-	if (!selectedSignatureKey) return;
-	const idx = u.columns.findIndex(
-		(c) => c.signature.join("|") === selectedSignatureKey,
-	);
-	if (idx < 0) return;
-	const x = L.colXs[idx];
-	const w = L.colW;
-	ctx.strokeStyle = HIGHLIGHT;
-	ctx.lineWidth = 1.5;
-	ctx.strokeRect(
-		x - w / 2,
-		L.barAreaTopY,
-		w,
-		L.matrixBottomY - L.barAreaTopY,
-	);
-}
-
-// Hit-test helper used by the canvas click handler in view.ts. Returns
-// the column's signature key when the click landed on a column.
-export function hitTestUpsetColumn(
-	u: UpsetMeta,
-	canvasW: number,
-	canvasH: number,
-	zoom: number,
-	panX: number,
-	scrollY: number,
-	screenX: number,
-	screenY: number,
-): string | null {
-	const L = computeUpsetScreenLayout(u, canvasW, canvasH, zoom, panX, scrollY);
-	if (screenY < L.barAreaTopY || screenY > L.matrixViewportBottomY) return null;
-	for (let i = 0; i < u.columns.length; i++) {
-		const x = L.colXs[i];
-		if (Math.abs(screenX - x) <= L.colW / 2) {
-			return u.columns[i].signature.join("|");
-		}
-	}
-	return null;
-}
-
-function ellipsise(
-	ctx: CanvasRenderingContext2D,
-	text: string,
-	maxW: number,
-): string {
-	if (ctx.measureText(text).width <= maxW) return text;
-	const ell = "…";
-	let lo = 0;
-	let hi = text.length;
-	while (lo < hi) {
-		const mid = (lo + hi + 1) >> 1;
-		const slice = text.slice(0, mid) + ell;
-		if (ctx.measureText(slice).width <= maxW) lo = mid;
-		else hi = mid - 1;
-	}
-	return text.slice(0, lo) + ell;
 }
