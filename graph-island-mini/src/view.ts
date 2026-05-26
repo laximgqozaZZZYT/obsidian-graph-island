@@ -164,6 +164,10 @@ export class MiniGraphView extends ItemView {
 	// currently selected by the user (highlighted in the matrix; drives
 	// the detail panel listing in Phase C). null = nothing selected.
 	private upsetSelectedSignatureKey: string | null = null;
+	// UpSet mode: footer matrix vertical scroll offset. Clamped against
+	// `maxScrollY` by computeUpsetScreenLayout; updated via wheel events
+	// when the pointer is inside the footer band.
+	private upsetFooterScrollY: number = 0;
 	// Per-cluster "truly-aggregated" member count. Populated during
 	// rebuild() for clusters in aggregatedLayers — the count excludes
 	// members that also belong to a non-aggregated cluster (since those
@@ -1128,10 +1132,11 @@ export class MiniGraphView extends ItemView {
 		// and the matrix never overlap, full canvas width horizontally.
 		if (this.laid.upset) {
 			const u = this.laid.upset;
-			// Mirror the footer height computation in draw-upset.ts.
-			const ROW_H = 22, BAR_AREA_H = 80, COL_COUNT_H = 18;
-			const footerH =
-				BAR_AREA_H + u.sets.length * ROW_H + COL_COUNT_H + 24;
+			// Footer is fixed at canvasH/4 — same formula as draw-upset.
+			const footerH = Math.max(
+				120,
+				Math.floor(this.canvas.clientHeight * 0.25),
+			);
 			const visW = Math.max(1, this.canvas.clientWidth);
 			const visH = Math.max(1, this.canvas.clientHeight - footerH - 16);
 			const cw = Math.max(1, u.cardsWorldWidth);
@@ -1139,11 +1144,10 @@ export class MiniGraphView extends ItemView {
 			const zx = visW / cw;
 			const zy = visH / ch;
 			this.zoom = Math.max(0.05, Math.min(2, Math.min(zx, zy)));
-			// Anchor: card area horizontally centred in the canvas;
-			// card BOTTOM aligned to the top of the footer.
 			this.panX = (visW - cw * this.zoom) / 2;
 			this.panY =
 				this.canvas.clientHeight - footerH - 8 - ch * this.zoom;
+			this.upsetFooterScrollY = 0;
 			this.requestDraw();
 			return;
 		}
@@ -1360,6 +1364,7 @@ export class MiniGraphView extends ItemView {
 				dpr,
 				this.zoom,
 				this.panX,
+				this.upsetFooterScrollY,
 				this.upsetSelectedSignatureKey,
 			);
 		}
@@ -1674,6 +1679,22 @@ export class MiniGraphView extends ItemView {
 			const rect = c.getBoundingClientRect();
 			const sx = e.clientX - rect.left;
 			const sy = e.clientY - rect.top;
+			// UpSet footer scroll: when the pointer is inside the
+			// footer band (= bottom quarter), the wheel scrolls the
+			// matrix set rows internally instead of zooming the world.
+			if (this.laid.upset) {
+				const footerTopY =
+					this.canvas.clientHeight -
+					Math.max(120, Math.floor(this.canvas.clientHeight * 0.25));
+				if (sy >= footerTopY) {
+					this.upsetFooterScrollY = Math.max(
+						0,
+						this.upsetFooterScrollY + e.deltaY,
+					);
+					this.requestDraw();
+					return;
+				}
+			}
 			const factor = Math.exp(-e.deltaY * 0.0015);
 			const next = Math.max(0.005, Math.min(8, this.zoom * factor));
 			const wx = (sx - this.panX) / this.zoom;

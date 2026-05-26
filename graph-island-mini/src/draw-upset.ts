@@ -36,9 +36,14 @@ export interface UpsetScreenLayout {
 	colW: number;
 	barAreaTopY: number;
 	barAreaBottomY: number;
-	matrixTopY: number;
+	// Matrix viewport (clipped scroll area). totalH > viewportH ⇒ scroll.
+	matrixViewportTopY: number;
+	matrixViewportBottomY: number;
+	matrixTopY: number; // first set row centre offset by scrollY
 	matrixBottomY: number;
-	countsTopY: number;
+	matrixTotalH: number;
+	matrixViewportH: number;
+	maxScrollY: number;
 	setRows: Array<{ key: string; label: string; size: number; y: number }>;
 	colXs: number[];
 	dotR: number;
@@ -48,24 +53,37 @@ export interface UpsetScreenLayout {
 // Footer screen layout. Column x positions are derived from the
 // CARDS' world-space column x via the current pan/zoom transform, so
 // the matrix dot column always sits directly under its card stack.
+// Footer height is locked to canvasH/4 (per user spec); the set-row
+// matrix scrolls internally when its total height exceeds the
+// viewport, font sizes stay constant.
 export function computeUpsetScreenLayout(
 	u: UpsetMeta,
 	canvasW: number,
 	canvasH: number,
 	zoom: number,
 	panX: number,
+	scrollY: number,
 ): UpsetScreenLayout {
-	const cols = u.columns.length;
 	const sets = u.sets.length;
 	const colW = Math.max(MIN_COL_W, u.cardSlotW * zoom);
-	const totalH = BAR_AREA_H + sets * ROW_H + COL_COUNT_H + 24;
-	const footerTopY = Math.max(0, canvasH - totalH);
+	// Footer = bottom quarter of the canvas, fixed.
+	const footerH = Math.max(120, Math.floor(canvasH * 0.25));
+	const footerTopY = canvasH - footerH;
 	const footerBottomY = canvasH;
-	const barAreaTopY = footerTopY + 8;
+	const padTop = 6;
+	const barAreaTopY = footerTopY + padTop;
 	const barAreaBottomY = barAreaTopY + BAR_AREA_H;
-	const matrixTopY = barAreaBottomY + 8;
-	const matrixBottomY = matrixTopY + sets * ROW_H;
-	const countsTopY = matrixBottomY + 2;
+	// Matrix viewport occupies the remainder of the footer, with a
+	// small gap below the bar band and above the footer bottom.
+	const matrixViewportTopY = barAreaBottomY + 6;
+	const matrixViewportBottomY = footerBottomY - 6;
+	const matrixViewportH = Math.max(0, matrixViewportBottomY - matrixViewportTopY);
+	const matrixTotalH = sets * ROW_H;
+	const maxScrollY = Math.max(0, matrixTotalH - matrixViewportH);
+	const clampedScroll = Math.max(0, Math.min(scrollY, maxScrollY));
+	// First-row centre, taking scroll into account.
+	const matrixTopY = matrixViewportTopY - clampedScroll;
+	const matrixBottomY = matrixTopY + matrixTotalH;
 	const leftBandX = 8;
 	const matrixLeftX = LEFT_BAND_W;
 	const setRows = u.sets.map((s, idx) => ({
@@ -74,12 +92,10 @@ export function computeUpsetScreenLayout(
 		size: s.size,
 		y: matrixTopY + (idx + 0.5) * ROW_H,
 	}));
-	// Screen x for each column = world x * zoom + panX. Same transform
-	// the card pipeline uses, so cards and dots stay vertically aligned.
 	const colXs = u.columns.map((c) => c.xWorld * zoom + panX);
 	const dotR = Math.max(3, Math.min(ROW_H * 0.32, colW * 0.4));
 	const showSetLabels = colW >= MIN_COL_W;
-	void cols;
+	void canvasW;
 	return {
 		footerTopY,
 		footerBottomY,
@@ -88,9 +104,13 @@ export function computeUpsetScreenLayout(
 		colW,
 		barAreaTopY,
 		barAreaBottomY,
+		matrixViewportTopY,
+		matrixViewportBottomY,
 		matrixTopY,
 		matrixBottomY,
-		countsTopY,
+		matrixTotalH,
+		matrixViewportH,
+		maxScrollY,
 		setRows,
 		colXs,
 		dotR,
@@ -106,16 +126,17 @@ export function drawUpset(
 	dpr: number,
 	zoom: number,
 	panX: number,
+	scrollY: number,
 	selectedSignatureKey: string | null,
 ): void {
 	const u = laid.upset;
 	if (!u) return;
 	// Detach from the world transform: SCREEN-space rendering.
 	ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-	const L = computeUpsetScreenLayout(u, canvasW, canvasH, zoom, panX);
-	// Footer background — subtle so it reads as a distinct band over
-	// the world canvas above.
-	ctx.fillStyle = "rgba(15, 17, 22, 0.92)";
+	const L = computeUpsetScreenLayout(u, canvasW, canvasH, zoom, panX, scrollY);
+	// Opaque footer background — covers world cards underneath so the
+	// matrix is never obscured by a stack of overlapping card edges.
+	ctx.fillStyle = "#0f1116";
 	ctx.fillRect(0, L.footerTopY, canvasW, canvasH - L.footerTopY);
 	ctx.strokeStyle = "rgba(120, 130, 150, 0.35)";
 	ctx.lineWidth = 1;
@@ -123,13 +144,47 @@ export function drawUpset(
 	ctx.moveTo(0, L.footerTopY + 0.5);
 	ctx.lineTo(canvasW, L.footerTopY + 0.5);
 	ctx.stroke();
+	// Bar area (column size bars) — not scrolled.
 	drawColumnBars(ctx, u, L);
+	// Matrix area — CLIPPED to the viewport and scrolled internally.
+	ctx.save();
+	ctx.beginPath();
+	ctx.rect(
+		0,
+		L.matrixViewportTopY,
+		canvasW,
+		L.matrixViewportBottomY - L.matrixViewportTopY,
+	);
+	ctx.clip();
 	drawRowTracks(ctx, u, L, canvasW);
 	drawSetSizeBars(ctx, u, L);
 	drawSetLabels(ctx, u, L);
 	drawMatrixDots(ctx, u, L, selectedSignatureKey);
-	drawColumnCounts(ctx, u, L);
+	ctx.restore();
+	// Scrollbar (over the clip) when overflow exists.
+	drawScrollbar(ctx, L, canvasW);
 	drawSelectedColumnFrame(ctx, u, L, selectedSignatureKey);
+}
+
+function drawScrollbar(
+	ctx: CanvasRenderingContext2D,
+	L: UpsetScreenLayout,
+	canvasW: number,
+): void {
+	if (L.maxScrollY <= 0) return;
+	const trackX = canvasW - 6;
+	const trackW = 4;
+	const trackY = L.matrixViewportTopY + 2;
+	const trackH = L.matrixViewportH - 4;
+	ctx.fillStyle = "rgba(100, 110, 130, 0.25)";
+	ctx.fillRect(trackX, trackY, trackW, trackH);
+	const ratio = L.matrixViewportH / L.matrixTotalH;
+	const thumbH = Math.max(20, trackH * ratio);
+	const scrolled = -(L.matrixTopY - L.matrixViewportTopY); // = clampedScroll
+	const thumbY =
+		trackY + (trackH - thumbH) * (scrolled / L.maxScrollY);
+	ctx.fillStyle = "rgba(180, 195, 220, 0.65)";
+	ctx.fillRect(trackX, thumbY, trackW, thumbH);
 }
 
 function drawColumnBars(
@@ -268,24 +323,10 @@ function drawMatrixDots(
 	}
 }
 
-function drawColumnCounts(
-	ctx: CanvasRenderingContext2D,
-	u: UpsetMeta,
-	L: UpsetScreenLayout,
-): void {
-	// Counts are also drawn above the column bars; this row is the
-	// LAST resort when columns are too narrow for that. Skip
-	// entirely when the column is narrower than the numeral itself.
-	if (L.colW < 14) return;
-	ctx.font = `${SMALL_FONT_PX}px sans-serif`;
-	ctx.fillStyle = "rgba(180, 190, 210, 0.75)";
-	ctx.textAlign = "center";
-	ctx.textBaseline = "top";
-	const y = L.countsTopY;
-	for (let i = 0; i < u.columns.length; i++) {
-		ctx.fillText(String(u.columns[i].size), L.colXs[i], y);
-	}
-}
+// Column count numerals are drawn ABOVE the column bars by
+// drawColumnBars (when the bar is tall enough). The separate
+// "counts row" was removed when the footer scroll viewport took over
+// the bottom band.
 
 function drawSelectedColumnFrame(
 	ctx: CanvasRenderingContext2D,
@@ -318,11 +359,12 @@ export function hitTestUpsetColumn(
 	canvasH: number,
 	zoom: number,
 	panX: number,
+	scrollY: number,
 	screenX: number,
 	screenY: number,
 ): string | null {
-	const L = computeUpsetScreenLayout(u, canvasW, canvasH, zoom, panX);
-	if (screenY < L.barAreaTopY || screenY > L.matrixBottomY) return null;
+	const L = computeUpsetScreenLayout(u, canvasW, canvasH, zoom, panX, scrollY);
+	if (screenY < L.barAreaTopY || screenY > L.matrixViewportBottomY) return null;
 	for (let i = 0; i < u.columns.length; i++) {
 		const x = L.colXs[i];
 		if (Math.abs(screenX - x) <= L.colW / 2) {
