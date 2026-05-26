@@ -39,7 +39,11 @@ import {
 } from "./node-display";
 import { drawEnclosures } from "./draw-enclosures";
 import { drawBaseEdges, drawAccentEdges } from "./draw-edges";
-import { drawUpset } from "./draw-upset";
+import {
+	drawUpset,
+	computeUpsetScreenLayout,
+	computeUpsetScrollbar,
+} from "./draw-upset";
 import { drawCard as drawCardFn } from "./draw-card";
 import {
 	hitTest as hitTestFn,
@@ -168,6 +172,17 @@ export class MiniGraphView extends ItemView {
 	// `maxScrollY` by computeUpsetScreenLayout; updated via wheel events
 	// when the pointer is inside the footer band.
 	private upsetFooterScrollY: number = 0;
+	// Drag state for the footer scrollbar thumb. When the user grabs
+	// the thumb, we remember the offset between the click point and the
+	// thumb's top so the thumb stays under the cursor while dragging.
+	private upsetScrollDrag: {
+		grabOffsetY: number;
+		trackY: number;
+		trackH: number;
+		thumbH: number;
+		matrixTotalH: number;
+		matrixViewportH: number;
+	} | null = null;
 	// Per-cluster "truly-aggregated" member count. Populated during
 	// rebuild() for clusters in aggregatedLayers — the count excludes
 	// members that also belong to a non-aggregated cluster (since those
@@ -1366,6 +1381,7 @@ export class MiniGraphView extends ItemView {
 				this.panX,
 				this.upsetFooterScrollY,
 				this.upsetSelectedSignatureKey,
+				this.upsetScrollDrag != null,
 			);
 		}
 	}
@@ -1502,6 +1518,54 @@ export class MiniGraphView extends ItemView {
 		this.app.workspace.openLinkText(id, "", false);
 	}
 
+	// Returns true when the mousedown landed on the footer scrollbar
+	// (thumb or track) and a drag was initiated; the caller bypasses
+	// pan / marquee in that case.
+	private tryBeginScrollbarDrag(sx: number, sy: number): boolean {
+		if (!this.laid.upset) return false;
+		const L = computeUpsetScreenLayout(
+			this.laid.upset,
+			this.canvas.clientWidth,
+			this.canvas.clientHeight,
+			this.zoom,
+			this.panX,
+			this.upsetFooterScrollY,
+		);
+		const s = computeUpsetScrollbar(L, this.canvas.clientWidth);
+		if (!s) return false;
+		const inTrackX = sx >= s.trackX && sx <= s.trackX + s.trackW;
+		if (!inTrackX) return false;
+		const inThumb =
+			sy >= s.thumbY && sy <= s.thumbY + s.thumbH;
+		const inTrack = sy >= s.trackY && sy <= s.trackY + s.trackH;
+		if (!inTrack) return false;
+		// Click on track outside thumb: page-jump so the thumb lands
+		// centred on the click point, then start dragging from there.
+		const grabOffsetY = inThumb ? sy - s.thumbY : s.thumbH / 2;
+		this.upsetScrollDrag = {
+			grabOffsetY,
+			trackY: s.trackY,
+			trackH: s.trackH,
+			thumbH: s.thumbH,
+			matrixTotalH: L.matrixTotalH,
+			matrixViewportH: L.matrixViewportH,
+		};
+		// Immediately apply for click-on-track (= page jump).
+		if (!inThumb) this.updateScrollbarDrag(sy);
+		return true;
+	}
+
+	private updateScrollbarDrag(sy: number): void {
+		const d = this.upsetScrollDrag;
+		if (!d) return;
+		const thumbTop = sy - d.grabOffsetY;
+		const usable = Math.max(1, d.trackH - d.thumbH);
+		const ratio = Math.max(0, Math.min(1, (thumbTop - d.trackY) / usable));
+		const maxScrollY = Math.max(0, d.matrixTotalH - d.matrixViewportH);
+		this.upsetFooterScrollY = ratio * maxScrollY;
+		this.requestDraw();
+	}
+
 	private onPointerMove(e: MouseEvent): void {
 		if (this.dragging) {
 			this.cancelHover();
@@ -1623,6 +1687,13 @@ export class MiniGraphView extends ItemView {
 			const rect = c.getBoundingClientRect();
 			const sx = e.clientX - rect.left;
 			const sy = e.clientY - rect.top;
+			// UpSet footer scrollbar interaction takes precedence over
+			// pan/marquee so the user can grab the thumb even when the
+			// cursor would otherwise initiate a world-pan drag.
+			if (this.laid.upset && this.tryBeginScrollbarDrag(sx, sy)) {
+				e.preventDefault();
+				return;
+			}
 			if (e.shiftKey || this.marquee.isArmed()) {
 				this.marquee.begin(sx, sy);
 				e.preventDefault();
@@ -1636,6 +1707,12 @@ export class MiniGraphView extends ItemView {
 			this.cancelHover();
 		});
 		window.addEventListener("mousemove", (e) => {
+			if (this.upsetScrollDrag) {
+				const rect = c.getBoundingClientRect();
+				const sy = e.clientY - rect.top;
+				this.updateScrollbarDrag(sy);
+				return;
+			}
 			if (this.marquee.isActive()) {
 				this.marquee.update(e.clientX, e.clientY);
 				return;
@@ -1648,6 +1725,11 @@ export class MiniGraphView extends ItemView {
 			this.requestDraw();
 		});
 		window.addEventListener("mouseup", (e) => {
+			if (this.upsetScrollDrag) {
+				this.upsetScrollDrag = null;
+				this.requestDraw();
+				return;
+			}
 			if (this.marquee.isActive()) {
 				this.marquee.finish(e.clientX, e.clientY);
 				return;

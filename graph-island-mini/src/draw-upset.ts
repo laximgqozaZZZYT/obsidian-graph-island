@@ -128,6 +128,7 @@ export function drawUpset(
 	panX: number,
 	scrollY: number,
 	selectedSignatureKey: string | null,
+	scrollbarDragActive: boolean,
 ): void {
 	const u = laid.upset;
 	if (!u) return;
@@ -162,29 +163,87 @@ export function drawUpset(
 	drawMatrixDots(ctx, u, L, selectedSignatureKey);
 	ctx.restore();
 	// Scrollbar (over the clip) when overflow exists.
-	drawScrollbar(ctx, L, canvasW);
+	drawScrollbar(ctx, L, canvasW, scrollbarDragActive);
 	drawSelectedColumnFrame(ctx, u, L, selectedSignatureKey);
+}
+
+// Scrollbar geometry exposed for hit-testing in view.ts.
+export interface UpsetScrollbar {
+	trackX: number;
+	trackY: number;
+	trackW: number;
+	trackH: number;
+	thumbX: number;
+	thumbY: number;
+	thumbW: number;
+	thumbH: number;
+	scrolled: number;
+}
+
+export function computeUpsetScrollbar(L: UpsetScreenLayout, canvasW: number): UpsetScrollbar | null {
+	if (L.maxScrollY <= 0) return null;
+	const trackW = 10;
+	const trackX = canvasW - trackW - 4;
+	const trackY = L.matrixViewportTopY + 2;
+	const trackH = L.matrixViewportH - 4;
+	const ratio = L.matrixViewportH / L.matrixTotalH;
+	const thumbH = Math.max(24, trackH * ratio);
+	const scrolled = -(L.matrixTopY - L.matrixViewportTopY);
+	const thumbY =
+		trackY + (trackH - thumbH) * (scrolled / L.maxScrollY);
+	return {
+		trackX,
+		trackY,
+		trackW,
+		trackH,
+		thumbX: trackX,
+		thumbY,
+		thumbW: trackW,
+		thumbH,
+		scrolled,
+	};
 }
 
 function drawScrollbar(
 	ctx: CanvasRenderingContext2D,
 	L: UpsetScreenLayout,
 	canvasW: number,
+	dragActive: boolean,
 ): void {
-	if (L.maxScrollY <= 0) return;
-	const trackX = canvasW - 6;
-	const trackW = 4;
-	const trackY = L.matrixViewportTopY + 2;
-	const trackH = L.matrixViewportH - 4;
-	ctx.fillStyle = "rgba(100, 110, 130, 0.25)";
-	ctx.fillRect(trackX, trackY, trackW, trackH);
-	const ratio = L.matrixViewportH / L.matrixTotalH;
-	const thumbH = Math.max(20, trackH * ratio);
-	const scrolled = -(L.matrixTopY - L.matrixViewportTopY); // = clampedScroll
-	const thumbY =
-		trackY + (trackH - thumbH) * (scrolled / L.maxScrollY);
-	ctx.fillStyle = "rgba(180, 195, 220, 0.65)";
-	ctx.fillRect(trackX, thumbY, trackW, thumbH);
+	const s = computeUpsetScrollbar(L, canvasW);
+	if (!s) return;
+	// Track — semi-transparent rounded rectangle.
+	roundRect(ctx, s.trackX, s.trackY, s.trackW, s.trackH, s.trackW / 2);
+	ctx.fillStyle = "rgba(100, 110, 130, 0.28)";
+	ctx.fill();
+	// Thumb — brighter when dragging.
+	roundRect(ctx, s.thumbX, s.thumbY, s.thumbW, s.thumbH, s.thumbW / 2);
+	ctx.fillStyle = dragActive
+		? "rgba(220, 230, 245, 0.85)"
+		: "rgba(180, 195, 220, 0.65)";
+	ctx.fill();
+}
+
+function roundRect(
+	ctx: CanvasRenderingContext2D,
+	x: number,
+	y: number,
+	w: number,
+	h: number,
+	r: number,
+): void {
+	const rr = Math.min(r, w / 2, h / 2);
+	ctx.beginPath();
+	ctx.moveTo(x + rr, y);
+	ctx.lineTo(x + w - rr, y);
+	ctx.quadraticCurveTo(x + w, y, x + w, y + rr);
+	ctx.lineTo(x + w, y + h - rr);
+	ctx.quadraticCurveTo(x + w, y + h, x + w - rr, y + h);
+	ctx.lineTo(x + rr, y + h);
+	ctx.quadraticCurveTo(x, y + h, x, y + h - rr);
+	ctx.lineTo(x, y + rr);
+	ctx.quadraticCurveTo(x, y, x + rr, y);
+	ctx.closePath();
 }
 
 function drawColumnBars(
