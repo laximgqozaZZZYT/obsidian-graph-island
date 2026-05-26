@@ -18,7 +18,10 @@ import { clusterHue } from "./canvas-utils";
 const FONT_PX = 12;
 const SMALL_FONT_PX = 10;
 const ROW_H = 22;
-const BAR_AREA_H = 80;
+// Column Pareto bars retired (2026-05-26 spec) — the band that used
+// to hold them is gone, so the matrix viewport now reaches all the
+// way up to the footer top edge.
+const BAR_AREA_H = 0;
 const COL_COUNT_H = 18;
 const SET_LABEL_PAD = 8;
 const SET_LABEL_BAND_W = 140;
@@ -180,7 +183,6 @@ export function drawUpset(
 	ctx.moveTo(0, L.footerTopY + 0.5);
 	ctx.lineTo(canvasW, L.footerTopY + 0.5);
 	ctx.stroke();
-	drawColumnBars(ctx, u, L, visibleCols);
 	ctx.save();
 	ctx.beginPath();
 	ctx.rect(
@@ -372,39 +374,7 @@ function roundRect(
 	ctx.closePath();
 }
 
-function drawColumnBars(
-	ctx: CanvasRenderingContext2D,
-	u: UpsetMeta,
-	L: UpsetScreenLayout,
-	visibleCols: ReturnType<typeof computeVisibleColumns>,
-): void {
-	if (u.columns.length === 0) return;
-	const maxSize = Math.max(1, ...u.columns.map((c) => c.size));
-	const usableH = L.barAreaBottomY - L.barAreaTopY - 16;
-	ctx.textAlign = "center";
-	ctx.textBaseline = "bottom";
-	ctx.font = `${SMALL_FONT_PX}px sans-serif`;
-	for (let i = 0; i < u.columns.length; i++) {
-		const c = u.columns[i];
-		const x = L.colXs[i];
-		const h = (c.size / maxSize) * usableH;
-		const top = L.barAreaBottomY - h;
-		const barW = Math.max(3, Math.min(L.colW * 0.7, 14));
-		const active =
-			visibleCols == null ||
-			(i >= visibleCols.firstIdx && i <= visibleCols.lastIdx);
-		ctx.fillStyle = active
-			? "rgba(150, 170, 200, 0.95)"
-			: "rgba(110, 125, 145, 0.45)";
-		ctx.fillRect(x - barW / 2, top, barW, h);
-		if (h > SMALL_FONT_PX + 4 && L.colW >= 14) {
-			ctx.fillStyle = active
-				? "rgba(220, 225, 235, 0.95)"
-				: "rgba(180, 190, 210, 0.55)";
-			ctx.fillText(String(c.size), x, top - 2);
-		}
-	}
-}
+// drawColumnBars removed — see BAR_AREA_H comment.
 
 function drawRowTracks(
 	ctx: CanvasRenderingContext2D,
