@@ -64,6 +64,7 @@ import {
 	computeChannelDims,
 	computeSizeScale as computeSizeScaleFn,
 	measureCard as measureCardFn,
+	minFontScale,
 } from "./card-sizing";
 import {
 	renderExprSection as renderExprSectionFn,
@@ -911,8 +912,12 @@ export class MiniGraphView extends ItemView {
 		this.laid = layout(layoutData, sized, {
 			clusterSpacing: this.settings.clusterSpacing,
 			nodeSpacing: this.settings.nodeSpacing,
-			cellW: CARD_CELL_W,
-			cellH: CARD_CELL_H,
+			// Cell pitch scales up when the user-imposed font floor
+			// exceeds the native title font, so cards (sized by
+			// `cardFor` with the same scale) fit cleanly into one
+			// slot regardless of the floor.
+			cellW: CARD_CELL_W * minFontScale(this.settings.minFontPx),
+			cellH: CARD_CELL_H * minFontScale(this.settings.minFontPx),
 			clusterLabels,
 			anchorPlacement: this.settings.anchorPlacement,
 			viewMode: this.settings.viewMode,
@@ -1025,6 +1030,7 @@ export class MiniGraphView extends ItemView {
 			channelW,
 			channelH,
 			scaleFactor: this.computeSizeScale(n.id, display.nodeSizeMode),
+			minFontPx: this.settings.minFontPx,
 		});
 		const scale = this.getCardScale(n.id);
 		const mode = this.displayMode.get(n.id) ?? "full";

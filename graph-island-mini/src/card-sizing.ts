@@ -6,9 +6,19 @@ import {
 	CARD_LINE_HEIGHT_PX,
 	CARD_BODY_LINE_HEIGHT_PX,
 	CARD_BODY_FONT_PX,
+	CARD_TITLE_FONT_PX,
 	CARD_TITLE_BODY_GAP,
 } from "./types";
 import { wrapText } from "./canvas-utils";
+
+// Multiplier that grows the card area to accommodate a user-imposed
+// minimum font size. When `minFontPx <= CARD_TITLE_FONT_PX` the cards
+// are unchanged; above that, both cells and padding grow uniformly so
+// the title row stays inside the card at every zoom.
+export function minFontScale(minFontPx: number): number {
+	if (!minFontPx || minFontPx <= CARD_TITLE_FONT_PX) return 1;
+	return minFontPx / CARD_TITLE_FONT_PX;
+}
 
 // What an individual card carries through the (id, mode, scale) cache.
 // `width` / `height` are the FINAL pixel dimensions (= what layout sees);
@@ -39,14 +49,19 @@ export interface CardSizeOptions {
 	channelW: number;
 	channelH: number;
 	scaleFactor: number;
+	// User-configured floor for screen-space font size. Cards (and
+	// therefore the grid lattice) need to grow when the floor exceeds
+	// the native title font, otherwise the rendered text overflows.
+	minFontPx?: number;
 }
 
 export function computeCardSize(opts: CardSizeOptions): {
 	width: number;
 	height: number;
 } {
-	const slotW = CARD_CELL_W + opts.channelW;
-	const slotH = CARD_CELL_H + opts.channelH;
+	const fs = minFontScale(opts.minFontPx ?? 0);
+	const slotW = CARD_CELL_W * fs + opts.channelW;
+	const slotH = CARD_CELL_H * fs + opts.channelH;
 	const effC = opts.cols * opts.scaleFactor;
 	const effR = opts.rows * opts.scaleFactor;
 	return {
