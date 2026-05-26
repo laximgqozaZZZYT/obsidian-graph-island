@@ -324,8 +324,11 @@ export function drawClusterLabels(
 	const boxes: PlacedLabelBox[] = [];
 	for (const cell of cells) {
 		const c = byKey.get(cell.key);
-		if (!c) continue;
-		const text = `${c.label} (${c.memberCount})`;
+		// `cell.text` overrides (intersection sub-box labels "a*b*c"); otherwise
+		// fall back to the owning cluster's "name (count)". A cell with neither
+		// is skipped.
+		const text = cell.text ?? (c ? `${c.label} (${c.memberCount})` : "");
+		if (!text) continue;
 		// Clamp the label to the cluster's FINAL bbox (it may have been
 		// post-processed after layout, e.g. inheritance expansion). Shrink
 		// to fit + clamp centre so the label is never drawn outside its own
@@ -336,7 +339,7 @@ export function drawClusterLabels(
 		let ch = cell.h;
 		let cx = cell.x;
 		let cy = cell.y;
-		if (c.width > 0 && c.height > 0) {
+		if (c && c.width > 0 && c.height > 0) {
 			cw = Math.min(cw, c.width);
 			ch = Math.min(ch, c.height);
 			cx = Math.min(Math.max(cx, c.x + cw / 2), c.x + c.width - cw / 2);

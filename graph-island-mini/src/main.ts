@@ -185,19 +185,6 @@ class MiniSettingTab extends PluginSettingTab {
 			});
 
 		new Setting(containerEl)
-			.setName("Card preview chars")
-			.setDesc(
-				"Maximum body preview length per card. Cards auto-size to fit their content; set to 0 for title-only.",
-			)
-			.addSlider((sl) => {
-				sl.setLimits(0, 400, 20).setValue(s.cardMaxChars).setDynamicTooltip();
-				sl.onChange(async (v) => {
-					s.cardMaxChars = v;
-					await this.plugin.saveSettings();
-				});
-			});
-
-		new Setting(containerEl)
 			.setName("WHERE / GROUP_BY")
 			.setDesc(
 				"Filter and partition expressions are edited inside the view. " +

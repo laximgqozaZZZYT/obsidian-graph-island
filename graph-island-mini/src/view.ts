@@ -990,25 +990,10 @@ export class MiniGraphView extends ItemView {
 		return dropped;
 	}
 
-	private async ensureBodies(nodes: GraphNode[]): Promise<void> {
-		const missing = nodes.filter((n) => !this.bodyCache.has(n.id));
-		if (missing.length === 0) return;
-		await Promise.all(
-			missing.map(async (n) => {
-				const f = this.app.vault.getAbstractFileByPath(n.id);
-				if (!(f instanceof TFile)) {
-					this.bodyCache.set(n.id, "");
-					return;
-				}
-				try {
-					const raw = await this.app.vault.cachedRead(f);
-					const stripped = raw.replace(/^---[\s\S]*?---\n?/, "").trim();
-					this.bodyCache.set(n.id, stripped);
-				} catch {
-					this.bodyCache.set(n.id, "");
-				}
-			}),
-		);
+	// Body preview was retired (both Euler + UpSet): cards and the hover tip
+	// show title only, so no file contents are loaded.
+	private async ensureBodies(_nodes: GraphNode[]): Promise<void> {
+		/* no-op — body preview feature removed */
 	}
 
 	// Shared visual scale factor. ALL per-card metrics — pixel size,
@@ -1047,13 +1032,10 @@ export class MiniGraphView extends ItemView {
 		const cacheKey = `${n.id}:${mode}:${scale.toFixed(4)}`;
 		const cached = this.cardCache.get(cacheKey);
 		if (!cached || cached.title !== n.label) {
-			const body = (this.bodyCache.get(n.id) ?? "").slice(
-				0,
-				this.settings.cardMaxChars,
-			);
+			// Body preview removed — cards are title-only.
 			this.cardCache.set(
 				cacheKey,
-				this.measureCard(n.label, body, mode, width, height, scale),
+				this.measureCard(n.label, "", mode, width, height, scale),
 			);
 		}
 		return { ...n, width, height };
@@ -1129,7 +1111,7 @@ export class MiniGraphView extends ItemView {
 			cardW,
 			cardH,
 			scale,
-			showBody: this.settings.showBody,
+			showBody: false, // body preview removed
 		});
 	}
 
@@ -1605,8 +1587,8 @@ export class MiniGraphView extends ItemView {
 		const card = this.cardCache.get(`${baseId}:${mode}:${scale.toFixed(4)}`);
 		drawCardFn(ctx, n, {
 			scale,
-			bodyLines: card?.bodyLines ?? [],
-			showBody: this.settings.showBody,
+			bodyLines: [],
+			showBody: false, // body preview removed
 			highlighted,
 			zoom: this.zoom,
 			minFontPx: this.settings.minFontPx,
@@ -1713,15 +1695,8 @@ export class MiniGraphView extends ItemView {
 			if (!(file instanceof TFile)) return;
 			tip.createSpan({ cls: "gim-tip-title", text: file.basename });
 			tip.createSpan({ cls: "gim-tip-sub", text: file.parent?.path ?? "" });
-			// Use the already-loaded body cache; show a richer preview than the
-			// card itself (2× the card body limit, capped).
-			const cached = this.bodyCache.get(baseId) ?? "";
-			const tipCap = Math.min(400, Math.max(200, this.settings.cardMaxChars * 2));
+			// Body preview removed — the tip shows the file name + folder only.
 			if (gen !== this.hoverGen) return;
-			if (cached) {
-				const trimmed = cached.length > tipCap ? cached.slice(0, tipCap) + "…" : cached;
-				tip.createDiv({ cls: "gim-tip-body", text: trimmed });
-			}
 		} else {
 			const cl = this.laid.clusters.find((c) => c.groupKey === target.group);
 			if (!cl) return;
