@@ -113,8 +113,19 @@ export function layoutUpset(
 	// NODE_DISPLAY size = 1×1 (the default), one UpSet card occupies
 	// exactly one grid cell — matching Euler's "one cell per card"
 	// behaviour the user pointed out.
-	const cardW = opts.cellW > 0 ? opts.cellW : 80;
-	const cardH = opts.cellH > 0 ? opts.cellH : 24;
+	// Bar width = grid cell as a baseline, BUT grows when nodes have
+	// been size-scaled (indegree / outdegree mode) so the widest
+	// node fits inside its column. Uniform width across all columns
+	// = the maximum observed card size, matching a real Pareto bar
+	// chart where every bar shares one width.
+	const baseW = opts.cellW > 0 ? opts.cellW : 80;
+	const baseH = opts.cellH > 0 ? opts.cellH : 24;
+	let cardW = baseW;
+	let cardH = baseH;
+	for (const s of sized) {
+		if (s.width > cardW) cardW = s.width;
+		if (s.height > cardH) cardH = s.height;
+	}
 	// Horizontal channel = Euler grid pitch (so column separation
 	// matches the grid). Vertical channel = 0: cards in the same
 	// column touch, forming a CONTINUOUS PARETO BAR. routeZ still
@@ -143,9 +154,12 @@ export function layoutUpset(
 			const s = sizedById.get(id);
 			const w = s?.width ?? cardW;
 			const h = s?.height ?? cardH;
-			// Bottom-most card (j=last) on the bottom-most cell row;
-			// shorter stacks therefore sit flush with the bottom edge.
-			const rowIdx = tallestColumn - (bucket.nodeIds.length - j);
+			// Stack BOTTOM-UP per Pareto convention: the j=0 card
+			// (alphabetically first by id) lands on the BOTTOM-most
+			// cell row; each subsequent card piles on top of it.
+			// All columns therefore share the same baseline at row
+			// `tallestColumn - 1` and grow upward by their count.
+			const rowIdx = tallestColumn - 1 - j;
 			const yCentre = (rowIdx + 0.5) * slotH;
 			positionedNodes.push({
 				...node,
