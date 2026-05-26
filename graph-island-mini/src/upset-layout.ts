@@ -106,13 +106,13 @@ export function layoutUpset(
 	// behaviour the user pointed out.
 	const cardW = opts.cellW > 0 ? opts.cellW : 80;
 	const cardH = opts.cellH > 0 ? opts.cellH : 24;
-	// Horizontal channel via the SAME helper Euler uses (so columns
-	// are separated like Euler grid cells). Vertical channel inside a
-	// column is collapsed to a thin 2 px gap so the card stack reads
-	// as a CONTINUOUS PARETO BAR instead of disjoint card blocks.
-	// (routeZ still gets a non-zero `channelH` so lane routing works.)
+	// Horizontal channel = Euler grid pitch (so column separation
+	// matches the grid). Vertical channel = 0: cards in the same
+	// column touch, forming a CONTINUOUS PARETO BAR. routeZ still
+	// works because all inter-column wiring uses the horizontal
+	// channel (channelW) — no vertical lanes are required in UpSet.
 	const { channelW } = computeChannelDims(opts.nodeSpacing);
-	const channelH = 2;
+	const channelH = 0;
 	const slotW = cardW + channelW;
 	const slotH = cardH + channelH;
 
