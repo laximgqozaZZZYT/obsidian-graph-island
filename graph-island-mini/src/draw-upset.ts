@@ -36,18 +36,22 @@ export interface UpsetScreenLayout {
 	colW: number;
 	barAreaTopY: number;
 	barAreaBottomY: number;
-	// Matrix viewport (clipped scroll area). totalH > viewportH ⇒ scroll.
 	matrixViewportTopY: number;
 	matrixViewportBottomY: number;
-	matrixTopY: number; // first set row centre offset by scrollY
+	matrixTopY: number;
 	matrixBottomY: number;
 	matrixTotalH: number;
 	matrixViewportH: number;
 	maxScrollY: number;
+	// setRows is FILTERED to only the sets that have at least one
+	// member among the cards currently visible in main. When main has
+	// no visible cards (= panned entirely off-screen) we fall back to
+	// the full set list so the matrix isn't blank.
 	setRows: Array<{ key: string; label: string; size: number; y: number }>;
 	colXs: number[];
 	dotR: number;
 	showSetLabels: boolean;
+	visibleColRange: { firstIdx: number; lastIdx: number } | null;
 }
 
 // Footer is a screen-fixed MINI-MAP — it always shows ALL columns at
@@ -65,9 +69,6 @@ export function computeUpsetScreenLayout(
 	panX: number,
 	scrollY: number,
 ): UpsetScreenLayout {
-	void zoom;
-	void panX;
-	const sets = u.sets.length;
 	const cols = u.columns.length;
 	const footerH = Math.max(120, Math.floor(canvasH * 0.25));
 	const footerTopY = canvasH - footerH;
@@ -78,18 +79,8 @@ export function computeUpsetScreenLayout(
 	const matrixViewportTopY = barAreaBottomY + 6;
 	const matrixViewportBottomY = footerBottomY - 6;
 	const matrixViewportH = Math.max(0, matrixViewportBottomY - matrixViewportTopY);
-	const matrixTotalH = sets * ROW_H;
-	const maxScrollY = Math.max(0, matrixTotalH - matrixViewportH);
-	const clampedScroll = Math.max(0, Math.min(scrollY, maxScrollY));
-	const matrixTopY = matrixViewportTopY - clampedScroll;
-	const matrixBottomY = matrixTopY + matrixTotalH;
 	const leftBandX = 8;
 	const matrixLeftX = LEFT_BAND_W;
-	// Matrix column pitch = (matrix viewport width) / numCols, capped
-	// at IDEAL_COL_W so the matrix doesn't blow up when there are few
-	// columns and the bars can stay reasonable. Floor at MIN_COL_W so
-	// the dots stay clickable; with too many columns the matrix
-	// overflows and the user can h-scroll inside the matrix viewport.
 	const matrixUsableW = Math.max(
 		MIN_COL_W * Math.max(cols, 1),
 		canvasW - matrixLeftX - 16,
@@ -97,13 +88,41 @@ export function computeUpsetScreenLayout(
 	const colW = cols > 0
 		? Math.max(MIN_COL_W, Math.min(IDEAL_COL_W, matrixUsableW / cols))
 		: IDEAL_COL_W;
-	const setRows = u.sets.map((s, idx) => ({
+	// Phase 1: which columns are visible in main?
+	let firstIdx = -1;
+	let lastIdx = -1;
+	for (let i = 0; i < cols; i++) {
+		const sx = u.columns[i].xWorld * zoom + panX;
+		if (sx >= 0 && sx <= canvasW) {
+			if (firstIdx < 0) firstIdx = i;
+			lastIdx = i;
+		}
+	}
+	// Phase 2: active set keys = union of memberships of visible
+	// columns. If nothing is visible (main panned off entirely), keep
+	// the matrix populated by falling back to the full set list.
+	const activeKeys = new Set<string>();
+	if (firstIdx >= 0) {
+		for (let i = firstIdx; i <= lastIdx; i++) {
+			for (const k of u.columns[i].signature) activeKeys.add(k);
+		}
+	}
+	const filteredSets =
+		activeKeys.size > 0
+			? u.sets.filter((s) => activeKeys.has(s.key))
+			: u.sets;
+	// Matrix total height now driven by the FILTERED row count.
+	const matrixTotalH = filteredSets.length * ROW_H;
+	const maxScrollY = Math.max(0, matrixTotalH - matrixViewportH);
+	const clampedScroll = Math.max(0, Math.min(scrollY, maxScrollY));
+	const matrixTopY = matrixViewportTopY - clampedScroll;
+	const matrixBottomY = matrixTopY + matrixTotalH;
+	const setRows = filteredSets.map((s, idx) => ({
 		key: s.key,
 		label: s.label,
 		size: s.size,
 		y: matrixTopY + (idx + 0.5) * ROW_H,
 	}));
-	// Independent column positions — no longer tied to world panX.
 	const colXs = u.columns.map((_, idx) => matrixLeftX + (idx + 0.5) * colW);
 	const dotR = Math.max(3, Math.min(ROW_H * 0.32, colW * 0.4));
 	const showSetLabels = colW >= MIN_COL_W;
@@ -126,6 +145,7 @@ export function computeUpsetScreenLayout(
 		colXs,
 		dotR,
 		showSetLabels,
+		visibleColRange: firstIdx >= 0 ? { firstIdx, lastIdx } : null,
 	};
 }
 
@@ -148,7 +168,10 @@ export function drawUpset(
 	// Mark which columns are visible in main — drives the viewport
 	// indicator + the dim/bright styling so the user can read off
 	// "this is what the cards above are showing right now".
-	const visibleCols = computeVisibleColumns(u, canvasW, canvasH, zoom, panX, L);
+	const visibleCols = computeVisibleColumns(L);
+	void zoom;
+	void panX;
+	void canvasH;
 	ctx.fillStyle = "#0f1116";
 	ctx.fillRect(0, L.footerTopY, canvasW, canvasH - L.footerTopY);
 	ctx.strokeStyle = "rgba(120, 130, 150, 0.35)";
@@ -184,37 +207,18 @@ export function drawUpset(
 	drawSelectedColumnFrame(ctx, u, L, selectedSignatureKey);
 }
 
-// Indices of columns whose card stack is at least partially visible
-// in the MAIN canvas area (= above the footer). Used to: (1) draw a
-// "what main is showing right now" rectangle on the matrix; (2) dim
-// out-of-view dots and bars so the active subset is unmistakable.
+// Convert the layout's `visibleColRange` to a screen-x band suitable
+// for the viewport indicator + dim styling.
 function computeVisibleColumns(
-	u: UpsetMeta,
-	canvasW: number,
-	canvasH: number,
-	zoom: number,
-	panX: number,
 	L: UpsetScreenLayout,
 ): { firstIdx: number; lastIdx: number; xLeft: number; xRight: number } | null {
-	if (u.columns.length === 0) return null;
-	const mainBottomY = L.footerTopY;
-	void mainBottomY;
-	void canvasH;
-	let firstIdx = -1;
-	let lastIdx = -1;
-	for (let i = 0; i < u.columns.length; i++) {
-		const sx = u.columns[i].xWorld * zoom + panX;
-		if (sx >= 0 && sx <= canvasW) {
-			if (firstIdx < 0) firstIdx = i;
-			lastIdx = i;
-		}
-	}
-	if (firstIdx < 0) return null;
+	const r = L.visibleColRange;
+	if (!r) return null;
 	return {
-		firstIdx,
-		lastIdx,
-		xLeft: L.colXs[firstIdx] - L.colW / 2,
-		xRight: L.colXs[lastIdx] + L.colW / 2,
+		firstIdx: r.firstIdx,
+		lastIdx: r.lastIdx,
+		xLeft: L.colXs[r.firstIdx] - L.colW / 2,
+		xRight: L.colXs[r.lastIdx] + L.colW / 2,
 	};
 }
 
@@ -468,8 +472,12 @@ function drawMatrixDots(
 	selectedSignatureKey: string | null,
 	visibleCols: ReturnType<typeof computeVisibleColumns>,
 ): void {
+	// setIdx maps key → index within L.setRows (= the FILTERED row
+	// list). Signature members whose set was filtered out resolve to
+	// undefined and are skipped — both for the connector span and for
+	// the dot loop below.
 	const setIdx = new Map<string, number>();
-	u.sets.forEach((s, i) => setIdx.set(s.key, i));
+	L.setRows.forEach((s, i) => setIdx.set(s.key, i));
 	for (let i = 0; i < u.columns.length; i++) {
 		const col = u.columns[i];
 		const x = L.colXs[i];
