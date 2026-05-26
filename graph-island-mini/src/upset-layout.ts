@@ -12,18 +12,11 @@
 // number — that's what keeps "this column's stack" and "this column's
 // dots" visually under each other at every zoom.
 import type { GraphData } from "./types";
-import type {
-	LaidOut,
-	PositionedNode,
-	PositionedEdge,
-	UpsetMeta,
-} from "./layout";
+import type { LaidOut, PositionedNode, UpsetMeta } from "./layout";
 import {
-	LaneRegistry,
-	aggregateEdges,
-	routeZ,
-	type RouteObstacle,
-} from "./edge-routing";
+	snapAndBuildRouteData,
+	routeAllEdges,
+} from "./layout-shared";
 
 export interface UpsetLayoutOptions {
 	cellW: number;
@@ -127,14 +120,13 @@ export function layoutUpset(
 	const cardsWorldHeight = tallestColumn * slotH;
 	const cardsWorldWidth = buckets.length * slotW;
 
-	// --- 6. Place cards. Column x = leftPad + (i+0.5)*slotW; cards
-	// stack DOWNWARD from y=0 (bottom of the stack ends at
-	// cardsWorldHeight). Bottom-card-first ordering reads naturally as
-	// "small intersections near the matrix, mass piles up at the top".
-	const leftPad = slotW * 0.5;
+	// --- 6. Place cards on the slot lattice — cell-centre coords so
+	// `snapAndBuildRouteData` (= shared Euler path) is a no-op for the
+	// well-formed UpSet placement but still validates the snap. Column
+	// index `ci` → column world x = `(ci + 0.5) * slotW`.
 	const positionedNodes: PositionedNode[] = [];
 	const columns: UpsetMeta["columns"] = buckets.map((bucket, ci) => {
-		const xWorld = leftPad + ci * slotW + slotW / 2;
+		const xWorld = (ci + 0.5) * slotW;
 		for (let j = 0; j < bucket.nodeIds.length; j++) {
 			const id = bucket.nodeIds[j];
 			const node = data.nodes.find((n) => n.id === id);
@@ -142,8 +134,10 @@ export function layoutUpset(
 			const s = sizedById.get(id);
 			const w = s?.width ?? cardW;
 			const h = s?.height ?? cardH;
-			// Bottom-most card at j=last; top-most at j=0.
-			const yCentre = cardsWorldHeight - (bucket.nodeIds.length - j - 0.5) * slotH;
+			// Bottom-most card (j=last) on the bottom-most cell row;
+			// shorter stacks therefore sit flush with the bottom edge.
+			const rowIdx = tallestColumn - (bucket.nodeIds.length - j);
+			const yCentre = (rowIdx + 0.5) * slotH;
 			positionedNodes.push({
 				...node,
 				x: xWorld,
@@ -166,63 +160,23 @@ export function layoutUpset(
 		size: setSizes.get(key) ?? 0,
 	}));
 
-	// Edges: SAME pipeline as the Euler layout (per user spec
-	// "オイラー図と同様の仕様で"):
-	//   1. Build per-card RouteRect map (= what aggregateEdges and
-	//      routeZ expect).
-	//   2. `aggregateEdges` dedupes parallel links between the same
-	//      pair so routeZ only sees one Z per pair.
-	//   3. `LaneRegistry` keeps parallel edges through the same
-	//      horizontal gutter separated, so they read as distinct
-	//      wires instead of fusing into one thick line.
-	//   4. `routeZ` does the actual orthogonal routing through the
-	//      channel lattice, avoiding card obstacles.
-	// There are no clusters in UpSet mode, so we skip the
-	// intra/inter-cluster branching the Euler pipeline does and run
-	// every edge through the same routeZ call.
-	const idToRect = new Map<string, { x: number; y: number; w: number; h: number }>();
-	const routeObstacles: RouteObstacle[] = [];
-	for (const n of positionedNodes) {
-		idToRect.set(n.id, { x: n.x, y: n.y, w: n.width, h: n.height });
-		const cs = Math.max(1, Math.ceil(n.width / slotW));
-		const rs = Math.max(1, Math.ceil(n.height / slotH));
-		const sc = Math.round(n.x / slotW - cs / 2);
-		const sr = Math.round(n.y / slotH - rs / 2);
-		routeObstacles.push({
-			id: n.id,
-			startCol: sc,
-			endCol: sc + cs - 1,
-			startRow: sr,
-			endRow: sr + rs - 1,
-		});
-	}
-	const aggregated = aggregateEdges(data.edges, idToRect);
-	const lanes = new LaneRegistry();
-	const edges: PositionedEdge[] = [];
-	for (const e of aggregated) {
-		const a = idToRect.get(e.source);
-		const b = idToRect.get(e.target);
-		if (!a || !b) continue;
-		edges.push({
-			source: e.source,
-			target: e.target,
-			weight: e.weight,
-			path: routeZ(
-				a,
-				b,
-				lanes,
-				slotW,
-				slotH,
-				channelW,
-				channelH,
-				routeObstacles,
-				e.source,
-				e.target,
-			),
-			bundled: false,
-			bundleCount: 1,
-		});
-	}
+	// Cards → snap-to-grid + idToRect/obstacles + route every edge.
+	// All four post-positioning steps live in `layout-shared.ts` so
+	// the Euler and UpSet pipelines share one implementation.
+	const { idToRect, routeObstacles } = snapAndBuildRouteData(
+		positionedNodes,
+		slotW,
+		slotH,
+	);
+	const edges = routeAllEdges(
+		data.edges,
+		idToRect,
+		routeObstacles,
+		slotW,
+		slotH,
+		channelW,
+		channelH,
+	);
 
 	return {
 		nodes: positionedNodes,

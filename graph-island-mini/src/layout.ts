@@ -15,7 +15,6 @@ import {
 	aggregateEdges,
 	routeZ,
 	type AggregatedEdge,
-	type RouteObstacle,
 	type RouteRect,
 } from "./edge-routing";
 import {
@@ -38,6 +37,7 @@ import {
 	clampClustersToB2,
 } from "./cluster-bbox";
 import { layoutUpset } from "./upset-layout";
+import { buildRouteObstacles } from "./layout-shared";
 
 export interface SizedNode extends GraphNode {
 	width: number;
@@ -411,23 +411,10 @@ export function layout(data: GraphData, sized: SizedNode[], opts: LayoutOptions)
 	const clusterByKey = new Map<string, ClusterRect>();
 	for (const c of clusters) clusterByKey.set(c.groupKey, c);
 
-	// Build per-card footprint rectangles used by routeZ to avoid steering
-	// the middle horizontal lane through a multi-cell card that happens to
-	// straddle the chosen row boundary.
-	const routeObstacles: RouteObstacle[] = [];
-	for (const n of positionedNodes) {
-		const cs = Math.max(1, Math.ceil(n.width / slotW));
-		const rs = Math.max(1, Math.ceil(n.height / slotH));
-		const sc = Math.round(n.x / slotW - cs / 2);
-		const sr = Math.round(n.y / slotH - rs / 2);
-		routeObstacles.push({
-			id: n.id,
-			startCol: sc,
-			endCol: sc + cs - 1,
-			startRow: sr,
-			endRow: sr + rs - 1,
-		});
-	}
+	// Per-card footprint rectangles used by routeZ to avoid steering
+	// channels through a multi-cell card. Shared with UpSet via
+	// `layout-shared`.
+	const routeObstacles = buildRouteObstacles(positionedNodes, slotW, slotH);
 
 	const aggregated = aggregateEdges(data.edges, idToRect);
 	interface PairGroup {
