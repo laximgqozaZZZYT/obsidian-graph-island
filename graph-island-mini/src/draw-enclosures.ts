@@ -45,14 +45,24 @@ export function drawEnclosures(
 			? "rgba(255, 157, 63, 0.40)"
 			: `hsla(${hue}, 60%, 50%, 0.32)`;
 		if (c.pieces && c.pieces.length > 0) {
-			// Per spec (2026-05-26): only the cluster's main rect is
-			// filled; 外局 (sub rects) get an outline-only treatment so
-			// the parent main cluster's colour stays readable underneath.
 			const mains = c.pieces.filter((p) => p.kind === "main");
 			if (mains.length > 0) {
 				ctx.beginPath();
 				for (const p of mains) ctx.rect(p.x, p.y, p.w, p.h);
 				ctx.fill();
+			}
+			// Intersection (積集合) sub-boxes are filled in their OWN colour
+			// (keyed by the intersection signature) so they read as distinct
+			// from the single-set box that contains them.
+			if (!isHigh) {
+				for (const p of c.pieces) {
+					if (p.kind !== "sub") continue;
+					const sh = clusterHue(p.hueKey ?? c.groupKey);
+					ctx.fillStyle = `hsla(${sh}, 72%, 55%, 0.42)`;
+					ctx.beginPath();
+					ctx.rect(p.x, p.y, p.w, p.h);
+					ctx.fill();
+				}
 			}
 		} else if (c.cells && c.cells.length > 0) {
 			ctx.beginPath();
@@ -77,8 +87,13 @@ export function drawEnclosures(
 			for (const p of c.pieces) {
 				if (p.kind === "sub") {
 					ctx.setLineDash([dashLen, dashGap]);
+					if (!isHigh) {
+						const sh = clusterHue(p.hueKey ?? c.groupKey);
+						ctx.strokeStyle = `hsla(${sh}, 78%, 66%, 0.95)`;
+					}
 				} else {
 					ctx.setLineDash([]);
+					if (!isHigh) ctx.strokeStyle = `hsla(${hue}, 70%, 62%, 0.9)`;
 				}
 				ctx.strokeRect(p.x, p.y, p.w, p.h);
 			}
