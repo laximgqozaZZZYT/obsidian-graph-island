@@ -50,12 +50,13 @@ export interface UpsetScreenLayout {
 	showSetLabels: boolean;
 }
 
-// Footer screen layout. Column x positions are derived from the
-// CARDS' world-space column x via the current pan/zoom transform, so
-// the matrix dot column always sits directly under its card stack.
-// Footer height is locked to canvasH/4 (per user spec); the set-row
-// matrix scrolls internally when its total height exceeds the
-// viewport, font sizes stay constant.
+// Footer is a screen-fixed MINI-MAP — it always shows ALL columns at
+// a uniform pitch regardless of how the user pans / zooms the main
+// canvas. A viewport rectangle on top of the matrix shows which
+// columns are currently visible above (`drawViewportIndicator`).
+// Footer height is locked to canvasH/4; the set-row matrix scrolls
+// internally when its total height exceeds the viewport, fonts stay
+// constant.
 export function computeUpsetScreenLayout(
 	u: UpsetMeta,
 	canvasW: number,
@@ -64,38 +65,48 @@ export function computeUpsetScreenLayout(
 	panX: number,
 	scrollY: number,
 ): UpsetScreenLayout {
+	void zoom;
+	void panX;
 	const sets = u.sets.length;
-	const colW = Math.max(MIN_COL_W, u.cardSlotW * zoom);
-	// Footer = bottom quarter of the canvas, fixed.
+	const cols = u.columns.length;
 	const footerH = Math.max(120, Math.floor(canvasH * 0.25));
 	const footerTopY = canvasH - footerH;
 	const footerBottomY = canvasH;
 	const padTop = 6;
 	const barAreaTopY = footerTopY + padTop;
 	const barAreaBottomY = barAreaTopY + BAR_AREA_H;
-	// Matrix viewport occupies the remainder of the footer, with a
-	// small gap below the bar band and above the footer bottom.
 	const matrixViewportTopY = barAreaBottomY + 6;
 	const matrixViewportBottomY = footerBottomY - 6;
 	const matrixViewportH = Math.max(0, matrixViewportBottomY - matrixViewportTopY);
 	const matrixTotalH = sets * ROW_H;
 	const maxScrollY = Math.max(0, matrixTotalH - matrixViewportH);
 	const clampedScroll = Math.max(0, Math.min(scrollY, maxScrollY));
-	// First-row centre, taking scroll into account.
 	const matrixTopY = matrixViewportTopY - clampedScroll;
 	const matrixBottomY = matrixTopY + matrixTotalH;
 	const leftBandX = 8;
 	const matrixLeftX = LEFT_BAND_W;
+	// Matrix column pitch = (matrix viewport width) / numCols, capped
+	// at IDEAL_COL_W so the matrix doesn't blow up when there are few
+	// columns and the bars can stay reasonable. Floor at MIN_COL_W so
+	// the dots stay clickable; with too many columns the matrix
+	// overflows and the user can h-scroll inside the matrix viewport.
+	const matrixUsableW = Math.max(
+		MIN_COL_W * Math.max(cols, 1),
+		canvasW - matrixLeftX - 16,
+	);
+	const colW = cols > 0
+		? Math.max(MIN_COL_W, Math.min(IDEAL_COL_W, matrixUsableW / cols))
+		: IDEAL_COL_W;
 	const setRows = u.sets.map((s, idx) => ({
 		key: s.key,
 		label: s.label,
 		size: s.size,
 		y: matrixTopY + (idx + 0.5) * ROW_H,
 	}));
-	const colXs = u.columns.map((c) => c.xWorld * zoom + panX);
+	// Independent column positions — no longer tied to world panX.
+	const colXs = u.columns.map((_, idx) => matrixLeftX + (idx + 0.5) * colW);
 	const dotR = Math.max(3, Math.min(ROW_H * 0.32, colW * 0.4));
 	const showSetLabels = colW >= MIN_COL_W;
-	void canvasW;
 	return {
 		footerTopY,
 		footerBottomY,
@@ -132,11 +143,12 @@ export function drawUpset(
 ): void {
 	const u = laid.upset;
 	if (!u) return;
-	// Detach from the world transform: SCREEN-space rendering.
 	ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 	const L = computeUpsetScreenLayout(u, canvasW, canvasH, zoom, panX, scrollY);
-	// Opaque footer background — covers world cards underneath so the
-	// matrix is never obscured by a stack of overlapping card edges.
+	// Mark which columns are visible in main — drives the viewport
+	// indicator + the dim/bright styling so the user can read off
+	// "this is what the cards above are showing right now".
+	const visibleCols = computeVisibleColumns(u, canvasW, canvasH, zoom, panX, L);
 	ctx.fillStyle = "#0f1116";
 	ctx.fillRect(0, L.footerTopY, canvasW, canvasH - L.footerTopY);
 	ctx.strokeStyle = "rgba(120, 130, 150, 0.35)";
@@ -145,9 +157,7 @@ export function drawUpset(
 	ctx.moveTo(0, L.footerTopY + 0.5);
 	ctx.lineTo(canvasW, L.footerTopY + 0.5);
 	ctx.stroke();
-	// Bar area (column size bars) — not scrolled.
-	drawColumnBars(ctx, u, L);
-	// Matrix area — CLIPPED to the viewport and scrolled internally.
+	drawColumnBars(ctx, u, L, visibleCols);
 	ctx.save();
 	ctx.beginPath();
 	ctx.rect(
@@ -160,9 +170,9 @@ export function drawUpset(
 	drawRowTracks(ctx, u, L, canvasW);
 	drawSetSizeBars(ctx, u, L);
 	drawSetLabels(ctx, u, L);
-	drawMatrixDots(ctx, u, L, selectedSignatureKey);
+	drawMatrixDots(ctx, u, L, selectedSignatureKey, visibleCols);
+	drawViewportIndicator(ctx, L, visibleCols);
 	ctx.restore();
-	// Scrollbars (over the clip) when overflow exists.
 	const hScrollbar = computeUpsetHScrollbar(
 		L,
 		canvasW,
@@ -172,6 +182,57 @@ export function drawUpset(
 	);
 	drawScrollbars(ctx, L, canvasW, scrollbarDragActive, hScrollbar);
 	drawSelectedColumnFrame(ctx, u, L, selectedSignatureKey);
+}
+
+// Indices of columns whose card stack is at least partially visible
+// in the MAIN canvas area (= above the footer). Used to: (1) draw a
+// "what main is showing right now" rectangle on the matrix; (2) dim
+// out-of-view dots and bars so the active subset is unmistakable.
+function computeVisibleColumns(
+	u: UpsetMeta,
+	canvasW: number,
+	canvasH: number,
+	zoom: number,
+	panX: number,
+	L: UpsetScreenLayout,
+): { firstIdx: number; lastIdx: number; xLeft: number; xRight: number } | null {
+	if (u.columns.length === 0) return null;
+	const mainBottomY = L.footerTopY;
+	void mainBottomY;
+	void canvasH;
+	let firstIdx = -1;
+	let lastIdx = -1;
+	for (let i = 0; i < u.columns.length; i++) {
+		const sx = u.columns[i].xWorld * zoom + panX;
+		if (sx >= 0 && sx <= canvasW) {
+			if (firstIdx < 0) firstIdx = i;
+			lastIdx = i;
+		}
+	}
+	if (firstIdx < 0) return null;
+	return {
+		firstIdx,
+		lastIdx,
+		xLeft: L.colXs[firstIdx] - L.colW / 2,
+		xRight: L.colXs[lastIdx] + L.colW / 2,
+	};
+}
+
+function drawViewportIndicator(
+	ctx: CanvasRenderingContext2D,
+	L: UpsetScreenLayout,
+	visibleCols: ReturnType<typeof computeVisibleColumns>,
+): void {
+	if (!visibleCols) return;
+	const top = L.matrixViewportTopY;
+	const bottom = L.matrixViewportBottomY;
+	const x = visibleCols.xLeft;
+	const w = visibleCols.xRight - visibleCols.xLeft;
+	ctx.fillStyle = "rgba(255, 200, 80, 0.10)";
+	ctx.fillRect(x, top, w, bottom - top);
+	ctx.strokeStyle = "rgba(255, 200, 80, 0.55)";
+	ctx.lineWidth = 1.5;
+	ctx.strokeRect(x + 0.5, top + 0.5, w - 1, bottom - top - 1);
 }
 
 // Scrollbar geometry exposed for hit-testing in view.ts.
@@ -311,6 +372,7 @@ function drawColumnBars(
 	ctx: CanvasRenderingContext2D,
 	u: UpsetMeta,
 	L: UpsetScreenLayout,
+	visibleCols: ReturnType<typeof computeVisibleColumns>,
 ): void {
 	if (u.columns.length === 0) return;
 	const maxSize = Math.max(1, ...u.columns.map((c) => c.size));
@@ -324,11 +386,17 @@ function drawColumnBars(
 		const h = (c.size / maxSize) * usableH;
 		const top = L.barAreaBottomY - h;
 		const barW = Math.max(3, Math.min(L.colW * 0.7, 14));
-		ctx.fillStyle = "rgba(150, 170, 200, 0.85)";
+		const active =
+			visibleCols == null ||
+			(i >= visibleCols.firstIdx && i <= visibleCols.lastIdx);
+		ctx.fillStyle = active
+			? "rgba(150, 170, 200, 0.95)"
+			: "rgba(110, 125, 145, 0.45)";
 		ctx.fillRect(x - barW / 2, top, barW, h);
-		// Numeral above the bar (only when there's vertical room).
 		if (h > SMALL_FONT_PX + 4 && L.colW >= 14) {
-			ctx.fillStyle = "rgba(220, 225, 235, 0.9)";
+			ctx.fillStyle = active
+				? "rgba(220, 225, 235, 0.95)"
+				: "rgba(180, 190, 210, 0.55)";
 			ctx.fillText(String(c.size), x, top - 2);
 		}
 	}
@@ -398,6 +466,7 @@ function drawMatrixDots(
 	u: UpsetMeta,
 	L: UpsetScreenLayout,
 	selectedSignatureKey: string | null,
+	visibleCols: ReturnType<typeof computeVisibleColumns>,
 ): void {
 	const setIdx = new Map<string, number>();
 	u.sets.forEach((s, i) => setIdx.set(s.key, i));
@@ -416,8 +485,14 @@ function drawMatrixDots(
 		}
 		const key = col.signature.join("|");
 		const highlighted = selectedSignatureKey === key;
+		const active =
+			visibleCols == null ||
+			(i >= visibleCols.firstIdx && i <= visibleCols.lastIdx);
+		const alpha = active ? 1 : 0.35;
 		if (isFinite(topY) && botY > topY) {
-			ctx.strokeStyle = highlighted ? HIGHLIGHT : "rgba(180, 195, 220, 0.85)";
+			ctx.strokeStyle = highlighted
+				? HIGHLIGHT
+				: `rgba(180, 195, 220, ${0.85 * alpha})`;
 			ctx.lineWidth = highlighted ? 2.4 : 1.8;
 			ctx.beginPath();
 			ctx.moveTo(x, topY);
@@ -429,12 +504,12 @@ function drawMatrixDots(
 			if (inCol.has(set.key)) {
 				ctx.fillStyle = highlighted
 					? HIGHLIGHT
-					: `hsla(${clusterHue(set.key)}, 65%, 65%, 1)`;
+					: `hsla(${clusterHue(set.key)}, 65%, 65%, ${alpha})`;
 				ctx.beginPath();
 				ctx.arc(x, y, L.dotR, 0, Math.PI * 2);
 				ctx.fill();
 			} else {
-				ctx.fillStyle = "rgba(70, 80, 95, 0.55)";
+				ctx.fillStyle = `rgba(70, 80, 95, ${0.55 * alpha})`;
 				ctx.beginPath();
 				ctx.arc(x, y, Math.max(1.5, L.dotR * 0.45), 0, Math.PI * 2);
 				ctx.fill();
