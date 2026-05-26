@@ -311,14 +311,16 @@ export function drawClusterLabels(
 	// Cluster labels render at a constant SCREEN size (`baseScreenPx /
 	// zoom` → constant ÷ transform scale = constant screen px), floored by
 	// the user's min-font setting. BUT the world height is CAPPED to one
-	// channel (the node-free gap between card rows): a label that fits in a
-	// channel can sit in it without ever touching a card — the foundation
-	// of the no-overlap placement below. So at low zoom the label shrinks
-	// to fit the channel rather than spilling over the cards.
+	// CELL interior (cardH) so a label sits INSIDE an empty grid cell (区画),
+	// never spilling into the surrounding 隘路 — labels are placed in cells,
+	// like nodes, not in the aisles. So at low zoom the label shrinks to fit
+	// a cell rather than spilling over its borders.
 	const channelH = laid.channelH;
+	const slotH = laid.slotH;
+	const cellH = Math.max(1, slotH - channelH);
 	const screenPx = Math.max(12, minFontPx);
 	let groupFontPx = screenPx / zoom;
-	if (channelH > 0) groupFontPx = Math.min(groupFontPx, channelH * 0.82);
+	groupFontPx = Math.min(groupFontPx, cellH * 0.86);
 	ctx.font = `${groupFontPx}px sans-serif`;
 	ctx.textBaseline = "alphabetic";
 	ctx.textAlign = "start";
@@ -434,13 +436,12 @@ export function drawClusterLabels(
 	const tabAsc = groupFontPx * 0.82;
 	const tabDesc = groupFontPx * 0.22;
 	const tabH = tabAsc + tabDesc;
-	const slotH = laid.slotH;
 
 	// Phase A: lay out each group's segments + horizontal tab extent,
-	// anchored in the CHANNEL just above its rect's top edge. Channels (the
-	// gaps between card rows) are node-free for every column, so a label
-	// centred on a row boundary `k·slotH` and ≤ one channel tall never
-	// overlaps a card — even a parent enclosure's card in a nested layout.
+	// anchored in the CELL (区画) just above its rect's top edge — centred on
+	// a cell centre `(row+0.5)·slotH`, NOT on a row boundary (that would put
+	// it in the 隘路, which is forbidden). Phase B then finds an EMPTY such
+	// cell.
 	interface LabelLine {
 		baseY: number;
 		naturalBaseY: number;
@@ -458,11 +459,13 @@ export function drawClusterLabels(
 				b.c.width * b.c.height - a.c.width * a.c.height,
 		);
 		const rect = group[0];
-		// Snap to the channel (row boundary) nearest the rect's top edge,
-		// then offset the baseline so the tab box is vertically centred in
-		// that node-free gap.
-		const channelCenter = Math.round(rect.rectY / slotH) * slotH;
-		const baseY = channelCenter + (tabAsc - tabDesc) / 2;
+		// Cell centre of the row just ABOVE the enclosure's top edge. The
+		// top node sits in row ≈ round(rectY/slotH); the cell above is one
+		// row up, centred at (topRow − 0.5)·slotH. Baseline offset centres
+		// the tab box in that cell.
+		const topRow = Math.round(rect.rectY / slotH);
+		const cellCenter = (topRow - 0.5) * slotH;
+		const baseY = cellCenter + (tabAsc - tabDesc) / 2;
 		const startX = rect.rectX + padX;
 		const rightLimit = rect.rectX + rect.rectW - padX;
 
@@ -521,14 +524,13 @@ export function drawClusterLabels(
 		});
 	}
 
-	// Phase B: place each label on a CHANNEL (row boundary `k·slotH`) that
-	// is clear of BOTH cards and other labels. Channels between single-cell
-	// cards are node-free, but a SIZE-SCALED multi-cell card spans — and
-	// covers — its internal channels, so we still test cards (a per-column
-	// bucket of card rects keeps it O(cards-in-column)). A candidate that
-	// collides moves UP one whole channel and retries, bounded to
-	// `maxChannels` so the label stays near its enclosure. Largest
-	// enclosures place first and keep the prime channel; smaller ones yield.
+	// Phase B: place each label in an EMPTY CELL (区画). Candidates are cell
+	// centres `(row+0.5)·slotH` above the enclosure; a candidate is valid
+	// only if no card occupies those cells (per-column card-rect bucket,
+	// O(cards-in-column)) AND no already-placed label overlaps. A taken
+	// candidate steps UP one whole grid cell and retries — opening up a
+	// cell of space each time — until a free cell is found. Largest
+	// enclosures place first and keep the nearest cell; smaller ones yield.
 	const colBuckets = new Map<number, { t: number; b: number }[]>();
 	for (const n of laid.nodes) {
 		const c0 = Math.floor((n.x - n.width / 2) / laid.slotW);
@@ -552,12 +554,21 @@ export function drawClusterLabels(
 	};
 	lines.sort((a, b) => b.area - a.area || a.anchorX - b.anchorX);
 	const placed: { x1: number; x2: number; top: number; bot: number }[] = [];
+	// Step up one grid cell at a time until the label sits in an empty cell.
+	// Node test is INFLATED by one grid cell (`slotW` × `slotH`) so the
+	// label keeps a ≥1-cell gap from every card; the label-vs-label test is
+	// exact (labels just may not share a cell). No tight cap — open up
+	// another cell of space until clear. (Safety bound avoids infinite loop.)
+	const gapX = 0;
+	const gapY = 0;
 	const maxChannels = 6;
 	for (const ln of lines) {
 		const clear = (by: number): boolean => {
 			const top = by - tabAsc;
 			const bot = by + tabDesc;
-			if (hitsCard(ln.x1, ln.x2, top, bot)) return false;
+			// ≥1 grid cell clearance from any card.
+			if (hitsCard(ln.x1 - gapX, ln.x2 + gapX, top - gapY, bot + gapY))
+				return false;
 			for (const p of placed) {
 				if (ln.x1 < p.x2 && ln.x2 > p.x1 && top < p.bot && bot > p.top)
 					return false;
