@@ -290,29 +290,39 @@ function footprintExtent(
 // Smaller clusters yield to larger ones (= the larger label keeps its
 // natural anchor position). A leader line links a label back to its
 // anchor when displacement pushes it more than one line up.
+// A placed label's final world-space box (after merge + de-confliction).
+// Returned so the caller can debug overlaps against nodes / each other.
+export interface PlacedLabelBox {
+	x1: number;
+	x2: number;
+	top: number;
+	bot: number;
+	text: string;
+	anchorX: number;
+	anchorY: number;
+}
+
 export function drawClusterLabels(
 	ctx: CanvasRenderingContext2D,
 	laid: LaidOut,
 	zoom: number,
 	minFontPx: number = 0,
-): void {
+): PlacedLabelBox[] {
 	// Cluster labels render at a constant SCREEN size (`baseScreenPx /
-	// zoom` → constant ÷ transform scale = constant screen px). Apply
-	// the user's min-font floor on the SCREEN size so the label never
-	// drops below it.
+	// zoom` → constant ÷ transform scale = constant screen px), floored by
+	// the user's min-font setting. BUT the world height is CAPPED to one
+	// channel (the node-free gap between card rows): a label that fits in a
+	// channel can sit in it without ever touching a card — the foundation
+	// of the no-overlap placement below. So at low zoom the label shrinks
+	// to fit the channel rather than spilling over the cards.
+	const channelH = laid.channelH;
 	const screenPx = Math.max(12, minFontPx);
-	const groupFontPx = screenPx / zoom;
+	let groupFontPx = screenPx / zoom;
+	if (channelH > 0) groupFontPx = Math.min(groupFontPx, channelH * 0.82);
 	ctx.font = `${groupFontPx}px sans-serif`;
 	ctx.textBaseline = "alphabetic";
 	ctx.textAlign = "start";
 	const padX = 4 / zoom;
-	// Gap between the label's baseline and the enclosure's top edge. Lift
-	// it by roughly a full label height + a margin so the label tab clears
-	// the first row of cards inside the rect (the "spacing between the
-	// label and the nodes" the user asked for) instead of resting right on
-	// the top node row. Screen-constant so the gap looks the same at every
-	// zoom.
-	const insetY = groupFontPx * 0.35 + 6 / zoom;
 
 	interface AnchorInfo {
 		c: ClusterRect;
@@ -424,12 +434,19 @@ export function drawClusterLabels(
 	const tabAsc = groupFontPx * 0.82;
 	const tabDesc = groupFontPx * 0.22;
 	const tabH = tabAsc + tabDesc;
-	const lineGap = 3 / zoom;
+	const slotH = laid.slotH;
 
-	// Phase A: lay out each group's segments + horizontal tab extent at
-	// its NATURAL y (just above its rect). No drawing yet.
+	// Phase A: lay out each group's segments + horizontal tab extent,
+	// anchored in the CHANNEL just above its rect's top edge. Channels (the
+	// gaps between card rows) are node-free for every column, so a label
+	// centred on a row boundary `k·slotH` and ≤ one channel tall never
+	// overlaps a card — even a parent enclosure's card in a nested layout.
 	interface LabelLine {
 		baseY: number;
+		naturalBaseY: number;
+		anchorX: number;
+		anchorY: number;
+		area: number;
 		x1: number;
 		x2: number;
 		segs: { text: string; x: number; color: string }[];
@@ -441,7 +458,11 @@ export function drawClusterLabels(
 				b.c.width * b.c.height - a.c.width * a.c.height,
 		);
 		const rect = group[0];
-		const baseY = rect.rectY - insetY;
+		// Snap to the channel (row boundary) nearest the rect's top edge,
+		// then offset the baseline so the tab box is vertically centred in
+		// that node-free gap.
+		const channelCenter = Math.round(rect.rectY / slotH) * slotH;
+		const baseY = channelCenter + (tabAsc - tabDesc) / 2;
 		const startX = rect.rectX + padX;
 		const rightLimit = rect.rectX + rect.rectW - padX;
 
@@ -488,38 +509,70 @@ export function drawClusterLabels(
 		if (segs.length === 0) continue;
 		const last = segs[segs.length - 1];
 		const lineEnd = last.x + ctx.measureText(last.text).width;
-		lines.push({ baseY, x1: startX - padX, x2: lineEnd + padX, segs });
+		lines.push({
+			baseY,
+			naturalBaseY: baseY,
+			anchorX: rect.rectX,
+			anchorY: rect.rectY,
+			area: rect.rectW * rect.rectH,
+			x1: startX - padX,
+			x2: lineEnd + padX,
+			segs,
+		});
 	}
 
-	// Phase B: vertical de-confliction. Nested enclosures share almost the
-	// same top edge, so their labels would pile on one row. Process them
-	// top-first and, whenever a label's tab box overlaps one already
-	// placed in the same horizontal band, LIFT it up by one row into the
-	// free channel above — turning the pile into a clean vertical stack
-	// with a gap between every entry (the spacing the user asked for, now
-	// for nested rects too). The tab keeps each line readable over nodes.
-	lines.sort((a, b) => a.baseY - b.baseY || a.x1 - b.x1);
-	const placed: { x1: number; x2: number; top: number; bot: number }[] = [];
-	for (const ln of lines) {
-		const hOverlap = (p: (typeof placed)[number]) =>
-			ln.x1 < p.x2 && ln.x2 > p.x1;
-		let guard = 0;
-		while (guard++ < 128) {
-			const top = ln.baseY - tabAsc;
-			const bot = ln.baseY + tabDesc;
-			let conflict: (typeof placed)[number] | null = null;
-			for (const p of placed) {
-				if (hOverlap(p) && top < p.bot && bot > p.top) {
-					conflict = p;
-					break;
-				}
-			}
-			if (!conflict) break;
-			// Snap this label so its BOTTOM clears the conflicting tab's
-			// TOP by `lineGap` (lift the whole line up by exactly the gap
-			// needed, then re-check against the rest).
-			ln.baseY = conflict.top - lineGap - tabDesc;
+	// Phase B: place each label on a CHANNEL (row boundary `k·slotH`) that
+	// is clear of BOTH cards and other labels. Channels between single-cell
+	// cards are node-free, but a SIZE-SCALED multi-cell card spans — and
+	// covers — its internal channels, so we still test cards (a per-column
+	// bucket of card rects keeps it O(cards-in-column)). A candidate that
+	// collides moves UP one whole channel and retries, bounded to
+	// `maxChannels` so the label stays near its enclosure. Largest
+	// enclosures place first and keep the prime channel; smaller ones yield.
+	const colBuckets = new Map<number, { t: number; b: number }[]>();
+	for (const n of laid.nodes) {
+		const c0 = Math.floor((n.x - n.width / 2) / laid.slotW);
+		const c1 = Math.floor((n.x + n.width / 2) / laid.slotW);
+		const r = { t: n.y - n.height / 2, b: n.y + n.height / 2 };
+		for (let c = c0; c <= c1; c++) {
+			const arr = colBuckets.get(c);
+			if (arr) arr.push(r);
+			else colBuckets.set(c, [r]);
 		}
+	}
+	const hitsCard = (x1: number, x2: number, top: number, bot: number): boolean => {
+		const c0 = Math.floor(x1 / laid.slotW);
+		const c1 = Math.floor(x2 / laid.slotW);
+		for (let c = c0; c <= c1; c++) {
+			const arr = colBuckets.get(c);
+			if (!arr) continue;
+			for (const r of arr) if (top < r.b && bot > r.t) return true;
+		}
+		return false;
+	};
+	lines.sort((a, b) => b.area - a.area || a.anchorX - b.anchorX);
+	const placed: { x1: number; x2: number; top: number; bot: number }[] = [];
+	const maxChannels = 6;
+	for (const ln of lines) {
+		const clear = (by: number): boolean => {
+			const top = by - tabAsc;
+			const bot = by + tabDesc;
+			if (hitsCard(ln.x1, ln.x2, top, bot)) return false;
+			for (const p of placed) {
+				if (ln.x1 < p.x2 && ln.x2 > p.x1 && top < p.bot && bot > p.top)
+					return false;
+			}
+			return true;
+		};
+		let by = ln.naturalBaseY;
+		for (let k = 0; k <= maxChannels; k++) {
+			const cand = ln.naturalBaseY - k * slotH;
+			if (clear(cand)) {
+				by = cand;
+				break;
+			}
+		}
+		ln.baseY = by;
 		placed.push({
 			x1: ln.x1,
 			x2: ln.x2,
@@ -528,7 +581,9 @@ export function drawClusterLabels(
 		});
 	}
 
-	// Phase C: draw tabs then text at the de-conflicted positions.
+	// Phase C: draw tabs then text at the de-conflicted positions, and
+	// collect the final boxes (for overlap debugging by the caller).
+	const boxes: PlacedLabelBox[] = [];
 	for (const ln of lines) {
 		ctx.fillStyle = labelBg;
 		ctx.fillRect(ln.x1, ln.baseY - tabAsc, ln.x2 - ln.x1, tabH);
@@ -536,7 +591,17 @@ export function drawClusterLabels(
 			ctx.fillStyle = sg.color;
 			ctx.fillText(sg.text, sg.x, ln.baseY);
 		}
+		boxes.push({
+			x1: ln.x1,
+			x2: ln.x2,
+			top: ln.baseY - tabAsc,
+			bot: ln.baseY + tabDesc,
+			text: ln.segs.map((s) => s.text).join(""),
+			anchorX: ln.anchorX,
+			anchorY: ln.anchorY,
+		});
 	}
+	return boxes;
 }
 
 // 3-card diagonal stack confined to a SINGLE cell with a small inset

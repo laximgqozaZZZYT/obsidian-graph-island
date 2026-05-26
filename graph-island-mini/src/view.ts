@@ -1548,8 +1548,18 @@ export class MiniGraphView extends ItemView {
 	}
 
 	private drawClusterLabels(ctx: CanvasRenderingContext2D): void {
-		drawClusterLabelsFn(ctx, this.laid, this.zoom, this.settings.minFontPx);
+		// Stash the placed label boxes so overlap can be inspected (debug)
+		// via the view instance — no behavioural effect.
+		this._labelBoxes = drawClusterLabelsFn(
+			ctx,
+			this.laid,
+			this.zoom,
+			this.settings.minFontPx,
+		);
 	}
+
+	// Debug: last-drawn cluster label boxes (world space).
+	_labelBoxes: import("./draw-helpers").PlacedLabelBox[] = [];
 
 	private drawAggregateStack(
 		ctx: CanvasRenderingContext2D,
