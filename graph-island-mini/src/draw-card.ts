@@ -9,7 +9,11 @@ import {
 	CARD_BODY_LINE_HEIGHT_PX,
 	CARD_TITLE_BODY_GAP,
 } from "./types";
-import { roundedRectPath, truncateToWidth } from "./canvas-utils";
+import {
+	roundedRectPath,
+	truncateToWidth,
+	floorWorldFontPx,
+} from "./canvas-utils";
 
 // Wrapped + truncated body lines for a card. Computed once by
 // `cardFor()` / measureCard, then cached under the (id, mode, scale)
@@ -24,6 +28,10 @@ export interface DrawCardOptions {
 	showBody: boolean;
 	highlighted: boolean;
 	zoom: number;
+	// User-configured minimum SCREEN font size. World-space fonts that
+	// would render smaller than this under the current zoom get their
+	// world unit bumped up so the actual screen size stays ≥ minFontPx.
+	minFontPx: number;
 }
 
 // Pure card renderer. Receives the already-resolved scale + body lines
@@ -42,7 +50,7 @@ export function drawCard(
 	n: PositionedNode,
 	opts: DrawCardOptions,
 ): void {
-	const { scale, bodyLines, showBody, highlighted, zoom } = opts;
+	const { scale, bodyLines, showBody, highlighted, zoom, minFontPx } = opts;
 	const x = n.x - n.width / 2;
 	const y = n.y - n.height / 2;
 	const w = n.width;
@@ -66,8 +74,16 @@ export function drawCard(
 	// lives in `visualScale()` + this multiplication.
 	const padX = CARD_PAD_X * scale;
 	const padY = CARD_PAD_Y * scale;
-	const titleFontPx = CARD_TITLE_FONT_PX * scale;
-	const bodyFontPx = CARD_BODY_FONT_PX * scale;
+	const titleFontPx = floorWorldFontPx(
+		CARD_TITLE_FONT_PX * scale,
+		minFontPx,
+		zoom,
+	);
+	const bodyFontPx = floorWorldFontPx(
+		CARD_BODY_FONT_PX * scale,
+		minFontPx,
+		zoom,
+	);
 	const titleLineH = CARD_LINE_HEIGHT_PX * scale;
 	const bodyLineH = CARD_BODY_LINE_HEIGHT_PX * scale;
 	const titleBodyGap = CARD_TITLE_BODY_GAP * scale;

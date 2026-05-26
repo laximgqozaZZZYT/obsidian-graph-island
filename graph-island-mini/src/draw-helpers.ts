@@ -92,6 +92,7 @@ export function drawGridHeaders(
 	zoom: number,
 	panX: number,
 	panY: number,
+	minFontPx: number = 0,
 ): void {
 	const W = laid.slotW;
 	const H = laid.slotH;
@@ -158,7 +159,10 @@ export function drawGridHeaders(
 	// "A" / "1" forms.
 	const colStride = Math.max(1, Math.ceil(36 / Math.max(1, cellScreenW)));
 	const rowStride = Math.max(1, Math.ceil(28 / Math.max(1, cellScreenH)));
-	const fontPx = Math.min(headerH * 0.62, headerW * 0.4, 14);
+	const fontPx = Math.max(
+		minFontPx,
+		Math.min(headerH * 0.62, headerW * 0.4, 14),
+	);
 	ctx.font = `700 ${fontPx}px sans-serif`;
 	ctx.fillStyle = "rgba(245, 250, 255, 1)";
 	ctx.textAlign = "center";
@@ -290,8 +294,14 @@ export function drawClusterLabels(
 	ctx: CanvasRenderingContext2D,
 	laid: LaidOut,
 	zoom: number,
+	minFontPx: number = 0,
 ): void {
-	const groupFontPx = 12 / zoom;
+	// Cluster labels render at a constant SCREEN size (`baseScreenPx /
+	// zoom` → constant ÷ transform scale = constant screen px). Apply
+	// the user's min-font floor on the SCREEN size so the label never
+	// drops below it.
+	const screenPx = Math.max(12, minFontPx);
+	const groupFontPx = screenPx / zoom;
 	ctx.font = `${groupFontPx}px sans-serif`;
 	ctx.textBaseline = "alphabetic";
 	ctx.textAlign = "start";
@@ -455,6 +465,7 @@ export function drawAggregateStack(
 	count: number,
 	zoom: number,
 	highlighted = false,
+	minFontPx: number = 0,
 ): void {
 	const cx = cluster.x + cluster.width / 2;
 	const cy = cluster.y + cluster.height / 2;
@@ -497,7 +508,9 @@ export function drawAggregateStack(
 		if (isFront) {
 			ctx.textAlign = "start";
 			ctx.textBaseline = "top";
-			ctx.font = `600 ${CARD_TITLE_FONT_PX}px sans-serif`;
+			const titleFontPx = Math.max(CARD_TITLE_FONT_PX, minFontPx / Math.max(0.01, zoom));
+			const bodyFontPx = Math.max(CARD_BODY_FONT_PX, minFontPx / Math.max(0.01, zoom));
+			ctx.font = `600 ${titleFontPx}px sans-serif`;
 			ctx.fillStyle = highlighted ? "#1d1100" : "#e6edf3";
 			const title = truncateToWidth(
 				ctx,
@@ -505,7 +518,7 @@ export function drawAggregateStack(
 				subW - 2 * CARD_PAD_X,
 			);
 			ctx.fillText(title, x + CARD_PAD_X, y + CARD_PAD_Y);
-			ctx.font = `${CARD_BODY_FONT_PX}px sans-serif`;
+			ctx.font = `${bodyFontPx}px sans-serif`;
 			ctx.fillStyle = highlighted ? "#3a2400" : "#9eb0c4";
 			ctx.fillText(
 				`${count} cards`,

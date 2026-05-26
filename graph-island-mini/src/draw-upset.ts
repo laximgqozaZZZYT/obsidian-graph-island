@@ -91,6 +91,7 @@ export function drawUpsetFooter(
 	panX: number,
 	panY: number,
 	selectedSignatureKey: string | null,
+	minFontPx: number = 0,
 ): void {
 	const u = laid.upset;
 	if (!u) return;
@@ -153,7 +154,7 @@ export function drawUpsetFooter(
 	}
 	// Largest column count for normalising dot radius / count font.
 	const maxColSize = Math.max(1, ...u.columns.map((c) => c.size));
-	drawSetLabelsAndBars(ctx, setRows, u);
+	drawSetLabelsAndBars(ctx, setRows, u, minFontPx);
 	drawColumnCounts(
 		ctx,
 		u,
@@ -162,6 +163,7 @@ export function drawUpsetFooter(
 		canvasW,
 		countRowY,
 		maxColSize,
+		minFontPx,
 	);
 	drawMatrixDots(
 		ctx,
@@ -187,6 +189,7 @@ function drawColumnCounts(
 	canvasW: number,
 	y: number,
 	maxColSize: number,
+	minFontPx: number,
 ): void {
 	if (!u) return;
 	ctx.textAlign = "center";
@@ -194,11 +197,9 @@ function drawColumnCounts(
 	for (const col of u.columns) {
 		const x = col.xWorld * zoom + panX;
 		if (x < LEFT_BAND_PX || x > canvasW) continue;
-		const fontPx = sqrtScale(
-			col.size,
-			maxColSize,
-			COUNT_FONT_MIN,
-			COUNT_FONT_MAX,
+		const fontPx = Math.max(
+			minFontPx,
+			sqrtScale(col.size, maxColSize, COUNT_FONT_MIN, COUNT_FONT_MAX),
 		);
 		ctx.font = `${fontPx}px sans-serif`;
 		ctx.fillStyle = "rgba(220, 225, 235, 0.92)";
@@ -221,15 +222,18 @@ function drawSetLabelsAndBars(
 	ctx: CanvasRenderingContext2D,
 	setRows: Array<{ key: string; label: string; size: number; y: number }>,
 	u: LaidOut["upset"],
+	minFontPx: number,
 ): void {
 	if (!u || setRows.length === 0) return;
 	const maxSize = Math.max(1, ...u.sets.map((s) => s.size));
 	const barH = ROW_H * 0.5;
 	const sizeBarRightX = LEFT_BAND_PX - 8;
 	const labelRightX = SET_LABEL_BAND_PX;
+	const labelFontPx = Math.max(FONT_PX, minFontPx);
+	const smallFontPx = Math.max(SMALL_FONT_PX, minFontPx);
 	for (const set of setRows) {
 		// Set name (right-aligned in its sub-band).
-		ctx.font = `${FONT_PX}px sans-serif`;
+		ctx.font = `${labelFontPx}px sans-serif`;
 		ctx.textAlign = "end";
 		ctx.textBaseline = "middle";
 		ctx.fillStyle = `hsla(${clusterHue(set.key)}, 65%, 80%, 1)`;
@@ -243,7 +247,7 @@ function drawSetLabelsAndBars(
 		const x = sizeBarRightX - w;
 		ctx.fillStyle = `hsla(${clusterHue(set.key)}, 65%, 55%, 0.65)`;
 		ctx.fillRect(x, set.y - barH / 2, w, barH);
-		ctx.font = `${SMALL_FONT_PX}px sans-serif`;
+		ctx.font = `${smallFontPx}px sans-serif`;
 		ctx.fillStyle = "rgba(220, 225, 235, 0.85)";
 		ctx.fillText(String(set.size), x - 2, set.y);
 	}

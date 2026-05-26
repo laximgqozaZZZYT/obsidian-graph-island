@@ -122,3 +122,29 @@ export function truncateToWidth(
 	}
 	return lo === 0 ? ell : text.slice(0, lo) + ell;
 }
+
+// === Font-floor helpers ============================================
+// Single source of truth for the user-configured minimum font size
+// (settings.minFontPx). Two flavours because text is rendered in two
+// coordinate systems:
+//   - WORLD-space text (e.g. card titles) scales with `zoom`; we need
+//     to bump its world value so the rendered SCREEN size never drops
+//     below the floor.
+//   - SCREEN-fixed text (e.g. cluster labels drawn after a transform
+//     reset) is already in screen px; just `Math.max`.
+
+export function floorWorldFontPx(
+	intendedWorldPx: number,
+	minScreenPx: number,
+	zoom: number,
+): number {
+	if (zoom <= 0) return intendedWorldPx;
+	return Math.max(intendedWorldPx, minScreenPx / zoom);
+}
+
+export function floorScreenFontPx(
+	intendedScreenPx: number,
+	minScreenPx: number,
+): number {
+	return Math.max(intendedScreenPx, minScreenPx);
+}

@@ -422,11 +422,39 @@ export class MiniGraphView extends ItemView {
 			autoKey: "limitAuto",
 		});
 		this.renderNodeDisplaySection(el);
+		this.renderMinFontSection(el);
 		this.renderToggleSection(el, "Graph display", [
 			{ key: "showEnclosures", label: "Show enclosures" },
 			{ key: "showEdges", label: "Show edges" },
 			{ key: "showGrid", label: "Show grid" },
 		]);
+	}
+
+	private renderMinFontSection(parent: HTMLElement): void {
+		const section = parent.createDiv({ cls: "gim-panel-section" });
+		section.createEl("h4", { text: "Min font size (px)" });
+		const wrap = section.createDiv({ cls: "gim-min-font-row" });
+		const input = wrap.createEl("input", {
+			type: "number",
+			attr: { min: "0", max: "48", step: "1" },
+		}) as HTMLInputElement;
+		input.value = String(this.settings.minFontPx);
+		input.style.width = "60px";
+		const hint = wrap.createSpan({
+			cls: "gim-min-font-hint",
+			text: "Floor for every label / card font",
+		});
+		hint.style.marginLeft = "8px";
+		hint.style.color = "var(--text-muted, #7a8aa0)";
+		hint.style.fontSize = "11px";
+		input.addEventListener("change", () => {
+			const v = Math.max(0, Math.min(48, Math.floor(Number(input.value) || 0)));
+			input.value = String(v);
+			if (this.settings.minFontPx === v) return;
+			this.settings.minFontPx = v;
+			void this.save();
+			this.requestDraw();
+		});
 	}
 
 	private renderLayerTab(el: HTMLElement, groupKey: string): void {
@@ -1405,6 +1433,7 @@ export class MiniGraphView extends ItemView {
 				this.panX,
 				this.panY,
 				this.upsetSelectedSignatureKey,
+				this.settings.minFontPx,
 			);
 		}
 	}
@@ -1482,6 +1511,7 @@ export class MiniGraphView extends ItemView {
 	// all route through those visible channels.
 	private drawCardGrid(ctx: CanvasRenderingContext2D): void {
 		drawCardGridFn(ctx, this.laid, this.canvas, this.zoom, this.panX, this.panY);
+		void this.settings.minFontPx; // grid lines have no text — floor unused here
 	}
 
 	// Frozen-pane row/column headers. Drawn in SCREEN space (identity
@@ -1490,11 +1520,19 @@ export class MiniGraphView extends ItemView {
 	// Cells inside each band still align horizontally / vertically with the
 	// world-space body cells via worldX * zoom + panX.
 	private drawGridHeaders(ctx: CanvasRenderingContext2D): void {
-		drawGridHeadersFn(ctx, this.laid, this.canvas, this.zoom, this.panX, this.panY);
+		drawGridHeadersFn(
+			ctx,
+			this.laid,
+			this.canvas,
+			this.zoom,
+			this.panX,
+			this.panY,
+			this.settings.minFontPx,
+		);
 	}
 
 	private drawClusterLabels(ctx: CanvasRenderingContext2D): void {
-		drawClusterLabelsFn(ctx, this.laid, this.zoom);
+		drawClusterLabelsFn(ctx, this.laid, this.zoom, this.settings.minFontPx);
 	}
 
 	private drawAggregateStack(
@@ -1505,7 +1543,16 @@ export class MiniGraphView extends ItemView {
 		count: number,
 		highlighted = false,
 	): void {
-		drawAggregateStackFn(ctx, cluster, cardW, cardH, count, this.zoom, highlighted);
+		drawAggregateStackFn(
+			ctx,
+			cluster,
+			cardW,
+			cardH,
+			count,
+			this.zoom,
+			highlighted,
+			this.settings.minFontPx,
+		);
 	}
 
 	private drawCard(
@@ -1526,6 +1573,7 @@ export class MiniGraphView extends ItemView {
 			showBody: this.settings.showBody,
 			highlighted,
 			zoom: this.zoom,
+			minFontPx: this.settings.minFontPx,
 		});
 	}
 

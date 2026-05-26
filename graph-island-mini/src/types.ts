@@ -107,6 +107,12 @@ export interface MiniSettings {
 	// UpSet plot minimum column size — intersections with fewer nodes
 	// are culled from the matrix. Default 1 = keep everything.
 	upsetMinColumnSize: number;
+	// Minimum font size (screen pixels) below which NO text element
+	// will render. Applies to card titles/bodies, cluster labels,
+	// matrix labels, grid headers, etc. World-space fonts that would
+	// shrink past this floor under heavy zoom-out get their world
+	// units bumped up so the rendered screen size stays ≥ minFontPx.
+	minFontPx: number;
 }
 
 export type ViewMode = "euler" | "upset";
@@ -158,6 +164,7 @@ export const DEFAULT_SETTINGS: MiniSettings = {
 	viewMode: "euler",
 	upsetColumnSort: "size",
 	upsetMinColumnSize: 1,
+	minFontPx: 8,
 };
 
 export const NONE_BUCKET = "(none)";
