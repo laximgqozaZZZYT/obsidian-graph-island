@@ -342,10 +342,17 @@ export function drawClusterLabels(
 			cx = Math.min(Math.max(cx, c.x + cw / 2), c.x + c.width - cw / 2);
 			cy = Math.min(Math.max(cy, c.y + ch / 2), c.y + c.height - ch / 2);
 		}
-		// Font fits the cell height so the label never spills into the 隘路.
-		const fontPx = Math.min(screenPx / zoom, ch * 0.7);
-		ctx.font = `${fontPx}px sans-serif`;
+		// Size the font to FILL the reserved ~4×4 cell box: take the largest
+		// font that fits both the box width and height. A readability floor
+		// (capped by the box height) keeps it legible when zoomed far out.
 		const padX = 4 / zoom;
+		const maxByH = ch * 0.7;
+		ctx.font = "100px sans-serif";
+		const w100 = ctx.measureText(text).width || 1;
+		const maxByW = ((cw - 2 * padX) * 100) / w100;
+		let fontPx = Math.min(maxByH, maxByW);
+		fontPx = Math.max(fontPx, Math.min(maxByH, screenPx / zoom));
+		ctx.font = `700 ${fontPx}px sans-serif`;
 		ctx.textAlign = "start";
 		ctx.textBaseline = "middle";
 		const fitted = truncateToWidth(ctx, text, cw - 2 * padX);
