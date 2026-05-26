@@ -12,7 +12,12 @@
 // number — that's what keeps "this column's stack" and "this column's
 // dots" visually under each other at every zoom.
 import type { GraphData } from "./types";
-import type { LaidOut, PositionedNode, UpsetMeta } from "./layout";
+import type {
+	LaidOut,
+	PositionedNode,
+	PositionedEdge,
+	UpsetMeta,
+} from "./layout";
 
 export interface UpsetLayoutOptions {
 	cellW: number;
@@ -155,9 +160,38 @@ export function layoutUpset(
 		size: setSizes.get(key) ?? 0,
 	}));
 
+	// Edges: same source data as the Euler pipeline (data.edges
+	// survives WHERE / HAVING / LIMIT upstream). Route as a straight
+	// line from source-card centre to target-card centre; the existing
+	// drawBaseEdges / drawAccentEdges code only needs a `path` with
+	// 2+ points to render.
+	//
+	// Cards that ended up filtered out (no position in
+	// positionedNodes) drop their edges silently — matches the Euler
+	// behaviour where `filterEdgesByAlive` removes orphaned references.
+	const idToPos = new Map<string, { x: number; y: number }>();
+	for (const n of positionedNodes) idToPos.set(n.id, { x: n.x, y: n.y });
+	const edges: PositionedEdge[] = [];
+	for (const e of data.edges) {
+		const src = idToPos.get(e.source);
+		const tgt = idToPos.get(e.target);
+		if (!src || !tgt) continue;
+		edges.push({
+			source: e.source,
+			target: e.target,
+			weight: 1,
+			path: [
+				{ x: src.x, y: src.y },
+				{ x: tgt.x, y: tgt.y },
+			],
+			bundled: false,
+			bundleCount: 1,
+		});
+	}
+
 	return {
 		nodes: positionedNodes,
-		edges: [],
+		edges,
 		clusters: [],
 		trunks: [],
 		slotW,
