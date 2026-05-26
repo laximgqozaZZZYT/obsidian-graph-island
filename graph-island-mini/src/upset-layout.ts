@@ -1,21 +1,18 @@
-// UpSet plot layout — data preparation only.
+// UpSet plot layout.
 //
-// The UpSet plot is rendered in SCREEN space as a fixed footer (see
-// draw-upset.ts) so fonts and dots stay readable at every world
-// zoom. Card stacking — the previous "1 card per node in world
-// coords" pipeline — was removed because it forced fit-to-view to
-// compete between the overview matrix and the per-node detail; the
-// detail panel (separate UI) replaces that role.
+// Two coexisting visual layers:
+//   - MAIN area (world space): card stacks — one card per node, stacked
+//     vertically inside each intersection column. Every element is
+//     individually visible.
+//   - FOOTER (screen space, rendered by draw-upset.ts): dot matrix +
+//     bars + labels. Always readable; tracks the cards horizontally
+//     via the current pan/zoom transform.
 //
-// This module therefore just:
-//   - Buckets nodes by their exact membership signature.
-//   - Collects per-set total sizes.
-//   - Sorts columns and applies the min-size cull.
-//
-// Geometry (row heights, column widths, label positions) is computed
-// by draw-upset.ts from the canvas dimensions at paint time.
+// The matrix column's `xWorld` and the card column's x are the same
+// number — that's what keeps "this column's stack" and "this column's
+// dots" visually under each other at every zoom.
 import type { GraphData } from "./types";
-import type { LaidOut, UpsetMeta } from "./layout";
+import type { LaidOut, PositionedNode, UpsetMeta } from "./layout";
 
 export interface UpsetLayoutOptions {
 	cellW: number;
@@ -37,11 +34,10 @@ export function layoutUpset(
 	sized: Sized[],
 	opts: UpsetLayoutOptions,
 ): LaidOut {
-	void sized;
+	const sizedById = new Map<string, Sized>();
+	for (const s of sized) sizedById.set(s.id, s);
 
-	// --- 1. Sets (rows). HAVING-failed clusters are already absent
-	// from node.memberships by the time we get here, so any membership
-	// key seen here is one that survived the upstream filters.
+	// --- 1. Set sizes (rows). HAVING already filtered upstream.
 	const setSizes = new Map<string, number>();
 	for (const n of data.nodes) {
 		for (const m of n.memberships) {
@@ -53,9 +49,8 @@ export function layoutUpset(
 		return da !== 0 ? da : a.localeCompare(b);
 	});
 
-	// --- 2. Buckets keyed by exact membership signature.
-	// "|" separator avoids the {ab, c} / {a, bc} collision the naive
-	// `.join("")` would produce.
+	// --- 2. Signature buckets — "|" separator avoids the {ab,c}/{a,bc}
+	// collision the naive `.join("")` would produce.
 	const sigToBucket = new Map<
 		string,
 		{ signature: string[]; nodeIds: string[] }
@@ -69,13 +64,13 @@ export function layoutUpset(
 		else sigToBucket.set(key, { signature: sorted, nodeIds: [n.id] });
 	}
 
-	// --- 3. Min-size cull. Defaults to keeping everything.
+	// --- 3. Min-size cull.
 	const minSize = Math.max(1, opts.minColumnSize ?? 1);
 	const buckets = [...sigToBucket.values()].filter(
 		(b) => b.nodeIds.length >= minSize,
 	);
 
-	// --- 4. Column sort.
+	// --- 4. Sort columns by `columnSort` setting.
 	const sortMode = opts.columnSort ?? "size";
 	buckets.sort((a, b) => {
 		if (sortMode === "degree") {
@@ -92,33 +87,76 @@ export function layoutUpset(
 		return a.signature.join().localeCompare(b.signature.join());
 	});
 
-	// --- 5. Stable node order inside each column (by id) so the same
-	// intersection always lists the same files in the same order in
-	// the detail panel.
+	// Stable per-column node order (by id) so the same intersection
+	// always lists the same files in the same order — important for
+	// the detail panel + reproducible rendering.
 	for (const bucket of buckets) {
 		bucket.nodeIds.sort((a, b) => a.localeCompare(b));
 	}
+
+	// --- 5. Card-stack geometry. Use the LARGEST observed card so the
+	// slot pitch never under-sizes its content (a card with body lines
+	// would otherwise spill into the next slot).
+	const fallbackW = opts.cellW > 0 ? opts.cellW : 80;
+	const fallbackH = opts.cellH > 0 ? opts.cellH : 24;
+	let maxCardW = fallbackW;
+	let maxCardH = fallbackH;
+	for (const s of sized) {
+		if (s.width > maxCardW) maxCardW = s.width;
+		if (s.height > maxCardH) maxCardH = s.height;
+	}
+	const cardW = maxCardW;
+	const cardH = maxCardH;
+	const channelW = Math.max(12, opts.nodeSpacing);
+	const channelH = Math.max(6, Math.round(opts.nodeSpacing / 2));
+	const slotW = cardW + channelW;
+	const slotH = cardH + channelH;
+
+	const tallestColumn = Math.max(1, ...buckets.map((b) => b.nodeIds.length));
+	const cardsWorldHeight = tallestColumn * slotH;
+	const cardsWorldWidth = buckets.length * slotW;
+
+	// --- 6. Place cards. Column x = leftPad + (i+0.5)*slotW; cards
+	// stack DOWNWARD from y=0 (bottom of the stack ends at
+	// cardsWorldHeight). Bottom-card-first ordering reads naturally as
+	// "small intersections near the matrix, mass piles up at the top".
+	const leftPad = slotW * 0.5;
+	const positionedNodes: PositionedNode[] = [];
+	const columns: UpsetMeta["columns"] = buckets.map((bucket, ci) => {
+		const xWorld = leftPad + ci * slotW + slotW / 2;
+		for (let j = 0; j < bucket.nodeIds.length; j++) {
+			const id = bucket.nodeIds[j];
+			const node = data.nodes.find((n) => n.id === id);
+			if (!node) continue;
+			const s = sizedById.get(id);
+			const w = s?.width ?? cardW;
+			const h = s?.height ?? cardH;
+			// Bottom-most card at j=last; top-most at j=0.
+			const yCentre = cardsWorldHeight - (bucket.nodeIds.length - j - 0.5) * slotH;
+			positionedNodes.push({
+				...node,
+				x: xWorld,
+				y: yCentre,
+				width: w,
+				height: h,
+			} as PositionedNode);
+		}
+		return {
+			signature: bucket.signature,
+			nodeIds: bucket.nodeIds,
+			size: bucket.nodeIds.length,
+			xWorld,
+		};
+	});
 
 	const sets: UpsetMeta["sets"] = setKeys.map((key) => ({
 		key,
 		label: opts.clusterLabels.get(key) ?? key,
 		size: setSizes.get(key) ?? 0,
 	}));
-	const columns: UpsetMeta["columns"] = buckets.map((b) => ({
-		signature: b.signature,
-		nodeIds: b.nodeIds,
-		size: b.nodeIds.length,
-	}));
-
-	// Channel sizes still flow through so the world-space grid
-	// renderer can derive a lattice even when no nodes are positioned.
-	const channelW = Math.max(12, opts.nodeSpacing);
-	const channelH = Math.max(6, Math.round(opts.nodeSpacing / 2));
-	const slotW = (opts.cellW > 0 ? opts.cellW : 80) + channelW;
-	const slotH = (opts.cellH > 0 ? opts.cellH : 24) + channelH;
 
 	return {
-		nodes: [],
+		nodes: positionedNodes,
 		edges: [],
 		clusters: [],
 		trunks: [],
@@ -126,6 +164,13 @@ export function layoutUpset(
 		slotH,
 		channelW,
 		channelH,
-		upset: { sets, columns },
+		upset: {
+			sets,
+			columns,
+			cardsWorldWidth: cardsWorldWidth + leftPad * 2,
+			cardsWorldHeight,
+			cardSlotW: slotW,
+			cardSlotH: slotH,
+		},
 	};
 }

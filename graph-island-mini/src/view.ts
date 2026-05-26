@@ -1123,15 +1123,27 @@ export class MiniGraphView extends ItemView {
 	}
 
 	private fitToView(): void {
-		// UpSet plot is in SCREEN space and is always fully visible; the
-		// world canvas above it is intentionally blank. Reset pan / zoom
-		// to a neutral identity so the (currently empty) world area is
-		// centred rather than scrolled off, and bail before the world
-		// fit-bbox math (which would compute over an empty set).
+		// UpSet: cards sit in the MAIN area above the screen-space
+		// footer. Fit them into (canvas.height - footerH) so the cards
+		// and the matrix never overlap, full canvas width horizontally.
 		if (this.laid.upset) {
-			this.zoom = 1;
-			this.panX = 0;
-			this.panY = 0;
+			const u = this.laid.upset;
+			// Mirror the footer height computation in draw-upset.ts.
+			const ROW_H = 22, BAR_AREA_H = 80, COL_COUNT_H = 18;
+			const footerH =
+				BAR_AREA_H + u.sets.length * ROW_H + COL_COUNT_H + 24;
+			const visW = Math.max(1, this.canvas.clientWidth);
+			const visH = Math.max(1, this.canvas.clientHeight - footerH - 16);
+			const cw = Math.max(1, u.cardsWorldWidth);
+			const ch = Math.max(1, u.cardsWorldHeight);
+			const zx = visW / cw;
+			const zy = visH / ch;
+			this.zoom = Math.max(0.05, Math.min(2, Math.min(zx, zy)));
+			// Anchor: card area horizontally centred in the canvas;
+			// card BOTTOM aligned to the top of the footer.
+			this.panX = (visW - cw * this.zoom) / 2;
+			this.panY =
+				this.canvas.clientHeight - footerH - 8 - ch * this.zoom;
 			this.requestDraw();
 			return;
 		}
@@ -1346,6 +1358,8 @@ export class MiniGraphView extends ItemView {
 				this.canvas.clientWidth,
 				this.canvas.clientHeight,
 				dpr,
+				this.zoom,
+				this.panX,
 				this.upsetSelectedSignatureKey,
 			);
 		}
@@ -1359,9 +1373,10 @@ export class MiniGraphView extends ItemView {
 		hasHighlight: boolean,
 		skipNode: (id: string) => boolean,
 	): void {
-		// UpSet mode renders entirely in screen space (see end of
-		// draw()) so the per-tile world-space loop has nothing to do.
-		if (this.laid.upset) return;
+		// UpSet mode: cards (main area) still get drawn through the
+		// normal world-space pipeline below — that's what makes every
+		// node individually visible. Enclosures and edges are off
+		// (clusters / edges empty in UpSet layout).
 		if (this.settings.showEnclosures && !this.laid.upset) {
 			drawEnclosures(
 				ctx,

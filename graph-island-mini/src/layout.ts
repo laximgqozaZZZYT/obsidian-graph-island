@@ -127,18 +127,23 @@ export interface LaidOut {
 export interface UpsetMeta {
 	// One row per set (= cluster). Sorted by total node count desc.
 	sets: Array<{ key: string; label: string; size: number }>;
-	// One column per non-empty intersection signature. Order depends
-	// on the `upsetColumnSort` setting; intersection size or signature
-	// degree.
+	// One column per non-empty intersection signature. `xWorld` is the
+	// column-centre x in WORLD coords — cards stack vertically at this
+	// x, and the matrix footer transforms it through the current
+	// pan/zoom so the dot column stays under its card stack.
 	columns: Array<{
 		signature: string[];
 		nodeIds: string[];
 		size: number;
+		xWorld: number;
 	}>;
-	// The UpSet plot is rendered in SCREEN space as a fixed footer
-	// (so fonts and dots stay readable at every world zoom). No world
-	// coordinates are pre-computed; draw-upset.ts derives the screen
-	// layout from canvas dimensions at paint time.
+	// World-space dimensions of the card area so view-side fit-to-view
+	// can position the cards above the screen-space footer without
+	// hard-coding magic numbers.
+	cardsWorldWidth: number;
+	cardsWorldHeight: number;
+	cardSlotW: number; // = cardW + channel
+	cardSlotH: number; // = cardH + channel
 }
 
 export interface LayoutOptions {

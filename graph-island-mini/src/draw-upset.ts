@@ -45,19 +45,20 @@ export interface UpsetScreenLayout {
 	showSetLabels: boolean;
 }
 
+// Footer screen layout. Column x positions are derived from the
+// CARDS' world-space column x via the current pan/zoom transform, so
+// the matrix dot column always sits directly under its card stack.
 export function computeUpsetScreenLayout(
 	u: UpsetMeta,
 	canvasW: number,
 	canvasH: number,
+	zoom: number,
+	panX: number,
 ): UpsetScreenLayout {
 	const cols = u.columns.length;
 	const sets = u.sets.length;
-	const colsBand = Math.max(canvasW - LEFT_BAND_W - 16, MIN_COL_W * Math.max(cols, 1));
-	const colW = cols > 0
-		? Math.max(MIN_COL_W, Math.min(IDEAL_COL_W, colsBand / cols))
-		: IDEAL_COL_W;
-	const totalH =
-		BAR_AREA_H + sets * ROW_H + COL_COUNT_H + 24;
+	const colW = Math.max(MIN_COL_W, u.cardSlotW * zoom);
+	const totalH = BAR_AREA_H + sets * ROW_H + COL_COUNT_H + 24;
 	const footerTopY = Math.max(0, canvasH - totalH);
 	const footerBottomY = canvasH;
 	const barAreaTopY = footerTopY + 8;
@@ -73,9 +74,12 @@ export function computeUpsetScreenLayout(
 		size: s.size,
 		y: matrixTopY + (idx + 0.5) * ROW_H,
 	}));
-	const colXs = u.columns.map((_, idx) => matrixLeftX + (idx + 0.5) * colW);
+	// Screen x for each column = world x * zoom + panX. Same transform
+	// the card pipeline uses, so cards and dots stay vertically aligned.
+	const colXs = u.columns.map((c) => c.xWorld * zoom + panX);
 	const dotR = Math.max(3, Math.min(ROW_H * 0.32, colW * 0.4));
-	const showSetLabels = colW >= MIN_COL_W; // labels live in left band, always on
+	const showSetLabels = colW >= MIN_COL_W;
+	void cols;
 	return {
 		footerTopY,
 		footerBottomY,
@@ -100,13 +104,15 @@ export function drawUpset(
 	canvasW: number,
 	canvasH: number,
 	dpr: number,
+	zoom: number,
+	panX: number,
 	selectedSignatureKey: string | null,
 ): void {
 	const u = laid.upset;
 	if (!u) return;
 	// Detach from the world transform: SCREEN-space rendering.
 	ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-	const L = computeUpsetScreenLayout(u, canvasW, canvasH);
+	const L = computeUpsetScreenLayout(u, canvasW, canvasH, zoom, panX);
 	// Footer background — subtle so it reads as a distinct band over
 	// the world canvas above.
 	ctx.fillStyle = "rgba(15, 17, 22, 0.92)";
@@ -310,12 +316,13 @@ export function hitTestUpsetColumn(
 	u: UpsetMeta,
 	canvasW: number,
 	canvasH: number,
+	zoom: number,
+	panX: number,
 	screenX: number,
 	screenY: number,
 ): string | null {
-	const L = computeUpsetScreenLayout(u, canvasW, canvasH);
+	const L = computeUpsetScreenLayout(u, canvasW, canvasH, zoom, panX);
 	if (screenY < L.barAreaTopY || screenY > L.matrixBottomY) return null;
-	if (screenX < L.matrixLeftX - L.colW / 2) return null;
 	for (let i = 0; i < u.columns.length; i++) {
 		const x = L.colXs[i];
 		if (Math.abs(screenX - x) <= L.colW / 2) {
