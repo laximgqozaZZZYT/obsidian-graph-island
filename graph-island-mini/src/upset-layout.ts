@@ -190,7 +190,9 @@ export function layoutUpset(
 		upset: {
 			sets,
 			columns,
-			cardsWorldWidth: cardsWorldWidth + leftPad * 2,
+			// Cards now span world x = 0 .. numCols*slotW (no leftPad
+			// margin) because the placement is on cell centres.
+			cardsWorldWidth,
 			cardsWorldHeight,
 			cardSlotW: slotW,
 			cardSlotH: slotH,
