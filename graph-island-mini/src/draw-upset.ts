@@ -1,52 +1,60 @@
-// UpSet renderer — hybrid world + screen.
+// UpSet renderer — cards on top (world space, full canvas width),
+// matrix + row labels in a SCREEN-fixed footer at the BOTTOM.
 //
-//   - Cards + matrix DOTS / CONNECTORS live in world space. They pan
-//     and zoom with the cards above, so a dot column always sits
-//     directly under its card stack.
-//   - The row LABEL band (set names + per-set size bars) is pinned
-//     to the LEFT edge of the canvas in SCREEN space. Its rows align
-//     vertically with the matrix rows by projecting each row's
-//     world Y through the current pan/zoom.
+// Layout (per 2026-05-26 latest spec):
+//   - Cards: world coords, occupy the full canvas width above the
+//     footer. No left band — every horizontal pixel is for cards.
+//   - Footer: screen-fixed band at the bottom of the canvas.
+//     - Inside the footer, the LEFT sub-band shows set names + size
+//       bars; the RIGHT sub-band shows the dot matrix.
+//     - Matrix column screen X = `xWorld * zoom + panX` so a column
+//       stays directly under the matching card stack as the user
+//       pans / zooms.
 //
-// Row filter (2026-05-26 spec): only sets that the currently-visible
-// columns touch get a row. Fallback to the full set list when no
-// column is on-screen so the band never goes empty.
+// Row filter (unchanged): only sets whose member cards are currently
+// visible in the canvas keep a row. Falls back to full set list when
+// nothing is visible.
 import type { LaidOut } from "./layout";
 import { clusterHue } from "./canvas-utils";
 
-const ROW_H_FACTOR = 0.55;
-const DOT_R_FACTOR = 0.22;
-const MATRIX_GAP_FACTOR = 0.5;
-const HIGHLIGHT = "rgba(255, 157, 63, 0.9)";
-
-// Screen-fixed label band geometry.
-export const LABEL_BAND_PX = 160;
-const LABEL_FONT_PX = 12;
+const FONT_PX = 12;
 const SMALL_FONT_PX = 10;
+const ROW_H = 22;
 const SET_LABEL_BAND_PX = 100;
-const SIZE_BAR_BAND_PX = LABEL_BAND_PX - SET_LABEL_BAND_PX - 8;
+const SIZE_BAR_BAND_PX = 56;
+const LEFT_BAND_PX = SET_LABEL_BAND_PX + SIZE_BAR_BAND_PX + 16; // = 172
+const HIGHLIGHT = "rgba(255, 157, 63, 0.9)";
 const ROW_LABEL_PAD = 6;
 
-export interface UpsetWorldLayout {
-	matrixTopY: number; // world Y where the matrix starts (below cards)
-	rowH: number; // world units
-	dotR: number; // world units
-	setRows: Array<{ key: string; label: string; size: number; y: number }>;
+// Footer height calculation — clamped between a sane min (so labels
+// + 4 rows always fit) and `canvasH / 3` (the user wants cards to
+// "dominate", so the footer never exceeds 1/3 of the canvas).
+export function upsetFooterHeight(canvasH: number, activeRowCount: number): number {
+	const padTop = 8;
+	const padBottom = 8;
+	const need = padTop + activeRowCount * ROW_H + padBottom;
+	const cap = Math.floor(canvasH / 3);
+	const min = 120;
+	return Math.max(min, Math.min(cap, need));
 }
 
-export function computeUpsetWorldLayout(
+export interface UpsetWorldLayout {
+	activeSets: Array<{ key: string; label: string; size: number }>;
+}
+
+// Determine which sets are "active" — i.e. have at least one member
+// card currently inside the canvas viewport (X AND Y).
+export function computeUpsetActiveSets(
 	laid: LaidOut,
 	canvasW: number,
 	canvasH: number,
+	footerTopY: number,
 	zoom: number,
 	panX: number,
 	panY: number,
 ): UpsetWorldLayout | null {
 	const u = laid.upset;
 	if (!u) return null;
-	// Active sets = union of memberships of CARDS currently visible
-	// in the canvas (both X and Y axes considered). Falls back to all
-	// sets when no card is on-screen so the band never goes empty.
 	const activeKeys = new Set<string>();
 	let anyVisible = false;
 	for (const n of laid.nodes) {
@@ -54,108 +62,21 @@ export function computeUpsetWorldLayout(
 		const sy = n.y * zoom + panY;
 		const hx = n.width * 0.5 * zoom;
 		const hy = n.height * 0.5 * zoom;
-		const inX = sx + hx >= LABEL_BAND_PX && sx - hx <= canvasW;
-		const inY = sy + hy >= 0 && sy - hy <= canvasH;
+		// Cards live ABOVE the footer; we only count them as visible
+		// when they fit inside [0, canvasW] × [0, footerTopY].
+		const inX = sx + hx >= 0 && sx - hx <= canvasW;
+		const inY = sy + hy >= 0 && sy - hy <= footerTopY;
 		if (!inX || !inY) continue;
 		anyVisible = true;
 		for (const m of n.memberships) activeKeys.add(m);
 	}
 	const activeSets = anyVisible
 		? u.sets.filter((s) => activeKeys.has(s.key))
-		: u.sets;
-	const slotH = u.cardSlotH;
-	const slotW = u.cardSlotW;
-	const rowH = slotH * ROW_H_FACTOR;
-	const matrixTopY = u.cardsWorldHeight + slotH * MATRIX_GAP_FACTOR;
-	const dotR = Math.max(2, Math.min(rowH, slotW) * DOT_R_FACTOR);
-	const setRows = activeSets.map((s, idx) => ({
-		key: s.key,
-		label: s.label,
-		size: s.size,
-		y: matrixTopY + (idx + 0.5) * rowH,
-	}));
-	return { matrixTopY, rowH, dotR, setRows };
+		: u.sets.slice();
+	return { activeSets };
 }
 
-// World-space pass: matrix dots + connectors. Cards are drawn by the
-// caller through the normal card pipeline; this only paints the
-// matrix sub-band beneath them.
-export function drawUpsetWorld(
-	ctx: CanvasRenderingContext2D,
-	laid: LaidOut,
-	canvasW: number,
-	canvasH: number,
-	zoom: number,
-	panX: number,
-	panY: number,
-	selectedSignatureKey: string | null,
-): void {
-	const u = laid.upset;
-	if (!u) return;
-	const L = computeUpsetWorldLayout(laid, canvasW, canvasH, zoom, panX, panY);
-	if (!L) return;
-	const setIdx = new Map<string, number>();
-	L.setRows.forEach((s, i) => setIdx.set(s.key, i));
-	// Row tracks (faint horizontal strips so empty rows still register).
-	ctx.fillStyle = "rgba(120, 130, 150, 0.08)";
-	const tracksLeft = -u.cardSlotW * 0.3;
-	const tracksRight = u.cardsWorldWidth + u.cardSlotW * 0.2;
-	for (const set of L.setRows) {
-		ctx.fillRect(
-			tracksLeft,
-			set.y - L.rowH * 0.45,
-			tracksRight - tracksLeft,
-			L.rowH * 0.9,
-		);
-	}
-	// Dots + connectors per column.
-	for (let i = 0; i < u.columns.length; i++) {
-		const col = u.columns[i];
-		const x = col.xWorld;
-		const inCol = new Set(col.signature);
-		const key = col.signature.join("|");
-		const highlighted = key === selectedSignatureKey;
-		let topY = Infinity;
-		let botY = -Infinity;
-		for (const k of col.signature) {
-			const ridx = setIdx.get(k);
-			if (ridx == null) continue;
-			const y = L.setRows[ridx].y;
-			if (y < topY) topY = y;
-			if (y > botY) botY = y;
-		}
-		if (isFinite(topY) && botY > topY) {
-			ctx.strokeStyle = highlighted
-				? HIGHLIGHT
-				: "rgba(180, 195, 220, 0.85)";
-			ctx.lineWidth = (highlighted ? 2.4 : 1.6) / zoom;
-			ctx.beginPath();
-			ctx.moveTo(x, topY);
-			ctx.lineTo(x, botY);
-			ctx.stroke();
-		}
-		for (const set of L.setRows) {
-			if (inCol.has(set.key)) {
-				ctx.fillStyle = highlighted
-					? HIGHLIGHT
-					: `hsla(${clusterHue(set.key)}, 65%, 65%, 1)`;
-				ctx.beginPath();
-				ctx.arc(x, set.y, L.dotR, 0, Math.PI * 2);
-				ctx.fill();
-			} else {
-				ctx.fillStyle = "rgba(70, 80, 95, 0.55)";
-				ctx.beginPath();
-				ctx.arc(x, set.y, Math.max(0.5, L.dotR * 0.45), 0, Math.PI * 2);
-				ctx.fill();
-			}
-		}
-	}
-}
-
-// Screen-space pass: row label band fixed to the LEFT edge of the
-// canvas. Row vertical positions are derived from world Y → screen Y
-// so the label tracks its matrix row when the user pans/zooms.
-export function drawUpsetScreen(
+export function drawUpsetFooter(
 	ctx: CanvasRenderingContext2D,
 	laid: LaidOut,
 	canvasW: number,
@@ -164,53 +85,158 @@ export function drawUpsetScreen(
 	zoom: number,
 	panX: number,
 	panY: number,
+	selectedSignatureKey: string | null,
 ): void {
 	const u = laid.upset;
 	if (!u) return;
-	const L = computeUpsetWorldLayout(laid, canvasW, canvasH, zoom, panX, panY);
+	// First pass uses an estimated footer height to compute active
+	// sets — the band size depends on the active count, which depends
+	// on footerTopY. Use full set count for the initial estimate, then
+	// recompute once we know the real active count.
+	const estFooter = upsetFooterHeight(canvasH, u.sets.length);
+	const estFooterTopY = canvasH - estFooter;
+	const L0 = computeUpsetActiveSets(
+		laid,
+		canvasW,
+		canvasH,
+		estFooterTopY,
+		zoom,
+		panX,
+		panY,
+	);
+	if (!L0) return;
+	const footerH = upsetFooterHeight(canvasH, L0.activeSets.length);
+	const footerTopY = canvasH - footerH;
+	const L = computeUpsetActiveSets(
+		laid,
+		canvasW,
+		canvasH,
+		footerTopY,
+		zoom,
+		panX,
+		panY,
+	);
 	if (!L) return;
 	ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-	// Opaque band background so card edges underneath don't bleed.
-	ctx.fillStyle = "rgba(15, 17, 22, 0.94)";
-	ctx.fillRect(0, 0, LABEL_BAND_PX, canvasH);
+	// Opaque footer background.
+	ctx.fillStyle = "#0f1116";
+	ctx.fillRect(0, footerTopY, canvasW, footerH);
 	ctx.strokeStyle = "rgba(120, 130, 150, 0.35)";
 	ctx.lineWidth = 1;
 	ctx.beginPath();
-	ctx.moveTo(LABEL_BAND_PX + 0.5, 0);
-	ctx.lineTo(LABEL_BAND_PX + 0.5, canvasH);
+	ctx.moveTo(0, footerTopY + 0.5);
+	ctx.lineTo(canvasW, footerTopY + 0.5);
 	ctx.stroke();
-	// Row tracks (faint) inside the band so each row reads as a row.
+	// Vertical separator between left band and matrix area.
+	ctx.beginPath();
+	ctx.moveTo(LEFT_BAND_PX + 0.5, footerTopY);
+	ctx.lineTo(LEFT_BAND_PX + 0.5, canvasH);
+	ctx.stroke();
+	const padTop = 8;
+	const rowsTop = footerTopY + padTop;
+	const setRows = L.activeSets.map((s, idx) => ({
+		key: s.key,
+		label: s.label,
+		size: s.size,
+		y: rowsTop + (idx + 0.5) * ROW_H,
+	}));
+	// Row tracks.
 	ctx.fillStyle = "rgba(120, 130, 150, 0.06)";
-	const rowScreenH = L.rowH * zoom;
-	const rowDrawH = Math.max(2, rowScreenH * 0.9);
-	const labelRightX = SET_LABEL_BAND_PX;
-	const sizeBarRightX = LABEL_BAND_PX - 6;
-	const sizeBarMaxW = SIZE_BAR_BAND_PX - 8;
+	for (const set of setRows) {
+		ctx.fillRect(0, set.y - ROW_H * 0.45, canvasW, ROW_H * 0.9);
+	}
+	drawSetLabelsAndBars(ctx, setRows, u);
+	drawMatrixDots(ctx, setRows, u, zoom, panX, canvasW, selectedSignatureKey);
+}
+
+function drawSetLabelsAndBars(
+	ctx: CanvasRenderingContext2D,
+	setRows: Array<{ key: string; label: string; size: number; y: number }>,
+	u: LaidOut["upset"],
+): void {
+	if (!u || setRows.length === 0) return;
 	const maxSize = Math.max(1, ...u.sets.map((s) => s.size));
-	for (const set of L.setRows) {
-		const sy = set.y * zoom + panY;
-		if (sy < -rowDrawH || sy > canvasH + rowDrawH) continue;
-		ctx.fillStyle = "rgba(120, 130, 150, 0.06)";
-		ctx.fillRect(0, sy - rowDrawH / 2, LABEL_BAND_PX, rowDrawH);
+	const barH = ROW_H * 0.5;
+	const sizeBarRightX = LEFT_BAND_PX - 8;
+	const labelRightX = SET_LABEL_BAND_PX;
+	for (const set of setRows) {
 		// Set name (right-aligned in its sub-band).
-		ctx.font = `${LABEL_FONT_PX}px sans-serif`;
+		ctx.font = `${FONT_PX}px sans-serif`;
 		ctx.textAlign = "end";
 		ctx.textBaseline = "middle";
 		ctx.fillStyle = `hsla(${clusterHue(set.key)}, 65%, 80%, 1)`;
 		ctx.fillText(
 			ellipsise(ctx, set.label, SET_LABEL_BAND_PX - ROW_LABEL_PAD),
 			labelRightX - ROW_LABEL_PAD,
-			sy,
+			set.y,
 		);
-		// Size bar (in the right sub-band of the label band).
-		const barW = (set.size / maxSize) * sizeBarMaxW;
-		const barH = Math.max(4, rowScreenH * 0.45);
-		const barX = sizeBarRightX - barW;
+		// Size bar.
+		const w = (set.size / maxSize) * (SIZE_BAR_BAND_PX - 8);
+		const x = sizeBarRightX - w;
 		ctx.fillStyle = `hsla(${clusterHue(set.key)}, 65%, 55%, 0.65)`;
-		ctx.fillRect(barX, sy - barH / 2, barW, barH);
+		ctx.fillRect(x, set.y - barH / 2, w, barH);
 		ctx.font = `${SMALL_FONT_PX}px sans-serif`;
 		ctx.fillStyle = "rgba(220, 225, 235, 0.85)";
-		ctx.fillText(String(set.size), barX - 2, sy);
+		ctx.fillText(String(set.size), x - 2, set.y);
+	}
+}
+
+function drawMatrixDots(
+	ctx: CanvasRenderingContext2D,
+	setRows: Array<{ key: string; label: string; size: number; y: number }>,
+	u: LaidOut["upset"],
+	zoom: number,
+	panX: number,
+	canvasW: number,
+	selectedSignatureKey: string | null,
+): void {
+	if (!u) return;
+	const setIdx = new Map<string, number>();
+	setRows.forEach((s, i) => setIdx.set(s.key, i));
+	const dotR = Math.max(3, ROW_H * 0.28);
+	for (let i = 0; i < u.columns.length; i++) {
+		const col = u.columns[i];
+		const x = col.xWorld * zoom + panX;
+		// Skip columns whose screen X is outside the matrix area or
+		// behind the left band.
+		if (x < LEFT_BAND_PX || x > canvasW) continue;
+		const inCol = new Set(col.signature);
+		const key = col.signature.join("|");
+		const highlighted = key === selectedSignatureKey;
+		let topY = Infinity;
+		let botY = -Infinity;
+		for (const k of col.signature) {
+			const ridx = setIdx.get(k);
+			if (ridx == null) continue;
+			const y = setRows[ridx].y;
+			if (y < topY) topY = y;
+			if (y > botY) botY = y;
+		}
+		if (isFinite(topY) && botY > topY) {
+			ctx.strokeStyle = highlighted
+				? HIGHLIGHT
+				: "rgba(180, 195, 220, 0.85)";
+			ctx.lineWidth = highlighted ? 2.4 : 1.8;
+			ctx.beginPath();
+			ctx.moveTo(x, topY);
+			ctx.lineTo(x, botY);
+			ctx.stroke();
+		}
+		for (const set of setRows) {
+			if (inCol.has(set.key)) {
+				ctx.fillStyle = highlighted
+					? HIGHLIGHT
+					: `hsla(${clusterHue(set.key)}, 65%, 65%, 1)`;
+				ctx.beginPath();
+				ctx.arc(x, set.y, dotR, 0, Math.PI * 2);
+				ctx.fill();
+			} else {
+				ctx.fillStyle = "rgba(70, 80, 95, 0.55)";
+				ctx.beginPath();
+				ctx.arc(x, set.y, Math.max(1.5, dotR * 0.45), 0, Math.PI * 2);
+				ctx.fill();
+			}
+		}
 	}
 }
 

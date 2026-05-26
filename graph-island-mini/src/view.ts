@@ -39,11 +39,7 @@ import {
 } from "./node-display";
 import { drawEnclosures } from "./draw-enclosures";
 import { drawBaseEdges, drawAccentEdges } from "./draw-edges";
-import {
-	drawUpsetWorld,
-	drawUpsetScreen,
-	LABEL_BAND_PX,
-} from "./draw-upset";
+import { drawUpsetFooter, upsetFooterHeight } from "./draw-upset";
 import { drawCard as drawCardFn } from "./draw-card";
 import {
 	hitTest as hitTestFn,
@@ -1132,40 +1128,36 @@ export class MiniGraphView extends ItemView {
 		// and the matrix never overlap, full canvas width horizontally.
 		if (this.laid.upset) {
 			const u = this.laid.upset;
-			// UpSet fit-to-view splits the canvas: top ~70 % shows the
-			// cards, bottom ~30 % shows the matrix. Tall card stacks
-			// extend ABOVE the canvas top — the user pans vertically
-			// to reach them. This keeps both card text and matrix at
-			// a readable scale instead of zooming everything down to
-			// fit the tallest stack on one screen.
+			// UpSet fit: cards occupy the canvas ABOVE the footer
+			// (full canvas width). Footer is screen-fixed at bottom.
+			// Zoom to show ~15 card rows vertically; horizontal zoom
+			// fits all columns into the canvas width.
 			const slotH = u.cardSlotH;
-			const matrixGap = slotH * 0.5;
-			const cardsBandH = this.canvas.clientHeight * 0.7;
-			const matrixBandH = this.canvas.clientHeight * 0.3;
-			// Default vertical zoom: show roughly 15 card slots in the
-			// upper band. Capped so a single tall column never makes
-			// cards taller than the cards band.
+			const footerH = upsetFooterHeight(
+				this.canvas.clientHeight,
+				u.sets.length,
+			);
+			const cardsBandH = this.canvas.clientHeight - footerH;
 			const targetVisibleRows = Math.max(
 				8,
 				Math.min(20, u.cardsWorldHeight / slotH),
 			);
 			const zoomFromRows = cardsBandH / (targetVisibleRows * slotH);
-			// Horizontal zoom: fit ALL columns into the canvas width
-			// (minus label band + padding).
-			const padX = 24;
-			const visW = Math.max(
-				1,
-				this.canvas.clientWidth - LABEL_BAND_PX - padX * 2,
-			);
+			const padX = 8;
+			const visW = Math.max(1, this.canvas.clientWidth - padX * 2);
 			const zoomFromW = visW / Math.max(1, u.cardsWorldWidth);
-			this.zoom = Math.max(0.05, Math.min(2, Math.min(zoomFromRows, zoomFromW)));
-			// Anchor: cards LEFT edge sits just right of the label band;
-			// cards BOTTOM (= matrix top - small gap) sits at 70 % down
-			// the canvas height, so the matrix lives in the bottom 30 %.
-			this.panX = LABEL_BAND_PX + padX;
-			const matrixTopWorldY = u.cardsWorldHeight + matrixGap;
-			this.panY = cardsBandH - matrixTopWorldY * this.zoom + matrixGap * this.zoom;
-			void matrixBandH;
+			this.zoom = Math.max(
+				0.05,
+				Math.min(2, Math.min(zoomFromRows, zoomFromW)),
+			);
+			// Cards bottom (= world y = cardsWorldHeight) anchored at
+			// the top of the footer; tall stacks extend above the
+			// canvas and are reachable by panning.
+			this.panY = cardsBandH - u.cardsWorldHeight * this.zoom;
+			// panX is set by clampPan() (called inside requestDraw).
+			// Provide an initial value of 0; clamp will center or pin
+			// as appropriate.
+			this.panX = 0;
 			this.requestDraw();
 			return;
 		}
@@ -1219,11 +1211,25 @@ export class MiniGraphView extends ItemView {
 	// left edge of column A) at screen x = headerW. That gives the upper-
 	// bound constraint panX ≤ headerW − minCol*W*zoom. Same logic for Y.
 	private clampPan(): void {
-		// World-map style: free pan in all directions. The body now tiles
-		// across the visible viewport, so there's always content under the
-		// cursor regardless of pan. Previously this clamped panX/panY to
-		// keep the layout from scrolling off the top-left, which the user
-		// found surprising ("左上への移動ができないのもおかしい").
+		// Euler mode: free pan in all directions (world-map tiling
+		// keeps content under the cursor regardless of position).
+		// UpSet mode: per user spec (2026-05-26), restrict horizontal
+		// pan so the graph's left / right edges never reveal empty
+		// canvas beyond them.
+		if (!this.laid.upset) return;
+		const u = this.laid.upset;
+		const contentW = u.cardsWorldWidth * this.zoom;
+		const canvasW = this.canvas.clientWidth;
+		if (contentW <= canvasW) {
+			// Graph narrower than canvas — centre it horizontally.
+			this.panX = (canvasW - contentW) / 2;
+		} else {
+			// Graph wider than canvas — clamp so the edges stay flush
+			// (or off-screen), never showing background to the side.
+			const maxPanX = 0;
+			const minPanX = canvasW - contentW;
+			this.panX = Math.max(minPanX, Math.min(maxPanX, this.panX));
+		}
 	}
 
 	private requestDraw(): void {
@@ -1370,12 +1376,11 @@ export class MiniGraphView extends ItemView {
 			this.drawGridHeaders(ctx);
 		}
 
-		// UpSet row-label band — screen-fixed at the left edge so set
-		// names stay readable while the world (cards + matrix) pans
-		// underneath. Rows align with the matrix world-Y rows by
-		// transforming each row's world Y to screen Y at draw time.
+		// UpSet footer (matrix + row labels) — screen-fixed at the
+		// bottom of the canvas. Cards above keep the full canvas
+		// width.
 		if (this.laid.upset) {
-			drawUpsetScreen(
+			drawUpsetFooter(
 				ctx,
 				this.laid,
 				this.canvas.clientWidth,
@@ -1384,6 +1389,7 @@ export class MiniGraphView extends ItemView {
 				this.zoom,
 				this.panX,
 				this.panY,
+				this.upsetSelectedSignatureKey,
 			);
 		}
 	}
@@ -1396,22 +1402,10 @@ export class MiniGraphView extends ItemView {
 		hasHighlight: boolean,
 		skipNode: (id: string) => boolean,
 	): void {
-		// UpSet mode: matrix DOTS + CONNECTORS go through the world
-		// pipeline so they pan / zoom with the card stacks above.
-		// The label / size-bar band itself is screen-fixed and gets
-		// drawn after the world pass — see end of draw().
-		if (this.laid.upset) {
-			drawUpsetWorld(
-				ctx,
-				this.laid,
-				this.canvas.clientWidth,
-				this.canvas.clientHeight,
-				this.zoom,
-				this.panX,
-				this.panY,
-				this.upsetSelectedSignatureKey,
-			);
-		}
+		// UpSet mode: matrix + labels live in the bottom footer
+		// (screen space), so the body-tile loop has nothing to do
+		// for it here. The footer itself is drawn after this loop at
+		// the end of draw().
 		if (this.settings.showEnclosures && !this.laid.upset) {
 			drawEnclosures(
 				ctx,
