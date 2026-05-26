@@ -27,9 +27,12 @@ export function drawEnclosures(
 	highlightedClusters: Set<string>,
 	zoom: number,
 ): void {
-	const sortedClusters = [...clusters].sort(
-		(a, b) => b.width * b.height - a.width * a.height,
-	);
+	// Hide "ghost" single-node enclosures (a stray 1-cell box around a
+	// multi-tag card that lives in another cluster) — they read as
+	// scattered noise. Enclosures holding a single-TAG card are kept.
+	const sortedClusters = [...clusters]
+		.filter((c) => !c.ghostSingle)
+		.sort((a, b) => b.width * b.height - a.width * a.height);
 	const strokeW = 1.6 / zoom;
 	const accentStrokeW = 3.2 / zoom;
 
