@@ -162,8 +162,15 @@ export function drawUpset(
 	drawSetLabels(ctx, u, L);
 	drawMatrixDots(ctx, u, L, selectedSignatureKey);
 	ctx.restore();
-	// Scrollbar (over the clip) when overflow exists.
-	drawScrollbar(ctx, L, canvasW, scrollbarDragActive);
+	// Scrollbars (over the clip) when overflow exists.
+	const hScrollbar = computeUpsetHScrollbar(
+		L,
+		canvasW,
+		zoom,
+		panX,
+		u.cardsWorldWidth,
+	);
+	drawScrollbars(ctx, L, canvasW, scrollbarDragActive, hScrollbar);
 	drawSelectedColumnFrame(ctx, u, L, selectedSignatureKey);
 }
 
@@ -177,20 +184,27 @@ export interface UpsetScrollbar {
 	thumbY: number;
 	thumbW: number;
 	thumbH: number;
-	scrolled: number;
+	orientation: "vertical" | "horizontal";
 }
 
-export function computeUpsetScrollbar(L: UpsetScreenLayout, canvasW: number): UpsetScrollbar | null {
+const SCROLLBAR_W = 10;
+const SCROLLBAR_GAP = 4; // padding between scrollbars and canvas edges
+
+export function computeUpsetVScrollbar(
+	L: UpsetScreenLayout,
+	canvasW: number,
+	hasHScroll: boolean,
+): UpsetScrollbar | null {
 	if (L.maxScrollY <= 0) return null;
-	const trackW = 10;
-	const trackX = canvasW - trackW - 4;
+	const trackW = SCROLLBAR_W;
+	const trackX = canvasW - trackW - SCROLLBAR_GAP;
 	const trackY = L.matrixViewportTopY + 2;
-	const trackH = L.matrixViewportH - 4;
+	const bottomReserve = hasHScroll ? SCROLLBAR_W + SCROLLBAR_GAP * 2 : 4;
+	const trackH = Math.max(40, L.matrixViewportH - bottomReserve);
 	const ratio = L.matrixViewportH / L.matrixTotalH;
 	const thumbH = Math.max(24, trackH * ratio);
 	const scrolled = -(L.matrixTopY - L.matrixViewportTopY);
-	const thumbY =
-		trackY + (trackH - thumbH) * (scrolled / L.maxScrollY);
+	const thumbY = trackY + (trackH - thumbH) * (scrolled / L.maxScrollY);
 	return {
 		trackX,
 		trackY,
@@ -200,28 +214,75 @@ export function computeUpsetScrollbar(L: UpsetScreenLayout, canvasW: number): Up
 		thumbY,
 		thumbW: trackW,
 		thumbH,
-		scrolled,
+		orientation: "vertical",
 	};
 }
 
-function drawScrollbar(
+// Horizontal scrollbar — represents the world's horizontal panX
+// against the total card area's projected screen width.
+// `contentW = cardsWorldWidth * zoom`. When content > canvas width
+// the bar appears at the bottom of the matrix viewport. Dragging
+// the thumb updates world panX (= cards and matrix shift together).
+export function computeUpsetHScrollbar(
+	L: UpsetScreenLayout,
+	canvasW: number,
+	zoom: number,
+	panX: number,
+	cardsWorldWidth: number,
+): UpsetScrollbar | null {
+	const contentW = cardsWorldWidth * zoom;
+	if (contentW <= canvasW) return null;
+	const trackH = SCROLLBAR_W;
+	const trackX = L.matrixLeftX;
+	const trackW = Math.max(
+		40,
+		canvasW - L.matrixLeftX - SCROLLBAR_GAP - (SCROLLBAR_W + SCROLLBAR_GAP),
+	);
+	const trackY = L.footerBottomY - trackH - SCROLLBAR_GAP;
+	const ratio = canvasW / contentW;
+	const thumbW = Math.max(24, trackW * ratio);
+	// panX = 0 ⇒ content left flush with canvas left (thumb at start).
+	// panX = canvasW - contentW (negative) ⇒ content right flush (thumb end).
+	const maxPanX = 0;
+	const minPanX = canvasW - contentW;
+	const clamped = Math.max(minPanX, Math.min(maxPanX, panX));
+	const t = (maxPanX - clamped) / (maxPanX - minPanX);
+	const thumbX = trackX + (trackW - thumbW) * t;
+	return {
+		trackX,
+		trackY,
+		trackW,
+		trackH,
+		thumbX,
+		thumbY: trackY,
+		thumbW,
+		thumbH: trackH,
+		orientation: "horizontal",
+	};
+}
+
+function drawScrollbars(
 	ctx: CanvasRenderingContext2D,
 	L: UpsetScreenLayout,
 	canvasW: number,
 	dragActive: boolean,
+	hScrollbar: UpsetScrollbar | null,
 ): void {
-	const s = computeUpsetScrollbar(L, canvasW);
-	if (!s) return;
-	// Track — semi-transparent rounded rectangle.
-	roundRect(ctx, s.trackX, s.trackY, s.trackW, s.trackH, s.trackW / 2);
-	ctx.fillStyle = "rgba(100, 110, 130, 0.28)";
-	ctx.fill();
-	// Thumb — brighter when dragging.
-	roundRect(ctx, s.thumbX, s.thumbY, s.thumbW, s.thumbH, s.thumbW / 2);
-	ctx.fillStyle = dragActive
-		? "rgba(220, 230, 245, 0.85)"
-		: "rgba(180, 195, 220, 0.65)";
-	ctx.fill();
+	const v = computeUpsetVScrollbar(L, canvasW, hScrollbar != null);
+	const paintBar = (s: UpsetScrollbar): void => {
+		const thinDim = Math.min(s.trackW, s.trackH);
+		roundRect(ctx, s.trackX, s.trackY, s.trackW, s.trackH, thinDim / 2);
+		ctx.fillStyle = "rgba(100, 110, 130, 0.28)";
+		ctx.fill();
+		const tThin = Math.min(s.thumbW, s.thumbH);
+		roundRect(ctx, s.thumbX, s.thumbY, s.thumbW, s.thumbH, tThin / 2);
+		ctx.fillStyle = dragActive
+			? "rgba(220, 230, 245, 0.85)"
+			: "rgba(180, 195, 220, 0.65)";
+		ctx.fill();
+	};
+	if (v) paintBar(v);
+	if (hScrollbar) paintBar(hScrollbar);
 }
 
 function roundRect(
