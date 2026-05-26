@@ -197,6 +197,19 @@ export class MiniGraphView extends ItemView {
 				canvasW: number;
 		  }
 		| null = null;
+	// Direct-drag scroll INSIDE the footer body (= grab any matrix /
+	// label-band area and drag to scroll rows up/down and cards left/
+	// right). Active during a mousedown-to-mouseup gesture; null when
+	// no footer drag is in flight.
+	private upsetBodyDrag:
+		| {
+				lastX: number;
+				lastY: number;
+				maxScrollY: number;
+				cardsContentW: number;
+				canvasW: number;
+		  }
+		| null = null;
 	// Per-cluster "truly-aggregated" member count. Populated during
 	// rebuild() for clusters in aggregatedLayers — the count excludes
 	// members that also belong to a non-aggregated cluster (since those
@@ -1592,6 +1605,53 @@ export class MiniGraphView extends ItemView {
 		return false;
 	}
 
+	// Footer body drag: any non-scrollbar mousedown inside the footer
+	// captures a 2-axis drag — moving the cursor up/down scrolls the
+	// row matrix vertically (independent state) and left/right pans
+	// the world horizontally (= cards + matrix together).
+	private tryBeginFooterBodyDrag(sx: number, sy: number): boolean {
+		if (!this.laid.upset) return false;
+		const footerTopY =
+			this.canvas.clientHeight -
+			Math.max(120, Math.floor(this.canvas.clientHeight * 0.25));
+		if (sy < footerTopY) return false;
+		const L = computeUpsetScreenLayout(
+			this.laid.upset,
+			this.canvas.clientWidth,
+			this.canvas.clientHeight,
+			this.zoom,
+			this.panX,
+			this.upsetFooterScrollY,
+		);
+		this.upsetBodyDrag = {
+			lastX: sx,
+			lastY: sy,
+			maxScrollY: Math.max(0, L.matrixTotalH - L.matrixViewportH),
+			cardsContentW: this.laid.upset.cardsWorldWidth * this.zoom,
+			canvasW: this.canvas.clientWidth,
+		};
+		return true;
+	}
+
+	private updateFooterBodyDrag(sx: number, sy: number): void {
+		const d = this.upsetBodyDrag;
+		if (!d) return;
+		const dx = sx - d.lastX;
+		const dy = sy - d.lastY;
+		d.lastX = sx;
+		d.lastY = sy;
+		// Drag DOWN on the rows ⇒ rows move with the cursor (scrollY
+		// decreases). Standard "grab and pull" panel feel.
+		this.upsetFooterScrollY = Math.max(
+			0,
+			Math.min(d.maxScrollY, this.upsetFooterScrollY - dy),
+		);
+		// Drag RIGHT ⇒ content follows the cursor right (panX grows).
+		const minPanX = d.canvasW - d.cardsContentW;
+		this.panX = Math.max(minPanX, Math.min(0, this.panX + dx));
+		this.requestDraw();
+	}
+
 	private updateScrollbarDrag(sx: number, sy: number): void {
 		const d = this.upsetScrollDrag;
 		if (!d) return;
@@ -1740,6 +1800,14 @@ export class MiniGraphView extends ItemView {
 				e.preventDefault();
 				return;
 			}
+			// Otherwise, a click anywhere INSIDE the footer body becomes
+			// a row + column drag-scroll so the user can grab the label
+			// band / size bars / matrix dots and move them directly.
+			if (this.laid.upset && this.tryBeginFooterBodyDrag(sx, sy)) {
+				c.style.cursor = "grabbing";
+				e.preventDefault();
+				return;
+			}
 			if (e.shiftKey || this.marquee.isArmed()) {
 				this.marquee.begin(sx, sy);
 				e.preventDefault();
@@ -1760,6 +1828,13 @@ export class MiniGraphView extends ItemView {
 				this.updateScrollbarDrag(sx, sy);
 				return;
 			}
+			if (this.upsetBodyDrag) {
+				const rect = c.getBoundingClientRect();
+				const sx = e.clientX - rect.left;
+				const sy = e.clientY - rect.top;
+				this.updateFooterBodyDrag(sx, sy);
+				return;
+			}
 			if (this.marquee.isActive()) {
 				this.marquee.update(e.clientX, e.clientY);
 				return;
@@ -1774,6 +1849,12 @@ export class MiniGraphView extends ItemView {
 		window.addEventListener("mouseup", (e) => {
 			if (this.upsetScrollDrag) {
 				this.upsetScrollDrag = null;
+				this.requestDraw();
+				return;
+			}
+			if (this.upsetBodyDrag) {
+				this.upsetBodyDrag = null;
+				c.style.cursor = "grab";
 				this.requestDraw();
 				return;
 			}
