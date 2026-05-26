@@ -26,6 +26,11 @@ export function drawEnclosures(
 	clusters: ClusterRect[],
 	highlightedClusters: Set<string>,
 	zoom: number,
+	// World position of the hovered NODE, if any. When set, only the
+	// intersection sub-box that CONTAINS this point is accented — the other
+	// sub-boxes of the highlighted single-set box (which the hovered node does
+	// NOT belong to) keep their own colour.
+	hoverPos: { x: number; y: number } | null = null,
 ): void {
 	// Hide "ghost" single-node enclosures (a stray 1-cell box around a
 	// multi-tag card that lives in another cluster) — they read as
@@ -51,18 +56,16 @@ export function drawEnclosures(
 				for (const p of mains) ctx.rect(p.x, p.y, p.w, p.h);
 				ctx.fill();
 			}
-			// Intersection (積集合) sub-boxes are filled in their OWN colour
+			// Intersection (積集合) sub-boxes always keep their OWN colour
 			// (keyed by the intersection signature) so they read as distinct
-			// from the single-set box that contains them.
-			if (!isHigh) {
-				for (const p of c.pieces) {
-					if (p.kind !== "sub") continue;
-					const sh = clusterHue(p.hueKey ?? c.groupKey);
-					ctx.fillStyle = `hsla(${sh}, 72%, 55%, 0.42)`;
-					ctx.beginPath();
-					ctx.rect(p.x, p.y, p.w, p.h);
-					ctx.fill();
-				}
+			// from the single-set box that contains them — even on hover.
+			for (const p of c.pieces) {
+				if (p.kind !== "sub") continue;
+				const sh = clusterHue(p.hueKey ?? c.groupKey);
+				ctx.fillStyle = `hsla(${sh}, 72%, 55%, 0.42)`;
+				ctx.beginPath();
+				ctx.rect(p.x, p.y, p.w, p.h);
+				ctx.fill();
 			}
 		} else if (c.cells && c.cells.length > 0) {
 			ctx.beginPath();
@@ -85,16 +88,26 @@ export function drawEnclosures(
 		ctx.lineWidth = isHigh ? accentStrokeW : strokeW;
 		if (c.pieces && c.pieces.length > 0) {
 			for (const p of c.pieces) {
+				let pHigh: boolean;
 				if (p.kind === "sub") {
 					ctx.setLineDash([dashLen, dashGap]);
-					if (!isHigh) {
-						const sh = clusterHue(p.hueKey ?? c.groupKey);
-						ctx.strokeStyle = `hsla(${sh}, 78%, 66%, 0.95)`;
-					}
+					// Accent a sub-box only when its single-set box is highlighted
+					// AND (no node is hovered OR the hovered node sits inside it).
+					pHigh =
+						isHigh &&
+						(!hoverPos ||
+							(hoverPos.x >= p.x &&
+								hoverPos.x <= p.x + p.w &&
+								hoverPos.y >= p.y &&
+								hoverPos.y <= p.y + p.h));
+					const sh = clusterHue(p.hueKey ?? c.groupKey);
+					ctx.strokeStyle = pHigh ? "#ff9d3f" : `hsla(${sh}, 78%, 66%, 0.95)`;
 				} else {
 					ctx.setLineDash([]);
-					if (!isHigh) ctx.strokeStyle = `hsla(${hue}, 70%, 62%, 0.9)`;
+					pHigh = isHigh;
+					ctx.strokeStyle = pHigh ? "#ff9d3f" : `hsla(${hue}, 70%, 62%, 0.9)`;
 				}
+				ctx.lineWidth = pHigh ? accentStrokeW : strokeW;
 				ctx.strokeRect(p.x, p.y, p.w, p.h);
 			}
 			ctx.setLineDash([]);

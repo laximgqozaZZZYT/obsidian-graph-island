@@ -1467,11 +1467,15 @@ export class MiniGraphView extends ItemView {
 		// for it here. The footer itself is drawn after this loop at
 		// the end of draw().
 		if (this.settings.showEnclosures && !this.laid.upset) {
+			const hn = this.hoveredNodeId
+				? this.laid.nodes.find((n) => n.id === this.hoveredNodeId)
+				: null;
 			drawEnclosures(
 				ctx,
 				this.laid.clusters,
 				this.highlightedClusters,
 				this.zoom,
+				hn ? { x: hn.x, y: hn.y } : null,
 			);
 		}
 
@@ -1590,9 +1594,15 @@ export class MiniGraphView extends ItemView {
 		// renderer in draw-card.ts can stay pure: cache lookup via the
 		// `${id}:${mode}:${scale.toFixed(4)}` composite key (= same key
 		// `cardFor()` writes with).
-		const scale = this.getCardScale(n.id);
-		const mode = this.displayMode.get(n.id) ?? "full";
-		const card = this.cardCache.get(`${n.id}:${mode}:${scale.toFixed(4)}`);
+		// Euler-nested copies carry a `${tag}\t${origId}` id; resolve scale,
+		// display-mode and the body-line cache against the ORIGINAL id so the
+		// font scales with the node's (degree-driven) size and the cached body
+		// is found. Non-duplicated ids contain no tab → used as-is.
+		const sepIdx = n.id.indexOf("\t");
+		const baseId = sepIdx >= 0 ? n.id.slice(sepIdx + 1) : n.id;
+		const scale = this.getCardScale(baseId);
+		const mode = this.displayMode.get(baseId) ?? "full";
+		const card = this.cardCache.get(`${baseId}:${mode}:${scale.toFixed(4)}`);
 		drawCardFn(ctx, n, {
 			scale,
 			bodyLines: card?.bodyLines ?? [],
@@ -1612,7 +1622,11 @@ export class MiniGraphView extends ItemView {
 	}
 
 	private openFile(id: string): void {
-		this.app.workspace.openLinkText(id, "", false);
+		// Euler-nested copies use a `${tag}\t${origPath}` id — open the
+		// ORIGINAL file path, not the prefixed copy id.
+		const sepIdx = id.indexOf("\t");
+		const path = sepIdx >= 0 ? id.slice(sepIdx + 1) : id;
+		this.app.workspace.openLinkText(path, "", false);
 	}
 
 	private onPointerMove(e: MouseEvent): void {
@@ -1690,13 +1704,18 @@ export class MiniGraphView extends ItemView {
 		tip.setAttr("data-kind", target.kind);
 
 		if (target.kind === "node") {
-			const file = this.app.vault.getAbstractFileByPath(target.nodeId);
+			// Euler-nested copies carry a `${tag}\t${origPath}` id — resolve the
+			// ORIGINAL path for the file lookup + body cache.
+			const sepIdx = target.nodeId.indexOf("\t");
+			const baseId =
+				sepIdx >= 0 ? target.nodeId.slice(sepIdx + 1) : target.nodeId;
+			const file = this.app.vault.getAbstractFileByPath(baseId);
 			if (!(file instanceof TFile)) return;
 			tip.createSpan({ cls: "gim-tip-title", text: file.basename });
 			tip.createSpan({ cls: "gim-tip-sub", text: file.parent?.path ?? "" });
 			// Use the already-loaded body cache; show a richer preview than the
 			// card itself (2× the card body limit, capped).
-			const cached = this.bodyCache.get(target.nodeId) ?? "";
+			const cached = this.bodyCache.get(baseId) ?? "";
 			const tipCap = Math.min(400, Math.max(200, this.settings.cardMaxChars * 2));
 			if (gen !== this.hoverGen) return;
 			if (cached) {
