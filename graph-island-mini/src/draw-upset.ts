@@ -20,6 +20,11 @@ import { clusterHue } from "./canvas-utils";
 const FONT_PX = 12;
 const SMALL_FONT_PX = 10;
 const ROW_H = 22;
+const COUNT_ROW_H = 20; // top sub-band of the footer for column counts
+const DOT_R_MIN = 3;
+const DOT_R_MAX = 9;
+const COUNT_FONT_MIN = 9;
+const COUNT_FONT_MAX = 16;
 const SET_LABEL_BAND_PX = 100;
 const SIZE_BAR_BAND_PX = 56;
 export const LEFT_BAND_PX = SET_LABEL_BAND_PX + SIZE_BAR_BAND_PX + 16; // = 172
@@ -32,7 +37,7 @@ const ROW_LABEL_PAD = 6;
 export function upsetFooterHeight(canvasH: number, activeRowCount: number): number {
 	const padTop = 8;
 	const padBottom = 8;
-	const need = padTop + activeRowCount * ROW_H + padBottom;
+	const need = padTop + COUNT_ROW_H + activeRowCount * ROW_H + padBottom;
 	const cap = Math.floor(canvasH / 3);
 	const min = 120;
 	return Math.max(min, Math.min(cap, need));
@@ -133,20 +138,83 @@ export function drawUpsetFooter(
 	ctx.lineTo(LEFT_BAND_PX + 0.5, canvasH);
 	ctx.stroke();
 	const padTop = 8;
-	const rowsTop = footerTopY + padTop;
+	const countRowY = footerTopY + padTop + COUNT_ROW_H * 0.5;
+	const rowsTop = footerTopY + padTop + COUNT_ROW_H;
 	const setRows = L.activeSets.map((s, idx) => ({
 		key: s.key,
 		label: s.label,
 		size: s.size,
 		y: rowsTop + (idx + 0.5) * ROW_H,
 	}));
-	// Row tracks.
+	// Row tracks (start below the count row).
 	ctx.fillStyle = "rgba(120, 130, 150, 0.06)";
 	for (const set of setRows) {
 		ctx.fillRect(0, set.y - ROW_H * 0.45, canvasW, ROW_H * 0.9);
 	}
+	// Largest column count for normalising dot radius / count font.
+	const maxColSize = Math.max(1, ...u.columns.map((c) => c.size));
 	drawSetLabelsAndBars(ctx, setRows, u);
-	drawMatrixDots(ctx, setRows, u, zoom, panX, canvasW, selectedSignatureKey);
+	drawColumnCounts(
+		ctx,
+		u,
+		zoom,
+		panX,
+		canvasW,
+		countRowY,
+		maxColSize,
+	);
+	drawMatrixDots(
+		ctx,
+		setRows,
+		u,
+		zoom,
+		panX,
+		canvasW,
+		selectedSignatureKey,
+		maxColSize,
+	);
+}
+
+// Per-column count numerals in the top sub-band of the footer,
+// directly above the matrix. Font size grows with the count (sqrt
+// scale) so the visual weight of each numeral reflects how many
+// cards that intersection holds.
+function drawColumnCounts(
+	ctx: CanvasRenderingContext2D,
+	u: LaidOut["upset"],
+	zoom: number,
+	panX: number,
+	canvasW: number,
+	y: number,
+	maxColSize: number,
+): void {
+	if (!u) return;
+	ctx.textAlign = "center";
+	ctx.textBaseline = "middle";
+	for (const col of u.columns) {
+		const x = col.xWorld * zoom + panX;
+		if (x < LEFT_BAND_PX || x > canvasW) continue;
+		const fontPx = sqrtScale(
+			col.size,
+			maxColSize,
+			COUNT_FONT_MIN,
+			COUNT_FONT_MAX,
+		);
+		ctx.font = `${fontPx}px sans-serif`;
+		ctx.fillStyle = "rgba(220, 225, 235, 0.92)";
+		ctx.fillText(String(col.size), x, y);
+	}
+}
+
+function sqrtScale(
+	value: number,
+	maxValue: number,
+	minOut: number,
+	maxOut: number,
+): number {
+	if (maxValue <= 0) return minOut;
+	const t = Math.sqrt(Math.max(0, value) / maxValue);
+	return minOut + (maxOut - minOut) * t;
 }
 
 function drawSetLabelsAndBars(
@@ -189,17 +257,21 @@ function drawMatrixDots(
 	panX: number,
 	canvasW: number,
 	selectedSignatureKey: string | null,
+	maxColSize: number,
 ): void {
 	if (!u) return;
 	const setIdx = new Map<string, number>();
 	setRows.forEach((s, i) => setIdx.set(s.key, i));
-	const dotR = Math.max(3, ROW_H * 0.28);
 	for (let i = 0; i < u.columns.length; i++) {
 		const col = u.columns[i];
 		const x = col.xWorld * zoom + panX;
 		// Skip columns whose screen X is outside the matrix area or
 		// behind the left band.
 		if (x < LEFT_BAND_PX || x > canvasW) continue;
+		// Dot radius scales with count (sqrt to keep mega-columns
+		// from dwarfing everything; min radius keeps small ones
+		// clickable).
+		const dotR = sqrtScale(col.size, maxColSize, DOT_R_MIN, DOT_R_MAX);
 		const inCol = new Set(col.signature);
 		const key = col.signature.join("|");
 		const highlighted = key === selectedSignatureKey;
