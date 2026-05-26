@@ -325,8 +325,6 @@ export function drawClusterLabels(
 	for (const cell of cells) {
 		const c = byKey.get(cell.key);
 		if (!c) continue;
-		// Hidden (ghost / scattered) enclosures get no label either.
-		if (c.ghostSingle) continue;
 		const text = `${c.label} (${c.memberCount})`;
 		// Clamp the label to the cluster's FINAL bbox (it may have been
 		// post-processed after layout, e.g. inheritance expansion). Shrink
