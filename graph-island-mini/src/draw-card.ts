@@ -74,38 +74,55 @@ export function drawCard(
 	// lives in `visualScale()` + this multiplication.
 	const padX = CARD_PAD_X * scale;
 	const padY = CARD_PAD_Y * scale;
-	const titleFontPx = floorWorldFontPx(
-		CARD_TITLE_FONT_PX * scale,
-		minFontPx,
-		zoom,
+	const innerW = Math.max(0, w - 2 * padX);
+	const innerH = Math.max(0, h - 2 * padY);
+	// `floorWorldFontPx` grows the font as 1/zoom to keep the SCREEN size
+	// ≥ Min font size; at low zoom that can exceed the card's WORLD height
+	// and the glyphs would spill out. Cap each font to `innerH` so a single
+	// line always fits vertically. Width is contained by `truncateToWidth`
+	// below, and the clip (further down) is the final guard for descenders
+	// and body lines. Euler + UpSet share this renderer, so both views are
+	// covered.
+	const titleFontPx = Math.min(
+		floorWorldFontPx(CARD_TITLE_FONT_PX * scale, minFontPx, zoom),
+		innerH,
 	);
-	const bodyFontPx = floorWorldFontPx(
-		CARD_BODY_FONT_PX * scale,
-		minFontPx,
-		zoom,
+	const bodyFontPx = Math.min(
+		floorWorldFontPx(CARD_BODY_FONT_PX * scale, minFontPx, zoom),
+		innerH,
 	);
 	const titleLineH = CARD_LINE_HEIGHT_PX * scale;
 	const bodyLineH = CARD_BODY_LINE_HEIGHT_PX * scale;
 	const titleBodyGap = CARD_TITLE_BODY_GAP * scale;
 	const innerLeft = x + padX;
 	const innerTop = y + padY;
-	const innerRight = x + w - padX;
+
+	// Clip ALL text to the card rectangle so nothing — an over-floored
+	// font, a long body line — can render outside the node boundary.
+	ctx.save();
+	ctx.beginPath();
+	roundedRectPath(ctx, x, y, w, h, r);
+	ctx.clip();
 
 	ctx.textAlign = "start";
 	ctx.textBaseline = "top";
 
 	ctx.font = `600 ${titleFontPx}px sans-serif`;
 	ctx.fillStyle = highlighted ? "#1d1100" : "#e6edf3";
-	const titleFitted = truncateToWidth(ctx, n.label, innerRight - innerLeft);
+	const titleFitted = truncateToWidth(ctx, n.label, innerW);
 	ctx.fillText(titleFitted, innerLeft, innerTop);
 
 	if (bodyLines.length > 0 && showBody) {
 		ctx.font = `${bodyFontPx}px sans-serif`;
 		ctx.fillStyle = highlighted ? "#3a2400" : "#9eb0c4";
-		let ly = innerTop + titleLineH + titleBodyGap;
+		// Offset below the ACTUAL title height (the capped font may exceed
+		// the nominal line height at low zoom) so the body never overlaps
+		// the title; the clip drops any line that runs past the card.
+		let ly = innerTop + Math.max(titleLineH, titleFontPx) + titleBodyGap;
 		for (const line of bodyLines) {
 			ctx.fillText(line, innerLeft, ly);
 			ly += bodyLineH;
 		}
 	}
+	ctx.restore();
 }

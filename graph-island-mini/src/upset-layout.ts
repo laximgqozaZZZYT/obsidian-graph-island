@@ -18,7 +18,7 @@ import type {
 	PositionedEdge,
 	UpsetMeta,
 } from "./layout";
-import { computeChannelDims } from "./card-sizing";
+import { computeChannelDims, minFontScale } from "./card-sizing";
 import { snapCardsToGrid } from "./cell-snap";
 import {
 	LaneRegistry,
@@ -32,6 +32,9 @@ export interface UpsetLayoutOptions {
 	cellW: number;
 	cellH: number;
 	nodeSpacing: number;
+	// Min font size (px) → scales the 隘路 in step with cellW/cellH so the
+	// UpSet grid stays proportional to the font floor. Omitted ⇒ scale 1.
+	minFontPx?: number;
 	clusterLabels: Map<string, string>;
 	columnSort?: "size" | "degree";
 	minColumnSize?: number;
@@ -48,9 +51,6 @@ export function layoutUpset(
 	sized: Sized[],
 	opts: UpsetLayoutOptions,
 ): LaidOut {
-	const sizedById = new Map<string, Sized>();
-	for (const s of sized) sizedById.set(s.id, s);
-
 	// --- 1. Set sizes (rows). HAVING already filtered upstream.
 	const setSizes = new Map<string, number>();
 	for (const n of data.nodes) {
@@ -108,67 +108,107 @@ export function layoutUpset(
 		bucket.nodeIds.sort((a, b) => a.localeCompare(b));
 	}
 
-	// --- 5. Card-stack geometry. Cell size = the SAME canonical
-	// `opts.cellW × opts.cellH` Euler uses for one grid cell. With
-	// NODE_DISPLAY size = 1×1 (the default), one UpSet card occupies
-	// exactly one grid cell — matching Euler's "one cell per card"
-	// behaviour the user pointed out.
-	// Bar width = grid cell as a baseline, BUT grows when nodes have
-	// been size-scaled (indegree / outdegree mode) so the widest
-	// node fits inside its column. Uniform width across all columns
-	// = the maximum observed card size, matching a real Pareto bar
-	// chart where every bar shares one width.
-	const baseW = opts.cellW > 0 ? opts.cellW : 80;
-	const baseH = opts.cellH > 0 ? opts.cellH : 24;
-	let cardW = baseW;
-	let cardH = baseH;
-	for (const s of sized) {
-		if (s.width > cardW) cardW = s.width;
-		if (s.height > cardH) cardH = s.height;
-	}
-	// Horizontal channel = Euler grid pitch (so column separation
-	// matches the grid). Vertical channel = 0: cards in the same
-	// column touch, forming a CONTINUOUS PARETO BAR. routeZ still
-	// works because all inter-column wiring uses the horizontal
-	// channel (channelW) — no vertical lanes are required in UpSet.
-	const { channelW } = computeChannelDims(opts.nodeSpacing);
-	const channelH = 0;
+	// --- 5. Card geometry on a UNIFORM one-cell lattice. The lattice
+	// pitch (`slotW × slotH`) is ALWAYS one canonical Euler cell — never
+	// the max observed card — so a default 1×1 NODE_DISPLAY card fills
+	// exactly one grid 区画 (the cell framed by the row + column 隘路).
+	//
+	// Size-scaled cards (indegree / outdegree → up to 4×, i.e. 2×2 cells)
+	// are NOT shrunk to one cell; instead each card occupies the integer
+	// number of cells it spans, and a column reserves as many lattice
+	// columns as its widest card needs (`§6`). That way the lattice stays
+	// uniform (so `drawCardGrid` / footer math are unchanged) AND a wide
+	// card pushes the next Pareto bar to the right rather than overlapping
+	// it. Earlier `max(observed)` slot inflation was the bug that left
+	// 1×1 defaults tiny inside over-sized cells — avoided here.
+	const cardW = opts.cellW > 0 ? opts.cellW : 80;
+	const cardH = opts.cellH > 0 ? opts.cellH : 24;
+	// Row + column channels via the SAME helper Euler uses, scaled by the
+	// SAME minFontScale, so the slot pitch (= cardW + channelW) equals one
+	// Euler grid cell pitch and the whole grid (cell + 隘路 + card) grows
+	// proportionally with the Min font size in both views.
+	const { channelW, channelH } = computeChannelDims(
+		opts.nodeSpacing,
+		minFontScale(opts.minFontPx ?? 0),
+	);
 	const slotW = cardW + channelW;
 	const slotH = cardH + channelH;
 
-	const tallestColumn = Math.max(1, ...buckets.map((b) => b.nodeIds.length));
-	const cardsWorldHeight = tallestColumn * slotH;
-	const cardsWorldWidth = buckets.length * slotW;
+	// Per-node footprint. `sized[].width/height` carry the (possibly
+	// scaled) pixel size; `cols/rows` = how many one-cell slots that
+	// spans. Because `cardFor` and this layout share the same channel +
+	// cell pitch, `(w + channelW) / slotW` is the exact integer cell
+	// count (= `effC` from computeCardSize), so `round` is lossless.
+	const sizedById = new Map<string, Sized>();
+	for (const s of sized) sizedById.set(s.id, s);
+	const footprint = (id: string): { w: number; h: number; cols: number; rows: number } => {
+		const s = sizedById.get(id);
+		const w = s?.width ?? cardW;
+		const h = s?.height ?? cardH;
+		return {
+			w,
+			h,
+			cols: Math.max(1, Math.round((w + channelW) / slotW)),
+			rows: Math.max(1, Math.round((h + channelH) / slotH)),
+		};
+	};
 
-	// --- 6. Place cards on the slot lattice — cell-centre coords so
-	// `snapAndBuildRouteData` (= shared Euler path) is a no-op for the
-	// well-formed UpSet placement but still validates the snap. Column
-	// index `ci` → column world x = `(ci + 0.5) * slotW`.
+	// Bottom baseline is shared across columns at `totalRows` cells down,
+	// so every Pareto bar grows up from the same line. `totalRows` = the
+	// tallest column measured in CELLS (summing each card's row span).
+	let totalRows = 1;
+	for (const b of buckets) {
+		let sum = 0;
+		for (const id of b.nodeIds) sum += footprint(id).rows;
+		if (sum > totalRows) totalRows = sum;
+	}
+
+	// --- 6. Place cards on the cell lattice. Columns flow left→right
+	// behind a running `cellCursor` (in cell units). Each column reserves
+	// `widthCells` = its widest card's column span, so a 2×2 card forces
+	// its column 2 cells wide and the NEXT bar starts 2 cells over — the
+	// right-adjacent Pareto bar keeps its distance instead of overlapping.
+	// `xWorld` (the column centre) drives the footer dot-matrix + count
+	// labels, so they inherit the same variable spacing automatically.
+	//
+	// All coords land on integer cell boundaries matching each card's own
+	// span, so the post-placement `snapCardsToGrid` is a no-op (no spiral
+	// re-packing that would scramble the Pareto order).
 	const positionedNodes: PositionedNode[] = [];
-	const columns: UpsetMeta["columns"] = buckets.map((bucket, ci) => {
-		const xWorld = (ci + 0.5) * slotW;
+	let cellCursor = 0;
+	const columns: UpsetMeta["columns"] = buckets.map((bucket) => {
+		let widthCells = 1;
+		for (const id of bucket.nodeIds) {
+			widthCells = Math.max(widthCells, footprint(id).cols);
+		}
+		const colStart = cellCursor;
+		const xWorld = (colStart + widthCells / 2) * slotW;
+		// Bottom-up Pareto stack, counting CELLS so multi-row cards
+		// reserve their full height. `cumRows` = cells already consumed
+		// from the shared bottom baseline (`totalRows`).
+		let cumRows = 0;
 		for (let j = 0; j < bucket.nodeIds.length; j++) {
 			const id = bucket.nodeIds[j];
 			const node = data.nodes.find((n) => n.id === id);
 			if (!node) continue;
-			const s = sizedById.get(id);
-			const w = s?.width ?? cardW;
-			const h = s?.height ?? cardH;
-			// Stack BOTTOM-UP per Pareto convention: the j=0 card
-			// (alphabetically first by id) lands on the BOTTOM-most
-			// cell row; each subsequent card piles on top of it.
-			// All columns therefore share the same baseline at row
-			// `tallestColumn - 1` and grow upward by their count.
-			const rowIdx = tallestColumn - 1 - j;
-			const yCentre = (rowIdx + 0.5) * slotH;
+			const fp = footprint(id);
+			const topCell = totalRows - cumRows - fp.rows;
+			cumRows += fp.rows;
+			const yCentre = (topCell + fp.rows / 2) * slotH;
+			// Centre the card within its column's cell span (left-biased
+			// when the parity doesn't divide evenly) so a narrow card in a
+			// wide column sits under the bar rather than flush-left.
+			const leftCell = colStart + Math.floor((widthCells - fp.cols) / 2);
+			const xCentre = (leftCell + fp.cols / 2) * slotW;
 			positionedNodes.push({
 				...node,
-				x: xWorld,
+				x: xCentre,
 				y: yCentre,
-				width: w,
-				height: h,
+				width: fp.w,
+				height: fp.h,
 			} as PositionedNode);
 		}
+		cellCursor += widthCells;
 		return {
 			signature: bucket.signature,
 			nodeIds: bucket.nodeIds,
@@ -176,6 +216,9 @@ export function layoutUpset(
 			xWorld,
 		};
 	});
+
+	const cardsWorldWidth = cellCursor * slotW;
+	const cardsWorldHeight = totalRows * slotH;
 
 	const sets: UpsetMeta["sets"] = setKeys.map((key) => ({
 		key,

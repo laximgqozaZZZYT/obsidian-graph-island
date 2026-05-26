@@ -918,6 +918,10 @@ export class MiniGraphView extends ItemView {
 			// slot regardless of the floor.
 			cellW: CARD_CELL_W * minFontScale(this.settings.minFontPx),
 			cellH: CARD_CELL_H * minFontScale(this.settings.minFontPx),
+			// Forwarded so the layout scales the 隘路 (channels) by the
+			// same font factor as the cells — keeps the whole grid
+			// proportional to Min font size in both Euler and UpSet.
+			minFontPx: this.settings.minFontPx,
 			clusterLabels,
 			anchorPlacement: this.settings.anchorPlacement,
 			viewMode: this.settings.viewMode,
@@ -1023,7 +1027,13 @@ export class MiniGraphView extends ItemView {
 
 	private cardFor(n: GraphNode): SizedNode {
 		const display = this.getNodeDisplay(n.id);
-		const { channelW, channelH } = computeChannelDims(this.settings.nodeSpacing);
+		// 隘路 scales with the font floor too, so a multi-cell card's
+		// internal channel matches the layout's slot channel and the
+		// card fills its cell span exactly at every Min font size.
+		const { channelW, channelH } = computeChannelDims(
+			this.settings.nodeSpacing,
+			minFontScale(this.settings.minFontPx),
+		);
 		const { width, height } = computeCardSize({
 			rows: Math.max(1, display.nodeRows),
 			cols: Math.max(1, display.nodeCols),

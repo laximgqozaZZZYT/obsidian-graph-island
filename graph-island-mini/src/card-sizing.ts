@@ -74,14 +74,21 @@ export function computeCardSize(opts: CardSizeOptions): {
 // channel width — kept symmetric so row separations between cards are
 // as visible as column separations. (Earlier versions scaled channelH
 // by the card aspect ratio, which made vertical channels look cramped.)
-// Floors at 8 px so the slot lattice never collapses.
-export function computeChannelDims(nodeSpacing: number): {
+//
+// `fontScale` (= `minFontScale(minFontPx)`) scales the 隘路 in lockstep
+// with the cell + card, so the WHOLE grid grows proportionally with the
+// Min font size setting. Without it, raising the font floor grew the
+// cards but left the gaps thin, making the layout look cramped.
+export function computeChannelDims(
+	nodeSpacing: number,
+	fontScale = 1,
+): {
 	channelW: number;
 	channelH: number;
 } {
 	// Keep in sync with layout.ts: floor 24, multiplier 1.5×, both axes
 	// equal so the cell grid breathing room reads symmetrically.
-	const channelW = Math.max(24, Math.floor(nodeSpacing * 1.5));
+	const channelW = Math.max(24, Math.floor(nodeSpacing * 1.5)) * fontScale;
 	const channelH = channelW;
 	return { channelW, channelH };
 }

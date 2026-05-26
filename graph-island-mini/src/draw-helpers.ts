@@ -306,7 +306,13 @@ export function drawClusterLabels(
 	ctx.textBaseline = "alphabetic";
 	ctx.textAlign = "start";
 	const padX = 4 / zoom;
-	const insetY = 4 / zoom;
+	// Gap between the label's baseline and the enclosure's top edge. Lift
+	// it by roughly a full label height + a margin so the label tab clears
+	// the first row of cards inside the rect (the "spacing between the
+	// label and the nodes" the user asked for) instead of resting right on
+	// the top node row. Screen-constant so the gap looks the same at every
+	// zoom.
+	const insetY = groupFontPx * 0.35 + 6 / zoom;
 
 	interface AnchorInfo {
 		c: ClusterRect;
@@ -375,35 +381,71 @@ export function drawClusterLabels(
 		const hidden = !hasAnchor || rectW <= 0 || rectH <= 0;
 		return { c, rectX, rectY, rectW, rectH, hidden };
 	});
-	// Group clusters that share the exact same anchor rectangle. Each
-	// such group renders one multi-coloured label line just above the
-	// rect — names separated by " · ", one colour per cluster.
-	const groups = new Map<string, AnchorInfo[]>();
-	for (const info of infos) {
-		if (info.hidden) continue;
-		const key = `${Math.round(info.rectX)}|${Math.round(info.rectY)}|${Math.round(info.rectW)}|${Math.round(info.rectH)}`;
-		const arr = groups.get(key);
-		if (arr) arr.push(info);
-		else groups.set(key, [info]);
+	// Group clusters by ANCHOR PROXIMITY (not exact rect). Deeply nested
+	// enclosures share almost the same top-left corner, so giving each its
+	// own de-conflicted row built a tall TOWER of labels. Merging anchors
+	// that fall within a couple of cells into ONE concatenated line
+	// ("a · b · c …", truncated to the widest member's rect with a "(+N)"
+	// overflow) keeps each spot to a single line, so the vertical
+	// de-confliction below only separates the few genuinely distinct lines
+	// and the stack stays short. Greedy: each label joins the first group
+	// whose representative (top-left-most, = `g[0]`) anchor is near enough,
+	// which bounds every group's spread to one threshold from its rep.
+	const mergeX = laid.slotW * 1.8;
+	const mergeY = laid.slotH * 1.4;
+	const groupList: AnchorInfo[][] = [];
+	const sortedInfos = infos
+		.filter((i) => !i.hidden)
+		.sort((a, b) => a.rectY - b.rectY || a.rectX - b.rectX);
+	for (const info of sortedInfos) {
+		let joined = false;
+		for (const g of groupList) {
+			const rep = g[0];
+			if (
+				Math.abs(info.rectX - rep.rectX) <= mergeX &&
+				Math.abs(info.rectY - rep.rectY) <= mergeY
+			) {
+				g.push(info);
+				joined = true;
+				break;
+			}
+		}
+		if (!joined) groupList.push([info]);
 	}
 	const sep = " · ";
 	const sepW = ctx.measureText(sep).width;
 	const moreColor = "rgba(180, 190, 210, 0.9)";
 	const sepColor = "rgba(150, 160, 180, 0.7)";
-	for (const group of groups.values()) {
+	// Opaque tab drawn BEHIND every label. Euler enclosures nest and
+	// overlap, so a label anchored just above its own rect frequently
+	// lands over a PARENT enclosure's nodes. The tab occludes whatever
+	// sits behind the text. Labels already paint AFTER the cards.
+	const labelBg = "rgba(13, 15, 20, 0.88)";
+	const tabAsc = groupFontPx * 0.82;
+	const tabDesc = groupFontPx * 0.22;
+	const tabH = tabAsc + tabDesc;
+	const lineGap = 3 / zoom;
+
+	// Phase A: lay out each group's segments + horizontal tab extent at
+	// its NATURAL y (just above its rect). No drawing yet.
+	interface LabelLine {
+		baseY: number;
+		x1: number;
+		x2: number;
+		segs: { text: string; x: number; color: string }[];
+	}
+	const lines: LabelLine[] = [];
+	for (const group of groupList) {
 		group.sort(
 			(a, b) =>
 				b.c.width * b.c.height - a.c.width * a.c.height,
 		);
 		const rect = group[0];
-		// Anchor: just above the rect (channel space, no node underneath).
-		// Sub-rect anchors land inside their parent main rect because the
-		// sub-rect sits inside it by construction (V3 / V5 invariants).
-		// Solo labels stay above their own rect; shared rects compose one
-		// concatenated line so each name is still individually readable.
 		const baseY = rect.rectY - insetY;
 		const startX = rect.rectX + padX;
 		const rightLimit = rect.rectX + rect.rectW - padX;
+
+		const segs: { text: string; x: number; color: string }[] = [];
 		let x = startX;
 		for (let i = 0; i < group.length; i++) {
 			const info = group[i];
@@ -415,41 +457,84 @@ export function drawClusterLabels(
 			const remaining = group.length - i;
 			const more = remaining > 1 ? ` (+${remaining - 1})` : "";
 			const wMore = remaining > 1 ? ctx.measureText(more).width : 0;
+			const hue = `hsla(${clusterHue(info.c.groupKey)}, 65%, 70%, 1)`;
 			if (x + wText + trailing > rightLimit) {
 				if (i === 0 && wText <= rect.rectW) {
 					// Always show at least the largest cluster's name even
 					// if it slightly exceeds the channel pad allowance.
-					ctx.fillStyle = `hsla(${clusterHue(info.c.groupKey)}, 65%, 70%, 1)`;
-					ctx.fillText(text, x, baseY);
-					if (remaining > 1) {
-						ctx.fillStyle = moreColor;
-						ctx.fillText(more, x + wText, baseY);
-					}
+					segs.push({ text, x, color: hue });
+					if (remaining > 1)
+						segs.push({ text: more, x: x + wText, color: moreColor });
 				} else if (remaining > 0) {
-					ctx.fillStyle = moreColor;
-					ctx.fillText(`(+${remaining})`, x, baseY);
+					segs.push({ text: `(+${remaining})`, x, color: moreColor });
 				}
 				break;
 			}
 			// If the *next* name+sep wouldn't fit but " (+N)" would, leave
 			// space for the overflow marker on the next loop.
 			if (!isLast && x + wText + sepW + wMore > rightLimit) {
-				ctx.fillStyle = `hsla(${clusterHue(info.c.groupKey)}, 65%, 70%, 1)`;
-				ctx.fillText(text, x, baseY);
-				if (remaining > 1) {
-					ctx.fillStyle = moreColor;
-					ctx.fillText(more, x + wText, baseY);
-				}
+				segs.push({ text, x, color: hue });
+				if (remaining > 1)
+					segs.push({ text: more, x: x + wText, color: moreColor });
 				break;
 			}
-			ctx.fillStyle = `hsla(${clusterHue(info.c.groupKey)}, 65%, 70%, 1)`;
-			ctx.fillText(text, x, baseY);
+			segs.push({ text, x, color: hue });
 			x += wText;
 			if (!isLast) {
-				ctx.fillStyle = sepColor;
-				ctx.fillText(sep, x, baseY);
+				segs.push({ text: sep, x, color: sepColor });
 				x += sepW;
 			}
+		}
+		if (segs.length === 0) continue;
+		const last = segs[segs.length - 1];
+		const lineEnd = last.x + ctx.measureText(last.text).width;
+		lines.push({ baseY, x1: startX - padX, x2: lineEnd + padX, segs });
+	}
+
+	// Phase B: vertical de-confliction. Nested enclosures share almost the
+	// same top edge, so their labels would pile on one row. Process them
+	// top-first and, whenever a label's tab box overlaps one already
+	// placed in the same horizontal band, LIFT it up by one row into the
+	// free channel above — turning the pile into a clean vertical stack
+	// with a gap between every entry (the spacing the user asked for, now
+	// for nested rects too). The tab keeps each line readable over nodes.
+	lines.sort((a, b) => a.baseY - b.baseY || a.x1 - b.x1);
+	const placed: { x1: number; x2: number; top: number; bot: number }[] = [];
+	for (const ln of lines) {
+		const hOverlap = (p: (typeof placed)[number]) =>
+			ln.x1 < p.x2 && ln.x2 > p.x1;
+		let guard = 0;
+		while (guard++ < 128) {
+			const top = ln.baseY - tabAsc;
+			const bot = ln.baseY + tabDesc;
+			let conflict: (typeof placed)[number] | null = null;
+			for (const p of placed) {
+				if (hOverlap(p) && top < p.bot && bot > p.top) {
+					conflict = p;
+					break;
+				}
+			}
+			if (!conflict) break;
+			// Snap this label so its BOTTOM clears the conflicting tab's
+			// TOP by `lineGap` (lift the whole line up by exactly the gap
+			// needed, then re-check against the rest).
+			ln.baseY = conflict.top - lineGap - tabDesc;
+		}
+		placed.push({
+			x1: ln.x1,
+			x2: ln.x2,
+			top: ln.baseY - tabAsc,
+			bot: ln.baseY + tabDesc,
+		});
+	}
+
+	// Phase C: draw tabs then text at the de-conflicted positions.
+	for (const ln of lines) {
+		ctx.fillStyle = labelBg;
+		ctx.fillRect(ln.x1, ln.baseY - tabAsc, ln.x2 - ln.x1, tabH);
+		for (const sg of ln.segs) {
+			ctx.fillStyle = sg.color;
+			ctx.fillText(sg.text, sg.x, ln.baseY);
 		}
 	}
 }

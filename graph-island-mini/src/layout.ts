@@ -38,6 +38,7 @@ import {
 } from "./cluster-bbox";
 import { layoutUpset } from "./upset-layout";
 import { buildRouteObstacles } from "./layout-shared";
+import { computeChannelDims, minFontScale } from "./card-sizing";
 
 export interface SizedNode extends GraphNode {
 	width: number;
@@ -155,6 +156,11 @@ export interface LayoutOptions {
 	// the grid stays uniform.
 	cellW: number;
 	cellH: number;
+	// Min font size (px). Drives `minFontScale`, which scales the 隘路
+	// (channels) in step with the already-scaled `cellW/cellH` so the
+	// entire grid stays proportional to the font floor. Defaults to no
+	// scaling (scale = 1) when omitted.
+	minFontPx?: number;
 	clusterOffsets?: Record<string, { dx: number; dy: number }>;
 	nodeOffsets?: Record<string, { dx: number; dy: number }>;
 	clusterLabels?: Map<string, string>;
@@ -187,6 +193,7 @@ export function layout(data: GraphData, sized: SizedNode[], opts: LayoutOptions)
 			cellW: opts.cellW,
 			cellH: opts.cellH,
 			nodeSpacing: opts.nodeSpacing,
+			minFontPx: opts.minFontPx,
 			clusterLabels: opts.clusterLabels ?? new Map<string, string>(),
 			columnSort: opts.upsetColumnSort,
 			minColumnSize: opts.upsetMinColumnSize,
@@ -227,12 +234,14 @@ export function layout(data: GraphData, sized: SizedNode[], opts: LayoutOptions)
 	// Channels (隘路): narrow gaps between slots reserved for wires, trunks
 	// and cluster borders. Horizontal and vertical channels share the same
 	// width — uniform breathing room (was asymmetric, vertical ~3× narrower).
-	// Channel (隘路) width: floor doubled (8 → 24) so the cluster fills
-	// have visible breathing room between cells and the enclosure
-	// boundary reads more clearly. Multiplier 1.5× lifts user-set
-	// `nodeSpacing` further.
-	const channelW = Math.max(24, Math.floor(opts.nodeSpacing * 1.5));
-	const channelH = channelW;
+	// Floor 24, multiplier 1.5× on `nodeSpacing`, THEN scaled by the same
+	// `minFontScale` the cells use (`cardW/cardH` arrive pre-scaled via
+	// `opts.cellW/cellH`) so the whole grid — cell + 隘路 + card — grows
+	// proportionally with the Min font size setting.
+	const { channelW, channelH } = computeChannelDims(
+		opts.nodeSpacing,
+		minFontScale(opts.minFontPx ?? 0),
+	);
 	const slotW = cardW + channelW;
 	const slotH = cardH + channelH;
 	const gridX = slotW;
