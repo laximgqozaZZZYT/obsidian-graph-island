@@ -12,12 +12,21 @@
 // number — that's what keeps "this column's stack" and "this column's
 // dots" visually under each other at every zoom.
 import type { GraphData } from "./types";
-import type { LaidOut, PositionedNode, UpsetMeta } from "./layout";
-import {
-	snapAndBuildRouteData,
-	routeAllEdges,
-} from "./layout-shared";
+import type {
+	LaidOut,
+	PositionedNode,
+	PositionedEdge,
+	UpsetMeta,
+} from "./layout";
 import { computeChannelDims } from "./card-sizing";
+import { snapCardsToGrid } from "./cell-snap";
+import {
+	LaneRegistry,
+	aggregateEdges,
+	routeZ,
+	type RouteObstacle,
+	type RouteRect,
+} from "./edge-routing";
 
 export interface UpsetLayoutOptions {
 	cellW: number;
@@ -160,23 +169,56 @@ export function layoutUpset(
 		size: setSizes.get(key) ?? 0,
 	}));
 
-	// Cards → snap-to-grid + idToRect/obstacles + route every edge.
-	// All four post-positioning steps live in `layout-shared.ts` so
-	// the Euler and UpSet pipelines share one implementation.
-	const { idToRect, routeObstacles } = snapAndBuildRouteData(
-		positionedNodes,
-		slotW,
-		slotH,
-	);
-	const edges = routeAllEdges(
-		data.edges,
-		idToRect,
-		routeObstacles,
-		slotW,
-		slotH,
-		channelW,
-		channelH,
-	);
+	// Post-placement: snap, build routing data, route edges.
+	// INTENTIONALLY DUPLICATED from `layout-shared.ts` (per user
+	// spec) so UpSet's pipeline can evolve independently of Euler's
+	// — no implicit coupling through a shared helper.
+	const idToRect = new Map<string, RouteRect>();
+	for (const n of positionedNodes) {
+		idToRect.set(n.id, { x: n.x, y: n.y, w: n.width, h: n.height });
+	}
+	snapCardsToGrid(positionedNodes, slotW, slotH, idToRect);
+	const routeObstacles: RouteObstacle[] = [];
+	for (const n of positionedNodes) {
+		const cs = Math.max(1, Math.ceil(n.width / slotW));
+		const rs = Math.max(1, Math.ceil(n.height / slotH));
+		const sc = Math.round(n.x / slotW - cs / 2);
+		const sr = Math.round(n.y / slotH - rs / 2);
+		routeObstacles.push({
+			id: n.id,
+			startCol: sc,
+			endCol: sc + cs - 1,
+			startRow: sr,
+			endRow: sr + rs - 1,
+		});
+	}
+	const aggregated = aggregateEdges(data.edges, idToRect);
+	const lanes = new LaneRegistry();
+	const edges: PositionedEdge[] = [];
+	for (const e of aggregated) {
+		const a = idToRect.get(e.source);
+		const b = idToRect.get(e.target);
+		if (!a || !b) continue;
+		edges.push({
+			source: e.source,
+			target: e.target,
+			weight: e.weight,
+			path: routeZ(
+				a,
+				b,
+				lanes,
+				slotW,
+				slotH,
+				channelW,
+				channelH,
+				routeObstacles,
+				e.source,
+				e.target,
+			),
+			bundled: false,
+			bundleCount: 1,
+		});
+	}
 
 	return {
 		nodes: positionedNodes,
