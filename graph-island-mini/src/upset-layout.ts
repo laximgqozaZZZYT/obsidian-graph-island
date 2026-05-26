@@ -17,6 +17,7 @@ import {
 	snapAndBuildRouteData,
 	routeAllEdges,
 } from "./layout-shared";
+import { computeChannelDims } from "./card-sizing";
 
 export interface UpsetLayoutOptions {
 	cellW: number;
@@ -98,21 +99,16 @@ export function layoutUpset(
 		bucket.nodeIds.sort((a, b) => a.localeCompare(b));
 	}
 
-	// --- 5. Card-stack geometry. Use the LARGEST observed card so the
-	// slot pitch never under-sizes its content (a card with body lines
-	// would otherwise spill into the next slot).
-	const fallbackW = opts.cellW > 0 ? opts.cellW : 80;
-	const fallbackH = opts.cellH > 0 ? opts.cellH : 24;
-	let maxCardW = fallbackW;
-	let maxCardH = fallbackH;
-	for (const s of sized) {
-		if (s.width > maxCardW) maxCardW = s.width;
-		if (s.height > maxCardH) maxCardH = s.height;
-	}
-	const cardW = maxCardW;
-	const cardH = maxCardH;
-	const channelW = Math.max(12, opts.nodeSpacing);
-	const channelH = Math.max(6, Math.round(opts.nodeSpacing / 2));
+	// --- 5. Card-stack geometry. Cell size = the SAME canonical
+	// `opts.cellW × opts.cellH` Euler uses for one grid cell. With
+	// NODE_DISPLAY size = 1×1 (the default), one UpSet card occupies
+	// exactly one grid cell — matching Euler's "one cell per card"
+	// behaviour the user pointed out.
+	const cardW = opts.cellW > 0 ? opts.cellW : 80;
+	const cardH = opts.cellH > 0 ? opts.cellH : 24;
+	// Channels via the SAME helper Euler uses, so the slot pitch
+	// (= cardW + channelW) matches one Euler grid cell pitch.
+	const { channelW, channelH } = computeChannelDims(opts.nodeSpacing);
 	const slotW = cardW + channelW;
 	const slotH = cardH + channelH;
 
