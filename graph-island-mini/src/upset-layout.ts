@@ -106,9 +106,13 @@ export function layoutUpset(
 	// behaviour the user pointed out.
 	const cardW = opts.cellW > 0 ? opts.cellW : 80;
 	const cardH = opts.cellH > 0 ? opts.cellH : 24;
-	// Channels via the SAME helper Euler uses, so the slot pitch
-	// (= cardW + channelW) matches one Euler grid cell pitch.
-	const { channelW, channelH } = computeChannelDims(opts.nodeSpacing);
+	// Horizontal channel via the SAME helper Euler uses (so columns
+	// are separated like Euler grid cells). Vertical channel inside a
+	// column is collapsed to a thin 2 px gap so the card stack reads
+	// as a CONTINUOUS PARETO BAR instead of disjoint card blocks.
+	// (routeZ still gets a non-zero `channelH` so lane routing works.)
+	const { channelW } = computeChannelDims(opts.nodeSpacing);
+	const channelH = 2;
 	const slotW = cardW + channelW;
 	const slotH = cardH + channelH;
 
