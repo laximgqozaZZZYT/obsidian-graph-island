@@ -39,7 +39,11 @@ import {
 } from "./node-display";
 import { drawEnclosures } from "./draw-enclosures";
 import { drawBaseEdges, drawAccentEdges } from "./draw-edges";
-import { drawUpsetFooter, upsetFooterHeight } from "./draw-upset";
+import {
+	drawUpsetFooter,
+	upsetFooterHeight,
+	LEFT_BAND_PX as UPSET_LEFT_BAND_PX,
+} from "./draw-upset";
 import { drawCard as drawCardFn } from "./draw-card";
 import {
 	hitTest as hitTestFn,
@@ -1143,8 +1147,13 @@ export class MiniGraphView extends ItemView {
 				Math.min(20, u.cardsWorldHeight / slotH),
 			);
 			const zoomFromRows = cardsBandH / (targetVisibleRows * slotH);
+			// Cards START at the right edge of the row-label band, so
+			// the horizontal fit area excludes that band.
 			const padX = 8;
-			const visW = Math.max(1, this.canvas.clientWidth - padX * 2);
+			const visW = Math.max(
+				1,
+				this.canvas.clientWidth - UPSET_LEFT_BAND_PX - padX,
+			);
 			const zoomFromW = visW / Math.max(1, u.cardsWorldWidth);
 			this.zoom = Math.max(
 				0.05,
@@ -1220,14 +1229,20 @@ export class MiniGraphView extends ItemView {
 		const u = this.laid.upset;
 		const contentW = u.cardsWorldWidth * this.zoom;
 		const canvasW = this.canvas.clientWidth;
-		if (contentW <= canvasW) {
-			// Graph narrower than canvas — centre it horizontally.
-			this.panX = (canvasW - contentW) / 2;
+		// Cards (= the "Pareto-shaped" card-stack columns) and their
+		// matching matrix dots must start at the RIGHT edge of the
+		// footer's row-label band (`UPSET_LEFT_BAND_PX`), never to
+		// the left of it — per user spec (2026-05-26).
+		const availableW = canvasW - UPSET_LEFT_BAND_PX;
+		// maxPanX = panX that places cards' world-x=0 at screen-x=LEFT_BAND_PX.
+		const maxPanX = UPSET_LEFT_BAND_PX;
+		// minPanX = panX that places cards' right edge at canvas right.
+		const minPanX = canvasW - contentW;
+		if (contentW <= availableW) {
+			// Cards fit in the area RIGHT of the label band — pin to
+			// the left of that area (no panning needed).
+			this.panX = maxPanX;
 		} else {
-			// Graph wider than canvas — clamp so the edges stay flush
-			// (or off-screen), never showing background to the side.
-			const maxPanX = 0;
-			const minPanX = canvasW - contentW;
 			this.panX = Math.max(minPanX, Math.min(maxPanX, this.panX));
 		}
 	}

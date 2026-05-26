@@ -22,7 +22,7 @@ const SMALL_FONT_PX = 10;
 const ROW_H = 22;
 const SET_LABEL_BAND_PX = 100;
 const SIZE_BAR_BAND_PX = 56;
-const LEFT_BAND_PX = SET_LABEL_BAND_PX + SIZE_BAR_BAND_PX + 16; // = 172
+export const LEFT_BAND_PX = SET_LABEL_BAND_PX + SIZE_BAR_BAND_PX + 16; // = 172
 const HIGHLIGHT = "rgba(255, 157, 63, 0.9)";
 const ROW_LABEL_PAD = 6;
 
