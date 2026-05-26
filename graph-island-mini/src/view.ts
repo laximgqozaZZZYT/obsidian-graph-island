@@ -1132,31 +1132,40 @@ export class MiniGraphView extends ItemView {
 		// and the matrix never overlap, full canvas width horizontally.
 		if (this.laid.upset) {
 			const u = this.laid.upset;
-			// World bbox = cards stacked above + matrix band below.
-			// Label band is screen-fixed (LABEL_BAND_PX) so we reserve
-			// that many screen pixels on the LEFT, then fit the world
-			// bbox into the remaining canvas area.
+			// UpSet fit-to-view splits the canvas: top ~70 % shows the
+			// cards, bottom ~30 % shows the matrix. Tall card stacks
+			// extend ABOVE the canvas top — the user pans vertically
+			// to reach them. This keeps both card text and matrix at
+			// a readable scale instead of zooming everything down to
+			// fit the tallest stack on one screen.
 			const slotH = u.cardSlotH;
 			const matrixGap = slotH * 0.5;
-			const rowH = slotH * 0.55;
-			const matrixH = u.sets.length * rowH + matrixGap;
-			const worldW = Math.max(1, u.cardsWorldWidth);
-			const worldH = Math.max(1, u.cardsWorldHeight + matrixH);
+			const cardsBandH = this.canvas.clientHeight * 0.7;
+			const matrixBandH = this.canvas.clientHeight * 0.3;
+			// Default vertical zoom: show roughly 15 card slots in the
+			// upper band. Capped so a single tall column never makes
+			// cards taller than the cards band.
+			const targetVisibleRows = Math.max(
+				8,
+				Math.min(20, u.cardsWorldHeight / slotH),
+			);
+			const zoomFromRows = cardsBandH / (targetVisibleRows * slotH);
+			// Horizontal zoom: fit ALL columns into the canvas width
+			// (minus label band + padding).
 			const padX = 24;
-			const padY = 24;
 			const visW = Math.max(
 				1,
 				this.canvas.clientWidth - LABEL_BAND_PX - padX * 2,
 			);
-			const visH = Math.max(1, this.canvas.clientHeight - padY * 2);
-			const zx = visW / worldW;
-			const zy = visH / worldH;
-			this.zoom = Math.max(0.05, Math.min(2, Math.min(zx, zy)));
-			// Centre the world bbox in the area RIGHT of the label band.
-			const visLeftScreen = LABEL_BAND_PX + padX;
-			this.panX =
-				visLeftScreen + (visW - worldW * this.zoom) / 2;
-			this.panY = padY + (visH - worldH * this.zoom) / 2;
+			const zoomFromW = visW / Math.max(1, u.cardsWorldWidth);
+			this.zoom = Math.max(0.05, Math.min(2, Math.min(zoomFromRows, zoomFromW)));
+			// Anchor: cards LEFT edge sits just right of the label band;
+			// cards BOTTOM (= matrix top - small gap) sits at 70 % down
+			// the canvas height, so the matrix lives in the bottom 30 %.
+			this.panX = LABEL_BAND_PX + padX;
+			const matrixTopWorldY = u.cardsWorldHeight + matrixGap;
+			this.panY = cardsBandH - matrixTopWorldY * this.zoom + matrixGap * this.zoom;
+			void matrixBandH;
 			this.requestDraw();
 			return;
 		}
@@ -1396,8 +1405,10 @@ export class MiniGraphView extends ItemView {
 				ctx,
 				this.laid,
 				this.canvas.clientWidth,
+				this.canvas.clientHeight,
 				this.zoom,
 				this.panX,
+				this.panY,
 				this.upsetSelectedSignatureKey,
 			);
 		}

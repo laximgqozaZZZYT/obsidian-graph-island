@@ -37,31 +37,32 @@ export interface UpsetWorldLayout {
 export function computeUpsetWorldLayout(
 	laid: LaidOut,
 	canvasW: number,
+	canvasH: number,
 	zoom: number,
 	panX: number,
+	panY: number,
 ): UpsetWorldLayout | null {
 	const u = laid.upset;
 	if (!u) return null;
-	const cols = u.columns.length;
-	let firstIdx = -1;
-	let lastIdx = -1;
-	for (let i = 0; i < cols; i++) {
-		const sx = u.columns[i].xWorld * zoom + panX;
-		if (sx >= LABEL_BAND_PX && sx <= canvasW) {
-			if (firstIdx < 0) firstIdx = i;
-			lastIdx = i;
-		}
-	}
+	// Active sets = union of memberships of CARDS currently visible
+	// in the canvas (both X and Y axes considered). Falls back to all
+	// sets when no card is on-screen so the band never goes empty.
 	const activeKeys = new Set<string>();
-	if (firstIdx >= 0) {
-		for (let i = firstIdx; i <= lastIdx; i++) {
-			for (const k of u.columns[i].signature) activeKeys.add(k);
-		}
+	let anyVisible = false;
+	for (const n of laid.nodes) {
+		const sx = n.x * zoom + panX;
+		const sy = n.y * zoom + panY;
+		const hx = n.width * 0.5 * zoom;
+		const hy = n.height * 0.5 * zoom;
+		const inX = sx + hx >= LABEL_BAND_PX && sx - hx <= canvasW;
+		const inY = sy + hy >= 0 && sy - hy <= canvasH;
+		if (!inX || !inY) continue;
+		anyVisible = true;
+		for (const m of n.memberships) activeKeys.add(m);
 	}
-	const activeSets =
-		activeKeys.size > 0
-			? u.sets.filter((s) => activeKeys.has(s.key))
-			: u.sets;
+	const activeSets = anyVisible
+		? u.sets.filter((s) => activeKeys.has(s.key))
+		: u.sets;
 	const slotH = u.cardSlotH;
 	const slotW = u.cardSlotW;
 	const rowH = slotH * ROW_H_FACTOR;
@@ -83,13 +84,15 @@ export function drawUpsetWorld(
 	ctx: CanvasRenderingContext2D,
 	laid: LaidOut,
 	canvasW: number,
+	canvasH: number,
 	zoom: number,
 	panX: number,
+	panY: number,
 	selectedSignatureKey: string | null,
 ): void {
 	const u = laid.upset;
 	if (!u) return;
-	const L = computeUpsetWorldLayout(laid, canvasW, zoom, panX);
+	const L = computeUpsetWorldLayout(laid, canvasW, canvasH, zoom, panX, panY);
 	if (!L) return;
 	const setIdx = new Map<string, number>();
 	L.setRows.forEach((s, i) => setIdx.set(s.key, i));
@@ -164,7 +167,7 @@ export function drawUpsetScreen(
 ): void {
 	const u = laid.upset;
 	if (!u) return;
-	const L = computeUpsetWorldLayout(laid, canvasW, zoom, panX);
+	const L = computeUpsetWorldLayout(laid, canvasW, canvasH, zoom, panX, panY);
 	if (!L) return;
 	ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 	// Opaque band background so card edges underneath don't bleed.
