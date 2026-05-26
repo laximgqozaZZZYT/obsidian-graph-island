@@ -83,9 +83,16 @@ export function drawCard(
 	// below, and the clip (further down) is the final guard for descenders
 	// and body lines. Euler + UpSet share this renderer, so both views are
 	// covered.
-	const titleFontPx = Math.min(
-		floorWorldFontPx(CARD_TITLE_FONT_PX * scale, minFontPx, zoom),
-		innerH,
+	// Title font = the LARGEST size that fits the node (inner width AND
+	// height), so it grows with the node. A screen-space lower bound (Min
+	// font size) is then applied; if that bound pushes the font past the
+	// width, the title is truncated below (clip + ellipsis).
+	ctx.font = "100px sans-serif";
+	const titleW100 = ctx.measureText(n.label).width || 1;
+	const titleFontPx = floorWorldFontPx(
+		Math.min(innerH, (innerW * 100) / titleW100),
+		minFontPx,
+		zoom,
 	);
 	const bodyFontPx = Math.min(
 		floorWorldFontPx(CARD_BODY_FONT_PX * scale, minFontPx, zoom),
