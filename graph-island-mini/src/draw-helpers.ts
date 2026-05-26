@@ -293,6 +293,7 @@ function footprintExtent(
 // A placed label's final world-space box (after merge + de-confliction).
 // Returned so the caller can debug overlaps against nodes / each other.
 export interface PlacedLabelBox {
+	key: string;
 	x1: number;
 	x2: number;
 	top: number;
@@ -325,25 +326,41 @@ export function drawClusterLabels(
 		const c = byKey.get(cell.key);
 		if (!c) continue;
 		const text = `${c.label} (${c.memberCount})`;
+		// Clamp the label to the cluster's FINAL bbox (it may have been
+		// post-processed after layout, e.g. inheritance expansion). Shrink
+		// to fit + clamp centre so the label is never drawn outside its own
+		// enclosure — for normal clusters the bbox is larger than the label,
+		// so this is a no-op; only stranded labels of territory-less
+		// clusters get pulled back in.
+		let cw = cell.w;
+		let ch = cell.h;
+		let cx = cell.x;
+		let cy = cell.y;
+		if (c.width > 0 && c.height > 0) {
+			cw = Math.min(cw, c.width);
+			ch = Math.min(ch, c.height);
+			cx = Math.min(Math.max(cx, c.x + cw / 2), c.x + c.width - cw / 2);
+			cy = Math.min(Math.max(cy, c.y + ch / 2), c.y + c.height - ch / 2);
+		}
 		// Font fits the cell height so the label never spills into the 隘路.
-		const fontPx = Math.min(screenPx / zoom, cell.h * 0.7);
+		const fontPx = Math.min(screenPx / zoom, ch * 0.7);
 		ctx.font = `${fontPx}px sans-serif`;
 		const padX = 4 / zoom;
 		ctx.textAlign = "start";
 		ctx.textBaseline = "middle";
-		const fitted = truncateToWidth(ctx, text, cell.w - 2 * padX);
-		const x1 = cell.x - cell.w / 2;
-		const x2 = cell.x + cell.w / 2;
-		const top = cell.y - cell.h / 2;
-		const bot = cell.y + cell.h / 2;
+		const fitted = truncateToWidth(ctx, text, cw - 2 * padX);
+		const x1 = cx - cw / 2;
+		const x2 = cx + cw / 2;
+		const top = cy - ch / 2;
+		const bot = cy + ch / 2;
 		// Opaque tab inside the cell so the label reads cleanly over the grid.
 		ctx.fillStyle = labelBg;
-		ctx.fillRect(x1, cell.y - fontPx * 0.62, cell.w, fontPx * 1.24);
+		ctx.fillRect(x1, cy - fontPx * 0.62, cw, fontPx * 1.24);
 		// Centred coloured label.
 		ctx.fillStyle = `hsla(${clusterHue(cell.key)}, 65%, 74%, 1)`;
 		ctx.textAlign = "center";
-		ctx.fillText(fitted, cell.x, cell.y);
-		boxes.push({ x1, x2, top, bot, text, anchorX: cell.x, anchorY: cell.y });
+		ctx.fillText(fitted, cx, cy);
+		boxes.push({ key: cell.key, x1, x2, top, bot, text, anchorX: cx, anchorY: cy });
 	}
 	ctx.textAlign = "start";
 	ctx.textBaseline = "alphabetic";
