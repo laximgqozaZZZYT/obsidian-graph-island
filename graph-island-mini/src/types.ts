@@ -133,12 +133,12 @@ export const VIEW_MODES: ViewModeOption[] = [
 		description: "Per-tag boxes; shared nodes duplicated into a*b*c intersection sub-boxes",
 	},
 	{
-		// True Euler: each node placed ONCE; tag rectangles overlap where they
-		// share members (intersections = blended overlap regions). Same grid /
-		// card / rectangle drawing as the nested-set mode.
+		// `id` stays "euler-true" for settings/preset compatibility. NOT a
+		// strict Euler diagram: subset → nested rectangles, partial overlaps →
+		// exclave pieces (not contiguous lens regions). Each node shown once.
 		id: "euler-true",
-		label: "Euler diagram",
-		description: "Overlapping tag rectangles; each node shown once (true Euler)",
+		label: "Containment map",
+		description: "Subset → nested rectangles; partial overlaps as exclaves (each node once)",
 	},
 	{
 		id: "upset",
