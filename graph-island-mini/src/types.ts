@@ -109,6 +109,12 @@ export interface MiniSettings {
 	// UpSet plot minimum column size — intersections with fewer nodes
 	// are culled from the matrix. Default 1 = keep everything.
 	upsetMinColumnSize: number;
+	// Connection-matrix row/column ordering. "original" = pipeline order;
+	// "cooccurrence" = barycenter seriation to surface co-occurrence blocks.
+	matrixSort: "original" | "cooccurrence";
+	// Connection-matrix minimum column size — tags with fewer member notes
+	// are dropped from the columns. Default 1 = keep everything.
+	matrixMinColumnSize: number;
 	// Minimum font size (screen pixels) below which NO text element
 	// will render. Applies to card titles/bodies, cluster labels,
 	// matrix labels, grid headers, etc. World-space fonts that would
@@ -122,6 +128,7 @@ export type ViewMode =
 	| "euler-true"
 	| "euler-venn"
 	| "bubblesets"
+	| "matrix"
 	| "upset";
 
 export interface ViewModeOption {
@@ -166,6 +173,13 @@ export const VIEW_MODES: ViewModeOption[] = [
 		description: "Containment layout drawn as rectangular iso-contour bubbles",
 	},
 	{
+		// Connection matrix: rows = notes, columns = unique membership values,
+		// a dot marks membership. One row holds all of a note's tags.
+		id: "matrix",
+		label: "接続行列 (matrix)",
+		description: "Rows = notes, columns = tags; a dot marks membership",
+	},
+	{
 		id: "upset",
 		label: "UpSet plot",
 		description: "Stack of cards per intersection + dot matrix (handles ≥4-way intersections)",
@@ -205,6 +219,8 @@ export const DEFAULT_SETTINGS: MiniSettings = {
 	viewMode: "euler",
 	upsetColumnSort: "size",
 	upsetMinColumnSize: 1,
+	matrixSort: "cooccurrence",
+	matrixMinColumnSize: 1,
 	minFontPx: 8,
 };
 

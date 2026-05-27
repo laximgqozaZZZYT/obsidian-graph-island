@@ -45,6 +45,7 @@ import {
 	upsetFooterHeight,
 	LEFT_BAND_PX as UPSET_LEFT_BAND_PX,
 } from "./draw-upset";
+import { drawMatrix, matrixGeom } from "./draw-matrix";
 import { drawCard as drawCardFn } from "./draw-card";
 import {
 	hitTest as hitTestFn,
@@ -170,6 +171,10 @@ export class MiniGraphView extends ItemView {
 	// currently selected by the user (highlighted in the matrix; drives
 	// the detail panel listing in Phase C). null = nothing selected.
 	private upsetSelectedSignatureKey: string | null = null;
+	// Connection-matrix mode: key of the highlighted column (tag). null = none.
+	private matrixSelectedCol: string | null = null;
+	// Last view mode we framed (fitToView) for — re-fit when the mode changes.
+	private lastFramedMode: ViewMode | null = null;
 	// Per-cluster "truly-aggregated" member count. Populated during
 	// rebuild() for clusters in aggregatedLayers — the count excludes
 	// members that also belong to a non-aggregated cluster (since those
@@ -408,6 +413,7 @@ export class MiniGraphView extends ItemView {
 
 	private renderAllTab(el: HTMLElement): void {
 		this.renderViewModeSection(el);
+		if (this.settings.viewMode === "matrix") this.renderMatrixSection(el);
 		this.renderExprSection(el, "WHERE", this.settings.where, this.whereError, {
 			autoKey: "whereAuto",
 		});
@@ -790,6 +796,43 @@ export class MiniGraphView extends ItemView {
 		}
 	}
 
+	// Matrix-only controls: row/column ordering + min column size.
+	private renderMatrixSection(parent: HTMLElement): void {
+		const section = parent.createDiv({ cls: "gim-panel-section" });
+		section.createEl("h4", { text: "Matrix" });
+
+		const sortRow = section.createDiv({ cls: "gim-order-row" });
+		sortRow.createSpan({ text: "Order", cls: "gim-order-field" });
+		const sel = sortRow.createEl("select") as HTMLSelectElement;
+		for (const [val, label] of [
+			["cooccurrence", "Co-occurrence"],
+			["original", "Original"],
+		] as const) {
+			const o = sel.createEl("option", { text: label });
+			o.value = val;
+		}
+		sel.value = this.settings.matrixSort;
+		sel.addEventListener("change", () => {
+			this.settings.matrixSort = sel.value as "original" | "cooccurrence";
+			void this.save();
+			void this.rebuild();
+		});
+
+		const minRow = section.createDiv({ cls: "gim-order-row" });
+		minRow.createSpan({ text: "Min column size", cls: "gim-order-field" });
+		const inp = minRow.createEl("input", { type: "number" }) as HTMLInputElement;
+		inp.min = "1";
+		inp.style.width = "56px";
+		inp.value = String(this.settings.matrixMinColumnSize);
+		inp.addEventListener("change", () => {
+			const v = Math.max(1, Math.floor(Number(inp.value) || 1));
+			this.settings.matrixMinColumnSize = v;
+			inp.value = String(v);
+			void this.save();
+			void this.rebuild();
+		});
+	}
+
 	private renderToggleSection(
 		parent: HTMLElement,
 		heading: string,
@@ -957,6 +1000,8 @@ export class MiniGraphView extends ItemView {
 			viewMode: this.settings.viewMode,
 			upsetColumnSort: this.settings.upsetColumnSort,
 			upsetMinColumnSize: this.settings.upsetMinColumnSize,
+			matrixSort: this.settings.matrixSort,
+			matrixMinColumnSize: this.settings.matrixMinColumnSize,
 		});
 		// Stage 5: id → incident-edge-index adjacency for hover lookups.
 		this.adjacency = buildAdjacency(this.laid.edges);
@@ -984,10 +1029,14 @@ export class MiniGraphView extends ItemView {
 		);
 		this.highlightedNodes.clear();
 		this.highlightedEdgeIdx.clear();
+		// Drop a selected column if the relayout removed it (matrix + UpSet).
+		this.clearStaleSelection();
 		// Baseline the layout signature so subsequent display-only toggles
 		// (which leave this unchanged) repaint without relaying out.
 		this.lastLayoutSig = this.layoutSignature(this.settings);
-		if (wasEmpty) this.fitToView();
+		const modeChanged = this.lastFramedMode !== this.settings.viewMode;
+		this.lastFramedMode = this.settings.viewMode;
+		if (wasEmpty || modeChanged) this.fitToView();
 		this.requestDraw();
 		if (this.settings.panelVisible) this.renderPanel();
 	}
@@ -1190,7 +1239,7 @@ export class MiniGraphView extends ItemView {
 	private overviewActive = false;
 
 	private isOverview(): boolean {
-		if (this.laid.upset) return false;
+		if (this.laid.upset || this.laid.matrix) return false;
 		if (this.laid.clusters.length === 0 && this.laid.nodes.length === 0)
 			return false;
 		let minX = Infinity;
@@ -1265,6 +1314,19 @@ export class MiniGraphView extends ItemView {
 			this.requestDraw();
 			return;
 		}
+		if (this.laid.matrix) {
+			// Fit ALL columns across the data-area width; rows scroll
+			// vertically. Pin the grid origin just past the frozen bands.
+			const m = this.laid.matrix;
+			const g = matrixGeom(m, 1, this.canvas.clientWidth);
+			const colsW = m.cols.length * m.colW;
+			const avail = Math.max(1, this.canvas.clientWidth - g.labelBand);
+			this.zoom = Math.min(1.2, Math.max(0.2, avail / Math.max(1, colsW)));
+			this.panX = g.labelBand;
+			this.panY = matrixGeom(m, this.zoom, this.canvas.clientWidth).headerH;
+			this.requestDraw();
+			return;
+		}
 		const hasContent =
 			this.laid.clusters.length > 0 || this.laid.nodes.length > 0;
 		if (!hasContent) return;
@@ -1315,6 +1377,19 @@ export class MiniGraphView extends ItemView {
 	// left edge of column A) at screen x = headerW. That gives the upper-
 	// bound constraint panX ≤ headerW − minCol*W*zoom. Same logic for Y.
 	private clampPan(): void {
+		// Connection matrix: spreadsheet scroll — never reveal empty space
+		// before row/col 0 or past the last row/col.
+		if (this.laid.matrix) {
+			const m = this.laid.matrix;
+			const g = matrixGeom(m, this.zoom, this.canvas.clientWidth);
+			const colsW = m.cols.length * m.colW * this.zoom;
+			const rowsH = m.rows.length * m.rowH * this.zoom;
+			const minPanX = Math.min(g.labelBand, this.canvas.clientWidth - colsW);
+			this.panX = Math.min(g.labelBand, Math.max(minPanX, this.panX));
+			const minPanY = Math.min(g.headerH, this.canvas.clientHeight - rowsH);
+			this.panY = Math.min(g.headerH, Math.max(minPanY, this.panY));
+			return;
+		}
 		// Euler mode: free pan in all directions (world-map tiling
 		// keeps content under the cursor regardless of position).
 		// UpSet mode: per user spec (2026-05-26), restrict horizontal
@@ -1363,8 +1438,23 @@ export class MiniGraphView extends ItemView {
 		// lives in screen space, not as world-positioned cards), so the
 		// hint should only fire when there's truly nothing to show —
 		// here: no UpSet columns either.
+		// Connection matrix: screen-space frozen-pane grid; no world cards.
+		if (this.laid.matrix && this.laid.matrix.rows.length > 0) {
+			drawMatrix(
+				ctx,
+				this.laid.matrix,
+				this.zoom,
+				this.panX,
+				this.panY,
+				this.canvas,
+				this.matrixSelectedCol,
+				this.settings.minFontPx,
+			);
+			return;
+		}
 		const upsetHasColumns = (this.laid.upset?.columns.length ?? 0) > 0;
-		if (this.laid.nodes.length === 0 && !upsetHasColumns) {
+		const matrixHasRows = (this.laid.matrix?.rows.length ?? 0) > 0;
+		if (this.laid.nodes.length === 0 && !upsetHasColumns && !matrixHasRows) {
 			ctx.fillStyle = "#7a8aa0";
 			ctx.font = `${14 * dpr}px sans-serif`;
 			ctx.textAlign = "center";
@@ -1698,13 +1788,66 @@ export class MiniGraphView extends ItemView {
 		this.app.workspace.openLinkText(path, "", false);
 	}
 
+	// Connection-matrix screen-space hit test: top band → column, left band /
+	// data area → row.
+	private matrixHit(
+		sx: number,
+		sy: number,
+	): { kind: "row"; id: string } | { kind: "col"; key: string } | null {
+		const m = this.laid.matrix;
+		if (!m) return null;
+		const g = matrixGeom(m, this.zoom, this.canvas.clientWidth);
+		if (sy < g.headerH) {
+			if (sx < g.labelBand) return null;
+			const c = Math.floor((sx - this.panX) / g.colScreenW);
+			return c >= 0 && c < m.cols.length
+				? { kind: "col", key: m.cols[c].key }
+				: null;
+		}
+		const r = Math.floor((sy - this.panY) / g.rowScreenH);
+		return r >= 0 && r < m.rows.length ? { kind: "row", id: m.rows[r].id } : null;
+	}
+
+	// Shared guard: drop a selected column whose set no longer contains it
+	// after a relayout (used for both the matrix and the UpSet selection).
+	private clearStaleSelection(): void {
+		if (
+			this.matrixSelectedCol != null &&
+			!this.laid.matrix?.cols.some((c) => c.key === this.matrixSelectedCol)
+		)
+			this.matrixSelectedCol = null;
+		if (
+			this.upsetSelectedSignatureKey != null &&
+			!this.laid.upset?.columns.some(
+				(c) => c.signature.join("|") === this.upsetSelectedSignatureKey,
+			)
+		)
+			this.upsetSelectedSignatureKey = null;
+	}
+
 	private onPointerMove(e: MouseEvent): void {
 		if (this.dragging) {
 			this.cancelHover();
 			return;
 		}
 		const rect = this.canvas.getBoundingClientRect();
-		const w = this.screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
+		const sx = e.clientX - rect.left;
+		const sy = e.clientY - rect.top;
+		if (this.laid.matrix) {
+			// Row hover → full file-name tooltip (reuses the node hover tip).
+			const h = this.matrixHit(sx, sy);
+			const target: HoverTarget =
+				h?.kind === "row" ? { kind: "node", nodeId: h.id } : null;
+			if (!sameTarget(this.hoverTarget, target)) {
+				this.cancelHover();
+				this.hoverTarget = target;
+				if (target) this.scheduleHover(target, sx, sy);
+			} else if (this.tipEl) {
+				this.positionTip(sx, sy, this.tipEl);
+			}
+			return;
+		}
+		const w = this.screenToWorld(sx, sy);
 		const hit = this.hitTest(w.x, w.y);
 		if (!sameTarget(this.hoverTarget, hit)) {
 			this.cancelHover();
@@ -1864,7 +2007,19 @@ export class MiniGraphView extends ItemView {
 		c.addEventListener("click", (e) => {
 			if (e.shiftKey || this.marquee.isActive()) return;
 			const rect = c.getBoundingClientRect();
-			const w = this.screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
+			const sx = e.clientX - rect.left;
+			const sy = e.clientY - rect.top;
+			if (this.laid.matrix) {
+				const h = this.matrixHit(sx, sy);
+				if (h?.kind === "row") this.openFile(h.id);
+				else if (h?.kind === "col") {
+					this.matrixSelectedCol =
+						this.matrixSelectedCol === h.key ? null : h.key;
+					this.requestDraw();
+				}
+				return;
+			}
+			const w = this.screenToWorld(sx, sy);
 			const hit = this.hitTest(w.x, w.y);
 			if (hit?.kind === "node") this.openFile(hit.nodeId);
 		});
