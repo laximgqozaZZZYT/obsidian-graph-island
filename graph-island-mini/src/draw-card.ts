@@ -76,21 +76,21 @@ export function drawCard(
 	const padY = CARD_PAD_Y * scale;
 	const innerW = Math.max(0, w - 2 * padX);
 	const innerH = Math.max(0, h - 2 * padY);
-	// `floorWorldFontPx` grows the font as 1/zoom to keep the SCREEN size
-	// ≥ Min font size; at low zoom that can exceed the card's WORLD height
-	// and the glyphs would spill out. Cap each font to `innerH` so a single
-	// line always fits vertically. Width is contained by `truncateToWidth`
-	// below, and the clip (further down) is the final guard for descenders
-	// and body lines. Euler + UpSet share this renderer, so both views are
-	// covered.
-	// Title font = the LARGEST size that fits the node (inner width AND
-	// height), so it grows with the node. A screen-space lower bound (Min
-	// font size) is then applied; if that bound pushes the font past the
-	// width, the title is truncated below (clip + ellipsis).
-	ctx.font = "100px sans-serif";
-	const titleW100 = ctx.measureText(n.label).width || 1;
+	// Title font = the LARGEST size whose rendered glyphs fit the node's
+	// inner WIDTH and HEIGHT (measured at the real 600 weight), so the title
+	// fills the node right up to its edges and grows with it. A screen-space
+	// lower bound (Min font size) is then applied; if that bound pushes the
+	// font past the width, the title is truncated (clip + ellipsis) below.
+	// Euler + UpSet share this renderer, so both views are covered.
+	ctx.font = "600 100px sans-serif";
+	const m100 = ctx.measureText(n.label);
+	const w100 = m100.width || 1;
+	const h100 =
+		(m100.actualBoundingBoxAscent || 72) + (m100.actualBoundingBoxDescent || 20);
+	// Width target leaves a 4% margin so the WHOLE title fits without the
+	// truncate-to-width below clipping its last glyph; height fills the cell.
 	const titleFontPx = floorWorldFontPx(
-		Math.min(innerH, (innerW * 100) / titleW100),
+		Math.min((innerH * 100) / h100, (innerW * 96) / w100),
 		minFontPx,
 		zoom,
 	);
@@ -112,13 +112,16 @@ export function drawCard(
 	ctx.clip();
 
 	ctx.textAlign = "start";
-	ctx.textBaseline = "top";
 
 	ctx.font = `600 ${titleFontPx}px sans-serif`;
 	ctx.fillStyle = highlighted ? "#1d1100" : "#e6edf3";
 	const titleFitted = truncateToWidth(ctx, n.label, innerW);
-	ctx.fillText(titleFitted, innerLeft, innerTop);
+	// Title-only cards: centre the title vertically so the enlarged glyphs
+	// sit flush in the node. (Body preview was retired.)
+	ctx.textBaseline = "middle";
+	ctx.fillText(titleFitted, innerLeft, y + h / 2);
 
+	ctx.textBaseline = "top";
 	if (bodyLines.length > 0 && showBody) {
 		ctx.font = `${bodyFontPx}px sans-serif`;
 		ctx.fillStyle = highlighted ? "#3a2400" : "#9eb0c4";

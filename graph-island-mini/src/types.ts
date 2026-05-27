@@ -115,7 +115,7 @@ export interface MiniSettings {
 	minFontPx: number;
 }
 
-export type ViewMode = "euler" | "upset";
+export type ViewMode = "euler" | "euler-true" | "upset";
 
 export interface ViewModeOption {
 	id: ViewMode;
@@ -124,7 +124,22 @@ export interface ViewModeOption {
 }
 
 export const VIEW_MODES: ViewModeOption[] = [
-	{ id: "euler", label: "Euler diagram", description: "Main / sub rectangle enclosures" },
+	{
+		// `id` stays "euler" for settings / preset compatibility; the label
+		// reflects the actual model — per-tag boxes with duplicated nodes and
+		// intersection sub-boxes, NOT true overlapping-region Euler curves.
+		id: "euler",
+		label: "Nested set diagram",
+		description: "Per-tag boxes; shared nodes duplicated into a*b*c intersection sub-boxes",
+	},
+	{
+		// True Euler: each node placed ONCE; tag rectangles overlap where they
+		// share members (intersections = blended overlap regions). Same grid /
+		// card / rectangle drawing as the nested-set mode.
+		id: "euler-true",
+		label: "Euler diagram",
+		description: "Overlapping tag rectangles; each node shown once (true Euler)",
+	},
 	{
 		id: "upset",
 		label: "UpSet plot",
