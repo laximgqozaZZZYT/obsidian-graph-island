@@ -63,6 +63,8 @@ export interface MiniSettings {
 	nodeRows: number;
 	nodeCols: number;
 	nodeSizeMode: "fixed" | "indegree" | "outdegree";
+	// Draw the node cards. When false, only enclosures / edges / grid show.
+	showNodes: boolean;
 	showEnclosures: boolean;
 	showEdges: boolean;
 	// Excel-style row/column lattice underlay. Cell size = unified card W × H;
@@ -176,6 +178,7 @@ export const DEFAULT_SETTINGS: MiniSettings = {
 	nodeRows: 1,
 	nodeCols: 1,
 	nodeSizeMode: "fixed",
+	showNodes: true,
 	showEnclosures: true,
 	showEdges: true,
 	showGrid: true,

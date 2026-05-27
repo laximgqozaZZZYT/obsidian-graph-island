@@ -425,6 +425,7 @@ export class MiniGraphView extends ItemView {
 		this.renderNodeDisplaySection(el);
 		this.renderMinFontSection(el);
 		this.renderToggleSection(el, "Graph display", [
+			{ key: "showNodes", label: "Show nodes" },
 			{ key: "showEnclosures", label: "Show enclosures" },
 			{ key: "showEdges", label: "Show edges" },
 			{ key: "showGrid", label: "Show grid" },
@@ -792,7 +793,7 @@ export class MiniGraphView extends ItemView {
 		parent: HTMLElement,
 		heading: string,
 		toggles: {
-			key: "showBody" | "showEnclosures" | "showEdges" | "showGrid";
+			key: "showNodes" | "showBody" | "showEnclosures" | "showEdges" | "showGrid";
 			label: string;
 		}[],
 	): void {
@@ -1471,13 +1472,19 @@ export class MiniGraphView extends ItemView {
 			);
 		}
 
-		for (const n of this.laid.nodes) {
-			if (this.highlightedNodes.has(n.id)) continue;
-			if (skipNode(n.id)) continue;
-			this.drawCard(ctx, n, false);
+		if (this.settings.showNodes) {
+			for (const n of this.laid.nodes) {
+				if (this.highlightedNodes.has(n.id)) continue;
+				if (skipNode(n.id)) continue;
+				this.drawCard(ctx, n, false);
+			}
 		}
 
-		if (this.aggregateCount.size > 0 && this.laid.nodes.length > 0) {
+		if (
+			this.settings.showNodes &&
+			this.aggregateCount.size > 0 &&
+			this.laid.nodes.length > 0
+		) {
 			const cardW = this.laid.nodes[0].width;
 			const cardH = this.laid.nodes[0].height;
 			for (const cluster of this.laid.clusters) {
@@ -1499,10 +1506,12 @@ export class MiniGraphView extends ItemView {
 			);
 		}
 
-		for (const n of this.laid.nodes) {
-			if (!this.highlightedNodes.has(n.id)) continue;
-			if (skipNode(n.id)) continue;
-			this.drawCard(ctx, n, true);
+		if (this.settings.showNodes) {
+			for (const n of this.laid.nodes) {
+				if (!this.highlightedNodes.has(n.id)) continue;
+				if (skipNode(n.id)) continue;
+				this.drawCard(ctx, n, true);
+			}
 		}
 	}
 

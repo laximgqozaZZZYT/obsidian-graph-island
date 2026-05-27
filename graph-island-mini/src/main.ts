@@ -109,6 +109,7 @@ export default class GraphIslandMiniPlugin extends Plugin {
 		) {
 			merged.nodeSizeMode = "fixed";
 		}
+		if (typeof merged.showNodes !== "boolean") merged.showNodes = true;
 		if (typeof merged.showEnclosures !== "boolean") merged.showEnclosures = true;
 		if (typeof merged.showEdges !== "boolean") merged.showEdges = true;
 		if (typeof merged.showGrid !== "boolean") merged.showGrid = true;

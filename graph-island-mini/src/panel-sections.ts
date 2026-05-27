@@ -169,7 +169,7 @@ export interface ToggleSectionDeps {
 }
 
 export function renderToggleSection<
-	K extends "showBody" | "showEnclosures" | "showEdges" | "showGrid",
+	K extends "showNodes" | "showBody" | "showEnclosures" | "showEdges" | "showGrid",
 >(
 	parent: HTMLElement,
 	deps: ToggleSectionDeps,
