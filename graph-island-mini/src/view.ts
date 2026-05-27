@@ -2130,7 +2130,10 @@ export class MiniGraphView extends ItemView {
 			fillHue: isSet ? clusterHue(n.memberships[0] ?? n.id) : undefined,
 			// Clustered notes carry their island's main-tag in hueKey → muted tint.
 			tintHue: !isSet && n.hueKey ? clusterHue(n.hueKey) : undefined,
-			titleLodPx: clustered ? 46 : undefined,
+			// Clustered LOD: the tag-centre label has a LOWER threshold than note
+			// titles, so when zooming out the note names drop to markers first and
+			// the island's tag label is the last to disappear.
+			titleLodPx: clustered ? (isSet ? 26 : 48) : undefined,
 		});
 	}
 

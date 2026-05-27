@@ -280,14 +280,14 @@ function emitBipartite(
 	pos: XY[],
 	ctx: EmitCtx,
 ): LaidOut {
-	const nodes: PositionedNode[] = [];
 	const setNodeIds = new Set<string>();
+	const setNodes: PositionedNode[] = [];
 	for (const t of tagOrder) {
 		const p = setPos.get(t)!;
 		const id = SET_PREFIX + t;
 		setNodeIds.add(id);
 		const sd = ctx.setDims?.get(t);
-		nodes.push({
+		setNodes.push({
 			id,
 			label: `${ctx.labels.get(t) ?? t} (${ctx.tagCount.get(t)})`,
 			memberships: [t],
@@ -297,9 +297,9 @@ function emitBipartite(
 			height: sd?.h ?? ctx.setH,
 		});
 	}
-	data.nodes.forEach((n, i) => {
+	const noteNodes: PositionedNode[] = data.nodes.map((n, i) => {
 		const nd = ctx.noteDims?.[i];
-		nodes.push({
+		return {
 			id: n.id,
 			label: n.label,
 			memberships: n.memberships,
@@ -309,8 +309,12 @@ function emitBipartite(
 			height: nd?.h ?? ctx.noteH,
 			// Clustered → tint the note by its island's main tag.
 			hueKey: ctx.mainTagByNote?.[i] ?? undefined,
-		});
+		};
 	});
+	// Clustered: draw NOTES first, TAG centres LAST so the big tag cards sit on
+	// top of their surrounding notes (z-order). Other layouts keep sets-first.
+	const clustered = ctx.mainTagByNote !== undefined;
+	const nodes = clustered ? [...noteNodes, ...setNodes] : [...setNodes, ...noteNodes];
 
 	const edges: PositionedEdge[] = [];
 	data.nodes.forEach((n, i) => {
@@ -529,7 +533,7 @@ function placeClustered(
 	const PAD = 9;
 	const MIN_W = 46;
 	const NOTE_MAX_W = 190;
-	const SET_MAX_W = 230;
+	const SET_MAX_W = 320;
 	const meas =
 		typeof document !== "undefined"
 			? document.createElement("canvas").getContext("2d")
@@ -543,10 +547,20 @@ function placeClustered(
 		return Math.min(max, Math.max(MIN_W, Math.ceil(tw) + 2 * PAD));
 	};
 	const noteDims = data.nodes.map((n) => ({ w: widthOf(n.label, NOTE_MAX_W), h: CARD_H }));
+	// Tag-centre cards are deliberately LARGER (≈1.8× font) so they read as the
+	// island's title, not just another note. Measure at the bigger font and
+	// give them a taller card; the full "name (count)" fits (generous max).
+	const SET_FONT = 27;
+	const SET_H = 52;
 	const setDims = new Map<string, { w: number; h: number }>();
 	tags.forEach((t) => {
 		const lbl = `${dims.labels.get(t) ?? t} (${tagCount.get(t)})`;
-		setDims.set(t, { w: widthOf(lbl, SET_MAX_W), h: Math.round(CARD_H * 1.3) });
+		let tw = lbl.length * SET_FONT * 0.58;
+		if (meas) {
+			meas.font = `700 ${SET_FONT}px sans-serif`;
+			tw = meas.measureText(lbl).width;
+		}
+		setDims.set(t, { w: Math.min(SET_MAX_W, Math.max(72, Math.ceil(tw) + 2 * PAD + 6)), h: SET_H });
 	});
 
 	// Per-island CONCENTRIC RING packing of VARIABLE-WIDTH cards. Intra-ring:
