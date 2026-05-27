@@ -121,6 +121,10 @@ export interface MiniSettings {
 	// Connection-matrix: collapse each signature block to a "×N" summary row
 	// (click a block to expand). Default false.
 	matrixCollapseGroups: boolean;
+	// Bipartite tag graph: maximum number of tag (set) nodes shown. The layout
+	// first drops singleton + giant (>40% of notes) tags, then keeps the
+	// top-N by size. Caps hub fan-out so a sparse vault stays operable.
+	bipartiteMaxTags: number;
 	// Minimum font size (screen pixels) below which NO text element
 	// will render. Applies to card titles/bodies, cluster labels,
 	// matrix labels, grid headers, etc. World-space fonts that would
@@ -135,6 +139,7 @@ export type ViewMode =
 	| "euler-venn"
 	| "bubblesets"
 	| "matrix"
+	| "bipartite"
 	| "upset";
 
 export interface ViewModeOption {
@@ -186,6 +191,14 @@ export const VIEW_MODES: ViewModeOption[] = [
 		description: "Rows = notes, columns = tags; a dot marks membership",
 	},
 	{
+		// Bipartite tag graph: note nodes + set (tag) nodes, joined by an edge
+		// per membership. Closest to Obsidian's native tag graph. Note click →
+		// open file; set click → highlight neighbours.
+		id: "bipartite",
+		label: "タググラフ (bipartite)",
+		description: "Notes + tag nodes joined by membership edges (native-style graph)",
+	},
+	{
 		id: "upset",
 		label: "UpSet plot",
 		description: "Stack of cards per intersection + dot matrix (handles ≥4-way intersections)",
@@ -229,10 +242,16 @@ export const DEFAULT_SETTINGS: MiniSettings = {
 	matrixMinColumnSize: 1,
 	matrixGroupBySignature: true,
 	matrixCollapseGroups: false,
+	bipartiteMaxTags: 80,
 	minFontPx: 8,
 };
 
 export const NONE_BUCKET = "(none)";
+
+// Id prefix for bipartite SET nodes (one per tag). NUL bytes guarantee it can
+// never collide with a real vault file path; the authoritative kind check is
+// `LaidOut.setNodeIds.has(id)`, not parsing this prefix.
+export const SET_PREFIX = " tag ";
 
 // Card text geometry. Title and body lines use different sizes/weights.
 export const CARD_RADIUS_PX = 4;

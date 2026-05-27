@@ -8,7 +8,7 @@ import {
 	type ClusterRect,
 } from "./layout";
 import type { MiniSettings, GraphNode, ViewMode } from "./types";
-import { NONE_BUCKET, VIEW_MODES } from "./types";
+import { NONE_BUCKET, VIEW_MODES, SET_PREFIX } from "./types";
 import { CARD_MIN_W, CARD_MAX_W, CARD_CELL_W, CARD_CELL_H } from "./types";
 import { type LimitRule, applyLimitRules } from "./limit";
 import { filterMemberships, filterLabels } from "./query-filters";
@@ -179,6 +179,9 @@ export class MiniGraphView extends ItemView {
 	private upsetSelectedSignatureKey: string | null = null;
 	// Connection-matrix mode: key of the highlighted column (tag). null = none.
 	private matrixSelectedCol: string | null = null;
+	// Bipartite mode: id of the SET node whose neighbours are PINNED-
+	// highlighted by a click (persists across hover). null = none.
+	private pinnedSet: string | null = null;
 	// Block indices currently EXPANDED while collapse mode is on.
 	private matrixExpanded = new Set<number>();
 	// Cached display lines (rows + collapsed summaries) — virtualization unit.
@@ -427,6 +430,7 @@ export class MiniGraphView extends ItemView {
 	private renderAllTab(el: HTMLElement): void {
 		this.renderViewModeSection(el);
 		if (this.settings.viewMode === "matrix") this.renderMatrixSection(el);
+		if (this.settings.viewMode === "bipartite") this.renderBipartiteSection(el);
 		this.renderExprSection(el, "WHERE", this.settings.where, this.whereError, {
 			autoKey: "whereAuto",
 		});
@@ -809,6 +813,29 @@ export class MiniGraphView extends ItemView {
 		}
 	}
 
+	// Bipartite-only controls: max number of tag (set) nodes shown.
+	private renderBipartiteSection(parent: HTMLElement): void {
+		const section = parent.createDiv({ cls: "gim-panel-section" });
+		section.createEl("h4", { text: "Tag graph" });
+		const row = section.createDiv({ cls: "gim-order-row" });
+		row.createSpan({ text: "Max tags", cls: "gim-order-field" });
+		const inp = row.createEl("input", { type: "number" }) as HTMLInputElement;
+		inp.min = "1";
+		inp.style.width = "56px";
+		inp.value = String(this.settings.bipartiteMaxTags);
+		inp.addEventListener("change", () => {
+			const v = Math.max(1, Math.floor(Number(inp.value) || 1));
+			this.settings.bipartiteMaxTags = v;
+			inp.value = String(v);
+			void this.save();
+			void this.rebuild();
+		});
+		section.createEl("p", {
+			cls: "gim-panel-hint",
+			text: "Singleton + giant (>40% of notes) tags are dropped first; then the top-N by size are kept. Click a tag node to highlight its notes; click a note to open it.",
+		});
+	}
+
 	// Matrix-only controls: row/column ordering + min column size.
 	private renderMatrixSection(parent: HTMLElement): void {
 		const section = parent.createDiv({ cls: "gim-panel-section" });
@@ -1017,6 +1044,12 @@ export class MiniGraphView extends ItemView {
 		// an optional degree-driven scale that preserves the m : n aspect.
 		const sized = layoutData.nodes.map((n) => this.cardFor(n));
 		const wasEmpty = this.laid.clusters.length === 0;
+		// Seed the bipartite force layout from the previous frame's positions
+		// (only when the outgoing layout WAS bipartite) so a tag-count change
+		// nudges nodes instead of teleporting them.
+		const bipartitePrev = this.laid.setNodeIds
+			? new Map(this.laid.nodes.map((n) => [n.id, { x: n.x, y: n.y }]))
+			: undefined;
 		this.laid = layout(layoutData, sized, {
 			clusterSpacing: this.settings.clusterSpacing,
 			nodeSpacing: this.settings.nodeSpacing,
@@ -1037,31 +1070,43 @@ export class MiniGraphView extends ItemView {
 			upsetMinColumnSize: this.settings.upsetMinColumnSize,
 			matrixSort: this.settings.matrixSort,
 			matrixMinColumnSize: this.settings.matrixMinColumnSize,
+			bipartiteMaxTags: this.settings.bipartiteMaxTags,
+			bipartitePrev,
 		});
 		// Stage 5: id → incident-edge-index adjacency for hover lookups.
 		this.adjacency = buildAdjacency(this.laid.edges);
-		// Aggregate-snap: badge cell selection + edge stitching back into
-		// the aggregate stack. trulyAgg + hidden were already excluded
-		// from the layout pass, so the layout above ran on visible nodes
-		// only and the surrounding cards have already taken their space.
-		// Here we just drop the badges in free cells and add the
-		// previously-omitted edges back as routes through the badges.
-		const aggResult = runAggregateSnap(this.laid, {
-			aggregatedLayers: this.settings.aggregatedLayers,
-			hiddenNodes: this.settings.hiddenNodes,
-			inheritFrom: this.settings.inheritFrom ?? {},
-			trulyAgg: preTrulyAgg,
-			allNodes: data.nodes,
-			allEdges: data.edges,
-			clusterLabels: this.clusterLabels,
-		});
-		this.trulyAggSet = aggResult.trulyAgg;
-		this.aggregateCount = aggResult.aggregateCount;
+		// Aggregate-snap + inheritance operate on the Euler cluster/edge model
+		// (note→note vault links, per-cluster aggregation). Bipartite has its
+		// own node/edge model (note↔tag) and no enclosures, so running them
+		// would stitch foreign note→note edges and stray clusters into the
+		// graph. Skip the whole pipeline there.
+		if (this.laid.setNodeIds) {
+			this.trulyAggSet = new Set();
+			this.aggregateCount = new Map();
+		} else {
+			// Aggregate-snap: badge cell selection + edge stitching back into
+			// the aggregate stack. trulyAgg + hidden were already excluded
+			// from the layout pass, so the layout above ran on visible nodes
+			// only and the surrounding cards have already taken their space.
+			// Here we just drop the badges in free cells and add the
+			// previously-omitted edges back as routes through the badges.
+			const aggResult = runAggregateSnap(this.laid, {
+				aggregatedLayers: this.settings.aggregatedLayers,
+				hiddenNodes: this.settings.hiddenNodes,
+				inheritFrom: this.settings.inheritFrom ?? {},
+				trulyAgg: preTrulyAgg,
+				allNodes: data.nodes,
+				allEdges: data.edges,
+				clusterLabels: this.clusterLabels,
+			});
+			this.trulyAggSet = aggResult.trulyAgg;
+			this.aggregateCount = aggResult.aggregateCount;
 
-		expandClustersByInheritance(
-			this.laid.clusters,
-			this.settings.inheritFrom ?? {},
-		);
+			expandClustersByInheritance(
+				this.laid.clusters,
+				this.settings.inheritFrom ?? {},
+			);
+		}
 		this.highlightedNodes.clear();
 		this.highlightedEdgeIdx.clear();
 		// Drop a selected column if the relayout removed it (matrix + UpSet).
@@ -1070,6 +1115,8 @@ export class MiniGraphView extends ItemView {
 		this.matrixExpanded.clear();
 		this.matrixHoverLine = -1;
 		this.matrixHoverCol = -1;
+		// Drop a pinned set selection whose node may no longer exist (bipartite).
+		this.pinnedSet = null;
 		this.rebuildMatrixDisplay();
 		// Baseline the layout signature so subsequent display-only toggles
 		// (which leave this unchanged) repaint without relaying out.
@@ -1279,7 +1326,9 @@ export class MiniGraphView extends ItemView {
 	private overviewActive = false;
 
 	private isOverview(): boolean {
-		if (this.laid.upset || this.laid.matrix) return false;
+		// Bipartite has no enclosures (its set nodes ARE the labels), so the
+		// big centred auxiliary labels don't apply — same exclusion as UpSet.
+		if (this.laid.upset || this.laid.matrix || this.laid.setNodeIds) return false;
 		if (this.laid.clusters.length === 0 && this.laid.nodes.length === 0)
 			return false;
 		let minX = Infinity;
@@ -1804,6 +1853,9 @@ export class MiniGraphView extends ItemView {
 		const scale = this.getCardScale(baseId);
 		const mode = this.displayMode.get(baseId) ?? "full";
 		const card = this.cardCache.get(`${baseId}:${mode}:${scale.toFixed(4)}`);
+		// Bipartite SET (tag) nodes render coloured by their tag hue so they
+		// read as set cores; NOTE nodes use the default dark card.
+		const isSet = this.laid.setNodeIds?.has(n.id) ?? false;
 		drawCardFn(ctx, n, {
 			scale,
 			bodyLines: [],
@@ -1811,6 +1863,7 @@ export class MiniGraphView extends ItemView {
 			highlighted,
 			zoom: this.zoom,
 			minFontPx: this.settings.minFontPx,
+			fillHue: isSet ? clusterHue(n.memberships[0] ?? n.id) : undefined,
 		});
 	}
 
@@ -1931,6 +1984,18 @@ export class MiniGraphView extends ItemView {
 		const w = this.screenToWorld(sx, sy);
 		const hit = this.hitTest(w.x, w.y);
 		if (!sameTarget(this.hoverTarget, hit)) {
+			// While a set selection is pinned (bipartite), keep its highlight —
+			// only update the tooltip target, don't recompute hover highlight.
+			if (this.pinnedSet) {
+				if (this.tipEl) {
+					this.tipEl.remove();
+					this.tipEl = null;
+				}
+				this.hoverGen++;
+				this.hoverTarget = hit;
+				if (hit) this.scheduleHover(hit, sx, sy);
+				return;
+			}
 			this.cancelHover();
 			this.hoverTarget = hit;
 			this.applyHighlight(hit);
@@ -1976,6 +2041,9 @@ export class MiniGraphView extends ItemView {
 			this.tipEl = null;
 		}
 		this.hoverTarget = null;
+		// A pinned set selection (bipartite) keeps its highlight through hover
+		// cancellation (mouseleave / wheel / drag); only an explicit click clears it.
+		if (this.pinnedSet) return;
 		if (
 			this.highlightedEdgeIdx.size > 0 ||
 			this.highlightedNodes.size > 0 ||
@@ -1997,6 +2065,17 @@ export class MiniGraphView extends ItemView {
 		tip.setAttr("data-kind", target.kind);
 
 		if (target.kind === "node") {
+			// Bipartite SET node: no backing file — show the tag label + size.
+			if (this.laid.setNodeIds?.has(target.nodeId)) {
+				const sn = this.laid.nodes.find((n) => n.id === target.nodeId);
+				if (!sn) return;
+				tip.createSpan({ cls: "gim-tip-title", text: sn.label });
+				tip.createSpan({ cls: "gim-tip-sub", text: "tag" });
+				this.root.appendChild(tip);
+				this.tipEl = tip;
+				this.positionTip(sx, sy, tip);
+				return;
+			}
 			// Euler-nested copies carry a `${tag}\t${origPath}` id — resolve the
 			// ORIGINAL path for the file lookup + body cache.
 			const sepIdx = target.nodeId.indexOf("\t");
@@ -2143,7 +2222,22 @@ export class MiniGraphView extends ItemView {
 			}
 			const w = this.screenToWorld(sx, sy);
 			const hit = this.hitTest(w.x, w.y);
-			if (hit?.kind === "node") this.openFile(hit.nodeId);
+			if (hit?.kind === "node") {
+				// Bipartite: SET node → toggle a pinned highlight of its
+				// neighbour notes; NOTE node → open the file.
+				if (this.laid.setNodeIds?.has(hit.nodeId)) {
+					this.pinnedSet = this.pinnedSet === hit.nodeId ? null : hit.nodeId;
+					this.applyHighlight(
+						this.pinnedSet ? { kind: "node", nodeId: this.pinnedSet } : null,
+					);
+				} else {
+					this.openFile(hit.nodeId);
+				}
+			} else if (this.pinnedSet) {
+				// Click on empty space clears the pinned set selection.
+				this.pinnedSet = null;
+				this.applyHighlight(null);
+			}
 		});
 		c.addEventListener("mousemove", (e) => this.onPointerMove(e));
 		c.addEventListener("mouseleave", () => {

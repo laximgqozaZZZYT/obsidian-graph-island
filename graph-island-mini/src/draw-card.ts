@@ -32,6 +32,9 @@ export interface DrawCardOptions {
 	// would render smaller than this under the current zoom get their
 	// world unit bumped up so the actual screen size stays ≥ minFontPx.
 	minFontPx: number;
+	// When set, fill the card with this hue (bipartite SET / tag nodes) so it
+	// reads as a coloured set node rather than a plain dark note card.
+	fillHue?: number;
 }
 
 // Pure card renderer. Receives the already-resolved scale + body lines
@@ -50,7 +53,8 @@ export function drawCard(
 	n: PositionedNode,
 	opts: DrawCardOptions,
 ): void {
-	const { scale, bodyLines, showBody, highlighted, zoom, minFontPx } = opts;
+	const { scale, bodyLines, showBody, highlighted, zoom, minFontPx, fillHue } = opts;
+	const isSet = fillHue != null;
 	const x = n.x - n.width / 2;
 	const y = n.y - n.height / 2;
 	const w = n.width;
@@ -60,11 +64,19 @@ export function drawCard(
 	// Fill first so the stroke below sits cleanly on top.
 	ctx.beginPath();
 	roundedRectPath(ctx, x, y, w, h, r);
-	ctx.fillStyle = highlighted ? "#ffe7a8" : "#1d2230";
+	ctx.fillStyle = highlighted
+		? "#ffe7a8"
+		: isSet
+			? `hsl(${fillHue}, 55%, 40%)`
+			: "#1d2230";
 	ctx.fill();
 
-	ctx.lineWidth = (highlighted ? 1.8 : 1) / zoom;
-	ctx.strokeStyle = highlighted ? "#ff9d3f" : "#5a7ba8";
+	ctx.lineWidth = (highlighted ? 1.8 : isSet ? 1.6 : 1) / zoom;
+	ctx.strokeStyle = highlighted
+		? "#ff9d3f"
+		: isSet
+			? `hsl(${fillHue}, 75%, 72%)`
+			: "#5a7ba8";
 	ctx.beginPath();
 	roundedRectPath(ctx, x, y, w, h, r);
 	ctx.stroke();
@@ -114,7 +126,7 @@ export function drawCard(
 	ctx.textAlign = "start";
 
 	ctx.font = `600 ${titleFontPx}px sans-serif`;
-	ctx.fillStyle = highlighted ? "#1d1100" : "#e6edf3";
+	ctx.fillStyle = highlighted ? "#1d1100" : isSet ? "#f2f6ff" : "#e6edf3";
 	const titleFitted = truncateToWidth(ctx, n.label, innerW);
 	// Title-only cards: centre the title vertically so the enlarged glyphs
 	// sit flush in the node. (Body preview was retired.)

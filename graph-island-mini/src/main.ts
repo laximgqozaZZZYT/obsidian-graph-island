@@ -117,6 +117,15 @@ export default class GraphIslandMiniPlugin extends Plugin {
 			merged.matrixGroupBySignature = true;
 		if (typeof merged.matrixCollapseGroups !== "boolean")
 			merged.matrixCollapseGroups = false;
+		if (
+			typeof merged.bipartiteMaxTags !== "number" ||
+			!Number.isFinite(merged.bipartiteMaxTags) ||
+			merged.bipartiteMaxTags < 1
+		) {
+			merged.bipartiteMaxTags = 80;
+		} else {
+			merged.bipartiteMaxTags = Math.max(1, Math.floor(merged.bipartiteMaxTags));
+		}
 		if (typeof merged.showNodes !== "boolean") merged.showNodes = true;
 		if (typeof merged.showEnclosures !== "boolean") merged.showEnclosures = true;
 		if (typeof merged.showEdges !== "boolean") merged.showEdges = true;
