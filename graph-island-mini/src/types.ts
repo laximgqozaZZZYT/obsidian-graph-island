@@ -141,6 +141,10 @@ export interface MiniSettings {
 	// first drops singleton + giant (>40% of notes) tags, then keeps the
 	// top-N by size. Caps hub fan-out so a sparse vault stays operable.
 	bipartiteMaxTags: number;
+	// Bipartite node placement: "force" (spring embedder, default) or
+	// "concentric" (tags inner ring, notes outer ring(s), Jaccard-seriated).
+	// Topology is identical — only positions change.
+	bipartiteLayout: "force" | "concentric";
 	// Minimum font size (screen pixels) below which NO text element
 	// will render. Applies to card titles/bodies, cluster labels,
 	// matrix labels, grid headers, etc. World-space fonts that would
@@ -287,6 +291,7 @@ export const DEFAULT_SETTINGS: MiniSettings = {
 	heatmapSortDir: "desc",
 	heatmapJaccard: true,
 	bipartiteMaxTags: 80,
+	bipartiteLayout: "force",
 	minFontPx: 8,
 };
 

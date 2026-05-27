@@ -10,8 +10,11 @@
 // Hub mitigation (a sparse vault hairballs around a few universal tags):
 //   1. drop singleton tags (size < 2) and GIANT tags (on > 40% of notes) so
 //      mid-degree tags survive; then keep the top-N by size.
-//   2. edges only go to VISIBLE tags (pruning); `pruneEdges` is the hook for
-//      future Jaccard / per-note degree-cap strategies.
+//   2. edges only go to VISIBLE tags (the excluded tags carry no edges).
+//
+// Layout is selectable: "force" (default, spring embedder) or "concentric"
+// (tags on an inner ring, notes on outer ring(s), both Jaccard-seriated). Only
+// node POSITIONS differ between the two — the node/edge set is identical.
 //
 // Layout reuses the existing relaxation asset (`relaxSubgroups`) for final box
 // de-overlap, on top of a bounded grid-repulsion spring embedder that keeps
@@ -20,6 +23,7 @@ import { GraphData, GraphNode, SET_PREFIX } from "./types";
 import type { LaidOut, LayoutOptions, PositionedEdge, PositionedNode } from "./layout";
 import { computeChannelDims, minFontScale } from "./card-sizing";
 import { relaxSubgroups, SubPos } from "./subgroup-relax";
+import { barycenter } from "./matrix-layout";
 
 interface XY {
 	x: number;
@@ -58,13 +62,38 @@ export function layoutBipartite(data: GraphData, opts: LayoutOptions): LaidOut {
 			const s = tagMembers.get(m);
 			if (s) s.add(n.id);
 		}
-	const ringOrder = coocChain(tags, tagMembers);
-
-	// --- SET node ring positions (fixed anchors) ----------------------------
+	let ringOrder = coocChain(tags, tagMembers);
 	const ringN = Math.max(1, ringOrder.length);
-	const circumference = ringN * (setW + gap * 2);
-	const R = circumference / (2 * Math.PI);
 	const setPos = new Map<string, XY>();
+	let pos: XY[];
+
+	// --- CONCENTRIC layout (opt-in): tags on an inner ring, notes on outer
+	// ring(s), both in Jaccard-seriated order so related tags/notes sit on
+	// adjacent arcs and edges span short spans. Topology (edge set) unchanged —
+	// this only computes positions. No force / relax needed (equiangular).
+	if (opts.bipartiteLayout === "concentric") {
+		const c = placeConcentric(data, tags, { setW, noteW, noteH, gap });
+		ringOrder = c.tagOrder;
+		for (const [t, p] of c.setPos) setPos.set(t, p);
+		pos = c.notePos;
+		return emitBipartite(data, ringOrder, setPos, pos, {
+			labels,
+			tagCount,
+			tagSet,
+			setW,
+			setH,
+			noteW,
+			noteH,
+			slotW,
+			slotH,
+			channelW,
+			channelH,
+		});
+	}
+
+	// --- FORCE layout (default) ---------------------------------------------
+	// SET node ring positions (fixed anchors).
+	const R = (ringN * (setW + gap * 2)) / (2 * Math.PI);
 	ringOrder.forEach((t, i) => {
 		const a = (i / ringN) * Math.PI * 2 - Math.PI / 2;
 		setPos.set(t, { x: R * Math.cos(a), y: R * Math.sin(a) });
@@ -126,7 +155,7 @@ export function layoutBipartite(data: GraphData, opts: LayoutOptions): LaidOut {
 	// --- NOTE seed + spring targets (toward the signature blob anchor) ------
 	const prev = opts.bipartitePrev;
 	const target: XY[] = data.nodes.map((n) => sigAnchor.get(sigOf(n)) ?? { x: 0, y: 0 });
-	const pos: XY[] = data.nodes.map((n, i) => {
+	pos = data.nodes.map((n, i) => {
 		// Seed from the previous frame's position when available so a relayout
 		// (tag-count change) doesn't visually teleport every node.
 		const pp = prev?.get(n.id);
@@ -166,21 +195,59 @@ export function layoutBipartite(data: GraphData, opts: LayoutOptions): LaidOut {
 		}
 	}
 
-	// --- emit nodes (sets first, then notes) --------------------------------
+	return emitBipartite(data, ringOrder, setPos, pos, {
+		labels,
+		tagCount,
+		tagSet,
+		setW,
+		setH,
+		noteW,
+		noteH,
+		slotW,
+		slotH,
+		channelW,
+		channelH,
+	});
+}
+
+interface EmitCtx {
+	labels: Map<string, string>;
+	tagCount: Map<string, number>;
+	tagSet: Set<string>;
+	setW: number;
+	setH: number;
+	noteW: number;
+	noteH: number;
+	slotW: number;
+	slotH: number;
+	channelW: number;
+	channelH: number;
+}
+
+// Shared emit for both layouts: same node set (sets first, then notes) and the
+// same note→set edge set (visible-tag pruning) — only the supplied positions
+// differ, so the topology is identical whichever layout produced them.
+function emitBipartite(
+	data: GraphData,
+	tagOrder: string[],
+	setPos: Map<string, XY>,
+	pos: XY[],
+	ctx: EmitCtx,
+): LaidOut {
 	const nodes: PositionedNode[] = [];
 	const setNodeIds = new Set<string>();
-	for (const t of ringOrder) {
+	for (const t of tagOrder) {
 		const p = setPos.get(t)!;
 		const id = SET_PREFIX + t;
 		setNodeIds.add(id);
 		nodes.push({
 			id,
-			label: `${labels.get(t) ?? t} (${tagCount.get(t)})`,
+			label: `${ctx.labels.get(t) ?? t} (${ctx.tagCount.get(t)})`,
 			memberships: [t],
 			x: p.x,
 			y: p.y,
-			width: setW,
-			height: setH,
+			width: ctx.setW,
+			height: ctx.setH,
 		});
 	}
 	data.nodes.forEach((n, i) => {
@@ -190,16 +257,15 @@ export function layoutBipartite(data: GraphData, opts: LayoutOptions): LaidOut {
 			memberships: n.memberships,
 			x: pos[i].x,
 			y: pos[i].y,
-			width: noteW,
-			height: noteH,
+			width: ctx.noteW,
+			height: ctx.noteH,
 		});
 	});
 
-	// --- edges: note → set (visible tags only), then pruning hook -----------
-	let edges: PositionedEdge[] = [];
+	const edges: PositionedEdge[] = [];
 	data.nodes.forEach((n, i) => {
 		for (const m of n.memberships) {
-			if (!tagSet.has(m)) continue; // visible-tag pruning
+			if (!ctx.tagSet.has(m)) continue; // visible-tag pruning
 			const sp = setPos.get(m)!;
 			edges.push({
 				source: n.id,
@@ -214,9 +280,77 @@ export function layoutBipartite(data: GraphData, opts: LayoutOptions): LaidOut {
 			});
 		}
 	});
-	edges = pruneEdges(edges, opts);
 
-	return { nodes, edges, clusters: [], trunks: [], slotW, slotH, channelW, channelH, setNodeIds };
+	return {
+		nodes,
+		edges,
+		clusters: [],
+		trunks: [],
+		slotW: ctx.slotW,
+		slotH: ctx.slotH,
+		channelW: ctx.channelW,
+		channelH: ctx.channelH,
+		setNodeIds,
+	};
+}
+
+// Concentric placement: tags on an inner ring, notes on outer ring(s), both in
+// Jaccard-seriated order (reusing the matrix barycenter). Note angle tracks its
+// seriation FRACTION so it lands near its tags' arc; radius is staggered across
+// rings to avoid angular crowding when notes outnumber one ring.
+function placeConcentric(
+	data: GraphData,
+	tags: string[],
+	dims: { setW: number; noteW: number; noteH: number; gap: number },
+): { tagOrder: string[]; setPos: Map<string, XY>; notePos: XY[] } {
+	const nTags = tags.length;
+	const nNotes = data.nodes.length;
+	const tagIdx = new Map<string, number>();
+	tags.forEach((t, i) => tagIdx.set(t, i));
+	const noteTags: number[][] = data.nodes.map((n) => {
+		const a: number[] = [];
+		for (const m of n.memberships) {
+			const ti = tagIdx.get(m);
+			if (ti !== undefined) a.push(ti);
+		}
+		return a;
+	});
+	const tagNotes: number[][] = tags.map(() => []);
+	noteTags.forEach((ts, r) => {
+		for (const ti of ts) tagNotes[ti].push(r);
+	});
+	// Seriate (tags = rows, notes = cols): one barycenter gives both orders,
+	// co-optimised so a note's tags cluster at a similar angular fraction.
+	let tagOrderIdx = tags.map((_, i) => i);
+	let noteOrderIdx = data.nodes.map((_, i) => i);
+	if (nTags > 1 && nNotes > 1) {
+		const res = barycenter(tagNotes, noteTags, nTags, nNotes);
+		tagOrderIdx = res.rowOrder;
+		noteOrderIdx = res.colOrder;
+	}
+	const tagOrder = tagOrderIdx.map((i) => tags[i]);
+
+	const TWO_PI = Math.PI * 2;
+	const tagStep = dims.setW + dims.gap * 2;
+	const rIn = Math.max((nTags * tagStep) / TWO_PI, dims.setW * 2);
+	const setPos = new Map<string, XY>();
+	tagOrder.forEach((t, p) => {
+		const a = (p / Math.max(1, nTags)) * TWO_PI - Math.PI / 2;
+		setPos.set(t, { x: rIn * Math.cos(a), y: rIn * Math.sin(a) });
+	});
+
+	const noteStep = dims.noteW + dims.gap;
+	const rOuterBase = rIn + dims.setW + dims.gap * 3;
+	const cap = Math.max(8, Math.floor((TWO_PI * rOuterBase) / noteStep));
+	const ringLevels = Math.max(1, Math.ceil(nNotes / cap));
+	const ringGap = dims.noteH + dims.gap * 1.5;
+	const notePos: XY[] = new Array(nNotes);
+	noteOrderIdx.forEach((orig, p) => {
+		const a = (p / Math.max(1, nNotes)) * TWO_PI - Math.PI / 2;
+		const r = rOuterBase + (p % ringLevels) * ringGap;
+		notePos[orig] = { x: r * Math.cos(a), y: r * Math.sin(a) };
+	});
+	return { tagOrder, setPos, notePos };
 }
 
 // Hub mitigation: drop singletons + giant ubiquitous tags so mid-degree tags
@@ -370,12 +504,4 @@ function forceLayout(pos: XY[], target: (XY | null)[], slot: number): void {
 		pos[i].x = best[i].x;
 		pos[i].y = best[i].y;
 	}
-}
-
-// Edge-pruning extension point. Currently identity — the only pruning applied
-// is dropping edges to hidden (excluded) tags in the emit loop. Future
-// strategies (Jaccard co-occurrence threshold, per-note degree cap) plug in
-// here without touching the emit loop or the renderer.
-function pruneEdges(edges: PositionedEdge[], _opts: LayoutOptions): PositionedEdge[] {
-	return edges;
 }

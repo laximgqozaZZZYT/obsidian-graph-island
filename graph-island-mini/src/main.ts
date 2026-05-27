@@ -151,6 +151,8 @@ export default class GraphIslandMiniPlugin extends Plugin {
 		} else {
 			merged.bipartiteMaxTags = Math.max(1, Math.floor(merged.bipartiteMaxTags));
 		}
+		if (merged.bipartiteLayout !== "force" && merged.bipartiteLayout !== "concentric")
+			merged.bipartiteLayout = "force";
 		if (typeof merged.showNodes !== "boolean") merged.showNodes = true;
 		if (typeof merged.showEnclosures !== "boolean") merged.showEnclosures = true;
 		if (typeof merged.showEdges !== "boolean") merged.showEdges = true;

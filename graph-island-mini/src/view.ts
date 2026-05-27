@@ -1010,6 +1010,24 @@ export class MiniGraphView extends ItemView {
 	private renderBipartiteSection(parent: HTMLElement): void {
 		const section = parent.createDiv({ cls: "gim-panel-section" });
 		section.createEl("h4", { text: "Tag graph" });
+
+		// Layout method (placement only; the edge set is identical either way).
+		const layRow = section.createDiv({ cls: "gim-order-row" });
+		layRow.createSpan({ text: "Layout", cls: "gim-order-field" });
+		const laySel = layRow.createEl("select") as HTMLSelectElement;
+		for (const [val, label] of [
+			["force", "Force"],
+			["concentric", "Concentric"],
+		] as const) {
+			const o = laySel.createEl("option", { value: val, text: label });
+			if (val === this.settings.bipartiteLayout) o.selected = true;
+		}
+		laySel.addEventListener("change", () => {
+			this.settings.bipartiteLayout = laySel.value as "force" | "concentric";
+			void this.save();
+			void this.rebuild();
+		});
+
 		const row = section.createDiv({ cls: "gim-order-row" });
 		row.createSpan({ text: "Max tags", cls: "gim-order-field" });
 		const inp = row.createEl("input", { type: "number" }) as HTMLInputElement;
@@ -1254,6 +1272,7 @@ export class MiniGraphView extends ItemView {
 			matrixBlockPriority: this.settings.matrixBlockPriority,
 			matrixSortDir: this.settings.matrixSortDir,
 			bipartiteMaxTags: this.settings.bipartiteMaxTags,
+			bipartiteLayout: this.settings.bipartiteLayout,
 			bipartitePrev,
 		});
 		// Stage 5: id → incident-edge-index adjacency for hover lookups.
