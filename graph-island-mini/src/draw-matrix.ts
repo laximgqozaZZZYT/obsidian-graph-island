@@ -1,28 +1,31 @@
 // Connection-matrix renderer. Screen-space (frozen panes): a left band of
 // row (note) labels, a top band of column (tag) labels, and the cell grid in
-// between. The grid pans/zooms; only the rows and columns currently in the
-// viewport are drawn (virtualization). Row labels are prioritised — the left
-// band is wide and uses a readable screen-fixed font; column labels are
-// rotated and abbreviated, dropping out (LOD) when columns get too narrow.
+// between. The grid scrolls vertically at a FIXED readable row pitch with
+// only the visible rows/columns drawn (virtualization). Consecutive
+// same-signature rows are bundled into BLOCKS (count badge + divider +
+// alternating shade); blocks can be collapsed to a single "×N" summary line.
 import type { MatrixMeta } from "./layout";
 import { clusterHue, truncateToWidth } from "./canvas-utils";
 
 export interface MatrixGeom {
 	labelBand: number; // left row-label band width (CSS px)
 	headerH: number; // top column-label band height (CSS px)
-	rowScreenH: number; // rowH * zoom
+	rowScreenH: number; // floored row pitch
 	colScreenW: number; // colW * zoom
 }
 
+// One visible display line: a real note row, or a collapsed block summary.
+export type MatrixLine =
+	| { kind: "row"; rowIdx: number; blockIdx: number; head: boolean }
+	| { kind: "summary"; blockIdx: number };
+
 // Minimum on-screen row pitch so the row labels never overlap, regardless of
 // zoom. Rows scroll vertically at (at least) this height; only columns shrink
-// to fit the width. Keeps "identify each note" satisfied.
+// to fit the width.
 const MIN_ROW_PX = 18;
+const BADGE_W = 30; // left zone of a block-head label that toggles collapse
 
-// Shared geometry so the renderer and hit-testing agree. Row labels get a
-// generously wide band (priority), clamped to a sane range. The row pitch has
-// a hard floor (MIN_ROW_PX) — zoom scales columns and grows rows, but never
-// shrinks rows below the readable floor.
+// Shared geometry so the renderer and hit-testing agree.
 export function matrixGeom(
 	matrix: MatrixMeta,
 	zoom: number,
@@ -37,114 +40,182 @@ export function matrixGeom(
 	};
 }
 
+export const MATRIX_BADGE_W = BADGE_W;
+
+interface DrawOpts {
+	zoom: number;
+	panX: number;
+	panY: number;
+	canvas: HTMLCanvasElement;
+	selectedCol: string | null;
+	minFontPx: number;
+	lines: MatrixLine[];
+	group: boolean; // show block badges / dividers / shading
+	hoverLine: number; // display-line index under cursor (-1 = none)
+	hoverCol: number; // column index under cursor (-1 = none)
+}
+
+// Tags of a block's signature (all rows in a block share the same bits), for
+// the summary-line label.
+function signatureLabel(matrix: MatrixMeta, rowIdx: number): string {
+	const b = matrix.bits[rowIdx];
+	const names: string[] = [];
+	for (let c = 0; c < matrix.cols.length; c++)
+		if ((b[c >> 3] >> (c & 7)) & 1) names.push(matrix.cols[c].label);
+	return names.join(", ");
+}
+
 export function drawMatrix(
 	ctx: CanvasRenderingContext2D,
 	matrix: MatrixMeta,
-	zoom: number,
-	panX: number,
-	panY: number,
-	canvas: HTMLCanvasElement,
-	selectedCol: string | null,
-	minFontPx: number,
+	o: DrawOpts,
 ): void {
 	const dpr = window.devicePixelRatio || 1;
-	const visW = canvas.width / dpr;
-	const visH = canvas.height / dpr;
-	ctx.setTransform(dpr, 0, 0, dpr, 0, 0); // CSS-px screen space
+	const visW = o.canvas.width / dpr;
+	const visH = o.canvas.height / dpr;
+	ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 	ctx.fillStyle = "#0f1116";
 	ctx.fillRect(0, 0, visW, visH);
 
-	const { rows, cols, bits } = matrix;
-	const nRows = rows.length;
+	const { cols, bits } = matrix;
 	const nCols = cols.length;
-	const { labelBand, headerH, rowScreenH, colScreenW } = matrixGeom(
-		matrix,
-		zoom,
-		visW,
-	);
+	const lines = o.lines;
+	const g = matrixGeom(matrix, o.zoom, visW);
+	const { labelBand, headerH, rowScreenH, colScreenW } = g;
 	if (rowScreenH <= 0 || colScreenW <= 0) return;
 
-	// Visible row / column window (virtualization).
-	const r0 = Math.max(0, Math.floor((headerH - panY) / rowScreenH));
-	const r1 = Math.min(nRows - 1, Math.ceil((visH - panY) / rowScreenH));
-	const c0 = Math.max(0, Math.floor((labelBand - panX) / colScreenW));
-	const c1 = Math.min(nCols - 1, Math.ceil((visW - panX) / colScreenW));
-
+	const l0 = Math.max(0, Math.floor((headerH - o.panY) / rowScreenH));
+	const l1 = Math.min(lines.length - 1, Math.ceil((visH - o.panY) / rowScreenH));
+	const c0 = Math.max(0, Math.floor((labelBand - o.panX) / colScreenW));
+	const c1 = Math.min(nCols - 1, Math.ceil((visW - o.panX) / colScreenW));
 	const selIdx =
-		selectedCol != null ? cols.findIndex((c) => c.key === selectedCol) : -1;
+		o.selectedCol != null ? cols.findIndex((c) => c.key === o.selectedCol) : -1;
+	const lineY = (li: number): number => li * rowScreenH + o.panY;
 
 	// Selected-column band (behind cells).
 	if (selIdx >= 0) {
-		const x = selIdx * colScreenW + panX;
+		const x = selIdx * colScreenW + o.panX;
 		if (x + colScreenW > labelBand && x < visW) {
 			ctx.fillStyle = "rgba(255, 157, 63, 0.16)";
 			ctx.fillRect(Math.max(labelBand, x), headerH, colScreenW, visH - headerH);
 		}
 	}
+	// Hover crosshair column band.
+	if (o.hoverCol >= 0) {
+		const x = o.hoverCol * colScreenW + o.panX;
+		if (x + colScreenW > labelBand && x < visW) {
+			ctx.fillStyle = "rgba(160, 190, 230, 0.10)";
+			ctx.fillRect(Math.max(labelBand, x), headerH, colScreenW, visH - headerH);
+		}
+	}
 
-	// CELLS (clipped to the data area).
+	// CELLS + per-block shading (clipped to data area).
 	ctx.save();
 	ctx.beginPath();
 	ctx.rect(labelBand, headerH, visW - labelBand, visH - headerH);
 	ctx.clip();
-	for (let r = r0; r <= r1; r++) {
-		const y = r * rowScreenH + panY;
-		if (r % 2 === 0) {
-			ctx.fillStyle = "rgba(255, 255, 255, 0.03)";
+	const dotR = Math.max(1.5, Math.min(rowScreenH, colScreenW) * 0.32);
+	for (let li = l0; li <= l1; li++) {
+		const line = lines[li];
+		const y = lineY(li);
+		if (o.group && line.blockIdx % 2 === 0) {
+			ctx.fillStyle = "rgba(255, 255, 255, 0.035)";
 			ctx.fillRect(labelBand, y, visW - labelBand, rowScreenH);
 		}
-	}
-	const dotR = Math.max(1.5, Math.min(rowScreenH, colScreenW) * 0.32);
-	for (let r = r0; r <= r1; r++) {
-		const cy = r * rowScreenH + panY + rowScreenH / 2;
-		const b = bits[r];
+		// Block divider above a block head / summary.
+		if (o.group && (line.kind === "summary" || line.head)) {
+			ctx.strokeStyle = "rgba(180, 200, 230, 0.25)";
+			ctx.lineWidth = 1;
+			ctx.beginPath();
+			ctx.moveTo(labelBand, y + 0.5);
+			ctx.lineTo(visW, y + 0.5);
+			ctx.stroke();
+		}
+		const srcRow = line.kind === "row" ? line.rowIdx : matrix.blocks[line.blockIdx].start;
+		const cy = y + rowScreenH / 2;
+		const b = bits[srcRow];
+		const summary = line.kind === "summary";
 		for (let c = c0; c <= c1; c++) {
 			if (!((b[c >> 3] >> (c & 7)) & 1)) continue;
-			const cx = c * colScreenW + panX + colScreenW / 2;
+			const cx = c * colScreenW + o.panX + colScreenW / 2;
 			ctx.fillStyle =
-				c === selIdx
-					? "#ffd49d"
-					: `hsl(${clusterHue(cols[c].key)}, 65%, 62%)`;
+				c === selIdx ? "#ffd49d" : `hsl(${clusterHue(cols[c].key)}, 65%, 62%)`;
 			ctx.beginPath();
-			ctx.arc(cx, cy, dotR, 0, Math.PI * 2);
+			ctx.arc(cx, cy, summary ? dotR * 1.15 : dotR, 0, Math.PI * 2);
 			ctx.fill();
 		}
 	}
+	// Hover crosshair row band (over cells).
+	if (o.hoverLine >= l0 && o.hoverLine <= l1) {
+		ctx.fillStyle = "rgba(160, 190, 230, 0.10)";
+		ctx.fillRect(labelBand, lineY(o.hoverLine), visW - labelBand, rowScreenH);
+	}
 	ctx.restore();
 
-	// LEFT band — row (note) labels. Frozen in x, scroll with y.
+	// LEFT band — row / summary labels (frozen x, scroll y).
 	ctx.fillStyle = "rgba(20, 24, 33, 0.97)";
 	ctx.fillRect(0, headerH, labelBand, visH - headerH);
 	ctx.save();
 	ctx.beginPath();
 	ctx.rect(0, headerH, labelBand, visH - headerH);
 	ctx.clip();
-	const rowFont = Math.max(minFontPx, 13);
-	ctx.font = `${rowFont}px sans-serif`;
-	ctx.textAlign = "start";
+	const rowFont = Math.max(o.minFontPx, 13);
 	ctx.textBaseline = "middle";
-	ctx.fillStyle = "#e6edf3";
-	for (let r = r0; r <= r1; r++) {
-		const cy = r * rowScreenH + panY + rowScreenH / 2;
-		const t = truncateToWidth(ctx, rows[r].label, labelBand - 14);
-		ctx.fillText(t, 8, cy);
+	for (let li = l0; li <= l1; li++) {
+		const line = lines[li];
+		const cy = lineY(li) + rowScreenH / 2;
+		if (li === o.hoverLine) {
+			ctx.fillStyle = "rgba(160, 190, 230, 0.12)";
+			ctx.fillRect(0, lineY(li), labelBand, rowScreenH);
+		}
+		const blk = matrix.blocks[line.blockIdx];
+		if (line.kind === "summary") {
+			const n = blk.count;
+			ctx.font = `700 ${rowFont}px sans-serif`;
+			ctx.fillStyle = "#a9c2ff";
+			ctx.textAlign = "start";
+			const badge = `×${n}`;
+			ctx.fillText(badge, 8, cy);
+			const bw = ctx.measureText(badge).width + 12;
+			ctx.font = `${rowFont}px sans-serif`;
+			ctx.fillStyle = "#c8d3e0";
+			const sig = signatureLabel(matrix, blk.start) || "(no tags)";
+			ctx.fillText(truncateToWidth(ctx, sig, labelBand - 14 - bw), 8 + bw, cy);
+			continue;
+		}
+		let x = 8;
+		if (o.group && line.head && blk.count > 1) {
+			ctx.font = `700 ${rowFont}px sans-serif`;
+			ctx.fillStyle = "#a9c2ff";
+			ctx.textAlign = "start";
+			const badge = `×${blk.count}`;
+			ctx.fillText(badge, 8, cy);
+			x = 8 + ctx.measureText(badge).width + 8;
+		}
+		ctx.font = `${rowFont}px sans-serif`;
+		ctx.fillStyle = "#e6edf3";
+		ctx.textAlign = "start";
+		ctx.fillText(
+			truncateToWidth(ctx, matrix.rows[line.rowIdx].label, labelBand - x - 6),
+			x,
+			cy,
+		);
 	}
 	ctx.restore();
 
-	// TOP band — column (tag) labels, rotated. Frozen in y, scroll with x.
+	// TOP band — column (tag) labels, rotated, with width LOD.
 	ctx.fillStyle = "rgba(20, 24, 33, 0.97)";
 	ctx.fillRect(0, 0, visW, headerH);
 	ctx.save();
 	ctx.beginPath();
 	ctx.rect(labelBand, 0, visW - labelBand, headerH);
 	ctx.clip();
-	const colFont = Math.max(minFontPx, 11);
-	// LOD: when columns get too narrow, skip every other label.
+	const colFont = Math.max(o.minFontPx, 11);
 	const colStride = colScreenW < 9 ? Math.ceil(9 / Math.max(1, colScreenW)) : 1;
 	for (let c = c0; c <= c1; c += colStride) {
-		const x = c * colScreenW + panX + colScreenW / 2;
+		const x = c * colScreenW + o.panX + colScreenW / 2;
 		if (x < labelBand) continue;
-		const sel = c === selIdx;
+		const sel = c === selIdx || c === o.hoverCol;
 		ctx.save();
 		ctx.translate(x, headerH - 6);
 		ctx.rotate(-Math.PI / 2);
@@ -152,8 +223,11 @@ export function drawMatrix(
 		ctx.textAlign = "start";
 		ctx.textBaseline = "middle";
 		ctx.fillStyle = sel ? "#ffd49d" : `hsl(${clusterHue(cols[c].key)}, 60%, 74%)`;
-		const t = truncateToWidth(ctx, `${cols[c].label} (${cols[c].size})`, headerH - 12);
-		ctx.fillText(t, 0, 0);
+		ctx.fillText(
+			truncateToWidth(ctx, `${cols[c].label} (${cols[c].size})`, headerH - 12),
+			0,
+			0,
+		);
 		ctx.restore();
 	}
 	ctx.restore();

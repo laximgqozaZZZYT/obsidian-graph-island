@@ -113,6 +113,10 @@ export default class GraphIslandMiniPlugin extends Plugin {
 			merged.matrixSort = "cooccurrence";
 		if (typeof merged.matrixMinColumnSize !== "number")
 			merged.matrixMinColumnSize = 1;
+		if (typeof merged.matrixGroupBySignature !== "boolean")
+			merged.matrixGroupBySignature = true;
+		if (typeof merged.matrixCollapseGroups !== "boolean")
+			merged.matrixCollapseGroups = false;
 		if (typeof merged.showNodes !== "boolean") merged.showNodes = true;
 		if (typeof merged.showEnclosures !== "boolean") merged.showEnclosures = true;
 		if (typeof merged.showEdges !== "boolean") merged.showEdges = true;

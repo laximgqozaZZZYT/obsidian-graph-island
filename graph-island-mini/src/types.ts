@@ -115,6 +115,12 @@ export interface MiniSettings {
 	// Connection-matrix minimum column size — tags with fewer member notes
 	// are dropped from the columns. Default 1 = keep everything.
 	matrixMinColumnSize: number;
+	// Connection-matrix: bundle consecutive same-signature rows into a block
+	// (count badge + divider) without collapsing them. Default true.
+	matrixGroupBySignature: boolean;
+	// Connection-matrix: collapse each signature block to a "×N" summary row
+	// (click a block to expand). Default false.
+	matrixCollapseGroups: boolean;
 	// Minimum font size (screen pixels) below which NO text element
 	// will render. Applies to card titles/bodies, cluster labels,
 	// matrix labels, grid headers, etc. World-space fonts that would
@@ -221,6 +227,8 @@ export const DEFAULT_SETTINGS: MiniSettings = {
 	upsetMinColumnSize: 1,
 	matrixSort: "cooccurrence",
 	matrixMinColumnSize: 1,
+	matrixGroupBySignature: true,
+	matrixCollapseGroups: false,
 	minFontPx: 8,
 };
 

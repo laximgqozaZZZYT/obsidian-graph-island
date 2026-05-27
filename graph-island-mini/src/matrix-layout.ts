@@ -78,12 +78,29 @@ export function layoutMatrix(data: GraphData, opts: LayoutOptions): LaidOut {
 		bits.push(b);
 	}
 
+	// Bundle consecutive rows with identical signatures (same bits) into
+	// blocks. After co-occurrence seriation, same-signature notes sit
+	// adjacent, so these runs are the "UpSet column" groups.
+	const blocks: Array<{ start: number; count: number }> = [];
+	const sameBits = (a: Uint8Array, b: Uint8Array): boolean => {
+		if (a.length !== b.length) return false;
+		for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+		return true;
+	};
+	for (let r = 0; r < bits.length; ) {
+		let e = r + 1;
+		while (e < bits.length && sameBits(bits[e], bits[r])) e++;
+		blocks.push({ start: r, count: e - r });
+		r = e;
+	}
+
 	const matrix: MatrixMeta = {
 		rows: rowsOut,
 		cols,
 		bits,
 		rowH: ROW_H,
 		colW: COL_W,
+		blocks,
 	};
 	return {
 		nodes: [],

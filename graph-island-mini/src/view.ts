@@ -45,7 +45,8 @@ import {
 	upsetFooterHeight,
 	LEFT_BAND_PX as UPSET_LEFT_BAND_PX,
 } from "./draw-upset";
-import { drawMatrix, matrixGeom } from "./draw-matrix";
+import { drawMatrix, matrixGeom, MATRIX_BADGE_W } from "./draw-matrix";
+import type { MatrixLine } from "./draw-matrix";
 import { drawCard as drawCardFn } from "./draw-card";
 import {
 	hitTest as hitTestFn,
@@ -178,6 +179,13 @@ export class MiniGraphView extends ItemView {
 	private upsetSelectedSignatureKey: string | null = null;
 	// Connection-matrix mode: key of the highlighted column (tag). null = none.
 	private matrixSelectedCol: string | null = null;
+	// Block indices currently EXPANDED while collapse mode is on.
+	private matrixExpanded = new Set<number>();
+	// Cached display lines (rows + collapsed summaries) — virtualization unit.
+	private matrixLines: MatrixLine[] = [];
+	// Hover crosshair: display line + column under the cursor (-1 = none).
+	private matrixHoverLine = -1;
+	private matrixHoverCol = -1;
 	// Last view mode we framed (fitToView) for — re-fit when the mode changes.
 	private lastFramedMode: ViewMode | null = null;
 	// Per-cluster "truly-aggregated" member count. Populated during
@@ -836,6 +844,28 @@ export class MiniGraphView extends ItemView {
 			void this.save();
 			void this.rebuild();
 		});
+
+		const toggle = (label: string, get: () => boolean, set: (v: boolean) => void) => {
+			const row = section.createEl("label", { cls: "gim-toggle-row" });
+			const cb = row.createEl("input", { type: "checkbox" });
+			cb.checked = get();
+			cb.addEventListener("change", () => {
+				set(cb.checked);
+				void this.save();
+				void this.rebuild();
+			});
+			row.createSpan({ text: label });
+		};
+		toggle(
+			"Group by signature",
+			() => this.settings.matrixGroupBySignature,
+			(v) => (this.settings.matrixGroupBySignature = v),
+		);
+		toggle(
+			"Collapse groups",
+			() => this.settings.matrixCollapseGroups,
+			(v) => (this.settings.matrixCollapseGroups = v),
+		);
 	}
 
 	private renderToggleSection(
@@ -1036,6 +1066,11 @@ export class MiniGraphView extends ItemView {
 		this.highlightedEdgeIdx.clear();
 		// Drop a selected column if the relayout removed it (matrix + UpSet).
 		this.clearStaleSelection();
+		// Rebuild the matrix display projection (blocks re-collapse on relayout).
+		this.matrixExpanded.clear();
+		this.matrixHoverLine = -1;
+		this.matrixHoverCol = -1;
+		this.rebuildMatrixDisplay();
 		// Baseline the layout signature so subsequent display-only toggles
 		// (which leave this unchanged) repaint without relaying out.
 		this.lastLayoutSig = this.layoutSignature(this.settings);
@@ -1388,7 +1423,7 @@ export class MiniGraphView extends ItemView {
 			const m = this.laid.matrix;
 			const g = matrixGeom(m, this.zoom, this.canvas.clientWidth);
 			const colsW = m.cols.length * g.colScreenW;
-			const rowsH = m.rows.length * g.rowScreenH; // floored row pitch
+			const rowsH = this.matrixLines.length * g.rowScreenH; // floored pitch
 			const minPanX = Math.min(g.labelBand, this.canvas.clientWidth - colsW);
 			this.panX = Math.min(g.labelBand, Math.max(minPanX, this.panX));
 			const minPanY = Math.min(g.headerH, this.canvas.clientHeight - rowsH);
@@ -1445,16 +1480,18 @@ export class MiniGraphView extends ItemView {
 		// here: no UpSet columns either.
 		// Connection matrix: screen-space frozen-pane grid; no world cards.
 		if (this.laid.matrix && this.laid.matrix.rows.length > 0) {
-			drawMatrix(
-				ctx,
-				this.laid.matrix,
-				this.zoom,
-				this.panX,
-				this.panY,
-				this.canvas,
-				this.matrixSelectedCol,
-				this.settings.minFontPx,
-			);
+			drawMatrix(ctx, this.laid.matrix, {
+				zoom: this.zoom,
+				panX: this.panX,
+				panY: this.panY,
+				canvas: this.canvas,
+				selectedCol: this.matrixSelectedCol,
+				minFontPx: this.settings.minFontPx,
+				lines: this.matrixLines,
+				group: this.settings.matrixGroupBySignature,
+				hoverLine: this.matrixHoverLine,
+				hoverCol: this.matrixHoverCol,
+			});
 			return;
 		}
 		const upsetHasColumns = (this.laid.upset?.columns.length ?? 0) > 0;
@@ -1793,24 +1830,53 @@ export class MiniGraphView extends ItemView {
 		this.app.workspace.openLinkText(path, "", false);
 	}
 
-	// Connection-matrix screen-space hit test: top band → column, left band /
-	// data area → row.
-	private matrixHit(
-		sx: number,
-		sy: number,
-	): { kind: "row"; id: string } | { kind: "col"; key: string } | null {
+	// Build the visible display lines: rows bundled into signature blocks, and
+	// (in collapse mode) collapsed blocks shown as one "×N" summary line.
+	private rebuildMatrixDisplay(): void {
 		const m = this.laid.matrix;
-		if (!m) return null;
-		const g = matrixGeom(m, this.zoom, this.canvas.clientWidth);
-		if (sy < g.headerH) {
-			if (sx < g.labelBand) return null;
-			const c = Math.floor((sx - this.panX) / g.colScreenW);
-			return c >= 0 && c < m.cols.length
-				? { kind: "col", key: m.cols[c].key }
-				: null;
+		if (!m) {
+			this.matrixLines = [];
+			return;
 		}
-		const r = Math.floor((sy - this.panY) / g.rowScreenH);
-		return r >= 0 && r < m.rows.length ? { kind: "row", id: m.rows[r].id } : null;
+		const group = this.settings.matrixGroupBySignature;
+		const collapse = group && this.settings.matrixCollapseGroups;
+		const lines: MatrixLine[] = [];
+		if (!group) {
+			for (let r = 0; r < m.rows.length; r++)
+				lines.push({ kind: "row", rowIdx: r, blockIdx: 0, head: false });
+			this.matrixLines = lines;
+			return;
+		}
+		for (let bi = 0; bi < m.blocks.length; bi++) {
+			const b = m.blocks[bi];
+			if (collapse && !this.matrixExpanded.has(bi)) {
+				lines.push({ kind: "summary", blockIdx: bi });
+			} else {
+				for (let k = 0; k < b.count; k++)
+					lines.push({ kind: "row", rowIdx: b.start + k, blockIdx: bi, head: k === 0 });
+			}
+		}
+		this.matrixLines = lines;
+	}
+
+	// Display-line index under the cursor (-1 = header / out of range).
+	private matrixLineAt(sy: number): number {
+		const m = this.laid.matrix;
+		if (!m) return -1;
+		const g = matrixGeom(m, this.zoom, this.canvas.clientWidth);
+		if (sy < g.headerH) return -1;
+		const li = Math.floor((sy - this.panY) / g.rowScreenH);
+		return li >= 0 && li < this.matrixLines.length ? li : -1;
+	}
+
+	// Column index under the cursor (-1 = label band / out of range).
+	private matrixColAt(sx: number): number {
+		const m = this.laid.matrix;
+		if (!m) return -1;
+		const g = matrixGeom(m, this.zoom, this.canvas.clientWidth);
+		if (sx < g.labelBand) return -1;
+		const c = Math.floor((sx - this.panX) / g.colScreenW);
+		return c >= 0 && c < m.cols.length ? c : -1;
 	}
 
 	// Shared guard: drop a selected column whose set no longer contains it
@@ -1839,10 +1905,20 @@ export class MiniGraphView extends ItemView {
 		const sx = e.clientX - rect.left;
 		const sy = e.clientY - rect.top;
 		if (this.laid.matrix) {
+			// Crosshair: highlight the hovered line + column.
+			const li = this.matrixLineAt(sy);
+			const col = this.matrixColAt(sx);
+			if (li !== this.matrixHoverLine || col !== this.matrixHoverCol) {
+				this.matrixHoverLine = li;
+				this.matrixHoverCol = col;
+				this.requestDraw();
+			}
 			// Row hover → full file-name tooltip (reuses the node hover tip).
-			const h = this.matrixHit(sx, sy);
+			const line = li >= 0 ? this.matrixLines[li] : null;
 			const target: HoverTarget =
-				h?.kind === "row" ? { kind: "node", nodeId: h.id } : null;
+				line && line.kind === "row"
+					? { kind: "node", nodeId: this.laid.matrix.rows[line.rowIdx].id }
+					: null;
 			if (!sameTarget(this.hoverTarget, target)) {
 				this.cancelHover();
 				this.hoverTarget = target;
@@ -2025,13 +2101,44 @@ export class MiniGraphView extends ItemView {
 			const sx = e.clientX - rect.left;
 			const sy = e.clientY - rect.top;
 			if (this.laid.matrix) {
-				const h = this.matrixHit(sx, sy);
-				if (h?.kind === "row") this.openFile(h.id);
-				else if (h?.kind === "col") {
-					this.matrixSelectedCol =
-						this.matrixSelectedCol === h.key ? null : h.key;
-					this.requestDraw();
+				const m = this.laid.matrix;
+				const g = matrixGeom(m, this.zoom, this.canvas.clientWidth);
+				if (sy < g.headerH) {
+					// Column header → toggle highlight.
+					const col = this.matrixColAt(sx);
+					if (col >= 0) {
+						this.matrixSelectedCol =
+							this.matrixSelectedCol === m.cols[col].key
+								? null
+								: m.cols[col].key;
+						this.requestDraw();
+					}
+					return;
 				}
+				const li = this.matrixLineAt(sy);
+				if (li < 0) return;
+				const line = this.matrixLines[li];
+				if (line.kind === "summary") {
+					this.matrixExpanded.add(line.blockIdx); // expand
+					this.rebuildMatrixDisplay();
+					this.requestDraw();
+					return;
+				}
+				const collapseMode =
+					this.settings.matrixGroupBySignature &&
+					this.settings.matrixCollapseGroups;
+				if (
+					collapseMode &&
+					line.head &&
+					m.blocks[line.blockIdx].count > 1 &&
+					sx < 8 + MATRIX_BADGE_W
+				) {
+					this.matrixExpanded.delete(line.blockIdx); // re-collapse
+					this.rebuildMatrixDisplay();
+					this.requestDraw();
+					return;
+				}
+				this.openFile(m.rows[line.rowIdx].id);
 				return;
 			}
 			const w = this.screenToWorld(sx, sy);
@@ -2039,7 +2146,14 @@ export class MiniGraphView extends ItemView {
 			if (hit?.kind === "node") this.openFile(hit.nodeId);
 		});
 		c.addEventListener("mousemove", (e) => this.onPointerMove(e));
-		c.addEventListener("mouseleave", () => this.cancelHover());
+		c.addEventListener("mouseleave", () => {
+			this.cancelHover();
+			if (this.matrixHoverLine !== -1 || this.matrixHoverCol !== -1) {
+				this.matrixHoverLine = -1;
+				this.matrixHoverCol = -1;
+				this.requestDraw();
+			}
+		});
 		c.addEventListener("wheel", (e) => {
 			e.preventDefault();
 			this.cancelHover();
