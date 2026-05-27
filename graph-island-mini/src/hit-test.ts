@@ -6,6 +6,9 @@ import type { PositionedNode, ClusterRect } from "./layout";
 export type HoverTarget =
 	| { kind: "node"; nodeId: string }
 	| { kind: "cluster"; group: string }
+	// Connection-matrix column header (tag) under the cursor — reuses the same
+	// tooltip lifecycle as node/cluster hover, applied to the column band.
+	| { kind: "matrixCol"; col: number }
 	| null;
 
 // Screen-space coordinates → world coordinates. Inverse of the

@@ -1967,12 +1967,16 @@ export class MiniGraphView extends ItemView {
 				this.matrixHoverCol = col;
 				this.requestDraw();
 			}
-			// Row hover → full file-name tooltip (reuses the node hover tip).
+			// Column header hover → tag name + count tooltip (same lifecycle as
+			// the row tip). Row hover → full file-name tooltip.
+			const g = matrixGeom(this.laid.matrix, this.zoom, this.canvas.clientWidth);
 			const line = li >= 0 ? this.matrixLines[li] : null;
-			const target: HoverTarget =
-				line && line.kind === "row"
-					? { kind: "node", nodeId: this.laid.matrix.rows[line.rowIdx].id }
-					: null;
+			let target: HoverTarget = null;
+			if (sy < g.headerH && col >= 0) {
+				target = { kind: "matrixCol", col };
+			} else if (line && line.kind === "row") {
+				target = { kind: "node", nodeId: this.laid.matrix.rows[line.rowIdx].id };
+			}
 			if (!sameTarget(this.hoverTarget, target)) {
 				this.cancelHover();
 				this.hoverTarget = target;
@@ -2065,6 +2069,17 @@ export class MiniGraphView extends ItemView {
 		tip.className = "gim-hover-tip gim-tip-" + target.kind;
 		tip.setAttr("data-kind", target.kind);
 
+		if (target.kind === "matrixCol") {
+			// Connection-matrix column header: tag name + member-note count.
+			const c = this.laid.matrix?.cols[target.col];
+			if (!c) return;
+			tip.createSpan({ cls: "gim-tip-title", text: c.label });
+			tip.createSpan({ cls: "gim-tip-sub", text: `${c.size} notes` });
+			this.root.appendChild(tip);
+			this.tipEl = tip;
+			this.positionTip(sx, sy, tip);
+			return;
+		}
 		if (target.kind === "node") {
 			// Bipartite SET node: no backing file — show the tag label + size.
 			if (this.laid.setNodeIds?.has(target.nodeId)) {

@@ -119,7 +119,7 @@ export function drawMatrix(
 		const line = lines[li];
 		const y = lineY(li);
 		if (o.group && line.blockIdx % 2 === 0) {
-			ctx.fillStyle = "rgba(255, 255, 255, 0.035)";
+			ctx.fillStyle = "rgba(255, 255, 255, 0.055)";
 			ctx.fillRect(labelBand, y, visW - labelBand, rowScreenH);
 		}
 		// Block divider above a block head / summary.
@@ -164,6 +164,12 @@ export function drawMatrix(
 	for (let li = l0; li <= l1; li++) {
 		const line = lines[li];
 		const cy = lineY(li) + rowScreenH / 2;
+		// Same alternating block shade as the cell area, extended across the
+		// row-label band so each signature block reads as one continuous stripe.
+		if (o.group && line.blockIdx % 2 === 0) {
+			ctx.fillStyle = "rgba(255, 255, 255, 0.055)";
+			ctx.fillRect(0, lineY(li), labelBand, rowScreenH);
+		}
 		if (li === o.hoverLine) {
 			ctx.fillStyle = "rgba(160, 190, 230, 0.12)";
 			ctx.fillRect(0, lineY(li), labelBand, rowScreenH);

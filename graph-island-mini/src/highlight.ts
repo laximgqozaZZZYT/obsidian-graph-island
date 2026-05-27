@@ -20,6 +20,7 @@ export function sameTarget(a: HoverTarget, b: HoverTarget): boolean {
 	if (a.kind === "cluster" && b.kind === "cluster")
 		return a.group === b.group;
 	if (a.kind === "node" && b.kind === "node") return a.nodeId === b.nodeId;
+	if (a.kind === "matrixCol" && b.kind === "matrixCol") return a.col === b.col;
 	return false;
 }
 

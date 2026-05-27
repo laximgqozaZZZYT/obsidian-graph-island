@@ -153,29 +153,51 @@ function barycenter(
 	const cd = nCols > 1 ? nCols - 1 : 1;
 	const colIdx = Array.from({ length: nCols }, (_, i) => i);
 	const rowIdx = Array.from({ length: nRows }, (_, i) => i);
+	// Jaccard / cosine-style inverse-frequency weights. A barycenter is a
+	// WEIGHTED mean: a giant tag (large |rows(c)|) or a high-degree note (many
+	// tags) contributes LESS, so the ordering follows shared-PATTERN closeness
+	// (|A∩B| relative to set sizes) rather than raw co-occurrence counts. This
+	// stops big tags (scene 174, talk 30 …) from dragging the layout left.
+	const wcol = colCells.map((rs) => 1 / Math.sqrt(rs.length || 1));
+	const wrow = rowCells.map((cs) => 1 / Math.sqrt(cs.length || 1));
 	for (let it = 0; it < MAX_ITER; it++) {
-		// Columns ← mean row position (empty columns sink to the end).
-		const colB = colCells.map((rs) =>
-			rs.length ? rs.reduce((s, r) => s + rowPos[r], 0) / rs.length : nRows + it,
-		);
+		// Columns ← weighted mean row position (empty columns sink to the end).
+		const colB = colCells.map((rs) => {
+			if (!rs.length) return nRows + it;
+			let s = 0;
+			let w = 0;
+			for (const r of rs) {
+				s += wrow[r] * rowPos[r];
+				w += wrow[r];
+			}
+			return w ? s / w : nRows + it;
+		});
 		colIdx.sort((a, b) => colB[a] - colB[b]);
 		colIdx.forEach((c, pos) => (colPos[c] = pos));
-		// Rows ← mean column position.
-		const rowB = rowCells.map((cs) =>
-			cs.length ? cs.reduce((s, c) => s + colPos[c], 0) / cs.length : nCols + it,
-		);
+		// Rows ← weighted mean column position.
+		const rowB = rowCells.map((cs) => {
+			if (!cs.length) return nCols + it;
+			let s = 0;
+			let w = 0;
+			for (const c of cs) {
+				s += wcol[c] * colPos[c];
+				w += wcol[c];
+			}
+			return w ? s / w : nCols + it;
+		});
 		rowIdx.sort((a, b) => rowB[a] - rowB[b]);
 		rowIdx.forEach((r, pos) => (rowPos[r] = pos));
-		// Normalised cell-spread cost (lower = tighter diagonal/blocks).
+		// Jaccard-weighted cell-spread cost (lower = tighter diagonal/blocks).
 		let cost = 0;
-		let cells = 0;
+		let wsum = 0;
 		for (let r = 0; r < nRows; r++)
 			for (const c of rowCells[r]) {
+				const wgt = wrow[r] * wcol[c];
 				const d = rowPos[r] / rd - colPos[c] / cd;
-				cost += d * d;
-				cells++;
+				cost += wgt * d * d;
+				wsum += wgt;
 			}
-		cost = cells ? cost / cells : 0;
+		cost = wsum ? cost / wsum : 0;
 		if (cost < bestCost - 1e-9) {
 			bestCost = cost;
 			bestRowPos = rowPos.slice();
