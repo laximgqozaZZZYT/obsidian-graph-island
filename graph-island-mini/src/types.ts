@@ -117,7 +117,12 @@ export interface MiniSettings {
 	minFontPx: number;
 }
 
-export type ViewMode = "euler" | "euler-true" | "euler-venn" | "upset";
+export type ViewMode =
+	| "euler"
+	| "euler-true"
+	| "euler-venn"
+	| "bubblesets"
+	| "upset";
 
 export interface ViewModeOption {
 	id: ViewMode;
@@ -151,6 +156,14 @@ export const VIEW_MODES: ViewModeOption[] = [
 		id: "euler-venn",
 		label: "Euler diagram",
 		description: "Overlapping tag rectangles (each node once; bbox-simplified)",
+	},
+	{
+		// Reuses the Containment-map layout but draws each set as concentric
+		// rectangular iso-contours ("bubbles"), evoking BubbleSets while
+		// keeping nodes and contours quadrilateral.
+		id: "bubblesets",
+		label: "BubbleSets",
+		description: "Containment layout drawn as rectangular iso-contour bubbles",
 	},
 	{
 		id: "upset",
