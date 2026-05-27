@@ -50,7 +50,8 @@ export function drawEnclosures(
 			? "rgba(255, 157, 63, 0.40)"
 			: `hsla(${hue}, 60%, 50%, 0.32)`;
 		if (c.pieces && c.pieces.length > 0) {
-			const mains = c.pieces.filter((p) => p.kind === "main");
+			// Contour rings are lines only (no fill) — fill the solid mains.
+			const mains = c.pieces.filter((p) => p.kind === "main" && !p.contour);
 			if (mains.length > 0) {
 				ctx.beginPath();
 				for (const p of mains) ctx.rect(p.x, p.y, p.w, p.h);
@@ -88,6 +89,16 @@ export function drawEnclosures(
 		ctx.lineWidth = isHigh ? accentStrokeW : strokeW;
 		if (c.pieces && c.pieces.length > 0) {
 			for (const p of c.pieces) {
+				if (p.contour) {
+					// BubbleSets iso-contour: thin, faded, light concentric line.
+					ctx.setLineDash([]);
+					ctx.strokeStyle = isHigh
+						? "rgba(255, 157, 63, 0.55)"
+						: `hsla(${hue}, 70%, 80%, 0.45)`;
+					ctx.lineWidth = strokeW * 0.6;
+					ctx.strokeRect(p.x, p.y, p.w, p.h);
+					continue;
+				}
 				let pHigh: boolean;
 				if (p.kind === "sub") {
 					ctx.setLineDash([dashLen, dashGap]);
