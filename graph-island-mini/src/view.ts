@@ -1562,8 +1562,9 @@ export class MiniGraphView extends ItemView {
 
 		// Excel-style row/column underlay. Drawn first so enclosures, edges,
 		// trunks, and cards all sit on top. Cells follow card geometry and
-		// ignore the cluster bounding boxes by design.
-		if (this.settings.showGrid) {
+		// ignore the cluster bounding boxes by design. Bipartite is a free-form
+		// force graph (no lattice), so the grid/graticule is meaningless there.
+		if (this.settings.showGrid && !this.laid.setNodeIds) {
 			this.drawCardGrid(ctx);
 		}
 
@@ -1663,7 +1664,7 @@ export class MiniGraphView extends ItemView {
 			this.drawClusterLabels(ctx);
 		}
 
-		if (this.settings.showGrid) {
+		if (this.settings.showGrid && !this.laid.setNodeIds) {
 			ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 			this.drawGridHeaders(ctx);
 		}

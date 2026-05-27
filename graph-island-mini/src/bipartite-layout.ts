@@ -16,7 +16,7 @@
 // Layout reuses the existing relaxation asset (`relaxSubgroups`) for final box
 // de-overlap, on top of a bounded grid-repulsion spring embedder that keeps
 // iterations capped and the lowest-stress snapshot (no oscillation/divergence).
-import { GraphData, SET_PREFIX } from "./types";
+import { GraphData, GraphNode, SET_PREFIX } from "./types";
 import type { LaidOut, LayoutOptions, PositionedEdge, PositionedNode } from "./layout";
 import { computeChannelDims, minFontScale } from "./card-sizing";
 import { relaxSubgroups, SubPos } from "./subgroup-relax";
@@ -70,38 +70,74 @@ export function layoutBipartite(data: GraphData, opts: LayoutOptions): LaidOut {
 		setPos.set(t, { x: R * Math.cos(a), y: R * Math.sin(a) });
 	});
 
-	// --- NOTE seed positions + spring targets -------------------------------
-	const prev = opts.bipartitePrev;
-	const target: (XY | null)[] = [];
-	const pos: XY[] = data.nodes.map((n, i) => {
-		const vis = n.memberships.filter((m) => tagSet.has(m));
-		let tg: XY | null = null;
+	// --- per-signature blob anchors -----------------------------------------
+	// Notes sharing the SAME visible-tag SET (signature) should read as ONE
+	// blob. A note's raw centroid (mean of its tag positions) collapses many
+	// different signatures onto the ring centre — that's why everything piled
+	// up in the middle. Instead, give each unique signature its own anchor (=
+	// centroid of its tags) and push overlapping anchors apart (reusing
+	// relaxSubgroups). Same signature → identical anchor → one tight blob;
+	// different signatures → separated anchors → distinct blobs.
+	const slot = Math.max(slotW, slotH);
+	const SEP = "";
+	const sigOf = (n: GraphNode): string =>
+		n.memberships
+			.filter((m) => tagSet.has(m))
+			.sort()
+			.join(SEP);
+	const sigNotes = new Map<string, number[]>();
+	data.nodes.forEach((n, i) => {
+		const sig = sigOf(n);
+		let a = sigNotes.get(sig);
+		if (!a) {
+			a = [];
+			sigNotes.set(sig, a);
+		}
+		a.push(i);
+	});
+	const sigKeys: string[] = [];
+	const sigSubs: SubPos[] = [];
+	for (const [sig, idxs] of sigNotes) {
+		const vis = data.nodes[idxs[0]].memberships.filter((m) => tagSet.has(m));
+		let cx = 0;
+		let cy = 0;
 		if (vis.length) {
-			let sx = 0;
-			let sy = 0;
 			for (const m of vis) {
 				const p = setPos.get(m)!;
-				sx += p.x;
-				sy += p.y;
+				cx += p.x;
+				cy += p.y;
 			}
-			tg = { x: sx / vis.length, y: sy / vis.length };
+			cx /= vis.length;
+			cy /= vis.length;
 		}
-		target.push(tg);
+		// Blob box grows with sqrt(member count) so a big signature reserves
+		// proportionally more room when anchors are pushed apart. A generous
+		// floor + multiplier spreads the (centrally-clustered) multi-tag blob
+		// anchors well apart so distinct signatures read as separate clusters
+		// instead of one central mass.
+		const side = Math.max(slot * 2.4, Math.sqrt(idxs.length) * slot * 1.6);
+		sigKeys.push(sig);
+		sigSubs.push({ cx, cy, halfW: side / 2, halfH: side / 2, memberships: vis, pin: 1 });
+	}
+	if (sigSubs.length > 1) relaxSubgroups(sigSubs, gap * 2, 200);
+	const sigAnchor = new Map<string, XY>();
+	sigKeys.forEach((sig, i) => sigAnchor.set(sig, { x: sigSubs[i].cx, y: sigSubs[i].cy }));
+
+	// --- NOTE seed + spring targets (toward the signature blob anchor) ------
+	const prev = opts.bipartitePrev;
+	const target: XY[] = data.nodes.map((n) => sigAnchor.get(sigOf(n)) ?? { x: 0, y: 0 });
+	const pos: XY[] = data.nodes.map((n, i) => {
 		// Seed from the previous frame's position when available so a relayout
 		// (tag-count change) doesn't visually teleport every node.
 		const pp = prev?.get(n.id);
 		if (pp) return { x: pp.x, y: pp.y };
-		if (tg) {
-			const j = jitter(i);
-			return { x: tg.x + j.x * slotW * 2, y: tg.y + j.y * slotH * 2 };
-		}
-		// Isolated note (only excluded/giant tags): park on a small inner ring.
-		const a = (i / Math.max(1, nNotes)) * Math.PI * 2;
-		return { x: R * 0.18 * Math.cos(a), y: R * 0.18 * Math.sin(a) };
+		const t = target[i];
+		const j = jitter(i);
+		return { x: t.x + j.x * slot, y: t.y + j.y * slot };
 	});
 
-	// --- bounded force: spring + grid repulsion, best-keep ------------------
-	forceLayout(pos, target, slotW, slotH);
+	// --- bounded force: spring toward blob anchor + light repulsion ---------
+	forceLayout(pos, target, slot);
 
 	// --- final overlap cleanup via existing relaxSubgroups ------------------
 	// Skip for very large graphs where the O(n²) pass would stall; the grid
@@ -242,16 +278,21 @@ function jitter(i: number): XY {
 	return { x: h1 - 0.5, y: h2 - 0.5 };
 }
 
-// Bounded spring embedder: notes pulled toward their tags' centroid (springs)
-// and pushed off nearby notes (grid-binned repulsion, O(n) per pass). Capped
-// iterations + lowest-stress snapshot prevent oscillation / divergence.
-function forceLayout(pos: XY[], target: (XY | null)[], slotW: number, slotH: number): void {
+// Bounded spring embedder: notes pulled HARD toward their signature blob
+// anchor (so same-signature notes converge into one tight blob) and pushed
+// just off exact neighbours (light grid-binned repulsion — the readable
+// spacing is finished by relaxSubgroups afterwards). Capped iterations +
+// lowest-stress snapshot prevent oscillation / divergence. A strong spring is
+// what makes the blobs visible; the overlap term in the score is down-weighted
+// so the snapshot kept is the CLUSTERED one, not the spread-out one.
+function forceLayout(pos: XY[], target: (XY | null)[], slot: number): void {
 	const N = pos.length;
 	if (N === 0) return;
-	const MAX_ITER = 60;
-	const SPRING = 0.1;
-	const cell = Math.max(slotW, slotH) * 1.3;
-	const minDist = Math.max(slotW, slotH);
+	const MAX_ITER = 80;
+	const SPRING = 0.28;
+	const cell = slot * 1.3;
+	// Light anti-stack distance only; readable spacing comes from relaxSubgroups.
+	const minDist = slot * 0.6;
 	const GW = 100000;
 	let bestScore = Infinity;
 	let best = pos.map((p) => ({ x: p.x, y: p.y }));
@@ -316,7 +357,9 @@ function forceLayout(pos: XY[], target: (XY | null)[], slotW: number, slotH: num
 				stress += Math.sqrt(dx * dx + dy * dy);
 			}
 		}
-		const score = stress + overlaps * minDist;
+		// Down-weight overlaps (×0.25) so best-keep favours the CLUSTERED
+		// configuration; the final relaxSubgroups handles true de-overlap.
+		const score = stress + overlaps * minDist * 0.25;
 		if (score < bestScore - 0.5) {
 			bestScore = score;
 			best = pos.map((p) => ({ x: p.x, y: p.y }));
