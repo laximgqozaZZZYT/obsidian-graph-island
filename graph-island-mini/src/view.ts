@@ -428,8 +428,9 @@ export class MiniGraphView extends ItemView {
 	}
 
 	private renderAllTab(el: HTMLElement): void {
+		const isMatrix = this.settings.viewMode === "matrix";
 		this.renderViewModeSection(el);
-		if (this.settings.viewMode === "matrix") this.renderMatrixSection(el);
+		if (isMatrix) this.renderMatrixSection(el);
 		if (this.settings.viewMode === "bipartite") this.renderBipartiteSection(el);
 		this.renderExprSection(el, "WHERE", this.settings.where, this.whereError, {
 			autoKey: "whereAuto",
@@ -441,12 +442,18 @@ export class MiniGraphView extends ItemView {
 			placeholder: "e.g. count >= 3",
 			autoKey: "havingAuto",
 		});
-		this.renderOrderBySection(el);
+		// Matrix row order is owned by the Matrix section (Order / Block-priority
+		// / Group / Collapse). The generic ORDER_BY doesn't drive matrix rows, so
+		// hide it in matrix mode to avoid a confusing second ordering control.
+		if (!isMatrix) this.renderOrderBySection(el);
 		this.renderExprSection(el, "LIMIT", this.settings.limit, this.limitError, {
 			placeholder: "limit 10 / brief 30",
 			autoKey: "limitAuto",
 		});
-		this.renderNodeDisplaySection(el);
+		// Matrix dots are drawn at a FIXED size (they mark membership presence,
+		// not degree), independent of NODE DISPLAY. Hide that section in matrix
+		// mode so Size by / m×n can't imply they affect the dots.
+		if (!isMatrix) this.renderNodeDisplaySection(el);
 		this.renderMinFontSection(el);
 		this.renderToggleSection(el, "Graph display", [
 			{ key: "showNodes", label: "Show nodes" },
@@ -840,6 +847,10 @@ export class MiniGraphView extends ItemView {
 	private renderMatrixSection(parent: HTMLElement): void {
 		const section = parent.createDiv({ cls: "gim-panel-section" });
 		section.createEl("h4", { text: "Matrix" });
+		section.createEl("p", {
+			cls: "gim-panel-hint",
+			text: "Row order is controlled here (Order / Block-priority). The generic ORDER_BY and NODE DISPLAY don't apply in matrix mode.",
+		});
 
 		const sortRow = section.createDiv({ cls: "gim-order-row" });
 		sortRow.createSpan({ text: "Order", cls: "gim-order-field" });

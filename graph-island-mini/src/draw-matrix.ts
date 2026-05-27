@@ -114,6 +114,10 @@ export function drawMatrix(
 	ctx.beginPath();
 	ctx.rect(labelBand, headerH, visW - labelBand, visH - headerH);
 	ctx.clip();
+	// Dot radius derives ONLY from the matrix cell pitch (matrix.rowH / colW,
+	// fixed constants) × zoom — NEVER from node sizing (Size by / Incoming
+	// links / m×n). A membership dot always means the same thing, so it must be
+	// one uniform size regardless of NODE DISPLAY settings.
 	const dotR = Math.max(1.5, Math.min(rowScreenH, colScreenW) * 0.32);
 	for (let li = l0; li <= l1; li++) {
 		const line = lines[li];
