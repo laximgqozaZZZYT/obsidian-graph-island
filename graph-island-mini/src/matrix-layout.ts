@@ -166,11 +166,13 @@ export function layoutMatrix(data: GraphData, opts: LayoutOptions): LaidOut {
 // columns. Bounded iterations, keeps the BEST arrangement by a normalised
 // cell-spread cost, and stops early once it stops improving. Works over the
 // SPARSE cell list so cost is O(#cells), not O(rows × cols).
-interface SeriationResult {
+export interface SeriationResult {
 	rowOrder: number[];
 	colOrder: number[];
 }
-function barycenter(
+// Exported for reuse by the heatmap layout (tag seriation). Behaviour is
+// unchanged for the matrix — this is an export-visibility addition only.
+export function barycenter(
 	rowCells: number[][],
 	colCells: number[][],
 	nRows: number,

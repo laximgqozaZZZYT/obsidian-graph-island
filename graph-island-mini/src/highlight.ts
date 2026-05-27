@@ -21,6 +21,8 @@ export function sameTarget(a: HoverTarget, b: HoverTarget): boolean {
 		return a.group === b.group;
 	if (a.kind === "node" && b.kind === "node") return a.nodeId === b.nodeId;
 	if (a.kind === "matrixCol" && b.kind === "matrixCol") return a.col === b.col;
+	if (a.kind === "heatmapCell" && b.kind === "heatmapCell")
+		return a.i === b.i && a.j === b.j;
 	return false;
 }
 

@@ -9,6 +9,8 @@ export type HoverTarget =
 	// Connection-matrix column header (tag) under the cursor — reuses the same
 	// tooltip lifecycle as node/cluster hover, applied to the column band.
 	| { kind: "matrixCol"; col: number }
+	// Heatmap cell (tag i × tag j) under the cursor — same tooltip lifecycle.
+	| { kind: "heatmapCell"; i: number; j: number }
 	| null;
 
 // Screen-space coordinates → world coordinates. Inverse of the

@@ -129,6 +129,20 @@ export default class GraphIslandMiniPlugin extends Plugin {
 		if (merged.matrixSortDir !== "asc" && merged.matrixSortDir !== "desc")
 			merged.matrixSortDir = "desc";
 		if (
+			typeof merged.heatmapMinTagSize !== "number" ||
+			!Number.isFinite(merged.heatmapMinTagSize) ||
+			(merged.heatmapMinTagSize as number) < 1
+		) {
+			merged.heatmapMinTagSize = 2;
+		} else {
+			merged.heatmapMinTagSize = Math.max(1, Math.floor(merged.heatmapMinTagSize as number));
+		}
+		if (merged.heatmapCriterion !== "co-occurrence" && merged.heatmapCriterion !== "size")
+			merged.heatmapCriterion = "co-occurrence";
+		if (merged.heatmapSortDir !== "asc" && merged.heatmapSortDir !== "desc")
+			merged.heatmapSortDir = "desc";
+		if (typeof merged.heatmapJaccard !== "boolean") merged.heatmapJaccard = true;
+		if (
 			typeof merged.bipartiteMaxTags !== "number" ||
 			!Number.isFinite(merged.bipartiteMaxTags) ||
 			merged.bipartiteMaxTags < 1

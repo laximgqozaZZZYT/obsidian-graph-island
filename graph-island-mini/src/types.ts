@@ -130,6 +130,13 @@ export interface MiniSettings {
 	// order is kept; the same-signature grouping is preserved either way.
 	// Default true — restores the "count overview" lost when singletons scatter.
 	matrixBlockPriority: boolean;
+	// Heatmap: minimum tag size to appear on an axis (default 2 = drop
+	// singletons), the seriation criterion + direction, and whether cell shade
+	// uses Jaccard (default) vs raw (log/clamped) co-occurrence count.
+	heatmapMinTagSize: number;
+	heatmapCriterion: "co-occurrence" | "size";
+	heatmapSortDir: "asc" | "desc";
+	heatmapJaccard: boolean;
 	// Bipartite tag graph: maximum number of tag (set) nodes shown. The layout
 	// first drops singleton + giant (>40% of notes) tags, then keeps the
 	// top-N by size. Caps hub fan-out so a sparse vault stays operable.
@@ -149,6 +156,7 @@ export type ViewMode =
 	| "bubblesets"
 	| "matrix"
 	| "bipartite"
+	| "heatmap"
 	| "upset";
 
 export interface ViewModeOption {
@@ -208,6 +216,14 @@ export const VIEW_MODES: ViewModeOption[] = [
 		description: "Notes + tag nodes joined by membership edges (native-style graph)",
 	},
 	{
+		// Symmetric tag×tag co-occurrence heatmap: cell shade = how many notes
+		// share two tags; diagonal = tag size. Cell click → the intersection's
+		// note list. Pairwise only (matrix/UpSet cover 3-way+).
+		id: "heatmap",
+		label: "交差ヒートマップ (heatmap)",
+		description: "Tag×tag co-occurrence grid; cell shade = shared note count (Jaccard)",
+	},
+	{
 		id: "upset",
 		label: "UpSet plot",
 		description: "Stack of cards per intersection + dot matrix (handles ≥4-way intersections)",
@@ -253,6 +269,10 @@ export const DEFAULT_SETTINGS: MiniSettings = {
 	matrixGroupBySignature: true,
 	matrixCollapseGroups: false,
 	matrixBlockPriority: true,
+	heatmapMinTagSize: 2,
+	heatmapCriterion: "co-occurrence",
+	heatmapSortDir: "desc",
+	heatmapJaccard: true,
 	bipartiteMaxTags: 80,
 	minFontPx: 8,
 };
@@ -267,6 +287,14 @@ export const NONE_BUCKET = "(none)";
 export const MATRIX_ORDER_CRITERIA: Array<{ value: string; text: string }> = [
 	{ value: "co-occurrence", text: "co-occurrence" },
 	{ value: "block-priority", text: "block-priority" },
+];
+
+// Heatmap ORDER_BY criteria — added to the standard criterion dropdown in
+// heatmap mode only. "co-occurrence" = Jaccard seriation (related tags cluster
+// on the diagonal); "size" = by tag size. Maps to heatmapCriterion.
+export const HEATMAP_ORDER_CRITERIA: Array<{ value: string; text: string }> = [
+	{ value: "co-occurrence", text: "co-occurrence" },
+	{ value: "size", text: "size" },
 ];
 
 // Id prefix for bipartite SET nodes (one per tag). NUL bytes guarantee it can

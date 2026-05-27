@@ -13,6 +13,7 @@ import {
 	VIEW_MODES,
 	SET_PREFIX,
 	MATRIX_ORDER_CRITERIA,
+	HEATMAP_ORDER_CRITERIA,
 } from "./types";
 import { CARD_MIN_W, CARD_MAX_W, CARD_CELL_W, CARD_CELL_H } from "./types";
 import { type LimitRule, applyLimitRules } from "./limit";
@@ -52,6 +53,7 @@ import {
 } from "./draw-upset";
 import { drawMatrix, matrixGeom, MATRIX_BADGE_W } from "./draw-matrix";
 import type { MatrixLine } from "./draw-matrix";
+import { drawHeatmap, heatmapGeom } from "./draw-heatmap";
 import { drawCard as drawCardFn } from "./draw-card";
 import {
 	hitTest as hitTestFn,
@@ -187,6 +189,12 @@ export class MiniGraphView extends ItemView {
 	// Bipartite mode: id of the SET node whose neighbours are PINNED-
 	// highlighted by a click (persists across hover). null = none.
 	private pinnedSet: string | null = null;
+	// Heatmap mode: selected cell (tag i × tag j) → detail overlay; hovered
+	// row/col for the crosshair (-1 = none). detailEl = the overlay element.
+	private heatmapSelected: { i: number; j: number } | null = null;
+	private heatmapHoverRow = -1;
+	private heatmapHoverCol = -1;
+	private detailEl: HTMLElement | null = null;
 	// Block indices currently EXPANDED while collapse mode is on.
 	private matrixExpanded = new Set<number>();
 	// Cached display lines (rows + collapsed summaries) — virtualization unit.
@@ -434,6 +442,7 @@ export class MiniGraphView extends ItemView {
 
 	private renderAllTab(el: HTMLElement): void {
 		const isMatrix = this.settings.viewMode === "matrix";
+		const isHeatmap = this.settings.viewMode === "heatmap";
 		this.renderViewModeSection(el);
 		if (this.settings.viewMode === "bipartite") this.renderBipartiteSection(el);
 		this.renderExprSection(el, "WHERE", this.settings.where, this.whereError, {
@@ -449,9 +458,10 @@ export class MiniGraphView extends ItemView {
 			this.havingError,
 			{ placeholder: "e.g. count >= 3", autoKey: "havingAuto" },
 		);
-		// Matrix "min column size" is a COLUMN (tag) filter, not an order, so it
-		// lives with the other filters (inside HAVING), matrix-only.
+		// Matrix "min column size" / heatmap "min tag size" are tag filters (not
+		// orders), so they live with the other filters (inside HAVING).
 		if (isMatrix) this.renderMatrixMinColumnControl(havingSection);
+		if (isHeatmap) this.renderHeatmapMinTagControl(havingSection);
 		// ORDER_BY owns row ordering for every mode. In matrix mode it renders
 		// the matrix sort options (co-occurrence / block-priority) + group /
 		// collapse toggles; otherwise the standard field/dir controls.
@@ -460,10 +470,10 @@ export class MiniGraphView extends ItemView {
 			placeholder: "limit 10 / brief 30",
 			autoKey: "limitAuto",
 		});
-		// Matrix dots are drawn at a FIXED size (they mark membership presence,
-		// not degree), independent of NODE DISPLAY. Hide that section in matrix
-		// mode so Size by / m×n can't imply they affect the dots.
-		if (!isMatrix) this.renderNodeDisplaySection(el);
+		// Matrix dots / heatmap cells are drawn at a FIXED size (presence /
+		// co-occurrence, not degree), independent of NODE DISPLAY. Hide that
+		// section so Size by / m×n can't imply they affect the cells.
+		if (!isMatrix && !isHeatmap) this.renderNodeDisplaySection(el);
 		this.renderMinFontSection(el);
 		const gdSection = this.renderToggleSection(el, "Graph display", [
 			{ key: "showNodes", label: "Show nodes" },
@@ -474,6 +484,8 @@ export class MiniGraphView extends ItemView {
 		// Matrix grouping / collapsing are DISPLAY operations → live with the
 		// Show toggles, matrix-only.
 		if (isMatrix) this.renderMatrixDisplayToggles(gdSection);
+		// Heatmap colour-scale (Jaccard vs raw count) is a display operation too.
+		if (isHeatmap) this.renderHeatmapDisplayToggles(gdSection);
 	}
 
 	private renderMinFontSection(parent: HTMLElement): void {
@@ -800,6 +812,10 @@ export class MiniGraphView extends ItemView {
 			this.renderMatrixOrderBySection(parent);
 			return;
 		}
+		if (this.settings.viewMode === "heatmap") {
+			this.renderHeatmapOrderBySection(parent);
+			return;
+		}
 		renderOrderBySectionFn(parent, {
 			settings: this.settings,
 			save: () => void this.save(),
@@ -859,6 +875,65 @@ export class MiniGraphView extends ItemView {
 			void this.save();
 			void this.rebuild();
 		});
+	}
+
+	// Heatmap ORDER_BY: SAME criterion + asc/desc structure as other modes.
+	// Criterion = co-occurrence (Jaccard seriation) / size; direction reverses
+	// the tag order. No heatmap-only controls live in ORDER_BY.
+	private renderHeatmapOrderBySection(parent: HTMLElement): void {
+		const section = parent.createDiv({ cls: "gim-panel-section" });
+		const header = section.createDiv({ cls: "gim-panel-section-header" });
+		header.createEl("h4", { text: "ORDER_BY" });
+		const row = section.createDiv({ cls: "gim-order-row" });
+		const fieldSel = row.createEl("select", { cls: "gim-order-field" });
+		for (const o of HEATMAP_ORDER_CRITERIA) {
+			const opt = fieldSel.createEl("option", { value: o.value, text: o.text });
+			if (o.value === this.settings.heatmapCriterion) opt.selected = true;
+		}
+		fieldSel.addEventListener("change", () => {
+			this.settings.heatmapCriterion = fieldSel.value as "co-occurrence" | "size";
+			void this.save();
+			void this.rebuild();
+		});
+		const dirSel = row.createEl("select", { cls: "gim-order-dir" });
+		for (const d of ["asc", "desc"] as const) {
+			const opt = dirSel.createEl("option", { value: d, text: d });
+			if (this.settings.heatmapSortDir === d) opt.selected = true;
+		}
+		dirSel.addEventListener("change", () => {
+			this.settings.heatmapSortDir = dirSel.value as "asc" | "desc";
+			void this.save();
+			void this.rebuild();
+		});
+	}
+
+	// Heatmap "min tag size" — a tag (axis) filter, rendered inside HAVING.
+	private renderHeatmapMinTagControl(section: HTMLElement): void {
+		const row = section.createDiv({ cls: "gim-order-row" });
+		row.createSpan({ text: "Min tag size", cls: "gim-order-field" });
+		const inp = row.createEl("input", { type: "number" }) as HTMLInputElement;
+		inp.min = "1";
+		inp.style.width = "56px";
+		inp.value = String(this.settings.heatmapMinTagSize);
+		inp.addEventListener("change", () => {
+			const v = Math.max(1, Math.floor(Number(inp.value) || 1));
+			this.settings.heatmapMinTagSize = v;
+			inp.value = String(v);
+			void this.save();
+			void this.rebuild();
+		});
+	}
+
+	// Heatmap colour-scale toggle in GRAPH DISPLAY (display-only repaint).
+	private renderHeatmapDisplayToggles(section: HTMLElement): void {
+		const row = section.createEl("label", { cls: "gim-toggle-row" });
+		const cb = row.createEl("input", { type: "checkbox" });
+		cb.checked = this.settings.heatmapJaccard;
+		cb.addEventListener("change", () => {
+			this.settings.heatmapJaccard = cb.checked;
+			void this.save();
+		});
+		row.createSpan({ text: "Jaccard color scale" });
 	}
 
 	private renderViewModeSection(parent: HTMLElement): void {
@@ -1009,6 +1084,8 @@ export class MiniGraphView extends ItemView {
 		// already computed, so these repaint without a relayout.
 		"matrixGroupBySignature",
 		"matrixCollapseGroups",
+		// Heatmap colour scale (Jaccard vs raw) only changes cell shading.
+		"heatmapJaccard",
 	]);
 
 	private layoutSignature(s: MiniSettings): string {
@@ -1398,7 +1475,13 @@ export class MiniGraphView extends ItemView {
 	private isOverview(): boolean {
 		// Bipartite has no enclosures (its set nodes ARE the labels), so the
 		// big centred auxiliary labels don't apply — same exclusion as UpSet.
-		if (this.laid.upset || this.laid.matrix || this.laid.setNodeIds) return false;
+		if (
+			this.laid.upset ||
+			this.laid.matrix ||
+			this.laid.heatmap ||
+			this.laid.setNodeIds
+		)
+			return false;
 		if (this.laid.clusters.length === 0 && this.laid.nodes.length === 0)
 			return false;
 		let minX = Infinity;
@@ -1486,6 +1569,20 @@ export class MiniGraphView extends ItemView {
 			this.requestDraw();
 			return;
 		}
+		if (this.laid.heatmap) {
+			// Square n×n grid: fit all cells into the smaller of the two data-area
+			// dimensions; pin the origin just past the frozen label bands.
+			const h = this.laid.heatmap;
+			const g = heatmapGeom(h, 1, this.canvas.clientWidth);
+			const availW = Math.max(1, this.canvas.clientWidth - g.labelBand);
+			const availH = Math.max(1, this.canvas.clientHeight - g.headerH);
+			const fit = Math.min(availW, availH) / Math.max(1, h.n * h.cell);
+			this.zoom = Math.min(2, Math.max(0.05, fit));
+			this.panX = heatmapGeom(h, this.zoom, this.canvas.clientWidth).labelBand;
+			this.panY = heatmapGeom(h, this.zoom, this.canvas.clientWidth).headerH;
+			this.requestDraw();
+			return;
+		}
 		const hasContent =
 			this.laid.clusters.length > 0 || this.laid.nodes.length > 0;
 		if (!hasContent) return;
@@ -1546,6 +1643,17 @@ export class MiniGraphView extends ItemView {
 			const minPanX = Math.min(g.labelBand, this.canvas.clientWidth - colsW);
 			this.panX = Math.min(g.labelBand, Math.max(minPanX, this.panX));
 			const minPanY = Math.min(g.headerH, this.canvas.clientHeight - rowsH);
+			this.panY = Math.min(g.headerH, Math.max(minPanY, this.panY));
+			return;
+		}
+		if (this.laid.heatmap) {
+			// Spreadsheet scroll over the square grid.
+			const h = this.laid.heatmap;
+			const g = heatmapGeom(h, this.zoom, this.canvas.clientWidth);
+			const grid = h.n * g.cellPx;
+			const minPanX = Math.min(g.labelBand, this.canvas.clientWidth - grid);
+			this.panX = Math.min(g.labelBand, Math.max(minPanX, this.panX));
+			const minPanY = Math.min(g.headerH, this.canvas.clientHeight - grid);
 			this.panY = Math.min(g.headerH, Math.max(minPanY, this.panY));
 			return;
 		}
@@ -1613,9 +1721,30 @@ export class MiniGraphView extends ItemView {
 			});
 			return;
 		}
+		// Tag co-occurrence heatmap: screen-space frozen-pane cell grid.
+		if (this.laid.heatmap && this.laid.heatmap.n > 0) {
+			drawHeatmap(ctx, this.laid.heatmap, {
+				zoom: this.zoom,
+				panX: this.panX,
+				panY: this.panY,
+				canvas: this.canvas,
+				minFontPx: this.settings.minFontPx,
+				jaccard: this.settings.heatmapJaccard,
+				selected: this.heatmapSelected,
+				hoverRow: this.heatmapHoverRow,
+				hoverCol: this.heatmapHoverCol,
+			});
+			return;
+		}
 		const upsetHasColumns = (this.laid.upset?.columns.length ?? 0) > 0;
 		const matrixHasRows = (this.laid.matrix?.rows.length ?? 0) > 0;
-		if (this.laid.nodes.length === 0 && !upsetHasColumns && !matrixHasRows) {
+		const heatmapHasCells = (this.laid.heatmap?.n ?? 0) > 0;
+		if (
+			this.laid.nodes.length === 0 &&
+			!upsetHasColumns &&
+			!matrixHasRows &&
+			!heatmapHasCells
+		) {
 			ctx.fillStyle = "#7a8aa0";
 			ctx.font = `${14 * dpr}px sans-serif`;
 			ctx.textAlign = "center";
@@ -1954,6 +2083,115 @@ export class MiniGraphView extends ItemView {
 		this.app.workspace.openLinkText(path, "", false);
 	}
 
+	// Heatmap cell click → a floating overlay listing the notes shared by the
+	// tag pair (or, on the diagonal, all notes of the tag). Each row opens the
+	// file. Reuses openFile; styled inline so it works without extra CSS.
+	private openHeatmapDetail(i: number, j: number, sx: number, sy: number): void {
+		const h = this.laid.heatmap;
+		if (!h) return;
+		this.closeDetail();
+		const a = h.nodeIds[i] ?? [];
+		let ids: string[];
+		if (i === j) {
+			ids = a.slice();
+		} else {
+			const setB = new Set(h.nodeIds[j] ?? []);
+			ids = a.filter((id) => setB.has(id));
+		}
+		ids = [...new Set(ids)];
+		const ti = h.tags[i].label;
+		const tj = h.tags[j].label;
+
+		const panel = this.root.createDiv({ cls: "gim-detail-panel" });
+		Object.assign(panel.style, {
+			position: "absolute",
+			width: "248px",
+			maxHeight: "320px",
+			display: "flex",
+			flexDirection: "column",
+			background: "rgba(20, 24, 33, 0.98)",
+			border: "1px solid #3a4760",
+			borderRadius: "6px",
+			boxShadow: "0 4px 16px rgba(0,0,0,0.5)",
+			zIndex: "50",
+			font: "13px sans-serif",
+			color: "#e6edf3",
+		} as Partial<CSSStyleDeclaration>);
+
+		const head = panel.createDiv({ cls: "gim-detail-head" });
+		Object.assign(head.style, {
+			display: "flex",
+			alignItems: "center",
+			justifyContent: "space-between",
+			padding: "6px 8px",
+			borderBottom: "1px solid #2a3447",
+			fontWeight: "700",
+		} as Partial<CSSStyleDeclaration>);
+		head.createSpan({
+			text: i === j ? `${ti} (${ids.length})` : `${ti} × ${tj} (${ids.length})`,
+		});
+		const close = head.createEl("button", { text: "×" });
+		Object.assign(close.style, {
+			background: "transparent",
+			border: "none",
+			color: "#9eb0c4",
+			cursor: "pointer",
+			fontSize: "16px",
+		} as Partial<CSSStyleDeclaration>);
+		close.addEventListener("click", () => {
+			this.heatmapSelected = null;
+			this.closeDetail();
+			this.requestDraw();
+		});
+
+		const list = panel.createDiv({ cls: "gim-detail-list" });
+		Object.assign(list.style, { overflowY: "auto", padding: "4px 0" } as Partial<CSSStyleDeclaration>);
+		if (ids.length === 0) {
+			const empty = list.createDiv({ text: "(no shared notes)" });
+			Object.assign(empty.style, { padding: "6px 10px", color: "#7a8aa0" } as Partial<CSSStyleDeclaration>);
+		}
+		for (const id of ids) {
+			const sep = id.indexOf("\t");
+			const path = sep >= 0 ? id.slice(sep + 1) : id;
+			const f = this.app.vault.getAbstractFileByPath(path);
+			const name = f instanceof TFile ? f.basename : path;
+			const row = list.createDiv({ cls: "gim-detail-row", text: name });
+			Object.assign(row.style, {
+				padding: "4px 10px",
+				cursor: "pointer",
+				whiteSpace: "nowrap",
+				overflow: "hidden",
+				textOverflow: "ellipsis",
+			} as Partial<CSSStyleDeclaration>);
+			row.addEventListener("mouseenter", () => (row.style.background = "rgba(160,190,230,0.14)"));
+			row.addEventListener("mouseleave", () => (row.style.background = "transparent"));
+			row.addEventListener("click", () => {
+				this.openFile(id);
+			});
+		}
+		this.detailEl = panel;
+		this.positionDetail(sx, sy, panel);
+	}
+
+	private closeDetail(): void {
+		if (this.detailEl) {
+			this.detailEl.remove();
+			this.detailEl = null;
+		}
+	}
+
+	private positionDetail(sx: number, sy: number, el: HTMLElement): void {
+		const rect = this.canvas.getBoundingClientRect();
+		const w = 248;
+		const h = Math.min(320, el.offsetHeight || 320);
+		let x = Math.min(sx + 14, rect.width - w - 8);
+		x = Math.max(8, x);
+		let y = Math.min(sy + 8, rect.height - h - 8);
+		y = Math.max(8, y);
+		el.style.left = `${x}px`;
+		el.style.top = `${y}px`;
+	}
+
 	// Build the visible display lines: rows bundled into signature blocks, and
 	// (in collapse mode) collapsed blocks shown as one "×N" summary line.
 	private rebuildMatrixDisplay(): void {
@@ -2003,6 +2241,19 @@ export class MiniGraphView extends ItemView {
 		return c >= 0 && c < m.cols.length ? c : -1;
 	}
 
+	// Heatmap cell (row i, col j) under the cursor, or null if over a frozen
+	// band / out of range.
+	private heatmapCellAt(sx: number, sy: number): { i: number; j: number } | null {
+		const h = this.laid.heatmap;
+		if (!h) return null;
+		const g = heatmapGeom(h, this.zoom, this.canvas.clientWidth);
+		if (sx < g.labelBand || sy < g.headerH) return null;
+		const j = Math.floor((sx - this.panX) / g.cellPx);
+		const i = Math.floor((sy - this.panY) / g.cellPx);
+		if (i < 0 || i >= h.n || j < 0 || j >= h.n) return null;
+		return { i, j };
+	}
+
 	// Shared guard: drop a selected column whose set no longer contains it
 	// after a relayout (used for both the matrix and the UpSet selection).
 	private clearStaleSelection(): void {
@@ -2018,6 +2269,16 @@ export class MiniGraphView extends ItemView {
 			)
 		)
 			this.upsetSelectedSignatureKey = null;
+		// Heatmap: a relayout (min-tag-size / query change) re-seriates tags, so
+		// the stored cell indices no longer map to the same tag pair. Clear the
+		// selection and close its (now-stale) detail overlay — same intent as the
+		// matrix/UpSet stale-clear above.
+		this.heatmapHoverRow = -1;
+		this.heatmapHoverCol = -1;
+		if (this.heatmapSelected) {
+			this.heatmapSelected = null;
+			this.closeDetail();
+		}
 	}
 
 	private onPointerMove(e: MouseEvent): void {
@@ -2047,6 +2308,26 @@ export class MiniGraphView extends ItemView {
 			} else if (line && line.kind === "row") {
 				target = { kind: "node", nodeId: this.laid.matrix.rows[line.rowIdx].id };
 			}
+			if (!sameTarget(this.hoverTarget, target)) {
+				this.cancelHover();
+				this.hoverTarget = target;
+				if (target) this.scheduleHover(target, sx, sy);
+			} else if (this.tipEl) {
+				this.positionTip(sx, sy, this.tipEl);
+			}
+			return;
+		}
+		if (this.laid.heatmap) {
+			// Crosshair on the hovered cell's row + column; tooltip = (i × j = N).
+			const cell = this.heatmapCellAt(sx, sy);
+			const hr = cell ? cell.i : -1;
+			const hc = cell ? cell.j : -1;
+			if (hr !== this.heatmapHoverRow || hc !== this.heatmapHoverCol) {
+				this.heatmapHoverRow = hr;
+				this.heatmapHoverCol = hc;
+				this.requestDraw();
+			}
+			const target: HoverTarget = cell ? { kind: "heatmapCell", i: cell.i, j: cell.j } : null;
 			if (!sameTarget(this.hoverTarget, target)) {
 				this.cancelHover();
 				this.hoverTarget = target;
@@ -2145,6 +2426,25 @@ export class MiniGraphView extends ItemView {
 			if (!c) return;
 			tip.createSpan({ cls: "gim-tip-title", text: c.label });
 			tip.createSpan({ cls: "gim-tip-sub", text: `${c.size} notes` });
+			this.root.appendChild(tip);
+			this.tipEl = tip;
+			this.positionTip(sx, sy, tip);
+			return;
+		}
+		if (target.kind === "heatmapCell") {
+			// Heatmap cell: "(tag i × tag j = N shared)" — or tag size on diagonal.
+			const h = this.laid.heatmap;
+			if (!h || target.i >= h.n || target.j >= h.n) return;
+			const ti = h.tags[target.i];
+			const tj = h.tags[target.j];
+			const cnt = h.counts[target.i * h.n + target.j];
+			if (target.i === target.j) {
+				tip.createSpan({ cls: "gim-tip-title", text: ti.label });
+				tip.createSpan({ cls: "gim-tip-sub", text: `${ti.size} notes` });
+			} else {
+				tip.createSpan({ cls: "gim-tip-title", text: `${ti.label} × ${tj.label}` });
+				tip.createSpan({ cls: "gim-tip-sub", text: `${cnt} shared` });
+			}
 			this.root.appendChild(tip);
 			this.tipEl = tip;
 			this.positionTip(sx, sy, tip);
@@ -2306,6 +2606,21 @@ export class MiniGraphView extends ItemView {
 				this.openFile(m.rows[line.rowIdx].id);
 				return;
 			}
+			if (this.laid.heatmap) {
+				// Cell → select + open the detail overlay listing the tag pair's
+				// intersection notes (or all notes of the tag on the diagonal).
+				const cell = this.heatmapCellAt(sx, sy);
+				if (cell) {
+					this.heatmapSelected = cell;
+					this.requestDraw();
+					this.openHeatmapDetail(cell.i, cell.j, sx, sy);
+				} else {
+					this.heatmapSelected = null;
+					this.closeDetail();
+					this.requestDraw();
+				}
+				return;
+			}
 			const w = this.screenToWorld(sx, sy);
 			const hit = this.hitTest(w.x, w.y);
 			if (hit?.kind === "node") {
@@ -2328,9 +2643,16 @@ export class MiniGraphView extends ItemView {
 		c.addEventListener("mousemove", (e) => this.onPointerMove(e));
 		c.addEventListener("mouseleave", () => {
 			this.cancelHover();
-			if (this.matrixHoverLine !== -1 || this.matrixHoverCol !== -1) {
+			if (
+				this.matrixHoverLine !== -1 ||
+				this.matrixHoverCol !== -1 ||
+				this.heatmapHoverRow !== -1 ||
+				this.heatmapHoverCol !== -1
+			) {
 				this.matrixHoverLine = -1;
 				this.matrixHoverCol = -1;
+				this.heatmapHoverRow = -1;
+				this.heatmapHoverCol = -1;
 				this.requestDraw();
 			}
 		});
