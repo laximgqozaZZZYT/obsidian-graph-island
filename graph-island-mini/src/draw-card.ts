@@ -35,6 +35,10 @@ export interface DrawCardOptions {
 	// When set, fill the card with this hue (bipartite SET / tag nodes) so it
 	// reads as a coloured set node rather than a plain dark note card.
 	fillHue?: number;
+	// When set (and not a SET node), fill the card with a MUTED tint of this hue
+	// — used by the clustered bipartite layout so each island's notes read as
+	// one calm coloured mass rather than blue-grey dots.
+	tintHue?: number;
 }
 
 // Pure card renderer. Receives the already-resolved scale + body lines
@@ -53,8 +57,9 @@ export function drawCard(
 	n: PositionedNode,
 	opts: DrawCardOptions,
 ): void {
-	const { scale, bodyLines, showBody, highlighted, zoom, minFontPx, fillHue } = opts;
+	const { scale, bodyLines, showBody, highlighted, zoom, minFontPx, fillHue, tintHue } = opts;
 	const isSet = fillHue != null;
+	const isTint = !isSet && tintHue != null;
 	const x = n.x - n.width / 2;
 	const y = n.y - n.height / 2;
 	const w = n.width;
@@ -68,7 +73,9 @@ export function drawCard(
 		? "#ffe7a8"
 		: isSet
 			? `hsl(${fillHue}, 55%, 40%)`
-			: "#1d2230";
+			: isTint
+				? `hsl(${tintHue}, 38%, 30%)`
+				: "#1d2230";
 	ctx.fill();
 
 	ctx.lineWidth = (highlighted ? 1.8 : isSet ? 1.6 : 1) / zoom;
@@ -76,7 +83,9 @@ export function drawCard(
 		? "#ff9d3f"
 		: isSet
 			? `hsl(${fillHue}, 75%, 72%)`
-			: "#5a7ba8";
+			: isTint
+				? `hsl(${tintHue}, 45%, 52%)`
+				: "#5a7ba8";
 	ctx.beginPath();
 	roundedRectPath(ctx, x, y, w, h, r);
 	ctx.stroke();

@@ -98,7 +98,15 @@ export function layoutBipartite(data: GraphData, opts: LayoutOptions): LaidOut {
 	// Only the main edge is primary (drawn); sub-memberships are secondary
 	// (hover-only). Topology (edge set) unchanged.
 	if (opts.bipartiteLayout === "clustered") {
-		const c = placeClustered(data, tags, tagSet, tagCount, { setW, noteW, noteH, gap });
+		// Small square note nodes so each island packs into a dense, calm disc
+		// (they read as a coloured mass, not individual cards).
+		const cNote = Math.max(8, Math.round(cardH * 0.85));
+		const c = placeClustered(data, tags, tagSet, tagCount, {
+			setW,
+			noteW: cNote,
+			noteH: cNote,
+			gap,
+		});
 		ringOrder = c.tagOrder;
 		for (const [t, p] of c.setPos) setPos.set(t, p);
 		pos = c.notePos;
@@ -108,8 +116,8 @@ export function layoutBipartite(data: GraphData, opts: LayoutOptions): LaidOut {
 			tagSet,
 			setW,
 			setH,
-			noteW,
-			noteH,
+			noteW: cNote,
+			noteH: cNote,
 			slotW,
 			slotH,
 			channelW,
@@ -293,6 +301,8 @@ function emitBipartite(
 			y: pos[i].y,
 			width: ctx.noteW,
 			height: ctx.noteH,
+			// Clustered → tint the note by its island's main tag.
+			hueKey: ctx.mainTagByNote?.[i] ?? undefined,
 		});
 	});
 
@@ -308,9 +318,10 @@ function emitBipartite(
 							{ x: pos[i].x, y: pos[i].y },
 							{ x: sp.x, y: sp.y },
 						];
-			// Clustered: only the main-tag edge is primary; the rest are secondary
-			// (hidden until hover). Other layouts: every edge is primary.
-			const secondary = ctx.mainTagByNote ? m !== ctx.mainTagByNote[i] : false;
+			// Clustered: ALL edges are secondary — the base view shows clean
+			// coloured discs (no centre-to-note spokes), and hover lights up a
+			// note's main + sub memberships. Other layouts: every edge is primary.
+			const secondary = ctx.mainTagByNote !== undefined;
 			edges.push({
 				source: n.id,
 				target: SET_PREFIX + m,
@@ -503,29 +514,26 @@ function placeClustered(
 		else members[tagIdx.get(mt)!].push(i);
 	});
 
-	// Per-island ring OFFSETS (relative to centre) + island radius.
-	const noteStep = dims.noteW + dims.gap;
-	const ringStep = dims.noteH + dims.gap;
+	// Per-island PHYLLOTAXIS disc packing (sunflower / golden-angle): note k at
+	// radius ∝ √k, angle = k·goldenAngle. Fills a ROUND disc uniformly with no
+	// radial spokes (the old concentric rings looked spiky), and √count
+	// naturally compresses big-vs-small island size differences. Offsets are
+	// relative to the island centre; returns the island radius.
+	const GOLDEN = Math.PI * (3 - Math.sqrt(5));
+	const packStep = Math.max(dims.noteW * 0.62, dims.gap * 0.5);
 	const offset: XY[] = new Array(data.nodes.length);
 	const islandR = new Array(nTags).fill(dims.setW);
-	const ringNotes = (mem: number[], tiRadius: (r: number) => void): void => {
-		let placed = 0;
-		let ring = 1;
-		let rad = dims.setW;
-		while (placed < mem.length) {
-			rad = dims.setW + ring * ringStep;
-			const cap = Math.max(4, Math.floor((TWO_PI * rad) / noteStep));
-			const cnt = Math.min(cap, mem.length - placed);
-			for (let k = 0; k < cnt; k++) {
-				const a = (k / cnt) * TWO_PI;
-				offset[mem[placed + k]] = { x: rad * Math.cos(a), y: rad * Math.sin(a) };
-			}
-			placed += cnt;
-			ring++;
-		}
-		tiRadius(rad + dims.noteW);
+	const packIsland = (mem: number[]): number => {
+		mem.forEach((noteIdx, k) => {
+			const rr = dims.setW * 0.5 + packStep * Math.sqrt(k + 0.5);
+			const a = k * GOLDEN;
+			offset[noteIdx] = { x: rr * Math.cos(a), y: rr * Math.sin(a) };
+		});
+		return mem.length
+			? dims.setW * 0.5 + packStep * Math.sqrt(mem.length) + dims.noteW
+			: dims.setW;
 	};
-	for (let ti = 0; ti < nTags; ti++) ringNotes(members[ti], (r) => (islandR[ti] = r));
+	for (let ti = 0; ti < nTags; ti++) islandR[ti] = packIsland(members[ti]);
 
 	// Island centres: seed on a ring, force by Jaccard (attract co-occurring,
 	// repel overlaps), then relaxSubgroups for guaranteed non-overlap.
@@ -558,7 +566,7 @@ function placeClustered(
 		}
 	});
 
-	// "Other" island (notes with no visible tag): a separate ring cluster placed
+	// "Other" island (notes with no visible tag): a separate packed disc placed
 	// to the right of the islands' bounding box, no centre tag, no edges.
 	if (other.length) {
 		let maxX = -Infinity;
@@ -570,7 +578,7 @@ function placeClustered(
 		if (!isFinite(maxX)) maxX = 0;
 		cy = subs.length ? cy / subs.length : 0;
 		const oc = { x: maxX + seedR * 0.5, y: cy };
-		ringNotes(other, () => {});
+		packIsland(other);
 		for (const i of other) {
 			const o = offset[i];
 			notePos[i] = { x: oc.x + o.x, y: oc.y + o.y };

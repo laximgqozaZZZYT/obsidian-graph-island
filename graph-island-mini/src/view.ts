@@ -2123,6 +2123,8 @@ export class MiniGraphView extends ItemView {
 			zoom: this.zoom,
 			minFontPx: this.settings.minFontPx,
 			fillHue: isSet ? clusterHue(n.memberships[0] ?? n.id) : undefined,
+			// Clustered notes carry their island's main-tag in hueKey → muted tint.
+			tintHue: !isSet && n.hueKey ? clusterHue(n.hueKey) : undefined,
 		});
 	}
 
