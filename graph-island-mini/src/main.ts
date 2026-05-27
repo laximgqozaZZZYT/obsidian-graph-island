@@ -117,6 +117,8 @@ export default class GraphIslandMiniPlugin extends Plugin {
 			merged.matrixGroupBySignature = true;
 		if (typeof merged.matrixCollapseGroups !== "boolean")
 			merged.matrixCollapseGroups = false;
+		if (typeof merged.matrixBlockPriority !== "boolean")
+			merged.matrixBlockPriority = true;
 		if (
 			typeof merged.bipartiteMaxTags !== "number" ||
 			!Number.isFinite(merged.bipartiteMaxTags) ||

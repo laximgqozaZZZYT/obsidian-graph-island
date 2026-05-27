@@ -884,6 +884,11 @@ export class MiniGraphView extends ItemView {
 			row.createSpan({ text: label });
 		};
 		toggle(
+			"Block-priority order",
+			() => this.settings.matrixBlockPriority,
+			(v) => (this.settings.matrixBlockPriority = v),
+		);
+		toggle(
 			"Group by signature",
 			() => this.settings.matrixGroupBySignature,
 			(v) => (this.settings.matrixGroupBySignature = v),
@@ -1070,6 +1075,7 @@ export class MiniGraphView extends ItemView {
 			upsetMinColumnSize: this.settings.upsetMinColumnSize,
 			matrixSort: this.settings.matrixSort,
 			matrixMinColumnSize: this.settings.matrixMinColumnSize,
+			matrixBlockPriority: this.settings.matrixBlockPriority,
 			bipartiteMaxTags: this.settings.bipartiteMaxTags,
 			bipartitePrev,
 		});

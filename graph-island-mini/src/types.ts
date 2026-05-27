@@ -121,6 +121,11 @@ export interface MiniSettings {
 	// Connection-matrix: collapse each signature block to a "×N" summary row
 	// (click a block to expand). Default false.
 	matrixCollapseGroups: boolean;
+	// Connection-matrix: order whole signature blocks by size desc (big blocks
+	// to the top) instead of pure per-row Jaccard. Within a block, Jaccard
+	// order is kept; the same-signature grouping is preserved either way.
+	// Default true — restores the "count overview" lost when singletons scatter.
+	matrixBlockPriority: boolean;
 	// Bipartite tag graph: maximum number of tag (set) nodes shown. The layout
 	// first drops singleton + giant (>40% of notes) tags, then keeps the
 	// top-N by size. Caps hub fan-out so a sparse vault stays operable.
@@ -242,6 +247,7 @@ export const DEFAULT_SETTINGS: MiniSettings = {
 	matrixMinColumnSize: 1,
 	matrixGroupBySignature: true,
 	matrixCollapseGroups: false,
+	matrixBlockPriority: true,
 	bipartiteMaxTags: 80,
 	minFontPx: 8,
 };

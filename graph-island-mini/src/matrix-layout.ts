@@ -66,6 +66,35 @@ export function layoutMatrix(data: GraphData, opts: LayoutOptions): LaidOut {
 			.filter((c) => (colCount.get(colKeys[c]) ?? 0) >= ubiqThresh)
 			.sort((a, b) => (colCount.get(colKeys[b])! - colCount.get(colKeys[a])!));
 		colOrder = [...specific, ...ubiq];
+
+		// Block-priority row ordering. The Jaccard pass already places
+		// same-signature rows adjacent; here we treat each signature as ONE
+		// block and order the blocks by size desc (Jaccard rank as tiebreak),
+		// keeping each block contiguous. Big blocks (×12 …) rise to the top
+		// instead of being scattered / pushed down by singleton rows — the
+		// "count overview" is restored without breaking co-occurrence (columns
+		// stay Jaccard-ordered) or the same-signature grouping.
+		if ((opts.matrixBlockPriority ?? true) && nRows > 1) {
+			const sigKey = (orig: number): string =>
+				rowCells[orig]
+					.slice()
+					.sort((a, b) => a - b)
+					.join(",");
+			const seen = new Map<string, number>();
+			const groups: Array<{ rows: number[]; rank: number }> = [];
+			rowOrder.forEach((orig, jaccardRank) => {
+				const k = sigKey(orig);
+				let gi = seen.get(k);
+				if (gi === undefined) {
+					gi = groups.length;
+					seen.set(k, gi);
+					groups.push({ rows: [], rank: jaccardRank });
+				}
+				groups[gi].rows.push(orig);
+			});
+			groups.sort((a, b) => b.rows.length - a.rows.length || a.rank - b.rank);
+			rowOrder = groups.flatMap((g) => g.rows);
+		}
 	}
 
 	// New column position for each original column index.

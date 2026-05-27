@@ -104,7 +104,7 @@ export function drawMatrix(
 	if (o.hoverCol >= 0) {
 		const x = o.hoverCol * colScreenW + o.panX;
 		if (x + colScreenW > labelBand && x < visW) {
-			ctx.fillStyle = "rgba(160, 190, 230, 0.10)";
+			ctx.fillStyle = "rgba(160, 190, 230, 0.16)";
 			ctx.fillRect(Math.max(labelBand, x), headerH, colScreenW, visH - headerH);
 		}
 	}
@@ -119,7 +119,7 @@ export function drawMatrix(
 		const line = lines[li];
 		const y = lineY(li);
 		if (o.group && line.blockIdx % 2 === 0) {
-			ctx.fillStyle = "rgba(255, 255, 255, 0.055)";
+			ctx.fillStyle = "rgba(255, 255, 255, 0.08)";
 			ctx.fillRect(labelBand, y, visW - labelBand, rowScreenH);
 		}
 		// Block divider above a block head / summary.
@@ -135,19 +135,25 @@ export function drawMatrix(
 		const cy = y + rowScreenH / 2;
 		const b = bits[srcRow];
 		const summary = line.kind === "summary";
+		// Brighten + enlarge the hovered row's dots so a note whose dots jump
+		// across distant columns can be followed along the single row band.
+		const hot = li === o.hoverLine;
 		for (let c = c0; c <= c1; c++) {
 			if (!((b[c >> 3] >> (c & 7)) & 1)) continue;
 			const cx = c * colScreenW + o.panX + colScreenW / 2;
 			ctx.fillStyle =
-				c === selIdx ? "#ffd49d" : `hsl(${clusterHue(cols[c].key)}, 65%, 62%)`;
+				c === selIdx
+					? "#ffd49d"
+					: `hsl(${clusterHue(cols[c].key)}, ${hot ? 85 : 65}%, ${hot ? 72 : 62}%)`;
 			ctx.beginPath();
-			ctx.arc(cx, cy, summary ? dotR * 1.15 : dotR, 0, Math.PI * 2);
+			ctx.arc(cx, cy, (summary ? dotR * 1.15 : dotR) * (hot ? 1.35 : 1), 0, Math.PI * 2);
 			ctx.fill();
 		}
 	}
-	// Hover crosshair row band (over cells).
+	// Hover crosshair row band (over cells) — drawn under the dots above via
+	// composite order; kept light but a touch stronger so the full row reads.
 	if (o.hoverLine >= l0 && o.hoverLine <= l1) {
-		ctx.fillStyle = "rgba(160, 190, 230, 0.10)";
+		ctx.fillStyle = "rgba(160, 190, 230, 0.16)";
 		ctx.fillRect(labelBand, lineY(o.hoverLine), visW - labelBand, rowScreenH);
 	}
 	ctx.restore();
@@ -167,7 +173,7 @@ export function drawMatrix(
 		// Same alternating block shade as the cell area, extended across the
 		// row-label band so each signature block reads as one continuous stripe.
 		if (o.group && line.blockIdx % 2 === 0) {
-			ctx.fillStyle = "rgba(255, 255, 255, 0.055)";
+			ctx.fillStyle = "rgba(255, 255, 255, 0.08)";
 			ctx.fillRect(0, lineY(li), labelBand, rowScreenH);
 		}
 		if (li === o.hoverLine) {
