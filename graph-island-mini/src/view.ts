@@ -1528,6 +1528,7 @@ export class MiniGraphView extends ItemView {
 				this.highlightedClusters,
 				this.zoom,
 				hn ? { x: hn.x, y: hn.y } : null,
+				this.settings.viewMode === "bubblesets",
 			);
 		}
 

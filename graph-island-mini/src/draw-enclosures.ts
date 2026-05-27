@@ -31,6 +31,10 @@ export function drawEnclosures(
 	// sub-boxes of the highlighted single-set box (which the hovered node does
 	// NOT belong to) keep their own colour.
 	hoverPos: { x: number; y: number } | null = null,
+	// BubbleSets mode: draw each set boundary as a GLOWING rectangular
+	// iso-contour (a wide translucent halo under a bright core line) so the
+	// contour reads clearly over the dense interior.
+	bubble = false,
 ): void {
 	// Hide "ghost" single-node enclosures (a stray 1-cell box around a
 	// multi-tag card that lives in another cluster) — they read as
@@ -89,13 +93,16 @@ export function drawEnclosures(
 		ctx.lineWidth = isHigh ? accentStrokeW : strokeW;
 		if (c.pieces && c.pieces.length > 0) {
 			for (const p of c.pieces) {
-				if (p.contour) {
-					// BubbleSets iso-contour: thin, faded, light concentric line.
+				if (bubble && p.kind === "main") {
+					// Glowing iso-contour: wide translucent halo + bright core.
 					ctx.setLineDash([]);
 					ctx.strokeStyle = isHigh
-						? "rgba(255, 157, 63, 0.55)"
-						: `hsla(${hue}, 70%, 80%, 0.45)`;
-					ctx.lineWidth = strokeW * 0.6;
+						? "rgba(255, 157, 63, 0.35)"
+						: `hsla(${hue}, 85%, 60%, 0.30)`;
+					ctx.lineWidth = 8 / zoom;
+					ctx.strokeRect(p.x, p.y, p.w, p.h);
+					ctx.strokeStyle = isHigh ? "#ffd49d" : `hsla(${hue}, 95%, 80%, 1)`;
+					ctx.lineWidth = 2.2 / zoom;
 					ctx.strokeRect(p.x, p.y, p.w, p.h);
 					continue;
 				}
