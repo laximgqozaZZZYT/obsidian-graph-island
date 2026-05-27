@@ -39,6 +39,10 @@ export interface DrawCardOptions {
 	// — used by the clustered bipartite layout so each island's notes read as
 	// one calm coloured mass rather than blue-grey dots.
 	tintHue?: number;
+	// LOD threshold (screen px): when set, the title is drawn only if the card's
+	// on-screen width (width × zoom) is at least this. Below it the card is a
+	// bare coloured marker — no title, no lone "…". Used by clustered bipartite.
+	titleLodPx?: number;
 }
 
 // Pure card renderer. Receives the already-resolved scale + body lines
@@ -134,13 +138,19 @@ export function drawCard(
 
 	ctx.textAlign = "start";
 
-	ctx.font = `600 ${titleFontPx}px sans-serif`;
-	ctx.fillStyle = highlighted ? "#1d1100" : isSet ? "#f2f6ff" : "#e6edf3";
-	const titleFitted = truncateToWidth(ctx, n.label, innerW);
-	// Title-only cards: centre the title vertically so the enlarged glyphs
-	// sit flush in the node. (Body preview was retired.)
-	ctx.textBaseline = "middle";
-	ctx.fillText(titleFitted, innerLeft, y + h / 2);
+	// LOD: below the threshold the card stays a bare coloured marker — drawing
+	// the title (which would collapse to a lone "…") is skipped. Above it, the
+	// title is shown, truncated with "…" when long (full text on hover).
+	const showTitle = opts.titleLodPx == null || w * zoom >= opts.titleLodPx;
+	if (showTitle) {
+		ctx.font = `600 ${titleFontPx}px sans-serif`;
+		ctx.fillStyle = highlighted ? "#1d1100" : isSet ? "#f2f6ff" : "#e6edf3";
+		const titleFitted = truncateToWidth(ctx, n.label, innerW);
+		// Title-only cards: centre the title vertically so the enlarged glyphs
+		// sit flush in the node. (Body preview was retired.)
+		ctx.textBaseline = "middle";
+		ctx.fillText(titleFitted, innerLeft, y + h / 2);
+	}
 
 	ctx.textBaseline = "top";
 	if (bodyLines.length > 0 && showBody) {

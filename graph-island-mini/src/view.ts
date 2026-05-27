@@ -2115,6 +2115,11 @@ export class MiniGraphView extends ItemView {
 		// Bipartite SET (tag) nodes render coloured by their tag hue so they
 		// read as set cores; NOTE nodes use the default dark card.
 		const isSet = this.laid.setNodeIds?.has(n.id) ?? false;
+		// Clustered bipartite: nodes are markers until zoomed in enough to read
+		// the title (≥ 46 screen px wide); below that, no title / no "…".
+		const clustered =
+			this.settings.viewMode === "bipartite" &&
+			this.settings.bipartiteLayout === "clustered";
 		drawCardFn(ctx, n, {
 			scale,
 			bodyLines: [],
@@ -2125,6 +2130,7 @@ export class MiniGraphView extends ItemView {
 			fillHue: isSet ? clusterHue(n.memberships[0] ?? n.id) : undefined,
 			// Clustered notes carry their island's main-tag in hueKey → muted tint.
 			tintHue: !isSet && n.hueKey ? clusterHue(n.hueKey) : undefined,
+			titleLodPx: clustered ? 46 : undefined,
 		});
 	}
 
