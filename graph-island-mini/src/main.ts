@@ -157,6 +157,13 @@ export default class GraphIslandMiniPlugin extends Plugin {
 			merged.bipartiteLayout !== "clustered"
 		)
 			merged.bipartiteLayout = "force";
+		// The region/containment views (Nested set / Containment / Euler diagram)
+		// are Experimental (beta) and break on this data shape, so a beta mode
+		// must never be the effective DEFAULT. The legacy default was "euler"
+		// (Nested set) — fall it back to the stable matrix so old configs that
+		// never picked a mode land on a working view. A user who deliberately
+		// selects a beta mode from the Experimental section still keeps it.
+		if (merged.viewMode === "euler") merged.viewMode = "matrix";
 		if (typeof merged.showNodes !== "boolean") merged.showNodes = true;
 		if (typeof merged.showEnclosures !== "boolean") merged.showEnclosures = true;
 		if (typeof merged.showEdges !== "boolean") merged.showEdges = true;

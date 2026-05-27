@@ -205,6 +205,9 @@ export const VIEW_MODES: ViewModeOption[] = [
 		id: "euler-venn",
 		label: "Euler diagram",
 		description: "Overlapping tag rectangles (each node once; bbox-simplified)",
+		// Same region/containment family as Nested set / Containment — overlapping
+		// bbox rectangles hairball on a giant-tag, hierarchy-less vault.
+		experimental: true,
 	},
 	{
 		// Reuses the Containment-map layout but draws each set as concentric
