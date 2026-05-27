@@ -25,6 +25,7 @@ import {
 	drawGridHeaders as drawGridHeadersFn,
 	drawClusterLabels as drawClusterLabelsFn,
 	drawAggregateStack as drawAggregateStackFn,
+	drawOverviewLabels as drawOverviewLabelsFn,
 } from "./draw-helpers";
 import {
 	computeMemberSets,
@@ -1184,6 +1185,42 @@ export class MiniGraphView extends ItemView {
 		this.requestDraw();
 	}
 
+	// True when the whole diagram is on screen (zoomed out to roughly fit).
+	// Recomputed each draw; gates the big centre auxiliary labels.
+	private overviewActive = false;
+
+	private isOverview(): boolean {
+		if (this.laid.upset) return false;
+		if (this.laid.clusters.length === 0 && this.laid.nodes.length === 0)
+			return false;
+		let minX = Infinity;
+		let minY = Infinity;
+		let maxX = -Infinity;
+		let maxY = -Infinity;
+		for (const c of this.laid.clusters) {
+			minX = Math.min(minX, c.x);
+			minY = Math.min(minY, c.y);
+			maxX = Math.max(maxX, c.x + c.width);
+			maxY = Math.max(maxY, c.y + c.height);
+		}
+		for (const n of this.laid.nodes) {
+			minX = Math.min(minX, n.x - n.width / 2);
+			minY = Math.min(minY, n.y - n.height / 2);
+			maxX = Math.max(maxX, n.x + n.width / 2);
+			maxY = Math.max(maxY, n.y + n.height / 2);
+		}
+		const w = maxX - minX;
+		const h = maxY - minY;
+		if (!isFinite(w) || w <= 0 || h <= 0) return false;
+		const panelW =
+			this.settings.panelVisible && this.panelEl ? this.panelEl.offsetWidth : 0;
+		const visW = Math.max(1, this.canvas.clientWidth - panelW);
+		const visH = Math.max(1, this.canvas.clientHeight);
+		const fitZoom = Math.min(visW / w, visH / h);
+		// Show the overview labels while at (or near) the whole-diagram zoom.
+		return this.zoom <= fitZoom * 1.8;
+	}
+
 	private fitToView(): void {
 		// UpSet: cards sit in the MAIN area above the screen-space
 		// footer. Fit them into (canvas.height - footerH) so the cards
@@ -1339,6 +1376,7 @@ export class MiniGraphView extends ItemView {
 			);
 			return;
 		}
+		this.overviewActive = this.isOverview();
 		ctx.setTransform(dpr * this.zoom, 0, 0, dpr * this.zoom, dpr * this.panX, dpr * this.panY);
 
 		// Excel-style row/column underlay. Drawn first so enclosures, edges,
@@ -1543,6 +1581,14 @@ export class MiniGraphView extends ItemView {
 				if (skipNode(n.id)) continue;
 				this.drawCard(ctx, n, true);
 			}
+		}
+
+		// Overview auxiliary labels: a big centred name per enclosure, shown
+		// whenever the whole diagram is in view — independent of the Graph-
+		// display toggles, and separate from the on-grid title bars. Not in
+		// UpSet mode.
+		if (this.overviewActive && !this.laid.upset) {
+			drawOverviewLabelsFn(ctx, this.laid, this.zoom);
 		}
 	}
 

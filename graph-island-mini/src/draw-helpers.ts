@@ -303,6 +303,53 @@ export interface PlacedLabelBox {
 	anchorY: number;
 }
 
+// Overview-only auxiliary labels: one BIG cluster name centred in each
+// enclosure, fitted to the enclosure box. Drawn in world space on top of
+// everything when the whole diagram is in view, independent of the
+// Graph-display toggles and SEPARATE from `drawClusterLabels` (the small
+// on-grid title bars). Not used in UpSet mode. Largest clusters paint first
+// so smaller (often nested) names land on top.
+export function drawOverviewLabels(
+	ctx: CanvasRenderingContext2D,
+	laid: LaidOut,
+	zoom: number,
+): void {
+	const cl = [...laid.clusters]
+		.filter(
+			(c) =>
+				!c.ghostSingle && c.memberCount >= 2 && c.width > 0 && c.height > 0,
+		)
+		.sort((a, b) => b.width * b.height - a.width * a.height);
+	for (const c of cl) {
+		const text = c.label;
+		if (!text) continue;
+		const cx = c.x + c.width / 2;
+		const cy = c.y + c.height / 2;
+		const maxW = c.width * 0.88;
+		const maxH = c.height * 0.6;
+		ctx.font = "800 100px sans-serif";
+		const m = ctx.measureText(text);
+		const w100 = m.width || 1;
+		const h100 =
+			(m.actualBoundingBoxAscent || 74) + (m.actualBoundingBoxDescent || 20);
+		const fontPx = Math.min((maxW * 100) / w100, (maxH * 100) / h100);
+		if (!(fontPx > 0)) continue;
+		ctx.font = `800 ${fontPx}px sans-serif`;
+		ctx.textAlign = "center";
+		ctx.textBaseline = "middle";
+		const hue = clusterHue(c.groupKey);
+		// Dark rounded halo so the name reads over whatever is behind it.
+		ctx.lineJoin = "round";
+		ctx.lineWidth = Math.max(fontPx * 0.08, 2 / zoom);
+		ctx.strokeStyle = "rgba(8, 10, 14, 0.9)";
+		ctx.strokeText(text, cx, cy);
+		ctx.fillStyle = `hsla(${hue}, 75%, 82%, 0.96)`;
+		ctx.fillText(text, cx, cy);
+	}
+	ctx.textAlign = "start";
+	ctx.textBaseline = "alphabetic";
+}
+
 export function drawClusterLabels(
 	ctx: CanvasRenderingContext2D,
 	laid: LaidOut,
