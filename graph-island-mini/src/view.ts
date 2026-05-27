@@ -1382,8 +1382,8 @@ export class MiniGraphView extends ItemView {
 		if (this.laid.matrix) {
 			const m = this.laid.matrix;
 			const g = matrixGeom(m, this.zoom, this.canvas.clientWidth);
-			const colsW = m.cols.length * m.colW * this.zoom;
-			const rowsH = m.rows.length * m.rowH * this.zoom;
+			const colsW = m.cols.length * g.colScreenW;
+			const rowsH = m.rows.length * g.rowScreenH; // floored row pitch
 			const minPanX = Math.min(g.labelBand, this.canvas.clientWidth - colsW);
 			this.panX = Math.min(g.labelBand, Math.max(minPanX, this.panX));
 			const minPanY = Math.min(g.headerH, this.canvas.clientHeight - rowsH);
@@ -2028,6 +2028,13 @@ export class MiniGraphView extends ItemView {
 		c.addEventListener("wheel", (e) => {
 			e.preventDefault();
 			this.cancelHover();
+			// Connection matrix: wheel scrolls the rows vertically (fixed row
+			// height); the existing drag-pan also scrolls. No zoom here.
+			if (this.laid.matrix) {
+				this.panY -= e.deltaY;
+				this.requestDraw();
+				return;
+			}
 			const rect = c.getBoundingClientRect();
 			const sx = e.clientX - rect.left;
 			const sy = e.clientY - rect.top;

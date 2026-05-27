@@ -14,8 +14,15 @@ export interface MatrixGeom {
 	colScreenW: number; // colW * zoom
 }
 
+// Minimum on-screen row pitch so the row labels never overlap, regardless of
+// zoom. Rows scroll vertically at (at least) this height; only columns shrink
+// to fit the width. Keeps "identify each note" satisfied.
+const MIN_ROW_PX = 18;
+
 // Shared geometry so the renderer and hit-testing agree. Row labels get a
-// generously wide band (priority), clamped to a sane range.
+// generously wide band (priority), clamped to a sane range. The row pitch has
+// a hard floor (MIN_ROW_PX) — zoom scales columns and grows rows, but never
+// shrinks rows below the readable floor.
 export function matrixGeom(
 	matrix: MatrixMeta,
 	zoom: number,
@@ -25,7 +32,7 @@ export function matrixGeom(
 	return {
 		labelBand,
 		headerH: 92,
-		rowScreenH: matrix.rowH * zoom,
+		rowScreenH: Math.max(MIN_ROW_PX, matrix.rowH * zoom),
 		colScreenW: matrix.colW * zoom,
 	};
 }
