@@ -430,7 +430,6 @@ export class MiniGraphView extends ItemView {
 	private renderAllTab(el: HTMLElement): void {
 		const isMatrix = this.settings.viewMode === "matrix";
 		this.renderViewModeSection(el);
-		if (isMatrix) this.renderMatrixSection(el);
 		if (this.settings.viewMode === "bipartite") this.renderBipartiteSection(el);
 		this.renderExprSection(el, "WHERE", this.settings.where, this.whereError, {
 			autoKey: "whereAuto",
@@ -438,14 +437,20 @@ export class MiniGraphView extends ItemView {
 		this.renderExprSection(el, "GROUP_BY", this.settings.groupBy, this.groupByError, {
 			autoKey: "groupByAuto",
 		});
-		this.renderExprSection(el, "HAVING", this.settings.having, this.havingError, {
-			placeholder: "e.g. count >= 3",
-			autoKey: "havingAuto",
-		});
-		// Matrix row order is owned by the Matrix section (Order / Block-priority
-		// / Group / Collapse). The generic ORDER_BY doesn't drive matrix rows, so
-		// hide it in matrix mode to avoid a confusing second ordering control.
-		if (!isMatrix) this.renderOrderBySection(el);
+		const havingSection = this.renderExprSection(
+			el,
+			"HAVING",
+			this.settings.having,
+			this.havingError,
+			{ placeholder: "e.g. count >= 3", autoKey: "havingAuto" },
+		);
+		// Matrix "min column size" is a COLUMN (tag) filter, not an order, so it
+		// lives with the other filters (inside HAVING), matrix-only.
+		if (isMatrix) this.renderMatrixMinColumnControl(havingSection);
+		// ORDER_BY owns row ordering for every mode. In matrix mode it renders
+		// the matrix sort options (co-occurrence / block-priority) + group /
+		// collapse toggles; otherwise the standard field/dir controls.
+		this.renderOrderBySection(el);
 		this.renderExprSection(el, "LIMIT", this.settings.limit, this.limitError, {
 			placeholder: "limit 10 / brief 30",
 			autoKey: "limitAuto",
@@ -780,9 +785,108 @@ export class MiniGraphView extends ItemView {
 	}
 
 	private renderOrderBySection(parent: HTMLElement): void {
+		// Matrix mode replaces the field/dir ORDER_BY with its seriation options
+		// (co-occurrence / block-priority / original) + group / collapse toggles,
+		// so all row ordering lives in this one section.
+		if (this.settings.viewMode === "matrix") {
+			this.renderMatrixOrderBySection(parent);
+			return;
+		}
 		renderOrderBySectionFn(parent, {
 			settings: this.settings,
 			save: () => void this.save(),
+		});
+	}
+
+	// Matrix ORDER_BY: a single "Order" dropdown unifying the old Order +
+	// Block-priority toggle, plus the group / collapse toggles (enabled only
+	// for a matrix seriation, greyed out for "original").
+	private renderMatrixOrderBySection(parent: HTMLElement): void {
+		const section = parent.createDiv({ cls: "gim-panel-section" });
+		section.createEl("h4", { text: "ORDER_BY" });
+		const current =
+			this.settings.matrixSort === "original"
+				? "original"
+				: this.settings.matrixBlockPriority
+					? "block-priority"
+					: "co-occurrence";
+		const matrixOrdered = current !== "original";
+
+		const row = section.createDiv({ cls: "gim-order-row" });
+		row.createSpan({ text: "Order", cls: "gim-order-field" });
+		const sel = row.createEl("select") as HTMLSelectElement;
+		for (const [val, label] of [
+			["co-occurrence", "Co-occurrence"],
+			["block-priority", "Block-priority"],
+			["original", "Original"],
+		] as const) {
+			const o = sel.createEl("option", { text: label });
+			o.value = val;
+			if (val === current) o.selected = true;
+		}
+		sel.addEventListener("change", () => {
+			const v = sel.value;
+			if (v === "original") {
+				this.settings.matrixSort = "original";
+			} else if (v === "block-priority") {
+				this.settings.matrixSort = "cooccurrence";
+				this.settings.matrixBlockPriority = true;
+			} else {
+				this.settings.matrixSort = "cooccurrence";
+				this.settings.matrixBlockPriority = false;
+			}
+			void this.save();
+			void this.rebuild();
+			this.renderPanel(); // refresh the group/collapse enabled state
+		});
+
+		const toggle = (
+			label: string,
+			get: () => boolean,
+			set: (v: boolean) => void,
+			enabled: boolean,
+		): void => {
+			const trow = section.createEl("label", { cls: "gim-toggle-row" });
+			if (!enabled) trow.style.opacity = "0.45";
+			const cb = trow.createEl("input", { type: "checkbox" });
+			cb.checked = get();
+			cb.disabled = !enabled;
+			cb.addEventListener("change", () => {
+				set(cb.checked);
+				void this.save();
+				void this.rebuild();
+			});
+			trow.createSpan({ text: label });
+		};
+		toggle(
+			"Group by signature",
+			() => this.settings.matrixGroupBySignature,
+			(v) => (this.settings.matrixGroupBySignature = v),
+			matrixOrdered,
+		);
+		toggle(
+			"Collapse groups",
+			() => this.settings.matrixCollapseGroups,
+			(v) => (this.settings.matrixCollapseGroups = v),
+			matrixOrdered,
+		);
+	}
+
+	// Matrix "min column size" — a column (tag) filter, rendered inside the
+	// HAVING filter section (no standalone Matrix section).
+	private renderMatrixMinColumnControl(section: HTMLElement): void {
+		const row = section.createDiv({ cls: "gim-order-row" });
+		row.createSpan({ text: "Min column size", cls: "gim-order-field" });
+		const inp = row.createEl("input", { type: "number" }) as HTMLInputElement;
+		inp.min = "1";
+		inp.style.width = "56px";
+		inp.value = String(this.settings.matrixMinColumnSize);
+		inp.addEventListener("change", () => {
+			const v = Math.max(1, Math.floor(Number(inp.value) || 1));
+			this.settings.matrixMinColumnSize = v;
+			inp.value = String(v);
+			void this.save();
+			void this.rebuild();
 		});
 	}
 
@@ -843,74 +947,6 @@ export class MiniGraphView extends ItemView {
 		});
 	}
 
-	// Matrix-only controls: row/column ordering + min column size.
-	private renderMatrixSection(parent: HTMLElement): void {
-		const section = parent.createDiv({ cls: "gim-panel-section" });
-		section.createEl("h4", { text: "Matrix" });
-		section.createEl("p", {
-			cls: "gim-panel-hint",
-			text: "Row order is controlled here (Order / Block-priority). The generic ORDER_BY and NODE DISPLAY don't apply in matrix mode.",
-		});
-
-		const sortRow = section.createDiv({ cls: "gim-order-row" });
-		sortRow.createSpan({ text: "Order", cls: "gim-order-field" });
-		const sel = sortRow.createEl("select") as HTMLSelectElement;
-		for (const [val, label] of [
-			["cooccurrence", "Co-occurrence"],
-			["original", "Original"],
-		] as const) {
-			const o = sel.createEl("option", { text: label });
-			o.value = val;
-		}
-		sel.value = this.settings.matrixSort;
-		sel.addEventListener("change", () => {
-			this.settings.matrixSort = sel.value as "original" | "cooccurrence";
-			void this.save();
-			void this.rebuild();
-		});
-
-		const minRow = section.createDiv({ cls: "gim-order-row" });
-		minRow.createSpan({ text: "Min column size", cls: "gim-order-field" });
-		const inp = minRow.createEl("input", { type: "number" }) as HTMLInputElement;
-		inp.min = "1";
-		inp.style.width = "56px";
-		inp.value = String(this.settings.matrixMinColumnSize);
-		inp.addEventListener("change", () => {
-			const v = Math.max(1, Math.floor(Number(inp.value) || 1));
-			this.settings.matrixMinColumnSize = v;
-			inp.value = String(v);
-			void this.save();
-			void this.rebuild();
-		});
-
-		const toggle = (label: string, get: () => boolean, set: (v: boolean) => void) => {
-			const row = section.createEl("label", { cls: "gim-toggle-row" });
-			const cb = row.createEl("input", { type: "checkbox" });
-			cb.checked = get();
-			cb.addEventListener("change", () => {
-				set(cb.checked);
-				void this.save();
-				void this.rebuild();
-			});
-			row.createSpan({ text: label });
-		};
-		toggle(
-			"Block-priority order",
-			() => this.settings.matrixBlockPriority,
-			(v) => (this.settings.matrixBlockPriority = v),
-		);
-		toggle(
-			"Group by signature",
-			() => this.settings.matrixGroupBySignature,
-			(v) => (this.settings.matrixGroupBySignature = v),
-		);
-		toggle(
-			"Collapse groups",
-			() => this.settings.matrixCollapseGroups,
-			(v) => (this.settings.matrixCollapseGroups = v),
-		);
-	}
-
 	private renderToggleSection(
 		parent: HTMLElement,
 		heading: string,
@@ -936,8 +972,8 @@ export class MiniGraphView extends ItemView {
 			placeholder?: string;
 			autoKey?: "whereAuto" | "groupByAuto" | "havingAuto" | "limitAuto";
 		} = {},
-	): void {
-		renderExprSectionFn(
+	): HTMLElement {
+		return renderExprSectionFn(
 			parent,
 			label,
 			rows,

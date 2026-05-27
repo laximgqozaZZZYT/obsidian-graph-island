@@ -107,7 +107,7 @@ export function renderExprSection(
 	error: string,
 	deps: ExprSectionDeps,
 	opts: { placeholder?: string; autoKey?: AutoKey } = {},
-): void {
+): HTMLElement {
 	const section = parent.createDiv({ cls: "gim-panel-section" });
 	const header = section.createDiv({ cls: "gim-panel-section-header" });
 	header.createEl("h4", { text: label });
@@ -160,6 +160,7 @@ export function renderExprSection(
 	});
 
 	if (error) section.createDiv({ cls: "gim-expr-msg", text: error });
+	return section;
 }
 
 // Generic checkbox-row group for boolean settings fields.
