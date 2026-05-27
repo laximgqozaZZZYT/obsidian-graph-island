@@ -8,7 +8,15 @@ import {
 	type ClusterRect,
 } from "./layout";
 import type { MiniSettings, GraphNode, ViewMode } from "./types";
-import { NONE_BUCKET, VIEW_MODES, SET_PREFIX } from "./types";
+import {
+	NONE_BUCKET,
+	VIEW_MODES,
+	SET_PREFIX,
+	MATRIX_ORDER_LABELS,
+	matrixOrderFlags,
+	matrixOrderFromFlags,
+	type MatrixOrder,
+} from "./types";
 import { CARD_MIN_W, CARD_MAX_W, CARD_CELL_W, CARD_CELL_H } from "./types";
 import { type LimitRule, applyLimitRules } from "./limit";
 import { filterMemberships, filterLabels } from "./query-filters";
@@ -798,78 +806,27 @@ export class MiniGraphView extends ItemView {
 		});
 	}
 
-	// Matrix ORDER_BY: a single "Order" dropdown unifying the old Order +
-	// Block-priority toggle, plus the group / collapse toggles (enabled only
-	// for a matrix seriation, greyed out for "original").
+	// Matrix ORDER_BY: a SINGLE "Order" dropdown whose four presets encode the
+	// (block-priority, group, collapse) flags — no separate checkboxes. The
+	// stored flags are derived from / written by the selected preset.
 	private renderMatrixOrderBySection(parent: HTMLElement): void {
 		const section = parent.createDiv({ cls: "gim-panel-section" });
 		section.createEl("h4", { text: "ORDER_BY" });
-		const current =
-			this.settings.matrixSort === "original"
-				? "original"
-				: this.settings.matrixBlockPriority
-					? "block-priority"
-					: "co-occurrence";
-		const matrixOrdered = current !== "original";
+		const current = matrixOrderFromFlags(this.settings);
 
 		const row = section.createDiv({ cls: "gim-order-row" });
 		row.createSpan({ text: "Order", cls: "gim-order-field" });
 		const sel = row.createEl("select") as HTMLSelectElement;
-		for (const [val, label] of [
-			["co-occurrence", "Co-occurrence"],
-			["block-priority", "Block-priority"],
-			["original", "Original"],
-		] as const) {
+		for (const { value, label } of MATRIX_ORDER_LABELS) {
 			const o = sel.createEl("option", { text: label });
-			o.value = val;
-			if (val === current) o.selected = true;
+			o.value = value;
+			if (value === current) o.selected = true;
 		}
 		sel.addEventListener("change", () => {
-			const v = sel.value;
-			if (v === "original") {
-				this.settings.matrixSort = "original";
-			} else if (v === "block-priority") {
-				this.settings.matrixSort = "cooccurrence";
-				this.settings.matrixBlockPriority = true;
-			} else {
-				this.settings.matrixSort = "cooccurrence";
-				this.settings.matrixBlockPriority = false;
-			}
+			Object.assign(this.settings, matrixOrderFlags(sel.value as MatrixOrder));
 			void this.save();
 			void this.rebuild();
-			this.renderPanel(); // refresh the group/collapse enabled state
 		});
-
-		const toggle = (
-			label: string,
-			get: () => boolean,
-			set: (v: boolean) => void,
-			enabled: boolean,
-		): void => {
-			const trow = section.createEl("label", { cls: "gim-toggle-row" });
-			if (!enabled) trow.style.opacity = "0.45";
-			const cb = trow.createEl("input", { type: "checkbox" });
-			cb.checked = get();
-			cb.disabled = !enabled;
-			cb.addEventListener("change", () => {
-				set(cb.checked);
-				void this.save();
-				void this.rebuild();
-			});
-			trow.createSpan({ text: label });
-		};
-		toggle(
-			"Group by signature",
-			() => this.settings.matrixGroupBySignature,
-			(v) => (this.settings.matrixGroupBySignature = v),
-			matrixOrdered,
-		);
-		toggle(
-			"Collapse groups",
-			() => this.settings.matrixCollapseGroups,
-			(v) => (this.settings.matrixCollapseGroups = v),
-			matrixOrdered,
-		);
 	}
 
 	// Matrix "min column size" — a column (tag) filter, rendered inside the

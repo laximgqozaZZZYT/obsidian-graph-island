@@ -254,6 +254,57 @@ export const DEFAULT_SETTINGS: MiniSettings = {
 
 export const NONE_BUCKET = "(none)";
 
+// Matrix row-ordering presets. A single dropdown choice that fully encodes the
+// (block-priority, group-by-signature, collapse) flags — so the matrix ORDER_BY
+// needs no separate checkboxes. `matrixSort` is always "cooccurrence" for all
+// four (the seriation drives every matrix view).
+export type MatrixOrder =
+	| "co-occurrence"
+	| "co-occurrence-grouped"
+	| "block-priority"
+	| "block-priority-collapsed";
+
+export interface MatrixOrderFlags {
+	matrixSort: "cooccurrence";
+	matrixBlockPriority: boolean;
+	matrixGroupBySignature: boolean;
+	matrixCollapseGroups: boolean;
+}
+
+export function matrixOrderFlags(order: MatrixOrder): MatrixOrderFlags {
+	switch (order) {
+		case "co-occurrence":
+			return { matrixSort: "cooccurrence", matrixBlockPriority: false, matrixGroupBySignature: false, matrixCollapseGroups: false };
+		case "co-occurrence-grouped":
+			return { matrixSort: "cooccurrence", matrixBlockPriority: false, matrixGroupBySignature: true, matrixCollapseGroups: false };
+		case "block-priority":
+			return { matrixSort: "cooccurrence", matrixBlockPriority: true, matrixGroupBySignature: true, matrixCollapseGroups: false };
+		case "block-priority-collapsed":
+			return { matrixSort: "cooccurrence", matrixBlockPriority: true, matrixGroupBySignature: true, matrixCollapseGroups: true };
+	}
+}
+
+// Reverse map: derive the dropdown preset from the stored flags. Collapse
+// always implies the "block-priority collapsed" preset (the ×N count-desc
+// view) so an old collapse-on state migrates to the closest valid option.
+export function matrixOrderFromFlags(s: {
+	matrixBlockPriority: boolean;
+	matrixGroupBySignature: boolean;
+	matrixCollapseGroups: boolean;
+}): MatrixOrder {
+	if (s.matrixCollapseGroups) return "block-priority-collapsed";
+	if (s.matrixBlockPriority) return "block-priority";
+	if (s.matrixGroupBySignature) return "co-occurrence-grouped";
+	return "co-occurrence";
+}
+
+export const MATRIX_ORDER_LABELS: Array<{ value: MatrixOrder; label: string }> = [
+	{ value: "co-occurrence", label: "Co-occurrence" },
+	{ value: "co-occurrence-grouped", label: "Co-occurrence grouped" },
+	{ value: "block-priority", label: "Block-priority" },
+	{ value: "block-priority-collapsed", label: "Block-priority collapsed" },
+];
+
 // Id prefix for bipartite SET nodes (one per tag). NUL bytes guarantee it can
 // never collide with a real vault file path; the authoritative kind check is
 // `LaidOut.setNodeIds.has(id)`, not parsing this prefix.

@@ -1,5 +1,10 @@
 import { Plugin, PluginSettingTab, Setting, WorkspaceLeaf } from "obsidian";
-import { DEFAULT_SETTINGS, MiniSettings } from "./types";
+import {
+	DEFAULT_SETTINGS,
+	MiniSettings,
+	matrixOrderFlags,
+	matrixOrderFromFlags,
+} from "./types";
 import { MiniGraphView, VIEW_TYPE_MINI } from "./view";
 
 export default class GraphIslandMiniPlugin extends Plugin {
@@ -119,6 +124,19 @@ export default class GraphIslandMiniPlugin extends Plugin {
 			merged.matrixCollapseGroups = false;
 		if (typeof merged.matrixBlockPriority !== "boolean")
 			merged.matrixBlockPriority = true;
+		// Migrate the old independent matrix order/group/collapse booleans to one
+		// of the four canonical Order presets (the checkbox UI is gone — the
+		// preset now encodes them). Derive the closest preset, then re-apply its
+		// canonical flag combo so the stored state always matches a dropdown
+		// choice. matrixSort="original" (briefly exposed) folds into cooccurrence.
+		{
+			const order = matrixOrderFromFlags({
+				matrixBlockPriority: merged.matrixBlockPriority as boolean,
+				matrixGroupBySignature: merged.matrixGroupBySignature as boolean,
+				matrixCollapseGroups: merged.matrixCollapseGroups as boolean,
+			});
+			Object.assign(merged, matrixOrderFlags(order));
+		}
 		if (
 			typeof merged.bipartiteMaxTags !== "number" ||
 			!Number.isFinite(merged.bipartiteMaxTags) ||
