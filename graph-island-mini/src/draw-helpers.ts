@@ -320,31 +320,72 @@ export function drawOverviewLabels(
 				!c.ghostSingle && c.memberCount >= 2 && c.width > 0 && c.height > 0,
 		)
 		.sort((a, b) => b.width * b.height - a.width * a.height);
+	// Greedy, largest-first. Each label tries: centred full size, then
+	// progressively smaller, then nudged up / down — taking the first spot
+	// that doesn't collide with an already-placed label. Labels that can't
+	// find a clear spot are skipped (a bigger name already covers that area).
+	const cand: Array<[number, number]> = [
+		[0.5, 1.0],
+		[0.5, 0.72],
+		[0.5, 0.52],
+		[0.3, 0.52],
+		[0.7, 0.52],
+		[0.5, 0.38],
+		[0.3, 0.38],
+		[0.7, 0.38],
+	];
+	const placed: Array<{ x1: number; y1: number; x2: number; y2: number }> = [];
 	for (const c of cl) {
 		const text = c.label;
 		if (!text) continue;
 		const cx = c.x + c.width / 2;
-		const cy = c.y + c.height / 2;
-		const maxW = c.width * 0.88;
-		const maxH = c.height * 0.6;
 		ctx.font = "800 100px sans-serif";
 		const m = ctx.measureText(text);
 		const w100 = m.width || 1;
 		const h100 =
 			(m.actualBoundingBoxAscent || 74) + (m.actualBoundingBoxDescent || 20);
-		const fontPx = Math.min((maxW * 100) / w100, (maxH * 100) / h100);
-		if (!(fontPx > 0)) continue;
-		ctx.font = `800 ${fontPx}px sans-serif`;
+		const baseFont = Math.min(
+			(c.width * 0.88 * 100) / w100,
+			(c.height * 0.6 * 100) / h100,
+		);
+		if (!(baseFont > 0)) continue;
+		let chosen: { font: number; cy: number } | null = null;
+		for (const [af, sc] of cand) {
+			const font = baseFont * sc;
+			const tw = (w100 / 100) * font;
+			const th = font;
+			const cy = c.y + c.height * af;
+			const pad = font * 0.12;
+			const box = {
+				x1: cx - tw / 2 - pad,
+				y1: cy - th / 2 - pad,
+				x2: cx + tw / 2 + pad,
+				y2: cy + th / 2 + pad,
+			};
+			let hit = false;
+			for (const p of placed) {
+				if (box.x1 < p.x2 && box.x2 > p.x1 && box.y1 < p.y2 && box.y2 > p.y1) {
+					hit = true;
+					break;
+				}
+			}
+			if (!hit) {
+				chosen = { font, cy };
+				placed.push(box);
+				break;
+			}
+		}
+		if (!chosen) continue; // no clear spot — skip to avoid overlap
+		ctx.font = `800 ${chosen.font}px sans-serif`;
 		ctx.textAlign = "center";
 		ctx.textBaseline = "middle";
 		const hue = clusterHue(c.groupKey);
-		// Dark rounded halo so the name reads over whatever is behind it.
 		ctx.lineJoin = "round";
-		ctx.lineWidth = Math.max(fontPx * 0.08, 2 / zoom);
+		ctx.lineWidth = Math.max(chosen.font * 0.08, 2 / zoom);
 		ctx.strokeStyle = "rgba(8, 10, 14, 0.9)";
-		ctx.strokeText(text, cx, cy);
+		ctx.strokeText(text, cx, chosen.cy);
 		ctx.fillStyle = `hsla(${hue}, 75%, 82%, 0.96)`;
-		ctx.fillText(text, cx, cy);
+		ctx.fillText(text, cx, chosen.cy);
 	}
 	ctx.textAlign = "start";
 	ctx.textBaseline = "alphabetic";
