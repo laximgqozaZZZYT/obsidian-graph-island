@@ -88,6 +88,7 @@ export function layoutBipartite(data: GraphData, opts: LayoutOptions): LaidOut {
 			slotH,
 			channelW,
 			channelH,
+			arcRIn: c.rIn, // concentric → bow edges away from centre
 		});
 	}
 
@@ -222,6 +223,9 @@ interface EmitCtx {
 	slotH: number;
 	channelW: number;
 	channelH: number;
+	// When set (concentric), edges are drawn as bezier arcs bowing away from the
+	// ring centre (radius = arcRIn); omitted (force) → straight 2-point paths.
+	arcRIn?: number;
 }
 
 // Shared emit for both layouts: same node set (sets first, then notes) and the
@@ -267,14 +271,18 @@ function emitBipartite(
 		for (const m of n.memberships) {
 			if (!ctx.tagSet.has(m)) continue; // visible-tag pruning
 			const sp = setPos.get(m)!;
+			const path =
+				ctx.arcRIn !== undefined
+					? arcPath(pos[i], sp, ctx.arcRIn)
+					: [
+							{ x: pos[i].x, y: pos[i].y },
+							{ x: sp.x, y: sp.y },
+						];
 			edges.push({
 				source: n.id,
 				target: SET_PREFIX + m,
 				weight: 1,
-				path: [
-					{ x: pos[i].x, y: pos[i].y },
-					{ x: sp.x, y: sp.y },
-				],
+				path,
 				bundled: false,
 				bundleCount: 1,
 			});
@@ -302,7 +310,7 @@ function placeConcentric(
 	data: GraphData,
 	tags: string[],
 	dims: { setW: number; noteW: number; noteH: number; gap: number },
-): { tagOrder: string[]; setPos: Map<string, XY>; notePos: XY[] } {
+): { tagOrder: string[]; setPos: Map<string, XY>; notePos: XY[]; rIn: number } {
 	const nTags = tags.length;
 	const nNotes = data.nodes.length;
 	const tagIdx = new Map<string, number>();
@@ -350,7 +358,40 @@ function placeConcentric(
 		const r = rOuterBase + (p % ringLevels) * ringGap;
 		notePos[orig] = { x: r * Math.cos(a), y: r * Math.sin(a) };
 	});
-	return { tagOrder, setPos, notePos };
+	return { tagOrder, setPos, notePos, rIn };
+}
+
+// Quadratic-bezier arc that bows AWAY from the ring centre (origin), sampled to
+// a polyline so the existing polyline edge renderer draws it as a curve. The
+// control point sits on the angular bisector of the two endpoints, pushed
+// outward by an offset that scales with their angular gap — so a wide
+// cross-centre chord bows hard (clearing the middle) while a near-radial arm
+// stays (almost) straight. Used only by the concentric bipartite layout.
+function arcPath(a: XY, b: XY, rIn: number): XY[] {
+	const aA = Math.atan2(a.y, a.x);
+	const aB = Math.atan2(b.y, b.x);
+	let diff = aB - aA;
+	while (diff > Math.PI) diff -= Math.PI * 2;
+	while (diff < -Math.PI) diff += Math.PI * 2;
+	const span = Math.abs(diff); // 0..π
+	if (span < 0.15) return [a, b]; // near-radial arm → straight
+	const aMid = aA + diff / 2;
+	const mx = (a.x + b.x) / 2;
+	const my = (a.y + b.y) / 2;
+	const offset = 0.8 * (span / Math.PI) * rIn;
+	const cx = mx + Math.cos(aMid) * offset;
+	const cy = my + Math.sin(aMid) * offset;
+	const n = Math.min(14, Math.max(6, Math.round((span / Math.PI) * 14)));
+	const pts: XY[] = [];
+	for (let k = 0; k <= n; k++) {
+		const t = k / n;
+		const u = 1 - t;
+		pts.push({
+			x: u * u * a.x + 2 * u * t * cx + t * t * b.x,
+			y: u * u * a.y + 2 * u * t * cy + t * t * b.y,
+		});
+	}
+	return pts;
 }
 
 // Hub mitigation: drop singletons + giant ubiquitous tags so mid-degree tags
