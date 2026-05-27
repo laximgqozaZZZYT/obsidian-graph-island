@@ -54,6 +54,18 @@ export function layoutMatrix(data: GraphData, opts: LayoutOptions): LaidOut {
 		const res = barycenter(rowCells, colCells, nRows, nCols);
 		rowOrder = res.rowOrder;
 		colOrder = res.colOrder;
+		// Ubiquitous tags (on > 25% of notes) appear in almost every row, so
+		// their column is a solid vertical band that masks the diagonal. Park
+		// them at the RIGHT edge (size desc) so the specific tags keep their
+		// barycenter order and form a clean diagonal in the main area.
+		const ubiqThresh = nRows * 0.25;
+		const specific = colOrder.filter(
+			(c) => (colCount.get(colKeys[c]) ?? 0) < ubiqThresh,
+		);
+		const ubiq = colOrder
+			.filter((c) => (colCount.get(colKeys[c]) ?? 0) >= ubiqThresh)
+			.sort((a, b) => (colCount.get(colKeys[b])! - colCount.get(colKeys[a])!));
+		colOrder = [...specific, ...ubiq];
 	}
 
 	// New column position for each original column index.
