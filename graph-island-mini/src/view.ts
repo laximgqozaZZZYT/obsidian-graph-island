@@ -109,6 +109,11 @@ export class MiniGraphView extends ItemView {
 	private dragging = false;
 	private lastX = 0;
 	private lastY = 0;
+	// Pointer-down position + "moved beyond a click" flag, so a drag (pan /
+	// scroll) doesn't fire a click that opens a file.
+	private downX = 0;
+	private downY = 0;
+	private pointerMoved = false;
 	private rafId = 0;
 	private resizeObs?: ResizeObserver;
 	private hoverTimer = 0;
@@ -1972,6 +1977,9 @@ export class MiniGraphView extends ItemView {
 			this.dragging = true;
 			this.lastX = e.clientX;
 			this.lastY = e.clientY;
+			this.downX = e.clientX;
+			this.downY = e.clientY;
+			this.pointerMoved = false;
 			c.style.cursor = "grabbing";
 			this.cancelHover();
 		});
@@ -1981,6 +1989,10 @@ export class MiniGraphView extends ItemView {
 				return;
 			}
 			if (!this.dragging) return;
+			if (
+				Math.abs(e.clientX - this.downX) + Math.abs(e.clientY - this.downY) > 4
+			)
+				this.pointerMoved = true;
 			this.panX += e.clientX - this.lastX;
 			this.panY += e.clientY - this.lastY;
 			this.lastX = e.clientX;
@@ -2006,6 +2018,9 @@ export class MiniGraphView extends ItemView {
 		});
 		c.addEventListener("click", (e) => {
 			if (e.shiftKey || this.marquee.isActive()) return;
+			// A drag (pan / scroll) ended here — don't treat it as a click,
+			// so scrolling the matrix never jumps to a file.
+			if (this.pointerMoved) return;
 			const rect = c.getBoundingClientRect();
 			const sx = e.clientX - rect.left;
 			const sy = e.clientY - rect.top;
