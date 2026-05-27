@@ -30,6 +30,10 @@ export function drawBaseEdges(
 	ctx.lineWidth = 0.7 / zoom;
 	laid.edges.forEach((e, i) => {
 		if (hasHighlight && highlightedEdgeIdx.has(i)) return;
+		// Secondary (non-main) edges — e.g. bipartite "clustered" sub-memberships
+		// — are hidden in the base layer; they only light up on hover (accent).
+		// No-op for modes that never set the flag.
+		if (e.secondary) return;
 		if (skipNode(e.source) || skipNode(e.target)) return;
 		const path = e.path;
 		if (!path || path.length < 2) return;

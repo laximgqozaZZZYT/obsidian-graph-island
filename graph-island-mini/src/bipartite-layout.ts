@@ -92,6 +92,32 @@ export function layoutBipartite(data: GraphData, opts: LayoutOptions): LaidOut {
 		});
 	}
 
+	// --- CLUSTERED layout (opt-in): each note gets ONE main tag (strongest
+	// co-occurrence within its tag set); notes ring around their main tag's
+	// island; islands are force-placed by inter-tag Jaccard + de-overlapped.
+	// Only the main edge is primary (drawn); sub-memberships are secondary
+	// (hover-only). Topology (edge set) unchanged.
+	if (opts.bipartiteLayout === "clustered") {
+		const c = placeClustered(data, tags, tagSet, tagCount, { setW, noteW, noteH, gap });
+		ringOrder = c.tagOrder;
+		for (const [t, p] of c.setPos) setPos.set(t, p);
+		pos = c.notePos;
+		return emitBipartite(data, ringOrder, setPos, pos, {
+			labels,
+			tagCount,
+			tagSet,
+			setW,
+			setH,
+			noteW,
+			noteH,
+			slotW,
+			slotH,
+			channelW,
+			channelH,
+			mainTagByNote: c.mainTagByNote,
+		});
+	}
+
 	// --- FORCE layout (default) ---------------------------------------------
 	// SET node ring positions (fixed anchors).
 	const R = (ringN * (setW + gap * 2)) / (2 * Math.PI);
@@ -226,6 +252,10 @@ interface EmitCtx {
 	// When set (concentric), edges are drawn as bezier arcs bowing away from the
 	// ring centre (radius = arcRIn); omitted (force) → straight 2-point paths.
 	arcRIn?: number;
+	// When set (clustered), per-note main tag key. The note→main-tag edge is the
+	// primary (base) edge; every other membership edge is marked `secondary`
+	// (hidden until hover). Absent → all edges primary (force / concentric).
+	mainTagByNote?: (string | null)[];
 }
 
 // Shared emit for both layouts: same node set (sets first, then notes) and the
@@ -278,6 +308,9 @@ function emitBipartite(
 							{ x: pos[i].x, y: pos[i].y },
 							{ x: sp.x, y: sp.y },
 						];
+			// Clustered: only the main-tag edge is primary; the rest are secondary
+			// (hidden until hover). Other layouts: every edge is primary.
+			const secondary = ctx.mainTagByNote ? m !== ctx.mainTagByNote[i] : false;
 			edges.push({
 				source: n.id,
 				target: SET_PREFIX + m,
@@ -285,6 +318,7 @@ function emitBipartite(
 				path,
 				bundled: false,
 				bundleCount: 1,
+				secondary,
 			});
 		}
 	});
@@ -392,6 +426,205 @@ function arcPath(a: XY, b: XY, rIn: number): XY[] {
 		});
 	}
 	return pts;
+}
+
+// Clustered placement. Each note is assigned ONE main tag = the tag in its
+// visible-tag set with the highest summed Jaccard to the note's OTHER tags
+// (the "most central" tag; Jaccard, not raw count, keeps giant tags from
+// auto-winning; ties → smaller tag). Notes ring around their main tag's island
+// centre; islands are seeded on a ring, force-placed by inter-tag Jaccard
+// (co-occurring islands attract), then de-overlapped with relaxSubgroups.
+function placeClustered(
+	data: GraphData,
+	tags: string[],
+	tagSet: Set<string>,
+	tagCount: Map<string, number>,
+	dims: { setW: number; noteW: number; noteH: number; gap: number },
+): {
+	tagOrder: string[];
+	setPos: Map<string, XY>;
+	notePos: XY[];
+	mainTagByNote: (string | null)[];
+} {
+	const TWO_PI = Math.PI * 2;
+	const nTags = tags.length;
+	const tagIdx = new Map<string, number>();
+	tags.forEach((t, i) => tagIdx.set(t, i));
+	const tagSize = tags.map((t) => tagCount.get(t) ?? 0);
+
+	// Visible-tag note-id sets, for pairwise Jaccard.
+	const tagNotes: Array<Set<string>> = tags.map(() => new Set());
+	for (const n of data.nodes)
+		for (const m of n.memberships) {
+			const ti = tagIdx.get(m);
+			if (ti !== undefined) tagNotes[ti].add(n.id);
+		}
+	const J: number[][] = tags.map(() => new Array(nTags).fill(0));
+	for (let i = 0; i < nTags; i++)
+		for (let j = i + 1; j < nTags; j++) {
+			const a = tagNotes[i];
+			const b = tagNotes[j];
+			const [s, l] = a.size < b.size ? [a, b] : [b, a];
+			let inter = 0;
+			for (const x of s) if (l.has(x)) inter++;
+			const uni = a.size + b.size - inter;
+			const v = uni ? inter / uni : 0;
+			J[i][j] = v;
+			J[j][i] = v;
+		}
+
+	// Main tag per note (null = no visible tag → "other" island).
+	const mainTagByNote: (string | null)[] = data.nodes.map((n) => {
+		const vis: number[] = [];
+		for (const m of n.memberships) {
+			const ti = tagIdx.get(m);
+			if (ti !== undefined) vis.push(ti);
+		}
+		if (!vis.length) return null;
+		let best = vis[0];
+		let bestScore = -1;
+		for (const t of vis) {
+			let sc = 0;
+			for (const u of vis) if (u !== t) sc += J[t][u];
+			if (sc > bestScore + 1e-9 || (Math.abs(sc - bestScore) < 1e-9 && tagSize[t] < tagSize[best])) {
+				bestScore = sc;
+				best = t;
+			}
+		}
+		return tags[best];
+	});
+
+	// Island members (note indices) per tag + the "other" bucket.
+	const members: number[][] = tags.map(() => []);
+	const other: number[] = [];
+	data.nodes.forEach((_, i) => {
+		const mt = mainTagByNote[i];
+		if (mt === null) other.push(i);
+		else members[tagIdx.get(mt)!].push(i);
+	});
+
+	// Per-island ring OFFSETS (relative to centre) + island radius.
+	const noteStep = dims.noteW + dims.gap;
+	const ringStep = dims.noteH + dims.gap;
+	const offset: XY[] = new Array(data.nodes.length);
+	const islandR = new Array(nTags).fill(dims.setW);
+	const ringNotes = (mem: number[], tiRadius: (r: number) => void): void => {
+		let placed = 0;
+		let ring = 1;
+		let rad = dims.setW;
+		while (placed < mem.length) {
+			rad = dims.setW + ring * ringStep;
+			const cap = Math.max(4, Math.floor((TWO_PI * rad) / noteStep));
+			const cnt = Math.min(cap, mem.length - placed);
+			for (let k = 0; k < cnt; k++) {
+				const a = (k / cnt) * TWO_PI;
+				offset[mem[placed + k]] = { x: rad * Math.cos(a), y: rad * Math.sin(a) };
+			}
+			placed += cnt;
+			ring++;
+		}
+		tiRadius(rad + dims.noteW);
+	};
+	for (let ti = 0; ti < nTags; ti++) ringNotes(members[ti], (r) => (islandR[ti] = r));
+
+	// Island centres: seed on a ring, force by Jaccard (attract co-occurring,
+	// repel overlaps), then relaxSubgroups for guaranteed non-overlap.
+	const seedR = Math.max(nTags, 8) * dims.setW * 1.2;
+	const centers: XY[] = tags.map((_, i) => {
+		const a = (i / Math.max(1, nTags)) * TWO_PI;
+		return { x: seedR * Math.cos(a), y: seedR * Math.sin(a) };
+	});
+	islandForce(centers, J, islandR, dims.gap);
+	const subs: SubPos[] = centers.map((c, i) => ({
+		cx: c.x,
+		cy: c.y,
+		halfW: islandR[i] + dims.setW,
+		halfH: islandR[i] + dims.setW,
+		memberships: [tags[i]],
+		pin: 1,
+	}));
+	if (subs.length > 1) relaxSubgroups(subs, dims.gap * 2, 160);
+	const setPos = new Map<string, XY>();
+	tags.forEach((t, i) => setPos.set(t, { x: subs[i].cx, y: subs[i].cy }));
+
+	// Note positions = island centre + ring offset.
+	const notePos: XY[] = new Array(data.nodes.length);
+	data.nodes.forEach((_, i) => {
+		const mt = mainTagByNote[i];
+		if (mt !== null) {
+			const c = setPos.get(mt)!;
+			const o = offset[i];
+			notePos[i] = { x: c.x + o.x, y: c.y + o.y };
+		}
+	});
+
+	// "Other" island (notes with no visible tag): a separate ring cluster placed
+	// to the right of the islands' bounding box, no centre tag, no edges.
+	if (other.length) {
+		let maxX = -Infinity;
+		let cy = 0;
+		for (const sub of subs) {
+			maxX = Math.max(maxX, sub.cx + sub.halfW);
+			cy += sub.cy;
+		}
+		if (!isFinite(maxX)) maxX = 0;
+		cy = subs.length ? cy / subs.length : 0;
+		const oc = { x: maxX + seedR * 0.5, y: cy };
+		ringNotes(other, () => {});
+		for (const i of other) {
+			const o = offset[i];
+			notePos[i] = { x: oc.x + o.x, y: oc.y + o.y };
+		}
+	}
+
+	return { tagOrder: tags.slice(), setPos, notePos, mainTagByNote };
+}
+
+// Lightweight island force: co-occurring islands (Jaccard > 0) attract, and any
+// pair closer than their combined radii repels. Bounded iterations; small N
+// (≤ Max tags) so the O(N²) pass is cheap.
+function islandForce(
+	centers: XY[],
+	J: number[][],
+	islandR: number[],
+	gap: number,
+): void {
+	const N = centers.length;
+	if (N < 2) return;
+	const MAX_ITER = 80;
+	for (let it = 0; it < MAX_ITER; it++) {
+		for (let i = 0; i < N; i++) {
+			let fx = 0;
+			let fy = 0;
+			for (let j = 0; j < N; j++) {
+				if (i === j) continue;
+				let dx = centers[j].x - centers[i].x;
+				let dy = centers[j].y - centers[i].y;
+				let d = Math.hypot(dx, dy);
+				if (d < 1e-6) {
+					dx = (i - j) % 2 ? 1 : -1;
+					dy = 1;
+					d = Math.hypot(dx, dy);
+				}
+				const ux = dx / d;
+				const uy = dy / d;
+				const minSep = islandR[i] + islandR[j] + gap * 2;
+				if (d < minSep) {
+					const f = (minSep - d) * 0.5;
+					fx -= ux * f;
+					fy -= uy * f;
+				}
+				const at = J[i][j];
+				if (at > 0) {
+					const f = at * d * 0.02;
+					fx += ux * f;
+					fy += uy * f;
+				}
+			}
+			centers[i].x += fx * 0.1;
+			centers[i].y += fy * 0.1;
+		}
+	}
 }
 
 // Hub mitigation: drop singletons + giant ubiquitous tags so mid-degree tags

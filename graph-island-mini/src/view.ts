@@ -1018,12 +1018,16 @@ export class MiniGraphView extends ItemView {
 		for (const [val, label] of [
 			["force", "Force"],
 			["concentric", "Concentric"],
+			["clustered", "Clustered"],
 		] as const) {
 			const o = laySel.createEl("option", { value: val, text: label });
 			if (val === this.settings.bipartiteLayout) o.selected = true;
 		}
 		laySel.addEventListener("change", () => {
-			this.settings.bipartiteLayout = laySel.value as "force" | "concentric";
+			this.settings.bipartiteLayout = laySel.value as
+				| "force"
+				| "concentric"
+				| "clustered";
 			void this.save();
 			void this.rebuild();
 		});

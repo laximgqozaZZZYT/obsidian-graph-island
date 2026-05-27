@@ -144,7 +144,7 @@ export interface MiniSettings {
 	// Bipartite node placement: "force" (spring embedder, default) or
 	// "concentric" (tags inner ring, notes outer ring(s), Jaccard-seriated).
 	// Topology is identical — only positions change.
-	bipartiteLayout: "force" | "concentric";
+	bipartiteLayout: "force" | "concentric" | "clustered";
 	// Minimum font size (screen pixels) below which NO text element
 	// will render. Applies to card titles/bodies, cluster labels,
 	// matrix labels, grid headers, etc. World-space fonts that would
