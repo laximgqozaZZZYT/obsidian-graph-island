@@ -115,7 +115,7 @@ export interface MiniSettings {
 	minFontPx: number;
 }
 
-export type ViewMode = "euler" | "euler-true" | "upset";
+export type ViewMode = "euler" | "euler-true" | "euler-venn" | "upset";
 
 export interface ViewModeOption {
 	id: ViewMode;
@@ -139,6 +139,16 @@ export const VIEW_MODES: ViewModeOption[] = [
 		id: "euler-true",
 		label: "Containment map",
 		description: "Subset → nested rectangles; partial overlaps as exclaves (each node once)",
+	},
+	{
+		// Simplified Euler: same grid/box drawing as the nested-set mode, but
+		// each node placed ONCE and each tag drawn as ONE overlapping rectangle
+		// (= bbox of its members). Containment → nested bbox, partial overlap →
+		// overlapping bbox, disjoint → separate bbox. The bbox approximation is
+		// the deliberate simplification of Euler's hard drawing cases.
+		id: "euler-venn",
+		label: "Euler diagram",
+		description: "Overlapping tag rectangles (each node once; bbox-simplified)",
 	},
 	{
 		id: "upset",
