@@ -30,6 +30,11 @@ interface XY {
 	y: number;
 }
 
+// Clustered islands: radial gap between concentric rings as a multiple of the
+// intra-ring node spacing. ≈3 opens a clear gap between rings so nodes read as
+// separated points and the ring structure is visible. Tunable.
+const RING_SPACING_FACTOR = 3.0;
+
 export function layoutBipartite(data: GraphData, opts: LayoutOptions): LaidOut {
 	const labels = opts.clusterLabels ?? new Map<string, string>();
 	const { channelW, channelH } = computeChannelDims(
@@ -514,24 +519,35 @@ function placeClustered(
 		else members[tagIdx.get(mt)!].push(i);
 	});
 
-	// Per-island PHYLLOTAXIS disc packing (sunflower / golden-angle): note k at
-	// radius ∝ √k, angle = k·goldenAngle. Fills a ROUND disc uniformly with no
-	// radial spokes (the old concentric rings looked spiky), and √count
-	// naturally compresses big-vs-small island size differences. Offsets are
-	// relative to the island centre; returns the island radius.
+	// Per-island CONCENTRIC RING packing. Intra-ring node centre spacing is `s`;
+	// the RADIAL step between rings is RING_SPACING_FACTOR × s (default 3) so a
+	// clear gap opens between rings — nodes read as separated points and the
+	// concentric-ring structure is visible (instead of one solid filled disc).
+	// Each ring is angularly staggered by the golden angle so nodes never line
+	// up radially into spokes. Offsets are relative to the island centre.
 	const GOLDEN = Math.PI * (3 - Math.sqrt(5));
-	const packStep = Math.max(dims.noteW * 0.62, dims.gap * 0.5);
+	const s = dims.noteW + dims.gap; // intra-ring centre-to-centre spacing
+	const radialStep = RING_SPACING_FACTOR * s;
+	const r0 = dims.setW * 0.5 + s; // first ring just outside the centre tag node
 	const offset: XY[] = new Array(data.nodes.length);
 	const islandR = new Array(nTags).fill(dims.setW);
 	const packIsland = (mem: number[]): number => {
-		mem.forEach((noteIdx, k) => {
-			const rr = dims.setW * 0.5 + packStep * Math.sqrt(k + 0.5);
-			const a = k * GOLDEN;
-			offset[noteIdx] = { x: rr * Math.cos(a), y: rr * Math.sin(a) };
-		});
-		return mem.length
-			? dims.setW * 0.5 + packStep * Math.sqrt(mem.length) + dims.noteW
-			: dims.setW;
+		let placed = 0;
+		let ring = 0;
+		let rad = r0;
+		while (placed < mem.length) {
+			rad = r0 + ring * radialStep;
+			const cap = Math.max(1, Math.floor((TWO_PI * rad) / s));
+			const cnt = Math.min(cap, mem.length - placed);
+			const stagger = ring * GOLDEN;
+			for (let k = 0; k < cnt; k++) {
+				const a = (k / cnt) * TWO_PI + stagger;
+				offset[mem[placed + k]] = { x: rad * Math.cos(a), y: rad * Math.sin(a) };
+			}
+			placed += cnt;
+			ring++;
+		}
+		return mem.length ? rad + dims.noteW : dims.setW;
 	};
 	for (let ti = 0; ti < nTags; ti++) islandR[ti] = packIsland(members[ti]);
 
