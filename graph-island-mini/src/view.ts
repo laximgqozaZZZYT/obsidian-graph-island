@@ -829,14 +829,42 @@ export class MiniGraphView extends ItemView {
 		);
 	}
 
-	updateSettings(s: MiniSettings): void {
-		const sizingChanged =
-			s.cardMaxChars !== this.settings.cardMaxChars ||
-			s.showBody !== this.settings.showBody;
-		this.settings = s;
-		if (sizingChanged) this.cardCache.clear();
-		void this.rebuild();
+	// Settings that only affect WHAT is painted, not the placement. Toggling
+	// these must NOT relayout — the positions stay identical to the all-on
+	// layout; we just repaint.
+	private static readonly DISPLAY_ONLY_KEYS = new Set([
+		"showNodes",
+		"showEnclosures",
+		"showEdges",
+		"showGrid",
+		"showBody",
+	]);
+
+	private layoutSignature(s: MiniSettings): string {
+		const out: Record<string, unknown> = {};
+		const rec = s as unknown as Record<string, unknown>;
+		for (const k of Object.keys(rec).sort()) {
+			if (MiniGraphView.DISPLAY_ONLY_KEYS.has(k)) continue;
+			out[k] = rec[k];
+		}
+		return JSON.stringify(out);
 	}
+
+	updateSettings(s: MiniSettings): void {
+		this.settings = s;
+		const sig = this.layoutSignature(s);
+		if (sig !== this.lastLayoutSig) {
+			// A layout-affecting setting changed → recompute placement.
+			this.lastLayoutSig = sig;
+			this.cardCache.clear();
+			void this.rebuild();
+		} else {
+			// Display-only toggle → keep the existing layout, just repaint.
+			this.requestDraw();
+		}
+	}
+
+	private lastLayoutSig = "";
 
 	private async rebuild(): Promise<void> {
 		const gen = ++this.rebuildGen;
@@ -955,6 +983,9 @@ export class MiniGraphView extends ItemView {
 		);
 		this.highlightedNodes.clear();
 		this.highlightedEdgeIdx.clear();
+		// Baseline the layout signature so subsequent display-only toggles
+		// (which leave this unchanged) repaint without relaying out.
+		this.lastLayoutSig = this.layoutSignature(this.settings);
 		if (wasEmpty) this.fitToView();
 		this.requestDraw();
 		if (this.settings.panelVisible) this.renderPanel();
