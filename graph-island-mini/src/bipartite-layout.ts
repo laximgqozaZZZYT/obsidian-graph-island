@@ -103,15 +103,8 @@ export function layoutBipartite(data: GraphData, opts: LayoutOptions): LaidOut {
 	// Only the main edge is primary (drawn); sub-memberships are secondary
 	// (hover-only). Topology (edge set) unchanged.
 	if (opts.bipartiteLayout === "clustered") {
-		// Small square note nodes so each island packs into a dense, calm disc
-		// (they read as a coloured mass, not individual cards).
-		const cNote = Math.max(8, Math.round(cardH * 0.85));
-		const c = placeClustered(data, tags, tagSet, tagCount, {
-			setW,
-			noteW: cNote,
-			noteH: cNote,
-			gap,
-		});
+		// Cards are sized to their title text (variable width) by placeClustered.
+		const c = placeClustered(data, tags, tagSet, tagCount, { setW, gap, labels });
 		ringOrder = c.tagOrder;
 		for (const [t, p] of c.setPos) setPos.set(t, p);
 		pos = c.notePos;
@@ -121,13 +114,15 @@ export function layoutBipartite(data: GraphData, opts: LayoutOptions): LaidOut {
 			tagSet,
 			setW,
 			setH,
-			noteW: cNote,
-			noteH: cNote,
+			noteW,
+			noteH,
 			slotW,
 			slotH,
 			channelW,
 			channelH,
 			mainTagByNote: c.mainTagByNote,
+			noteDims: c.noteDims,
+			setDims: c.setDims,
 		});
 	}
 
@@ -269,6 +264,10 @@ interface EmitCtx {
 	// primary (base) edge; every other membership edge is marked `secondary`
 	// (hidden until hover). Absent → all edges primary (force / concentric).
 	mainTagByNote?: (string | null)[];
+	// Per-node card dimensions (clustered = sized to title text). When absent,
+	// the uniform noteW/noteH / setW/setH are used (force / concentric).
+	noteDims?: Array<{ w: number; h: number }>;
+	setDims?: Map<string, { w: number; h: number }>;
 }
 
 // Shared emit for both layouts: same node set (sets first, then notes) and the
@@ -287,25 +286,27 @@ function emitBipartite(
 		const p = setPos.get(t)!;
 		const id = SET_PREFIX + t;
 		setNodeIds.add(id);
+		const sd = ctx.setDims?.get(t);
 		nodes.push({
 			id,
 			label: `${ctx.labels.get(t) ?? t} (${ctx.tagCount.get(t)})`,
 			memberships: [t],
 			x: p.x,
 			y: p.y,
-			width: ctx.setW,
-			height: ctx.setH,
+			width: sd?.w ?? ctx.setW,
+			height: sd?.h ?? ctx.setH,
 		});
 	}
 	data.nodes.forEach((n, i) => {
+		const nd = ctx.noteDims?.[i];
 		nodes.push({
 			id: n.id,
 			label: n.label,
 			memberships: n.memberships,
 			x: pos[i].x,
 			y: pos[i].y,
-			width: ctx.noteW,
-			height: ctx.noteH,
+			width: nd?.w ?? ctx.noteW,
+			height: nd?.h ?? ctx.noteH,
 			// Clustered → tint the note by its island's main tag.
 			hueKey: ctx.mainTagByNote?.[i] ?? undefined,
 		});
@@ -455,12 +456,14 @@ function placeClustered(
 	tags: string[],
 	tagSet: Set<string>,
 	tagCount: Map<string, number>,
-	dims: { setW: number; noteW: number; noteH: number; gap: number },
+	dims: { setW: number; gap: number; labels: Map<string, string> },
 ): {
 	tagOrder: string[];
 	setPos: Map<string, XY>;
 	notePos: XY[];
 	mainTagByNote: (string | null)[];
+	noteDims: Array<{ w: number; h: number }>;
+	setDims: Map<string, { w: number; h: number }>;
 } {
 	const TWO_PI = Math.PI * 2;
 	const nTags = tags.length;
@@ -519,37 +522,73 @@ function placeClustered(
 		else members[tagIdx.get(mt)!].push(i);
 	});
 
-	// Per-island CONCENTRIC RING packing. Intra-ring node centre spacing is `s`;
-	// the RADIAL step between rings is RING_SPACING_FACTOR × s (default 3) so a
-	// clear gap opens between rings — nodes read as separated points and the
-	// concentric-ring structure is visible (instead of one solid filled disc).
-	// Each ring is angularly staggered by the golden angle so nodes never line
-	// up radially into spokes. Offsets are relative to the island centre.
+	// Per-card sizes from the title text (measured offscreen): card width = text
+	// width + padding (clamped), height = one line. So each card fits its name.
+	const REF_FONT = 15;
+	const CARD_H = 30;
+	const PAD = 9;
+	const MIN_W = 46;
+	const NOTE_MAX_W = 190;
+	const SET_MAX_W = 230;
+	const meas =
+		typeof document !== "undefined"
+			? document.createElement("canvas").getContext("2d")
+			: null;
+	const widthOf = (text: string, max: number): number => {
+		let tw = text.length * REF_FONT * 0.58; // fallback when no canvas
+		if (meas) {
+			meas.font = `600 ${REF_FONT}px sans-serif`;
+			tw = meas.measureText(text).width;
+		}
+		return Math.min(max, Math.max(MIN_W, Math.ceil(tw) + 2 * PAD));
+	};
+	const noteDims = data.nodes.map((n) => ({ w: widthOf(n.label, NOTE_MAX_W), h: CARD_H }));
+	const setDims = new Map<string, { w: number; h: number }>();
+	tags.forEach((t) => {
+		const lbl = `${dims.labels.get(t) ?? t} (${tagCount.get(t)})`;
+		setDims.set(t, { w: widthOf(lbl, SET_MAX_W), h: Math.round(CARD_H * 1.3) });
+	});
+
+	// Per-island CONCENTRIC RING packing of VARIABLE-WIDTH cards. Intra-ring:
+	// each card claims an arc of (cardW + gap)/radius, placed sequentially — so
+	// cards never overlap on a ring; when a ring fills, the rest spill to the
+	// next ring (more rings is fine). Radial step clears the ring's widest card
+	// + a gap so rings stay visually separated. Each ring is golden-angle
+	// staggered so cards don't line up into radial spokes.
 	const GOLDEN = Math.PI * (3 - Math.sqrt(5));
-	const s = dims.noteW + dims.gap; // intra-ring centre-to-centre spacing
-	const radialStep = RING_SPACING_FACTOR * s;
-	const r0 = dims.setW * 0.5 + s; // first ring just outside the centre tag node
 	const offset: XY[] = new Array(data.nodes.length);
 	const islandR = new Array(nTags).fill(dims.setW);
-	const packIsland = (mem: number[]): number => {
+	const packIsland = (mem: number[], centerHalfW: number): number => {
+		let maxMemW = 0;
+		for (const i of mem) maxMemW = Math.max(maxMemW, noteDims[i].w);
 		let placed = 0;
 		let ring = 0;
-		let rad = r0;
+		let rad = centerHalfW + maxMemW * 0.5 + dims.gap; // first ring clears centre
+		let lastRingMaxW = maxMemW;
 		while (placed < mem.length) {
-			rad = r0 + ring * radialStep;
-			const cap = Math.max(1, Math.floor((TWO_PI * rad) / s));
-			const cnt = Math.min(cap, mem.length - placed);
 			const stagger = ring * GOLDEN;
-			for (let k = 0; k < cnt; k++) {
-				const a = (k / cnt) * TWO_PI + stagger;
-				offset[mem[placed + k]] = { x: rad * Math.cos(a), y: rad * Math.sin(a) };
+			let used = 0; // accumulated angle on this ring
+			let ringMaxW = 0;
+			const start = placed;
+			while (placed < mem.length) {
+				const i = mem[placed];
+				const w = noteDims[i].w;
+				const aw = (w + dims.gap) / rad; // arc claimed by this card
+				if (used + aw > TWO_PI && placed > start) break; // ring full
+				const a = stagger + used + aw / 2;
+				offset[i] = { x: rad * Math.cos(a), y: rad * Math.sin(a) };
+				used += aw;
+				ringMaxW = Math.max(ringMaxW, w);
+				placed++;
 			}
-			placed += cnt;
+			lastRingMaxW = ringMaxW;
+			if (placed < mem.length) rad += ringMaxW * 0.65 + CARD_H + dims.gap;
 			ring++;
 		}
-		return mem.length ? rad + dims.noteW : dims.setW;
+		return mem.length ? rad + lastRingMaxW * 0.5 + dims.gap : dims.setW;
 	};
-	for (let ti = 0; ti < nTags; ti++) islandR[ti] = packIsland(members[ti]);
+	for (let ti = 0; ti < nTags; ti++)
+		islandR[ti] = packIsland(members[ti], setDims.get(tags[ti])!.w * 0.5);
 
 	// Island centres: seed on a ring, force by Jaccard (attract co-occurring,
 	// repel overlaps), then relaxSubgroups for guaranteed non-overlap.
@@ -594,14 +633,14 @@ function placeClustered(
 		if (!isFinite(maxX)) maxX = 0;
 		cy = subs.length ? cy / subs.length : 0;
 		const oc = { x: maxX + seedR * 0.5, y: cy };
-		packIsland(other);
+		packIsland(other, 0);
 		for (const i of other) {
 			const o = offset[i];
 			notePos[i] = { x: oc.x + o.x, y: oc.y + o.y };
 		}
 	}
 
-	return { tagOrder: tags.slice(), setPos, notePos, mainTagByNote };
+	return { tagOrder: tags.slice(), setPos, notePos, mainTagByNote, noteDims, setDims };
 }
 
 // Lightweight island force: co-occurring islands (Jaccard > 0) attract, and any
