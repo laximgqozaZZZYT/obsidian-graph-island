@@ -12,10 +12,7 @@ import {
 	NONE_BUCKET,
 	VIEW_MODES,
 	SET_PREFIX,
-	MATRIX_ORDER_LABELS,
-	matrixOrderFlags,
-	matrixOrderFromFlags,
-	type MatrixOrder,
+	MATRIX_ORDER_CRITERIA,
 } from "./types";
 import { CARD_MIN_W, CARD_MAX_W, CARD_CELL_W, CARD_CELL_H } from "./types";
 import { type LimitRule, applyLimitRules } from "./limit";
@@ -468,12 +465,15 @@ export class MiniGraphView extends ItemView {
 		// mode so Size by / m×n can't imply they affect the dots.
 		if (!isMatrix) this.renderNodeDisplaySection(el);
 		this.renderMinFontSection(el);
-		this.renderToggleSection(el, "Graph display", [
+		const gdSection = this.renderToggleSection(el, "Graph display", [
 			{ key: "showNodes", label: "Show nodes" },
 			{ key: "showEnclosures", label: "Show enclosures" },
 			{ key: "showEdges", label: "Show edges" },
 			{ key: "showGrid", label: "Show grid" },
 		]);
+		// Matrix grouping / collapsing are DISPLAY operations → live with the
+		// Show toggles, matrix-only.
+		if (isMatrix) this.renderMatrixDisplayToggles(gdSection);
 	}
 
 	private renderMinFontSection(parent: HTMLElement): void {
@@ -806,24 +806,38 @@ export class MiniGraphView extends ItemView {
 		});
 	}
 
-	// Matrix ORDER_BY: a SINGLE "Order" dropdown whose four presets encode the
-	// (block-priority, group, collapse) flags — no separate checkboxes. The
-	// stored flags are derived from / written by the selected preset.
+	// Matrix ORDER_BY: SAME structure as every other mode — a criterion select
+	// + an asc/desc direction select. The criterion options are matrix-specific
+	// (co-occurrence / block-priority) and map to matrixBlockPriority; the
+	// direction maps to matrixSortDir. No matrix-only checkboxes live here.
 	private renderMatrixOrderBySection(parent: HTMLElement): void {
 		const section = parent.createDiv({ cls: "gim-panel-section" });
-		section.createEl("h4", { text: "ORDER_BY" });
-		const current = matrixOrderFromFlags(this.settings);
+		const header = section.createDiv({ cls: "gim-panel-section-header" });
+		header.createEl("h4", { text: "ORDER_BY" });
 
 		const row = section.createDiv({ cls: "gim-order-row" });
-		row.createSpan({ text: "Order", cls: "gim-order-field" });
-		const sel = row.createEl("select") as HTMLSelectElement;
-		for (const { value, label } of MATRIX_ORDER_LABELS) {
-			const o = sel.createEl("option", { text: label });
-			o.value = value;
-			if (value === current) o.selected = true;
+		const fieldSel = row.createEl("select", { cls: "gim-order-field" });
+		const current = this.settings.matrixBlockPriority
+			? "block-priority"
+			: "co-occurrence";
+		for (const o of MATRIX_ORDER_CRITERIA) {
+			const opt = fieldSel.createEl("option", { value: o.value, text: o.text });
+			if (o.value === current) opt.selected = true;
 		}
-		sel.addEventListener("change", () => {
-			Object.assign(this.settings, matrixOrderFlags(sel.value as MatrixOrder));
+		fieldSel.addEventListener("change", () => {
+			this.settings.matrixSort = "cooccurrence";
+			this.settings.matrixBlockPriority = fieldSel.value === "block-priority";
+			void this.save();
+			void this.rebuild();
+		});
+
+		const dirSel = row.createEl("select", { cls: "gim-order-dir" });
+		for (const d of ["asc", "desc"] as const) {
+			const opt = dirSel.createEl("option", { value: d, text: d });
+			if (this.settings.matrixSortDir === d) opt.selected = true;
+		}
+		dirSel.addEventListener("change", () => {
+			this.settings.matrixSortDir = dirSel.value as "asc" | "desc";
 			void this.save();
 			void this.rebuild();
 		});
@@ -911,12 +925,49 @@ export class MiniGraphView extends ItemView {
 			key: "showNodes" | "showBody" | "showEnclosures" | "showEdges" | "showGrid";
 			label: string;
 		}[],
-	): void {
-		renderToggleSectionFn(
+	): HTMLElement {
+		return renderToggleSectionFn(
 			parent,
 			{ settings: this.settings, save: () => void this.save() },
 			heading,
 			toggles,
+		);
+	}
+
+	// Append the matrix-only display toggles (Group identical rows / Collapse
+	// groups) into the GRAPH DISPLAY section, alongside the Show toggles. They
+	// are display operations (no relayout): the projection rebuilds on the
+	// display-only repaint path. Collapse depends on Group.
+	private renderMatrixDisplayToggles(section: HTMLElement): void {
+		const add = (
+			label: string,
+			get: () => boolean,
+			set: (v: boolean) => void,
+			enabled: boolean,
+		): void => {
+			const row = section.createEl("label", { cls: "gim-toggle-row" });
+			if (!enabled) row.style.opacity = "0.45";
+			const cb = row.createEl("input", { type: "checkbox" });
+			cb.checked = get();
+			cb.disabled = !enabled;
+			cb.addEventListener("change", () => {
+				set(cb.checked);
+				void this.save();
+				this.renderPanel(); // refresh Collapse enabled state
+			});
+			row.createSpan({ text: label });
+		};
+		add(
+			"Group identical rows",
+			() => this.settings.matrixGroupBySignature,
+			(v) => (this.settings.matrixGroupBySignature = v),
+			true,
+		);
+		add(
+			"Collapse groups",
+			() => this.settings.matrixCollapseGroups,
+			(v) => (this.settings.matrixCollapseGroups = v),
+			this.settings.matrixGroupBySignature,
 		);
 	}
 
@@ -953,6 +1004,11 @@ export class MiniGraphView extends ItemView {
 		"showEdges",
 		"showGrid",
 		"showBody",
+		// Matrix grouping / collapsing only reshape the row-line PROJECTION
+		// (rebuildMatrixDisplay) + draw flags — the seriation / blocks are
+		// already computed, so these repaint without a relayout.
+		"matrixGroupBySignature",
+		"matrixCollapseGroups",
 	]);
 
 	private layoutSignature(s: MiniSettings): string {
@@ -974,7 +1030,10 @@ export class MiniGraphView extends ItemView {
 			this.cardCache.clear();
 			void this.rebuild();
 		} else {
-			// Display-only toggle → keep the existing layout, just repaint.
+			// Display-only toggle → keep the existing layout. Matrix group /
+			// collapse reshape the row-line projection, so refresh it before
+			// repainting (no-op when there's no matrix).
+			this.rebuildMatrixDisplay();
 			this.requestDraw();
 		}
 	}
@@ -1080,6 +1139,7 @@ export class MiniGraphView extends ItemView {
 			matrixSort: this.settings.matrixSort,
 			matrixMinColumnSize: this.settings.matrixMinColumnSize,
 			matrixBlockPriority: this.settings.matrixBlockPriority,
+			matrixSortDir: this.settings.matrixSortDir,
 			bipartiteMaxTags: this.settings.bipartiteMaxTags,
 			bipartitePrev,
 		});

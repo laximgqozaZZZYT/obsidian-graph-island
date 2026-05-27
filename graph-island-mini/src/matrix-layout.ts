@@ -69,12 +69,13 @@ export function layoutMatrix(data: GraphData, opts: LayoutOptions): LaidOut {
 
 		// Block-priority row ordering. The Jaccard pass already places
 		// same-signature rows adjacent; here we treat each signature as ONE
-		// block and order the blocks by size desc (Jaccard rank as tiebreak),
-		// keeping each block contiguous. Big blocks (×12 …) rise to the top
-		// instead of being scattered / pushed down by singleton rows — the
-		// "count overview" is restored without breaking co-occurrence (columns
-		// stay Jaccard-ordered) or the same-signature grouping.
-		if ((opts.matrixBlockPriority ?? true) && nRows > 1) {
+		// block and order the blocks by SIZE (direction = ORDER_BY asc/desc:
+		// desc = biggest blocks first, the default), keeping each block
+		// contiguous. Big blocks (×12 …) rise to the top instead of being
+		// scattered by singleton rows — the "count overview" — without breaking
+		// co-occurrence (columns stay Jaccard-ordered) or the grouping.
+		const dir = opts.matrixSortDir ?? "desc";
+		if ((opts.matrixBlockPriority ?? false) && nRows > 1) {
 			const sigKey = (orig: number): string =>
 				rowCells[orig]
 					.slice()
@@ -92,8 +93,12 @@ export function layoutMatrix(data: GraphData, opts: LayoutOptions): LaidOut {
 				}
 				groups[gi].rows.push(orig);
 			});
-			groups.sort((a, b) => b.rows.length - a.rows.length || a.rank - b.rank);
+			const sgn = dir === "asc" ? -1 : 1;
+			groups.sort((a, b) => sgn * (b.rows.length - a.rows.length) || a.rank - b.rank);
 			rowOrder = groups.flatMap((g) => g.rows);
+		} else if (dir === "desc") {
+			// Pure co-occurrence: desc reverses the seriation order.
+			rowOrder = rowOrder.slice().reverse();
 		}
 	}
 

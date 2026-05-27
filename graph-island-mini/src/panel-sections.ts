@@ -176,7 +176,7 @@ export function renderToggleSection<
 	deps: ToggleSectionDeps,
 	heading: string,
 	toggles: { key: K; label: string }[],
-): void {
+): HTMLElement {
 	const section = parent.createDiv({ cls: "gim-panel-section" });
 	section.createEl("h4", { text: heading });
 	for (const t of toggles) {
@@ -189,6 +189,7 @@ export function renderToggleSection<
 		});
 		row.createSpan({ text: t.label });
 	}
+	return section;
 }
 
 // ORDER_BY: scalar (field + direction) rather than rows, so it has

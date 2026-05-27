@@ -115,6 +115,10 @@ export interface MiniSettings {
 	// Connection-matrix minimum column size — tags with fewer member notes
 	// are dropped from the columns. Default 1 = keep everything.
 	matrixMinColumnSize: number;
+	// Connection-matrix row-order direction (ORDER_BY asc/desc). For
+	// "block-priority": desc = biggest blocks first (default), asc = smallest
+	// first. For "co-occurrence": desc reverses the seriation order.
+	matrixSortDir: "asc" | "desc";
 	// Connection-matrix: bundle consecutive same-signature rows into a block
 	// (count badge + divider) without collapsing them. Default true.
 	matrixGroupBySignature: boolean;
@@ -245,6 +249,7 @@ export const DEFAULT_SETTINGS: MiniSettings = {
 	upsetMinColumnSize: 1,
 	matrixSort: "cooccurrence",
 	matrixMinColumnSize: 1,
+	matrixSortDir: "desc",
 	matrixGroupBySignature: true,
 	matrixCollapseGroups: false,
 	matrixBlockPriority: true,
@@ -254,55 +259,14 @@ export const DEFAULT_SETTINGS: MiniSettings = {
 
 export const NONE_BUCKET = "(none)";
 
-// Matrix row-ordering presets. A single dropdown choice that fully encodes the
-// (block-priority, group-by-signature, collapse) flags — so the matrix ORDER_BY
-// needs no separate checkboxes. `matrixSort` is always "cooccurrence" for all
-// four (the seriation drives every matrix view).
-export type MatrixOrder =
-	| "co-occurrence"
-	| "co-occurrence-grouped"
-	| "block-priority"
-	| "block-priority-collapsed";
-
-export interface MatrixOrderFlags {
-	matrixSort: "cooccurrence";
-	matrixBlockPriority: boolean;
-	matrixGroupBySignature: boolean;
-	matrixCollapseGroups: boolean;
-}
-
-export function matrixOrderFlags(order: MatrixOrder): MatrixOrderFlags {
-	switch (order) {
-		case "co-occurrence":
-			return { matrixSort: "cooccurrence", matrixBlockPriority: false, matrixGroupBySignature: false, matrixCollapseGroups: false };
-		case "co-occurrence-grouped":
-			return { matrixSort: "cooccurrence", matrixBlockPriority: false, matrixGroupBySignature: true, matrixCollapseGroups: false };
-		case "block-priority":
-			return { matrixSort: "cooccurrence", matrixBlockPriority: true, matrixGroupBySignature: true, matrixCollapseGroups: false };
-		case "block-priority-collapsed":
-			return { matrixSort: "cooccurrence", matrixBlockPriority: true, matrixGroupBySignature: true, matrixCollapseGroups: true };
-	}
-}
-
-// Reverse map: derive the dropdown preset from the stored flags. Collapse
-// always implies the "block-priority collapsed" preset (the ×N count-desc
-// view) so an old collapse-on state migrates to the closest valid option.
-export function matrixOrderFromFlags(s: {
-	matrixBlockPriority: boolean;
-	matrixGroupBySignature: boolean;
-	matrixCollapseGroups: boolean;
-}): MatrixOrder {
-	if (s.matrixCollapseGroups) return "block-priority-collapsed";
-	if (s.matrixBlockPriority) return "block-priority";
-	if (s.matrixGroupBySignature) return "co-occurrence-grouped";
-	return "co-occurrence";
-}
-
-export const MATRIX_ORDER_LABELS: Array<{ value: MatrixOrder; label: string }> = [
-	{ value: "co-occurrence", label: "Co-occurrence" },
-	{ value: "co-occurrence-grouped", label: "Co-occurrence grouped" },
-	{ value: "block-priority", label: "Block-priority" },
-	{ value: "block-priority-collapsed", label: "Block-priority collapsed" },
+// Matrix row-order criteria — the matrix-only entries added to the standard
+// ORDER_BY criterion dropdown (alongside the asc/desc direction). They map to
+// the stored matrix layout flags (see view.ts): "block-priority" ⇒
+// matrixBlockPriority = true; "co-occurrence" ⇒ false. matrixSort is always
+// "cooccurrence" (the seriation underlies both).
+export const MATRIX_ORDER_CRITERIA: Array<{ value: string; text: string }> = [
+	{ value: "co-occurrence", text: "co-occurrence" },
+	{ value: "block-priority", text: "block-priority" },
 ];
 
 // Id prefix for bipartite SET nodes (one per tag). NUL bytes guarantee it can
