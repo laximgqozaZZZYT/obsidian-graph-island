@@ -936,38 +936,74 @@ export class MiniGraphView extends ItemView {
 		row.createSpan({ text: "Jaccard color scale" });
 	}
 
+	// One radio row for a view mode. Shared by the stable list and the
+	// collapsible Experimental list — the only difference is a "(beta)" tag.
+	private renderViewModeOption(
+		container: HTMLElement,
+		opt: (typeof VIEW_MODES)[number],
+	): void {
+		const item = container.createEl("label", { cls: "gim-viewmode-option" });
+		const input = item.createEl("input", {
+			type: "radio",
+			attr: { name: "gim-viewmode" },
+		}) as HTMLInputElement;
+		input.value = opt.id;
+		input.checked = this.settings.viewMode === opt.id;
+		input.addEventListener("change", () => {
+			if (!input.checked) return;
+			const next = input.value as ViewMode;
+			if (this.settings.viewMode === next) return;
+			this.settings.viewMode = next;
+			void this.save();
+			void this.rebuild();
+			this.renderPanel();
+		});
+		const text = item.createDiv({ cls: "gim-viewmode-text" });
+		text.createEl("strong", {
+			text: opt.experimental ? `${opt.label} (beta)` : opt.label,
+		});
+		if (opt.description) {
+			text.createEl("span", { cls: "gim-viewmode-desc", text: opt.description });
+		}
+	}
+
 	private renderViewModeSection(parent: HTMLElement): void {
 		const section = parent.createDiv({ cls: "gim-panel-section" });
 		section.createEl("h4", { text: "View mode" });
-		const radioGroup = section.createDiv({ cls: "gim-viewmode-options" });
-		for (const opt of VIEW_MODES) {
-			const item = radioGroup.createEl("label", {
-				cls: "gim-viewmode-option",
-			});
-			const input = item.createEl("input", {
-				type: "radio",
-				attr: { name: "gim-viewmode" },
-			}) as HTMLInputElement;
-			input.value = opt.id;
-			input.checked = this.settings.viewMode === opt.id;
-			input.addEventListener("change", () => {
-				if (!input.checked) return;
-				const next = input.value as ViewMode;
-				if (this.settings.viewMode === next) return;
-				this.settings.viewMode = next;
-				void this.save();
-				void this.rebuild();
-				this.renderPanel();
-			});
-			const text = item.createDiv({ cls: "gim-viewmode-text" });
-			text.createEl("strong", { text: opt.label });
-			if (opt.description) {
-				text.createEl("span", {
-					cls: "gim-viewmode-desc",
-					text: opt.description,
-				});
-			}
+
+		// Stable modes first.
+		const stableGroup = section.createDiv({ cls: "gim-viewmode-options" });
+		for (const opt of VIEW_MODES.filter((o) => !o.experimental)) {
+			this.renderViewModeOption(stableGroup, opt);
 		}
+
+		// Experimental (beta) modes in a collapsible sub-section — these break
+		// on sparse / hierarchy-less vaults, so they're segregated below the
+		// stable list. Expanded by default ONLY when one is currently selected.
+		const experimental = VIEW_MODES.filter((o) => o.experimental);
+		if (experimental.length === 0) return;
+		const expSelected = experimental.some((o) => o.id === this.settings.viewMode);
+
+		const header = section.createDiv({ cls: "gim-viewmode-exp-header" });
+		Object.assign(header.style, {
+			cursor: "pointer",
+			userSelect: "none",
+			margin: "8px 0 4px",
+			fontSize: "12px",
+			color: "#9eb0c4",
+		} as Partial<CSSStyleDeclaration>);
+		const caret = header.createSpan({ text: expSelected ? "▾ " : "▸ " });
+		header.createSpan({ text: "Experimental (beta)" });
+
+		const expGroup = section.createDiv({ cls: "gim-viewmode-options" });
+		expGroup.style.display = expSelected ? "" : "none";
+		for (const opt of experimental) this.renderViewModeOption(expGroup, opt);
+
+		header.addEventListener("click", () => {
+			const open = expGroup.style.display === "none";
+			expGroup.style.display = open ? "" : "none";
+			caret.setText(open ? "▾ " : "▸ ");
+		});
 	}
 
 	// Bipartite-only controls: max number of tag (set) nodes shown.

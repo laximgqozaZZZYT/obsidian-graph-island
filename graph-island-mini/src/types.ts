@@ -163,6 +163,10 @@ export interface ViewModeOption {
 	id: ViewMode;
 	label: string;
 	description?: string;
+	// Experimental (beta) modes are segregated below the stable list in the
+	// View-mode picker. They still render normally when selected — this flag
+	// only affects how the picker groups/labels them.
+	experimental?: boolean;
 }
 
 export const VIEW_MODES: ViewModeOption[] = [
@@ -173,6 +177,9 @@ export const VIEW_MODES: ViewModeOption[] = [
 		id: "euler",
 		label: "Nested set diagram",
 		description: "Per-tag boxes; shared nodes duplicated into a*b*c intersection sub-boxes",
+		// Duplicating shared nodes into intersection sub-boxes explodes the box
+		// count on giant tags in a sparse, deeply-multi-membership vault.
+		experimental: true,
 	},
 	{
 		// `id` stays "euler-true" for settings/preset compatibility. NOT a
@@ -181,6 +188,9 @@ export const VIEW_MODES: ViewModeOption[] = [
 		id: "euler-true",
 		label: "Containment map",
 		description: "Subset → nested rectangles; partial overlaps as exclaves (each node once)",
+		// Without a clear tag containment hierarchy, partial overlaps fragment
+		// into exclaves everywhere and the map becomes hard to read.
+		experimental: true,
 	},
 	{
 		// Simplified Euler: same grid/box drawing as the nested-set mode, but
@@ -260,7 +270,10 @@ export const DEFAULT_SETTINGS: MiniSettings = {
 	panelVisible: false,
 	clusterOffsets: {},
 	nodeOffsets: {},
-	viewMode: "euler",
+	// Default is a STABLE mode (the Nested-set / Containment-map experimentals
+	// are beta-segregated). Existing users keep their saved viewMode — this
+	// default only applies on first load / when no viewMode is persisted.
+	viewMode: "matrix",
 	upsetColumnSort: "size",
 	upsetMinColumnSize: 1,
 	matrixSort: "cooccurrence",
