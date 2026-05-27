@@ -2440,10 +2440,15 @@ export class MiniGraphView extends ItemView {
 			const cnt = h.counts[target.i * h.n + target.j];
 			if (target.i === target.j) {
 				tip.createSpan({ cls: "gim-tip-title", text: ti.label });
-				tip.createSpan({ cls: "gim-tip-sub", text: `${ti.size} notes` });
+				tip.createSpan({ cls: "gim-tip-sub", text: `${ti.size}件` });
 			} else {
-				tip.createSpan({ cls: "gim-tip-title", text: `${ti.label} × ${tj.label}` });
-				tip.createSpan({ cls: "gim-tip-sub", text: `${cnt} shared` });
+				// Raw intersection count + the Jaccard ratio so both the absolute
+				// and the normalised strength are readable, independent of the
+				// cell's colour scale.
+				const uni = ti.size + tj.size - cnt;
+				const jac = uni > 0 ? (cnt / uni).toFixed(2) : "0.00";
+				tip.createSpan({ cls: "gim-tip-title", text: `${ti.label} ∩ ${tj.label}` });
+				tip.createSpan({ cls: "gim-tip-sub", text: `${cnt}件 (Jaccard ${jac})` });
 			}
 			this.root.appendChild(tip);
 			this.tipEl = tip;

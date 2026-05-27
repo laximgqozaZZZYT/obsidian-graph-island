@@ -90,6 +90,22 @@ export function drawHeatmap(
 	ctx.rect(labelBand, headerH, visW - labelBand, visH - headerH);
 	ctx.clip();
 	const inset = cellPx > 6 ? 0.5 : 0;
+	// In-cell number LOD: only when a cell is large enough to fit a legible
+	// digit (same slot*zoom idea as the matrix). Numbers are the raw COUNT
+	// (|Ti ∩ Tj|, or |Ti| on the diagonal) regardless of the colour scale.
+	const numFont = Math.max(o.minFontPx, Math.min(cellPx * 0.44, 13));
+	const showNums = cellPx >= Math.max(16, o.minFontPx * 2);
+	if (showNums) {
+		ctx.font = `${numFont}px sans-serif`;
+		ctx.textAlign = "center";
+		ctx.textBaseline = "middle";
+	}
+	// Text colour picked for contrast against the cell's lightness.
+	const num = (v: number, cx: number, cy: number, light: number): void => {
+		if (v <= 0) return;
+		ctx.fillStyle = light > 52 ? "#10141c" : "#eef3f9";
+		ctx.fillText(String(v), cx, cy);
+	};
 	for (let r = r0; r <= r1; r++) {
 		const y = cellY(r);
 		for (let c = c0; c <= c1; c++) {
@@ -97,12 +113,14 @@ export function drawHeatmap(
 			if (c === r) {
 				// Diagonal = tag size, distinct amber (log-scaled lightness).
 				const t = Math.log(h.tags[r].size + 1) / logSize;
-				ctx.fillStyle = `hsl(42, 85%, ${28 + t * 34}%)`;
+				const light = 28 + t * 34;
+				ctx.fillStyle = `hsl(42, 85%, ${light}%)`;
 				ctx.fillRect(x + inset, y + inset, cellPx - 2 * inset, cellPx - 2 * inset);
+				if (showNums) num(h.tags[r].size, x + cellPx / 2, y + cellPx / 2, light);
 				continue;
 			}
 			const cnt = h.counts[r * n + c];
-			if (cnt <= 0) continue; // background (no co-occurrence)
+			if (cnt <= 0) continue; // background (no co-occurrence): no fill, no number
 			let intensity: number;
 			if (o.jaccard) {
 				const uni = h.tags[r].size + h.tags[c].size - cnt;
@@ -112,8 +130,10 @@ export function drawHeatmap(
 				// don't wash out the rest.
 				intensity = Math.min(1, Math.log(cnt + 1) / logRef);
 			}
-			ctx.fillStyle = `hsl(210, 72%, ${16 + intensity * 56}%)`;
+			const light = 16 + intensity * 56;
+			ctx.fillStyle = `hsl(210, 72%, ${light}%)`;
 			ctx.fillRect(x + inset, y + inset, cellPx - 2 * inset, cellPx - 2 * inset);
+			if (showNums) num(cnt, x + cellPx / 2, y + cellPx / 2, light);
 		}
 	}
 	// Selected cell outline (both the cell and its symmetric twin).
